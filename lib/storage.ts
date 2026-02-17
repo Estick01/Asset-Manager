@@ -19,6 +19,7 @@ export interface Cliente {
   correo: string;
   telefono: string;
   documento: string;
+  password: string;
   activo: boolean;
   fechaCreacion: string;
 }
@@ -41,6 +42,18 @@ export interface Actualizacion {
   fecha: string;
   titulo: string;
   descripcion: string;
+  tipo: "manual" | "documento";
+  documentoId?: string;
+}
+
+export interface Documento {
+  id: string;
+  procesoId: string;
+  nombre: string;
+  uri: string;
+  tipo: string;
+  tamano: number;
+  fechaSubida: string;
 }
 
 const KEYS = {
@@ -48,7 +61,10 @@ const KEYS = {
   CLIENTES: "lextrack_clientes",
   PROCESOS: "lextrack_procesos",
   ACTUALIZACIONES: "lextrack_actualizaciones",
+  DOCUMENTOS: "lextrack_documentos",
   AUTH: "lextrack_auth",
+  CLIENT_AUTH: "lextrack_client_auth",
+  CLIENT_AUTH_ID: "lextrack_client_auth_id",
 };
 
 function generateId(): string {
@@ -99,6 +115,29 @@ export async function isAuthenticated(): Promise<boolean> {
 
 export async function logout(): Promise<void> {
   await AsyncStorage.removeItem(KEYS.AUTH);
+}
+
+export async function loginCliente(documento: string, password: string): Promise<Cliente | null> {
+  const data = await AsyncStorage.getItem(KEYS.CLIENTES);
+  const all: Cliente[] = data ? JSON.parse(data) : [];
+  const cliente = all.find((c) => c.documento === documento && c.password === password && c.activo);
+  if (cliente) {
+    await AsyncStorage.setItem(KEYS.CLIENT_AUTH, "true");
+    await AsyncStorage.setItem(KEYS.CLIENT_AUTH_ID, cliente.id);
+    return cliente;
+  }
+  return null;
+}
+
+export async function isClientAuthenticated(): Promise<{ authenticated: boolean; clienteId: string | null }> {
+  const auth = await AsyncStorage.getItem(KEYS.CLIENT_AUTH);
+  const clienteId = await AsyncStorage.getItem(KEYS.CLIENT_AUTH_ID);
+  return { authenticated: auth === "true", clienteId };
+}
+
+export async function logoutCliente(): Promise<void> {
+  await AsyncStorage.removeItem(KEYS.CLIENT_AUTH);
+  await AsyncStorage.removeItem(KEYS.CLIENT_AUTH_ID);
 }
 
 export async function getClientes(abogadoId: string): Promise<Cliente[]> {
@@ -212,6 +251,38 @@ export async function deleteActualizacion(id: string): Promise<void> {
   const all: Actualizacion[] = data ? JSON.parse(data) : [];
   const filtered = all.filter((a) => a.id !== id);
   await AsyncStorage.setItem(KEYS.ACTUALIZACIONES, JSON.stringify(filtered));
+}
+
+export async function getDocumentos(procesoId: string): Promise<Documento[]> {
+  const data = await AsyncStorage.getItem(KEYS.DOCUMENTOS);
+  const all: Documento[] = data ? JSON.parse(data) : [];
+  return all.filter((d) => d.procesoId === procesoId).sort((a, b) => new Date(b.fechaSubida).getTime() - new Date(a.fechaSubida).getTime());
+}
+
+export async function saveDocumento(doc: Omit<Documento, "id" | "fechaSubida">): Promise<Documento> {
+  const data = await AsyncStorage.getItem(KEYS.DOCUMENTOS);
+  const all: Documento[] = data ? JSON.parse(data) : [];
+  const newDoc: Documento = {
+    ...doc,
+    id: generateId(),
+    fechaSubida: new Date().toISOString(),
+  };
+  all.push(newDoc);
+  await AsyncStorage.setItem(KEYS.DOCUMENTOS, JSON.stringify(all));
+  return newDoc;
+}
+
+export async function deleteDocumento(id: string): Promise<void> {
+  const data = await AsyncStorage.getItem(KEYS.DOCUMENTOS);
+  const all: Documento[] = data ? JSON.parse(data) : [];
+  const filtered = all.filter((d) => d.id !== id);
+  await AsyncStorage.setItem(KEYS.DOCUMENTOS, JSON.stringify(filtered));
+}
+
+export async function getDocumento(id: string): Promise<Documento | null> {
+  const data = await AsyncStorage.getItem(KEYS.DOCUMENTOS);
+  const all: Documento[] = data ? JSON.parse(data) : [];
+  return all.find((d) => d.id === id) || null;
 }
 
 export async function getDashboardStats(abogadoId: string): Promise<{

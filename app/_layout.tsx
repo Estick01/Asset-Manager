@@ -21,6 +21,7 @@ function RootLayoutNav() {
       <Stack.Screen name="case/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="case/new" options={{ headerShown: false }} />
       <Stack.Screen name="update/new" options={{ presentation: "formSheet", sheetAllowedDetents: [0.65], sheetGrabberVisible: true, headerShown: false }} />
+      <Stack.Screen name="portal" options={{ headerShown: false }} />
     </Stack>
   );
 }

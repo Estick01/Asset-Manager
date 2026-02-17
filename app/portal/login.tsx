@@ -6,32 +6,30 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/lib/auth-context";
+import { loginCliente } from "@/lib/storage";
 
-export default function LoginScreen() {
+export default function ClientPortalLoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
-  const [correo, setCorreo] = useState("");
+  const [documento, setDocumento] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
-    if (!correo.trim() || !password.trim()) {
+    if (!documento.trim() || !password.trim()) {
       setError("Completa todos los campos");
       return;
     }
     setLoading(true);
     setError("");
     try {
-      const success = await login(correo.trim(), password);
-      if (success) {
+      const cliente = await loginCliente(documento.trim(), password);
+      if (cliente) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.dismissAll();
-        router.replace("/(tabs)");
+        router.replace("/portal");
       } else {
-        setError("Correo o contrasena incorrectos");
+        setError("Documento o contrasena incorrectos");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch {
@@ -42,22 +40,26 @@ export default function LoginScreen() {
   };
 
   return (
-    <LinearGradient colors={[Colors.primaryDark, Colors.primary, Colors.primaryLight]} style={styles.gradient}>
+    <LinearGradient colors={["#0D3B66", "#1B5A8C", "#2980B9"]} style={styles.gradient}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
           contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 40), paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 20) }]}
           keyboardShouldPersistTaps="handled"
         >
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </Pressable>
+
           <View style={styles.logoSection}>
             <View style={styles.iconCircle}>
-              <Ionicons name="briefcase" size={40} color={Colors.accent} />
+              <Ionicons name="person-circle-outline" size={44} color="#2980B9" />
             </View>
-            <Text style={styles.brandName}>LexTrack</Text>
-            <Text style={styles.brandSub}>Sistema de Seguimiento Juridico</Text>
+            <Text style={styles.brandName}>Portal del Cliente</Text>
+            <Text style={styles.brandSub}>Consulta el estado de tus procesos</Text>
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Iniciar Sesion</Text>
+            <Text style={styles.formTitle}>Acceder</Text>
 
             {!!error && (
               <View style={styles.errorBox}>
@@ -67,18 +69,17 @@ export default function LoginScreen() {
             )}
 
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Correo electronico</Text>
+              <Text style={styles.label}>Documento de identidad</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
-                  value={correo}
-                  onChangeText={setCorreo}
-                  placeholder="tu@correo.com"
+                  value={documento}
+                  onChangeText={setDocumento}
+                  placeholder="Tu numero de documento"
                   placeholderTextColor={Colors.textTertiary}
-                  keyboardType="email-address"
+                  keyboardType="default"
                   autoCapitalize="none"
-                  autoCorrect={false}
                 />
               </View>
             </View>
@@ -115,16 +116,9 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>No tienes cuenta?</Text>
-            <Pressable onPress={() => router.push("/(auth)/register")}>
-              <Text style={styles.footerLink}>Registrate</Text>
-            </Pressable>
+            <Ionicons name="information-circle-outline" size={16} color="rgba(255,255,255,0.6)" />
+            <Text style={styles.footerText}>Solicita tus credenciales a tu abogado</Text>
           </View>
-
-          <Pressable onPress={() => { router.dismissAll(); router.push("/portal/login"); }} style={styles.portalLink}>
-            <Ionicons name="person-circle-outline" size={18} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.portalLinkText}>Soy cliente - Acceder al portal</Text>
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -138,6 +132,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 24,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
   },
   logoSection: {
     alignItems: "center",
@@ -153,16 +156,17 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   brandName: {
-    fontSize: 32,
+    fontSize: 26,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   brandSub: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.7)",
     marginTop: 4,
+    textAlign: "center",
   },
   formCard: {
     backgroundColor: Colors.white,
@@ -190,9 +194,7 @@ const styles = StyleSheet.create({
     color: Colors.danger,
     flex: 1,
   },
-  inputGroup: {
-    gap: 6,
-  },
+  inputGroup: { gap: 6 },
   label: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
@@ -207,9 +209,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  inputIcon: {
-    marginLeft: 14,
-  },
+  inputIcon: { marginLeft: 14 },
   input: {
     flex: 1,
     paddingVertical: 14,
@@ -218,28 +218,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.text,
   },
-  passwordInput: {
-    paddingRight: 44,
-  },
+  passwordInput: { paddingRight: 44 },
   eyeBtn: {
     position: "absolute",
     right: 12,
     padding: 4,
   },
   loginBtn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: "#1B5A8C",
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
     marginTop: 8,
   },
-  loginBtnPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.98 }],
-  },
-  loginBtnDisabled: {
-    opacity: 0.6,
-  },
+  loginBtnPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  loginBtnDisabled: { opacity: 0.6 },
   loginBtnText: {
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
@@ -248,33 +241,13 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "center",
+    alignItems: "center",
     marginTop: 24,
     gap: 6,
   },
   footerText: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.7)",
-  },
-  footerLink: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.accent,
-  },
-  portalLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    borderRadius: 14,
-  },
-  portalLinkText: {
-    fontSize: 14,
-    fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.8)",
+    color: "rgba(255,255,255,0.6)",
   },
 });

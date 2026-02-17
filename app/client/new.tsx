@@ -11,7 +11,7 @@ import { saveCliente } from "@/lib/storage";
 export default function NewClientScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [form, setForm] = useState({ nombre: "", correo: "", telefono: "", documento: "" });
+  const [form, setForm] = useState({ nombre: "", correo: "", telefono: "", documento: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,6 +20,14 @@ export default function NewClientScreen() {
   const handleSave = async () => {
     if (!form.nombre.trim()) {
       setError("El nombre es obligatorio");
+      return;
+    }
+    if (!form.documento.trim()) {
+      setError("El documento es obligatorio para el portal del cliente");
+      return;
+    }
+    if (!form.password.trim()) {
+      setError("La contrasena es obligatoria para el acceso del cliente");
       return;
     }
     if (!user) return;
@@ -32,6 +40,7 @@ export default function NewClientScreen() {
         correo: form.correo.trim(),
         telefono: form.telefono.trim(),
         documento: form.documento.trim(),
+        password: form.password,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
@@ -44,9 +53,10 @@ export default function NewClientScreen() {
 
   const fields = [
     { key: "nombre", label: "Nombre completo", icon: "person-outline" as const, placeholder: "Nombre del cliente", required: true },
-    { key: "documento", label: "Documento de identidad", icon: "card-outline" as const, placeholder: "CC o NIT" },
+    { key: "documento", label: "Documento de identidad", icon: "card-outline" as const, placeholder: "CC o NIT", required: true },
     { key: "correo", label: "Correo electronico", icon: "mail-outline" as const, placeholder: "cliente@correo.com", keyboard: "email-address" as const },
     { key: "telefono", label: "Telefono", icon: "call-outline" as const, placeholder: "+57 300 000 0000", keyboard: "phone-pad" as const },
+    { key: "password", label: "Contrasena del portal", icon: "lock-closed-outline" as const, placeholder: "Contrasena para acceso del cliente", required: true, secure: true },
   ];
 
   return (
@@ -68,6 +78,11 @@ export default function NewClientScreen() {
             </View>
           )}
 
+          <View style={styles.infoBox}>
+            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+            <Text style={styles.infoText}>El documento y contrasena permiten al cliente acceder al Portal del Cliente para consultar sus procesos.</Text>
+          </View>
+
           {fields.map((field) => (
             <View key={field.key} style={styles.inputGroup}>
               <Text style={styles.label}>
@@ -83,7 +98,8 @@ export default function NewClientScreen() {
                   placeholder={field.placeholder}
                   placeholderTextColor={Colors.textTertiary}
                   keyboardType={field.keyboard || "default"}
-                  autoCapitalize={field.key === "correo" ? "none" : "words"}
+                  autoCapitalize={field.key === "correo" ? "none" : field.secure ? "none" : "words"}
+                  secureTextEntry={!!field.secure}
                 />
               </View>
             </View>
@@ -139,6 +155,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: Colors.danger,
     flex: 1,
+  },
+  infoBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: Colors.infoLight,
+    padding: 12,
+    borderRadius: 10,
+  },
+  infoText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.info,
+    flex: 1,
+    lineHeight: 18,
   },
   inputGroup: { gap: 6 },
   label: {

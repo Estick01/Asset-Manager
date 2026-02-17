@@ -1,17 +1,10 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from "react-native";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import * as DocumentPicker from "expo-document-picker";
 import Colors from "@/constants/colors";
-import {
-  getProceso, getCliente, getActualizaciones, getDocumentos,
-  deleteProceso, deleteActualizacion, deleteDocumento,
-  saveDocumento, saveActualizacion,
-  type Proceso, type Cliente, type Actualizacion, type Documento,
-} from "@/lib/storage";
+import { getProceso, getActualizaciones, getDocumentos, getAbogado, type Proceso, type Actualizacion, type Documento, type Abogado } from "@/lib/storage";
 
 const ESTADO_COLORS: Record<string, string> = {
   activo: Colors.success,
@@ -31,7 +24,6 @@ function getFileIcon(tipo: string): keyof typeof Ionicons.glyphMap {
   if (tipo.includes("pdf")) return "document-text";
   if (tipo.includes("image")) return "image";
   if (tipo.includes("word") || tipo.includes("doc")) return "document";
-  if (tipo.includes("sheet") || tipo.includes("excel") || tipo.includes("csv")) return "grid";
   return "attach";
 }
 
@@ -41,115 +33,32 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
-export default function CaseDetailScreen() {
+export default function ClientCaseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const [proceso, setProceso] = useState<Proceso | null>(null);
-  const [cliente, setCliente] = useState<Cliente | null>(null);
+  const [abogado, setAbogado] = useState<Abogado | null>(null);
   const [actualizaciones, setActualizaciones] = useState<Actualizacion[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [activeTab, setActiveTab] = useState<"timeline" | "documents">("timeline");
 
-  const loadData = useCallback(async () => {
-    if (!id) return;
-    const p = await getProceso(id);
-    setProceso(p);
-    if (p) {
-      const c = await getCliente(p.clienteId);
-      setCliente(c);
-      const acts = await getActualizaciones(p.id);
-      setActualizaciones(acts);
-      const docs = await getDocumentos(p.id);
-      setDocumentos(docs);
-    }
-  }, [id]);
-
   useFocusEffect(
     useCallback(() => {
-      loadData();
-    }, [loadData]),
+      (async () => {
+        if (!id) return;
+        const p = await getProceso(id);
+        setProceso(p);
+        if (p) {
+          const ab = await getAbogado();
+          setAbogado(ab);
+          const acts = await getActualizaciones(p.id);
+          setActualizaciones(acts);
+          const docs = await getDocumentos(p.id);
+          setDocumentos(docs);
+        }
+      })();
+    }, [id]),
   );
-
-  const handleDelete = () => {
-    if (!proceso) return;
-    Alert.alert("Eliminar Proceso", "Estas seguro de eliminar este proceso?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          await deleteProceso(proceso.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.back();
-        },
-      },
-    ]);
-  };
-
-  const handleDeleteUpdate = (act: Actualizacion) => {
-    Alert.alert("Eliminar Actualizacion", "Estas seguro?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          await deleteActualizacion(act.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          loadData();
-        },
-      },
-    ]);
-  };
-
-  const handleDeleteDoc = (doc: Documento) => {
-    Alert.alert("Eliminar Documento", `Eliminar "${doc.nombre}"?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          await deleteDocumento(doc.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          loadData();
-        },
-      },
-    ]);
-  };
-
-  const handlePickDocument = async () => {
-    if (!proceso) return;
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: "*/*",
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const file = result.assets[0];
-        const doc = await saveDocumento({
-          procesoId: proceso.id,
-          nombre: file.name,
-          uri: file.uri,
-          tipo: file.mimeType || "application/octet-stream",
-          tamano: file.size || 0,
-        });
-
-        await saveActualizacion({
-          procesoId: proceso.id,
-          fecha: new Date().toISOString(),
-          titulo: "Documento agregado",
-          descripcion: `Se agrego el documento "${file.name}"`,
-          tipo: "documento",
-          documentoId: doc.id,
-        });
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        loadData();
-      }
-    } catch {
-      Alert.alert("Error", "No se pudo agregar el documento");
-    }
-  };
 
   if (!proceso) {
     return (
@@ -167,10 +76,8 @@ export default function CaseDetailScreen() {
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
-        <Text style={styles.headerTitle}>Proceso</Text>
-        <Pressable onPress={handleDelete} hitSlop={8}>
-          <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-        </Pressable>
+        <Text style={styles.headerTitle}>Detalle del Proceso</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -190,28 +97,25 @@ export default function CaseDetailScreen() {
 
         <View style={styles.infoCard}>
           <View style={[styles.infoRow, styles.infoRowBorder]}>
-            <Ionicons name="person-outline" size={20} color={Colors.textSecondary} />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Cliente</Text>
-              <Text style={styles.infoValue}>{cliente?.nombre || "Desconocido"}</Text>
-            </View>
-            {cliente && (
-              <Pressable onPress={() => router.push({ pathname: "/client/[id]", params: { id: cliente.id } })}>
-                <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
-              </Pressable>
-            )}
-          </View>
-          <View style={[styles.infoRow, styles.infoRowBorder]}>
             <Ionicons name="business-outline" size={20} color={Colors.textSecondary} />
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Juzgado</Text>
               <Text style={styles.infoValue}>{proceso.juzgado}</Text>
             </View>
           </View>
+          {abogado && (
+            <View style={[styles.infoRow, styles.infoRowBorder]}>
+              <Ionicons name="briefcase-outline" size={20} color={Colors.textSecondary} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoLabel}>Abogado</Text>
+                <Text style={styles.infoValue}>{abogado.nombre}</Text>
+              </View>
+            </View>
+          )}
           <View style={styles.infoRow}>
             <Ionicons name="calendar-outline" size={20} color={Colors.textSecondary} />
             <View style={styles.infoContent}>
-              <Text style={styles.infoLabel}>Fecha de creacion</Text>
+              <Text style={styles.infoLabel}>Inicio del proceso</Text>
               <Text style={styles.infoValue}>{new Date(proceso.fechaCreacion).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" })}</Text>
             </View>
           </View>
@@ -222,14 +126,14 @@ export default function CaseDetailScreen() {
             style={[styles.tab, activeTab === "timeline" && styles.tabActive]}
             onPress={() => setActiveTab("timeline")}
           >
-            <Ionicons name="time-outline" size={18} color={activeTab === "timeline" ? Colors.primary : Colors.textTertiary} />
+            <Ionicons name="time-outline" size={18} color={activeTab === "timeline" ? "#1B5A8C" : Colors.textTertiary} />
             <Text style={[styles.tabText, activeTab === "timeline" && styles.tabTextActive]}>Linea de Tiempo</Text>
           </Pressable>
           <Pressable
             style={[styles.tab, activeTab === "documents" && styles.tabActive]}
             onPress={() => setActiveTab("documents")}
           >
-            <Ionicons name="folder-outline" size={18} color={activeTab === "documents" ? Colors.primary : Colors.textTertiary} />
+            <Ionicons name="folder-outline" size={18} color={activeTab === "documents" ? "#1B5A8C" : Colors.textTertiary} />
             <Text style={[styles.tabText, activeTab === "documents" && styles.tabTextActive]}>
               Documentos{documentos.length > 0 ? ` (${documentos.length})` : ""}
             </Text>
@@ -238,27 +142,15 @@ export default function CaseDetailScreen() {
 
         {activeTab === "timeline" && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Actualizaciones</Text>
-              <Pressable
-                style={styles.addUpdateBtn}
-                onPress={() => router.push({ pathname: "/update/new", params: { procesoId: proceso.id } })}
-              >
-                <Ionicons name="add" size={18} color={Colors.white} />
-                <Text style={styles.addUpdateText}>Agregar</Text>
-              </Pressable>
-            </View>
-
             {actualizaciones.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="time-outline" size={36} color={Colors.textTertiary} />
                 <Text style={styles.emptyText}>Sin actualizaciones</Text>
-                <Text style={styles.emptySubtext}>Agrega la primera actualizacion</Text>
               </View>
             ) : (
               <View style={styles.timeline}>
                 {actualizaciones.map((act, idx) => (
-                  <Pressable key={act.id} onLongPress={() => handleDeleteUpdate(act)} style={styles.timelineItem}>
+                  <View key={act.id} style={styles.timelineItem}>
                     <View style={styles.timelineLine}>
                       <View style={[
                         styles.timelineDot,
@@ -282,7 +174,7 @@ export default function CaseDetailScreen() {
                       <Text style={styles.timelineTitle}>{act.titulo}</Text>
                       {!!act.descripcion && <Text style={styles.timelineDesc}>{act.descripcion}</Text>}
                     </View>
-                  </Pressable>
+                  </View>
                 ))}
               </View>
             )}
@@ -291,33 +183,16 @@ export default function CaseDetailScreen() {
 
         {activeTab === "documents" && (
           <>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Archivos</Text>
-              <Pressable style={styles.addUpdateBtn} onPress={handlePickDocument}>
-                <Ionicons name="cloud-upload-outline" size={18} color={Colors.white} />
-                <Text style={styles.addUpdateText}>Subir</Text>
-              </Pressable>
-            </View>
-
             {documentos.length === 0 ? (
               <View style={styles.emptyState}>
                 <Ionicons name="folder-open-outline" size={36} color={Colors.textTertiary} />
                 <Text style={styles.emptyText}>Sin documentos</Text>
-                <Text style={styles.emptySubtext}>Sube el primer archivo del proceso</Text>
-                <Pressable style={styles.uploadEmptyBtn} onPress={handlePickDocument}>
-                  <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
-                  <Text style={styles.uploadEmptyText}>Subir documento</Text>
-                </Pressable>
               </View>
             ) : (
               documentos.map((doc) => (
-                <Pressable
-                  key={doc.id}
-                  style={({ pressed }) => [styles.docCard, pressed && styles.docCardPressed]}
-                  onLongPress={() => handleDeleteDoc(doc)}
-                >
-                  <View style={[styles.docIconWrap, { backgroundColor: Colors.primary + "12" }]}>
-                    <Ionicons name={getFileIcon(doc.tipo)} size={24} color={Colors.primary} />
+                <View key={doc.id} style={styles.docCard}>
+                  <View style={[styles.docIconWrap, { backgroundColor: "#1B5A8C" + "12" }]}>
+                    <Ionicons name={getFileIcon(doc.tipo)} size={24} color="#1B5A8C" />
                   </View>
                   <View style={styles.docInfo}>
                     <Text style={styles.docName} numberOfLines={1}>{doc.nombre}</Text>
@@ -329,10 +204,7 @@ export default function CaseDetailScreen() {
                       </Text>
                     </View>
                   </View>
-                  <Pressable onPress={() => handleDeleteDoc(doc)} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={18} color={Colors.textTertiary} />
-                  </Pressable>
-                </Pressable>
+                </View>
               ))
             )}
           </>
@@ -427,51 +299,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 10,
   },
-  tabActive: {
-    backgroundColor: Colors.primary + "12",
-  },
-  tabText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textTertiary,
-  },
-  tabTextActive: {
-    color: Colors.primary,
-    fontFamily: "Inter_600SemiBold",
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
-  addUpdateBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  addUpdateText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.white },
+  tabActive: { backgroundColor: "#1B5A8C" + "12" },
+  tabText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textTertiary },
+  tabTextActive: { color: "#1B5A8C", fontFamily: "Inter_600SemiBold" },
   emptyState: { alignItems: "center", paddingVertical: 32, gap: 6 },
   emptyText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
-  emptySubtext: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
-  uploadEmptyBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    borderStyle: "dashed",
-  },
-  uploadEmptyText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.primary },
   timeline: { gap: 0 },
   timelineItem: { flexDirection: "row" },
   timelineLine: { width: 24, alignItems: "center" },
@@ -484,13 +316,9 @@ const styles = StyleSheet.create({
     borderColor: Colors.surfaceSecondary,
     marginTop: 18,
   },
-  timelineDotActive: { backgroundColor: Colors.primary, borderColor: Colors.primary + "30" },
+  timelineDotActive: { backgroundColor: "#1B5A8C", borderColor: "#1B5A8C" + "30" },
   timelineDotDocument: { backgroundColor: Colors.accent, borderColor: Colors.accent + "30" },
-  timelineConnector: {
-    width: 2,
-    flex: 1,
-    backgroundColor: Colors.border,
-  },
+  timelineConnector: { width: 2, flex: 1, backgroundColor: Colors.border },
   timelineCard: {
     flex: 1,
     backgroundColor: Colors.white,
@@ -499,10 +327,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     marginBottom: 12,
   },
-  timelineCardActive: {
-    borderWidth: 1,
-    borderColor: Colors.primary + "30",
-  },
+  timelineCardActive: { borderWidth: 1, borderColor: "#1B5A8C" + "30" },
   timelineCardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -535,7 +360,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 1,
   },
-  docCardPressed: { opacity: 0.9 },
   docIconWrap: {
     width: 48,
     height: 48,

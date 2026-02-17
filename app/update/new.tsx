@@ -1,7 +1,6 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
@@ -9,7 +8,6 @@ import { saveActualizacion } from "@/lib/storage";
 
 export default function NewUpdateScreen() {
   const { procesoId } = useLocalSearchParams<{ procesoId: string }>();
-  const insets = useSafeAreaInsets();
   const [titulo, setTitulo] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,6 +27,7 @@ export default function NewUpdateScreen() {
         fecha: new Date().toISOString(),
         titulo: titulo.trim(),
         descripcion: descripcion.trim(),
+        tipo: "manual",
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.back();
