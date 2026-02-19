@@ -46,7 +46,16 @@ export default function ClientPortalLoginScreen() {
           contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 40), paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 20) }]}
           keyboardShouldPersistTaps="handled"
         >
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <Pressable
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(auth)/login");
+              }
+            }}
+            style={styles.backBtn}
+          >
             <Ionicons name="arrow-back" size={24} color={Colors.white} />
           </Pressable>
 

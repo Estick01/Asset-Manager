@@ -6,7 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { isClientAuthenticated, getCliente, getProcesosByCliente, getAbogado, logoutCliente, type Cliente, type Proceso, type Abogado } from "@/lib/storage";
+import { StyledModal } from "@/components/StyledModal";
+import { Abogado, Cliente, getAbogado, getCliente, getProcesosByCliente, isClientAuthenticated, logoutCliente, Proceso } from "@/lib/storage";
 
 const ESTADO_COLORS: Record<string, string> = {
   activo: Colors.success,
@@ -28,6 +29,7 @@ export default function ClientPortalScreen() {
   const [abogado, setAbogado] = useState<Abogado | null>(null);
   const [procesos, setProcesos] = useState<Proceso[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
   const loadData = useCallback(async () => {
     const { authenticated, clienteId } = await isClientAuthenticated();
@@ -59,18 +61,11 @@ export default function ClientPortalScreen() {
     setRefreshing(false);
   };
 
-  const handleLogout = () => {
-    Alert.alert("Salir", "Deseas cerrar tu sesion?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Salir",
-        onPress: async () => {
-          await logoutCliente();
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.replace("/portal/login");
-        },
-      },
-    ]);
+  const handleConfirmLogout = async () => {
+    await logoutCliente();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsLogoutModalVisible(false);
+    router.replace("/portal/login");
   };
 
   const activos = procesos.filter((p) => p.estadoActual === "activo" || p.estadoActual === "en_tramite").length;
@@ -93,9 +88,14 @@ export default function ClientPortalScreen() {
                 </View>
               )}
             </View>
-            <Pressable onPress={handleLogout} style={styles.logoutBtn}>
-              <Ionicons name="log-out-outline" size={22} color={Colors.white} />
-            </Pressable>
+            <View style={styles.headerRight}>
+              <Pressable onPress={() => router.push("/portal/profile")} style={styles.headerBtn}>
+                <Ionicons name="person-outline" size={22} color={Colors.white} />
+              </Pressable>
+              <Pressable onPress={() => setIsLogoutModalVisible(true)} style={styles.headerBtn}>
+                <Ionicons name="log-out-outline" size={22} color={Colors.white} />
+              </Pressable>
+            </View>
           </View>
         </LinearGradient>
 
@@ -150,6 +150,16 @@ export default function ClientPortalScreen() {
           )}
         </View>
       </ScrollView>
+      <StyledModal
+        visible={isLogoutModalVisible}
+        onClose={() => setIsLogoutModalVisible(false)}
+        title="Salir"
+        onConfirm={handleConfirmLogout}
+        confirmText="Salir"
+        cancelText="Cancelar"
+      >
+        <Text style={styles.modalText}>¿Deseas cerrar tu sesión?</Text>
+      </StyledModal>
     </View>
   );
 }
@@ -188,7 +198,11 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.6)",
   },
-  logoutBtn: {
+  headerRight: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  headerBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -304,4 +318,12 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
   },
+  modalText: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
 });
+

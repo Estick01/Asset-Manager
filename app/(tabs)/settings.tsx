@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -6,24 +6,18 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
+import { StyledModal } from "@/components/StyledModal";
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
-  const handleLogout = () => {
-    Alert.alert("Cerrar Sesion", "Estas seguro de cerrar sesion?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Cerrar Sesion",
-        style: "destructive",
-        onPress: async () => {
-          await logout();
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.replace("/(auth)/login");
-        },
-      },
-    ]);
+  const handleConfirmLogout = async () => {
+    await logout();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setIsLogoutModalVisible(false);
+    router.replace("/(auth)/login");
   };
 
   const sections = [
@@ -83,7 +77,7 @@ export default function SettingsScreen() {
         ))}
 
         <View style={styles.section}>
-          <Pressable style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutBtnPressed]} onPress={handleLogout}>
+          <Pressable style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutBtnPressed]} onPress={() => setIsLogoutModalVisible(true)}>
             <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
             <Text style={styles.logoutText}>Cerrar Sesion</Text>
           </Pressable>
@@ -91,6 +85,16 @@ export default function SettingsScreen() {
 
         <Text style={styles.version}>LexTrack v1.0.0</Text>
       </ScrollView>
+      <StyledModal
+        visible={isLogoutModalVisible}
+        onClose={() => setIsLogoutModalVisible(false)}
+        title="Cerrar Sesión"
+        onConfirm={handleConfirmLogout}
+        confirmText="Cerrar Sesión"
+        cancelText="Cancelar"
+      >
+        <Text style={styles.modalText}>¿Estás seguro de cerrar sesión?</Text>
+      </StyledModal>
     </View>
   );
 }
@@ -238,4 +242,11 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     paddingVertical: 20,
   },
-});
+  modalText: {
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+})

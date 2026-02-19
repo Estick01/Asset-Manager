@@ -79,9 +79,14 @@ export default function ClientDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Cliente</Text>
-        <Pressable onPress={handleDelete} hitSlop={8}>
-          <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => router.push({ pathname: "/client/[id]", params: { id, edit: "true" } })} hitSlop={8}>
+            <Ionicons name="create-outline" size={22} color={Colors.primary} />
+          </Pressable>
+          <Pressable onPress={handleDelete} hitSlop={8}>
+            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -157,6 +162,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
   },
   content: {
     padding: 20,

@@ -168,9 +168,14 @@ export default function CaseDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Proceso</Text>
-        <Pressable onPress={handleDelete} hitSlop={8}>
-          <Ionicons name="trash-outline" size={22} color={Colors.danger} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => router.push({ pathname: "/case/edit/[id]", params: { id } })} hitSlop={8}>
+            <Ionicons name="create-outline" size={22} color={Colors.primary} />
+          </Pressable>
+          <Pressable onPress={handleDelete} hitSlop={8}>
+            <Ionicons name="trash-outline" size={22} color={Colors.danger} />
+          </Pressable>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -357,6 +362,11 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderLight,
   },
   headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
   content: { padding: 20, paddingBottom: 40 },
   topCard: {
     backgroundColor: Colors.white,

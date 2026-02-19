@@ -141,9 +141,21 @@ export async function logoutCliente(): Promise<void> {
 }
 
 export async function getClientes(abogadoId: string): Promise<Cliente[]> {
-  const data = await AsyncStorage.getItem(KEYS.CLIENTES);
-  const all: Cliente[] = data ? JSON.parse(data) : [];
-  return all.filter((c) => c.abogadoId === abogadoId);
+  try {
+    // TODO: Use a configurable base URL
+    const response = await fetch(`http://localhost:5000/api/clientes?abogadoId=${abogadoId}`);
+    if (!response.ok) {
+      console.error("Failed to fetch clients from API");
+      return [];
+    }
+    return await response.json();
+  } catch (e) {
+    console.error("Error fetching clients:", e);
+    // Fallback to local storage or return empty array
+    const data = await AsyncStorage.getItem(KEYS.CLIENTES);
+    const all: Cliente[] = data ? JSON.parse(data) : [];
+    return all.filter((c) => c.abogadoId === abogadoId);
+  }
 }
 
 export async function getCliente(id: string): Promise<Cliente | null> {

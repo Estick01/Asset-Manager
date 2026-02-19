@@ -80,9 +80,9 @@ export default function DashboardScreen() {
               <Text style={styles.userName}>{user?.nombre || "Abogado"}</Text>
               <Text style={styles.despacho}>{user?.despacho || ""}</Text>
             </View>
-            <View style={styles.avatarCircle}>
+            <Pressable onPress={() => router.push("/(tabs)/profile")} style={styles.avatarCircle}>
               <Ionicons name="person" size={24} color={Colors.primary} />
-            </View>
+            </Pressable>
           </View>
         </LinearGradient>
 

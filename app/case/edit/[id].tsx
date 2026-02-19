@@ -1,31 +1,38 @@
-import React, { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Platform, KeyboardAvoidingView } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ActivityIndicator } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { saveProceso } from "@/lib/storage";
+import { getProceso, saveProceso, updateProceso, type Proceso } from "@/lib/storage";
 import { CaseForm, type CaseFormData } from "@/components/CaseForm";
 
-export default function NewCaseScreen() {
+export default function EditCaseScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const params = useLocalSearchParams<{ clienteId?: string }>();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [proceso, setProceso] = useState<Proceso | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (id) {
+      getProceso(id).then(setProceso);
+    }
+  }, [id]);
 
   const handleSave = async (data: CaseFormData) => {
     if (!data.clienteId || !data.tipoProceso || !data.radicado.trim() || !data.juzgado.trim()) {
       setError("Completa todos los campos obligatorios");
       return;
     }
-    if (!user) return;
+    if (!user || !id) return;
     setLoading(true);
     setError("");
     try {
-      await saveProceso({
+      await updateProceso(id, {
         ...data,
         abogadoId: user.id,
       });
@@ -45,15 +52,22 @@ export default function NewCaseScreen() {
           <Pressable onPress={() => router.back()} hitSlop={8}>
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </Pressable>
-          <Text style={styles.headerTitle}>Nuevo Proceso</Text>
+          <Text style={styles.headerTitle}>Editar Proceso</Text>
           <View style={{ width: 28 }} />
         </View>
-        <CaseForm
-          initialData={{ clienteId: params.clienteId }}
-          onSave={handleSave}
-          isLoading={loading}
-          error={error}
-        />
+        {proceso ? (
+          <CaseForm
+            initialData={proceso}
+            onSave={handleSave}
+            isLoading={loading}
+            error={error}
+          />
+        ) : (
+          <View style={styles.centered}>
+            <ActivityIndicator />
+            <Text style={styles.loadingText}>Cargando proceso...</Text>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </View>
   );
@@ -77,5 +91,15 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
   },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
 });
-
