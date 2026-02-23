@@ -7,6 +7,7 @@ import {
   StyleSheet,
   useColorScheme,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,9 +18,11 @@ type StyledModalProps = {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  onConfirm: () => void;
+  onConfirm?: () => void;
   confirmText?: string;
   cancelText?: string;
+  hideConfirm?: boolean;
+  fullHeight?: boolean;
 };
 
 export function StyledModal({
@@ -30,8 +33,16 @@ export function StyledModal({
   onConfirm,
   confirmText = "Confirmar",
   cancelText = "Cancelar",
+  hideConfirm = false,
+  fullHeight = false,
 }: StyledModalProps) {
   const insets = useSafeAreaInsets();
+
+  // Return null when not visible to avoid aria-hidden accessibility issues
+  // This prevents focus being trapped in hidden elements from assistive technology
+  if (!visible) {
+    return null;
+  }
 
   return (
     <Modal
@@ -41,7 +52,7 @@ export function StyledModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, fullHeight && styles.modalContainerFullHeight]}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{title}</Text>
             <Pressable
@@ -54,7 +65,9 @@ export function StyledModal({
               <Ionicons name="close-outline" size={24} color={Colors.textSecondary} />
             </Pressable>
           </View>
-          <View style={styles.modalContent}>{children}</View>
+          <ScrollView style={styles.modalContent} nestedScrollEnabled={true}>
+            {children}
+          </ScrollView>
           <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 16 }]}>
             <Pressable
               onPress={onClose}
@@ -66,16 +79,18 @@ export function StyledModal({
             >
               <Text style={[styles.buttonText, styles.cancelButtonText]}>{cancelText}</Text>
             </Pressable>
-            <Pressable
-              onPress={onConfirm}
-              style={({ pressed }) => [
-                styles.button,
-                styles.confirmButton,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={[styles.buttonText, styles.confirmButtonText]}>{confirmText}</Text>
-            </Pressable>
+            {!hideConfirm && onConfirm && (
+              <Pressable
+                onPress={onConfirm}
+                style={({ pressed }) => [
+                  styles.button,
+                  styles.confirmButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={[styles.buttonText, styles.confirmButtonText]}>{confirmText}</Text>
+              </Pressable>
+            )}
           </View>
         </View>
       </View>
@@ -108,6 +123,9 @@ const styles = StyleSheet.create({
         elevation: 5,
       }
     })
+  },
+  modalContainerFullHeight: {
+    maxHeight: 500,
   },
   modalHeader: {
     flexDirection: "row",

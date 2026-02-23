@@ -1,15 +1,16 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, Alert } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { isClientAuthenticated, getCliente, updateCliente, type Cliente } from "@/lib/storage";
+import { getCurrentCliente, updateCurrentCliente, type Cliente } from "@/lib/storage";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 
 export default function ClientProfileScreen() {
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [nombre, setNombre] = useState("");
   const [correo, setCorreo] = useState("");
@@ -24,19 +25,12 @@ export default function ClientProfileScreen() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { authenticated, clienteId } = await isClientAuthenticated();
-    if (!authenticated || !clienteId) {
-      router.replace("/portal/login");
-      return;
-    }
-    const c = await getCliente(clienteId);
+    const c = await getCurrentCliente();
     if (c) {
       setCliente(c);
       setNombre(c.nombre);
       setCorreo(c.correo);
       setTelefono(c.telefono);
-    } else {
-      router.replace("/portal/login");
     }
     setLoading(false);
   }, []);
@@ -81,16 +75,24 @@ export default function ClientProfileScreen() {
       if (newPassword) {
         updates.password = newPassword;
       }
-      await updateCliente(cliente.id, updates);
+      await updateCurrentCliente(updates);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Éxito", "Tus datos han sido actualizados.");
-      router.back();
+      if (navigation.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/portal");
+      }
     } catch (e) {
       setError("Error al guardar los datos.");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSaving(false);
     }
+  };
+  
+  const handleGoBack = () => {
+    router.replace("/portal");
   };
   
   if (loading) {
@@ -104,7 +106,7 @@ export default function ClientProfileScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={handleGoBack} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Editar Perfil</Text>

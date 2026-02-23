@@ -17,6 +17,10 @@ export default function NewClientScreen() {
 
   const updateField = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const handleGoBack = () => {
+      router.replace("/clients");
+  };
+
   const handleSave = async () => {
     if (!form.nombre.trim()) {
       setError("El nombre es obligatorio");
@@ -43,7 +47,7 @@ export default function NewClientScreen() {
         password: form.password,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      handleGoBack();
     } catch {
       setError("Error al guardar");
     } finally {
@@ -63,7 +67,7 @@ export default function NewClientScreen() {
     <View style={styles.screen}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={handleGoBack} hitSlop={8}>
             <Ionicons name="close" size={28} color={Colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Nuevo Cliente</Text>

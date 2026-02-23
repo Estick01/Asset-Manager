@@ -1,0 +1,18 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "ACTUALIZACIONES",
+    "estado",
+    "lextrack",
+    "Permisos",
+    "Proceso",
+    "Procesos",
+    "TiposProceso"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "dist/**",
+    "build/**"
+  ]
+}

@@ -1,11 +1,11 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, RefreshControl, Platform } from "react-native";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, RefreshControl, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { getProcesos, getClientes, type Proceso } from "@/lib/storage";
+import { getProcesos, type Proceso } from "@/lib/storage";
 
 const ESTADO_LABELS: Record<string, string> = {
   activo: "Activo",
@@ -37,35 +37,102 @@ export default function CasesScreen() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("todos");
   const [refreshing, setRefreshing] = useState(false);
+  const [hasMoreProcesos, setHasMoreProcesos] = useState(true);
+  const [isLoadingProcesos, setIsLoadingProcesos] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const isLoadingMoreRef = useRef(false);
+  const PROCESOS_LIMIT = 10;
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
 
-  const loadProcesos = useCallback(async () => {
-    if (!user) return;
-    const data = await getProcesos(user.id);
-    const clientes = await getClientes(user.id);
-    const clienteMap = new Map(clientes.map((c) => [c.id, c.nombre]));
-    const enriched = data
-      .map((p) => ({ ...p, clienteNombre: clienteMap.get(p.clienteId) || "Sin cliente" }))
-      .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime());
-    setProcesos(enriched);
-  }, [user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadProcesos();
-    }, [loadProcesos]),
+  const offsetRef = useRef(0);
+
+  const loadProcesos = useCallback(
+    async (reset: boolean = false) => {
+      if (!user || isLoadingMoreRef.current) return;
+      if (!reset && offsetRef.current === 0 && procesos.length === 0) return;
+      if (!reset && !hasMoreProcesos) return;
+
+      isLoadingMoreRef.current = true;
+      setIsLoadingProcesos(true);
+
+      try {
+        const offset = reset ? 0 : offsetRef.current;
+
+        const filterParams = {
+          estadoCodigo: filter !== "todos" ? filter : undefined,
+          search: debouncedSearch || undefined,
+        };
+
+        const result = await getProcesos(
+          user.id,
+          PROCESOS_LIMIT,
+          offset,
+          filterParams
+        );
+
+        const data = result.data;
+        const total = result.total;
+
+        if (reset) {
+          setProcesos(data);
+          offsetRef.current = data.length;
+        } else {
+          setProcesos(prev => [...prev, ...data]);
+          offsetRef.current += data.length;
+        }
+
+        setHasMoreProcesos(offsetRef.current < total);
+      } catch (error) {
+        console.error("Error loading procesos:", error);
+      } finally {
+        setIsLoadingProcesos(false);
+        isLoadingMoreRef.current = false;
+        setIsInitialLoad(false);
+      }
+    },
+    [user, debouncedSearch, filter]
   );
+
+  const loadMoreProcesos = () => {
+    if (!isLoadingProcesos && hasMoreProcesos) {
+      loadProcesos(false);
+    }
+  };
+
+  // Load processes when screen comes into focus
+useFocusEffect(
+  useCallback(() => {
+    if (user && procesos.length === 0) {
+      loadProcesos(true);
+    }
+  }, [user, procesos.length])
+);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  // Reload when filter or search changes
+  useEffect(() => {
+    if (user) {
+      offsetRef.current = 0;
+      setHasMoreProcesos(true);
+      loadProcesos(true);
+    }
+  }, [filter, debouncedSearch ,user]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadProcesos();
+    await loadProcesos(true);
     setRefreshing(false);
   };
 
-  const filtered = procesos.filter((p) => {
-    const matchSearch = p.radicado.toLowerCase().includes(search.toLowerCase()) || p.tipoProceso.toLowerCase().includes(search.toLowerCase()) || (p.clienteNombre || "").toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "todos" || p.estadoActual === filter;
-    return matchSearch && matchFilter;
-  });
+  // Server-side filtering now, no client-side filtering needed
+  const filtered = procesos;
 
   const renderItem = ({ item }: { item: Proceso & { clienteNombre?: string } }) => (
     <Pressable
@@ -73,7 +140,7 @@ export default function CasesScreen() {
       onPress={() => router.push({ pathname: "/case/[id]", params: { id: item.id } })}
     >
       <View style={styles.caseHeader}>
-        <View style={[styles.statusLine, { backgroundColor: ESTADO_COLORS[item.estadoActual] || Colors.textTertiary }]} />
+        <View style={[styles.statusLine, { backgroundColor: ESTADO_COLORS[item.estado?.codigo || "archivado"] || Colors.textTertiary }]} />
         <View style={styles.caseContent}>
           <Text style={styles.radicado}>{item.radicado}</Text>
           <Text style={styles.tipoProceso}>{item.tipoProceso}</Text>
@@ -88,8 +155,8 @@ export default function CasesScreen() {
             </View>
           </View>
         </View>
-        <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[item.estadoActual] || Colors.textTertiary) + "15" }]}>
-          <Text style={[styles.estadoText, { color: ESTADO_COLORS[item.estadoActual] || Colors.textTertiary }]}>{ESTADO_LABELS[item.estadoActual] || item.estadoActual}</Text>
+        <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[item.estado?.codigo || "archivado"] || Colors.textTertiary) + "15" }]}>
+          <Text style={[styles.estadoText, { color: ESTADO_COLORS[item.estado?.codigo || "archivado"] || Colors.textTertiary }]}>{ESTADO_LABELS[item.estado?.codigo || "archivado"]}</Text>
         </View>
       </View>
     </Pressable>
@@ -138,6 +205,15 @@ export default function CasesScreen() {
         contentContainerStyle={styles.list}
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        onEndReached={loadMoreProcesos}
+        onEndReachedThreshold={0.2}
+        ListFooterComponent={
+          isLoadingProcesos && !isInitialLoad ? (
+            <View style={styles.loadingFooter}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Ionicons name="document-text-outline" size={48} color={Colors.textTertiary} />
@@ -299,5 +375,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
+  },
+  loadingFooter: {
+    paddingVertical: 20,
+    alignItems: "center",
   },
 });

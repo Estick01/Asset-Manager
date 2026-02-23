@@ -1,37 +1,104 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, TextInput, RefreshControl, Platform, Alert } from "react-native";
+import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable, TextInput, RefreshControl, Platform, Alert, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { getClientes, deleteCliente, getProcesosByCliente, type Cliente } from "@/lib/storage";
+import { type Cliente } from "@/lib/storage";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/query-client";
 
 export default function ClientsScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [clientes, setClientes] = useState<Cliente[]>([]);
   const [search, setSearch] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
+  const [clientesList, setClientesList] = useState<Cliente[]>([]);
+  const [clientesOffset, setClientesOffset] = useState(0);
+  const [hasMoreClientes, setHasMoreClientes] = useState(true);
+  const [isLoadingClientes, setIsLoadingClientes] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const isLoadingMoreRef = useRef(false);
+  const CLIENTES_LIMIT = 10;
 
-  const loadClientes = useCallback(async () => {
-    if (!user) return;
-    const data = await getClientes(user.id);
-    setClientes(data.sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime()));
+  const loadClientes = useCallback(async (reset: boolean = false) => {
+    if (!user || isLoadingMoreRef.current || (!reset && !hasMoreClientes)) return;
+    
+    if (reset) {
+      setIsInitialLoad(true);
+      setClientesOffset(0);
+    }
+    
+    isLoadingMoreRef.current = true;
+    setIsLoadingClientes(true);
+    
+    try {
+      const offset = reset ? 0 : clientesOffset;
+      const res = await apiRequest("GET", `/api/clientes?abogadoId=${user.id}&limit=${CLIENTES_LIMIT}&offset=${offset}`);
+      const data: Cliente[] = await res.json();
+      
+      if (reset) {
+        setClientesList(data);
+        setClientesOffset(data.length);
+        setHasMoreClientes(data.length === CLIENTES_LIMIT);
+      } else {
+        setClientesList(prev => [...prev, ...data]);
+        setClientesOffset(prev => prev + data.length);
+        setHasMoreClientes(data.length === CLIENTES_LIMIT);
+      }
+    } catch (error) {
+      console.error("Error loading clientes:", error);
+    } finally {
+      setIsLoadingClientes(false);
+      isLoadingMoreRef.current = false;
+      setIsInitialLoad(false);
+    }
+  }, [user, hasMoreClientes]);
+
+  // Remove stale dependencies - use refs for offset
+  const offsetRef = useRef(0);
+  offsetRef.current = clientesOffset;
+
+  const loadMoreClientes = useCallback(async () => {
+    if (!user || isLoadingMoreRef.current || !hasMoreClientes) return;
+    
+    isLoadingMoreRef.current = true;
+    setIsLoadingClientes(true);
+    
+    try {
+      const currentOffset = offsetRef.current;
+      const res = await apiRequest("GET", `/api/clientes?abogadoId=${user.id}&limit=${CLIENTES_LIMIT}&offset=${currentOffset}`);
+      const data: Cliente[] = await res.json();
+      
+      setClientesList(prev => [...prev, ...data]);
+      setClientesOffset(prev => prev + data.length);
+      setHasMoreClientes(data.length === CLIENTES_LIMIT);
+    } catch (error) {
+      console.error("Error loading more clientes:", error);
+    } finally {
+      setIsLoadingClientes(false);
+      isLoadingMoreRef.current = false;
+    }
+  }, [user, hasMoreClientes]);
+
+  // Initial load
+  useEffect(() => {
+    if (user && isInitialLoad) {
+      loadClientes(true);
+    }
   }, [user]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadClientes();
-    }, [loadClientes]),
-  );
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadClientes();
-    setRefreshing(false);
-  };
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => apiRequest("DELETE", `/api/clientes/${id}`),
+    onSuccess: () => {
+      loadClientes(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    },
+    onError: (error) => {
+      Alert.alert("Error", "No se pudo eliminar el cliente: " + error.message);
+    },
+  });
 
   const handleDelete = (cliente: Cliente) => {
     Alert.alert("Eliminar Cliente", `Estas seguro de eliminar a ${cliente.nombre}?`, [
@@ -39,16 +106,15 @@ export default function ClientsScreen() {
       {
         text: "Eliminar",
         style: "destructive",
-        onPress: async () => {
-          await deleteCliente(cliente.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          loadClientes();
-        },
+        onPress: () => deleteMutation.mutate(cliente.id),
       },
     ]);
   };
 
-  const filtered = clientes.filter((c) => c.nombre.toLowerCase().includes(search.toLowerCase()) || c.documento.includes(search));
+  const filtered = useMemo(() => {
+    if (!clientesList) return [];
+    return clientesList.filter((c) => c.nombre.toLowerCase().includes(search.toLowerCase()) || c.documento.includes(search));
+  }, [clientesList, search]);
 
   const renderItem = ({ item }: { item: Cliente }) => (
     <Pressable
@@ -97,21 +163,32 @@ export default function ClientsScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={filtered}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        contentInsetAdjustmentBehavior="automatic"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="people-outline" size={48} color={Colors.textTertiary} />
-            <Text style={styles.emptyTitle}>{search ? "Sin resultados" : "Sin clientes"}</Text>
-            <Text style={styles.emptySubtitle}>{search ? "Intenta con otro termino" : "Agrega tu primer cliente"}</Text>
-          </View>
-        }
-      />
+      {isLoadingClientes && isInitialLoad ? (
+        <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 20 }} />
+      ) : (
+        <FlatList
+          data={filtered}
+          renderItem={renderItem}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          contentContainerStyle={styles.list}
+          contentInsetAdjustmentBehavior="automatic"
+          refreshControl={<RefreshControl refreshing={isLoadingClientes && isInitialLoad} onRefresh={() => loadClientes(true)} tintColor={Colors.primary} />}
+          onEndReached={() => loadMoreClientes()}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isLoadingClientes && !isInitialLoad ? (
+              <ActivityIndicator size="small" color={Colors.primary} style={{ padding: 16 }} />
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="people-outline" size={48} color={Colors.textTertiary} />
+              <Text style={styles.emptyTitle}>{search ? "Sin resultados" : "Sin clientes"}</Text>
+              <Text style={styles.emptySubtitle}>{search ? "Intenta con otro termino" : "Agrega tu primer cliente"}</Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }

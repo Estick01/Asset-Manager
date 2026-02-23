@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useNavigation } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -12,6 +12,24 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
+  const router = useRouter();
+  const navigation = useNavigation();
+  
+  // Handle browser back button on web
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handlePopState = () => {
+        // Check if we can go back, if not navigate to default screen
+        if (!navigation.canGoBack()) {
+          router.replace('/');
+        }
+      };
+      
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [navigation, router]);
+  
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -20,6 +38,7 @@ function RootLayoutNav() {
       <Stack.Screen name="client/new" options={{ headerShown: false }} />
       <Stack.Screen name="case/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="case/new" options={{ headerShown: false }} />
+      <Stack.Screen name="case/edit/[id]" options={{ headerShown: false }} />
       <Stack.Screen name="update/new" options={{ presentation: "formSheet", sheetAllowedDetents: [0.65], sheetGrabberVisible: true, headerShown: false }} />
       <Stack.Screen name="portal" options={{ headerShown: false }} />
     </Stack>

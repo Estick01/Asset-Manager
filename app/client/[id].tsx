@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from "react-native";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform, ActivityIndicator } from "react-native";
+import { router, useLocalSearchParams, useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { getCliente, getProcesosByCliente, deleteCliente, type Cliente, type Proceso } from "@/lib/storage";
+import { getCliente, getProcesosByCliente, deleteCliente, updateCliente, type Cliente, type Proceso } from "@/lib/storage";
+import { ClientForm } from "@/components/ClientForm";
 
 const ESTADO_COLORS: Record<string, string> = {
   activo: Colors.success,
@@ -21,11 +22,28 @@ const ESTADO_LABELS: Record<string, string> = {
   archivado: "Archivado",
 };
 
+// Helper to get estado key from EstadoProceso object (accepts partial object with codigo property)
+const getEstadoKey = (estado?: { codigo?: string } | null): string => estado?.codigo || "archivado";
+
 export default function ClientDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [procesos, setProcesos] = useState<Proceso[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const handleGoBack = () => {
+      router.replace("/clients");
+  };
+
+  // Check if we should be in edit mode
+  React.useEffect(() => {
+    if (edit === "true") {
+      setIsEditing(true);
+    }
+  }, [edit]);
 
   useFocusEffect(
     useCallback(() => {
@@ -35,7 +53,7 @@ export default function ClientDetailScreen() {
         setCliente(c);
         if (c) {
           const p = await getProcesosByCliente(c.id);
-          setProcesos(p);
+          setProcesos(p.data);
         }
       })();
     }, [id]),
@@ -51,16 +69,58 @@ export default function ClientDetailScreen() {
         onPress: async () => {
           await deleteCliente(cliente.id);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.back();
+          handleGoBack();
         },
       },
     ]);
   };
 
+  const handleSave = async (formData: any) => {
+    if (!cliente) return;
+    setSaving(true);
+    try {
+      await updateCliente(cliente.id, formData);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsEditing(false);
+      // Refresh data
+      const c = await getCliente(cliente.id);
+      setCliente(c);
+    } catch (error) {
+      Alert.alert("Error", "No se pudo guardar el cliente");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (!cliente) {
     return (
       <View style={[styles.screen, styles.centered]}>
-        <Text style={styles.loadingText}>Cargando...</Text>
+        <ActivityIndicator color={Colors.primary} />
+        <Text style={[styles.loadingText, { marginTop: 8 }]}>Cargando...</Text>
+      </View>
+    );
+  }
+
+  // If editing, show the form
+  if (isEditing) {
+    return (
+      <View style={styles.screen}>
+        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
+          <Pressable onPress={() => setIsEditing(false)} hitSlop={8}>
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Editar Cliente</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <ScrollView contentContainerStyle={styles.content}>
+          <ClientForm
+            initialData={cliente}
+            onSave={handleSave}
+            isLoading={saving}
+            isEditing
+            error={undefined}
+          />
+        </ScrollView>
       </View>
     );
   }
@@ -75,7 +135,7 @@ export default function ClientDetailScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={handleGoBack} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Cliente</Text>
@@ -128,13 +188,13 @@ export default function ClientDetailScreen() {
               style={({ pressed }) => [styles.procesoCard, pressed && styles.procesoCardPressed]}
               onPress={() => router.push({ pathname: "/case/[id]", params: { id: p.id } })}
             >
-              <View style={[styles.statusDot, { backgroundColor: ESTADO_COLORS[p.estadoActual] || Colors.textTertiary }]} />
+              <View style={[styles.statusDot, { backgroundColor: ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary }]} />
               <View style={styles.procesoInfo}>
                 <Text style={styles.procesoRadicado}>{p.radicado}</Text>
                 <Text style={styles.procesoTipo}>{p.tipoProceso}</Text>
               </View>
-              <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[p.estadoActual] || Colors.textTertiary) + "15" }]}>
-                <Text style={[styles.estadoText, { color: ESTADO_COLORS[p.estadoActual] || Colors.textTertiary }]}>{ESTADO_LABELS[p.estadoActual]}</Text>
+              <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary) + "15" }]}>
+                <Text style={[styles.estadoText, { color: ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary }]}>{ESTADO_LABELS[getEstadoKey(p.estado)]}</Text>
               </View>
             </Pressable>
           ))

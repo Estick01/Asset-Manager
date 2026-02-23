@@ -80,7 +80,7 @@ export default function AbogadoProfileScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
         <Pressable onPress={() => router.back()} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
@@ -88,7 +88,7 @@ export default function AbogadoProfileScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardAwareScrollViewCompat contentContainerStyle={styles.content}>
+      <KeyboardAwareScrollViewCompat style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         {!!error && (
           <View style={styles.errorBox}>
             <Ionicons name="alert-circle" size={16} color={Colors.danger} />
@@ -131,7 +131,9 @@ export default function AbogadoProfileScreen() {
                 <TextInput style={styles.input} value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Repite la nueva contraseña" secureTextEntry />
             </View>
         </View>
+      </KeyboardAwareScrollViewCompat>
 
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
         <Pressable
             onPress={handleSave}
             disabled={saving}
@@ -139,25 +141,35 @@ export default function AbogadoProfileScreen() {
         >
             {saving ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveBtnText}>Guardar Cambios</Text>}
         </Pressable>
-      </KeyboardAwareScrollViewCompat>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  scrollView: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 100 },
   header: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 16,
+    paddingTop: 8,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
   headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: Colors.text },
   content: { padding: 20, paddingBottom: 40 },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
   card: {
     backgroundColor: Colors.white,
     borderRadius: 16,

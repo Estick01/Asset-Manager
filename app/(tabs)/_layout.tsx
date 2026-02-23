@@ -95,6 +95,7 @@ function ClassicTabLayout() {
         options={{
           href: null,
           headerShown: false,
+          tabBarStyle: { display: 'none' },
         }}
       />
     </Tabs>

@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { saveProceso } from "@/lib/storage";
+import { saveProceso, getTiposProceso } from "@/lib/storage";
 import { CaseForm, type CaseFormData } from "@/components/CaseForm";
 
 export default function NewCaseScreen() {
@@ -16,8 +16,13 @@ export default function NewCaseScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+
+    const handleGoBack = () => {
+      router.replace("/cases");
+  };
+
   const handleSave = async (data: CaseFormData) => {
-    if (!data.clienteId || !data.tipoProceso || !data.radicado.trim() || !data.juzgado.trim()) {
+    if (!data.clienteId || !data.tipoProcesoId || !data.radicado.trim() || !data.juzgado.trim() || !data.estadoId) {
       setError("Completa todos los campos obligatorios");
       return;
     }
@@ -25,12 +30,19 @@ export default function NewCaseScreen() {
     setLoading(true);
     setError("");
     try {
+      // Get the tipoProceso name from the ID
+      const tiposProceso = await getTiposProceso();
+      const tipoProcesoObj = tiposProceso.find((t) => t.id === data.tipoProcesoId);
+      const tipoProceso = tipoProcesoObj?.nombre || "";
+
       await saveProceso({
         ...data,
+        tipoProceso,
         abogadoId: user.id,
+        clienteId: params.clienteId || data.clienteId,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      handleGoBack();
     } catch {
       setError("Error al guardar");
     } finally {
@@ -42,7 +54,7 @@ export default function NewCaseScreen() {
     <View style={styles.screen}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
-          <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Pressable onPress={() => handleGoBack()} hitSlop={8}>
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Nuevo Proceso</Text>

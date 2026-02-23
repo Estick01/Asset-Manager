@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform } from "react-native";
-import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
+import React, { useState, useCallback, useRef } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert, Platform, Linking, FlatList, ActivityIndicator } from "react-native";
+import { router, useLocalSearchParams, useFocusEffect, useNavigation } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -9,7 +9,7 @@ import Colors from "@/constants/colors";
 import {
   getProceso, getCliente, getActualizaciones, getDocumentos,
   deleteProceso, deleteActualizacion, deleteDocumento,
-  saveDocumento, saveActualizacion,
+  uploadDocument, saveActualizacion, getDocumentoDownloadUrl,
   type Proceso, type Cliente, type Actualizacion, type Documento,
 } from "@/lib/storage";
 
@@ -43,26 +43,63 @@ function formatFileSize(bytes: number): string {
 
 export default function CaseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [proceso, setProceso] = useState<Proceso | null>(null);
   const [cliente, setCliente] = useState<Cliente | null>(null);
   const [actualizaciones, setActualizaciones] = useState<Actualizacion[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [activeTab, setActiveTab] = useState<"timeline" | "documents">("timeline");
+  const [actualizacionesOffset, setActualizacionesOffset] = useState(0);
+  const [actualizacionesLoading, setActualizacionesLoading] = useState(false);
+  const [hasMoreActualizaciones, setHasMoreActualizaciones] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const isLoadingMoreRef = useRef(false);
+  const ACTUALIZACIONES_LIMIT = 10;
+
+  const handleGoBack = () => {
+    router.replace("/cases");
+  };
 
   const loadData = useCallback(async () => {
     if (!id) return;
+    setIsInitialLoad(true);
     const p = await getProceso(id);
     setProceso(p);
     if (p) {
       const c = await getCliente(p.clienteId);
       setCliente(c);
-      const acts = await getActualizaciones(p.id);
+      // Initial load with pagination - newest first
+      const acts = await getActualizaciones(p.id, ACTUALIZACIONES_LIMIT, 0);
       setActualizaciones(acts);
+      setActualizacionesOffset(acts.length);
+      setHasMoreActualizaciones(acts.length === ACTUALIZACIONES_LIMIT);
+      setIsInitialLoad(false);
       const docs = await getDocumentos(p.id);
       setDocumentos(docs);
     }
   }, [id]);
+
+  const loadMoreActualizaciones = useCallback(async () => {
+    if (!proceso || isLoadingMoreRef.current || !hasMoreActualizaciones) return;
+    isLoadingMoreRef.current = true;
+    setActualizacionesLoading(true);
+    try {
+      const newActs = await getActualizaciones(proceso.id, ACTUALIZACIONES_LIMIT, actualizacionesOffset);
+      if (newActs.length > 0) {
+        setActualizaciones(prev => [...prev, ...newActs]);
+        setActualizacionesOffset(prev => prev + newActs.length);
+        setHasMoreActualizaciones(newActs.length === ACTUALIZACIONES_LIMIT);
+      } else {
+        setHasMoreActualizaciones(false);
+      }
+    } catch (error) {
+      console.error("Error loading more actualizaciones:", error);
+    } finally {
+      setActualizacionesLoading(false);
+      isLoadingMoreRef.current = false;
+    }
+  }, [proceso, hasMoreActualizaciones, actualizacionesOffset]);
 
   useFocusEffect(
     useCallback(() => {
@@ -80,7 +117,7 @@ export default function CaseDetailScreen() {
         onPress: async () => {
           await deleteProceso(proceso.id);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.back();
+          handleGoBack();
         },
       },
     ]);
@@ -116,6 +153,37 @@ export default function CaseDetailScreen() {
     ]);
   };
 
+  const handleDownloadDoc = async (doc: Documento) => {
+    try {
+      const url = await getDocumentoDownloadUrl(doc.id);
+      // Open the download URL directly
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "No se puede abrir el documento");
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+      Alert.alert("Error", "No se pudo descargar el documento");
+    }
+  };
+
+  const handleDownloadFromUpdate = async (documentoId: string) => {
+    try {
+      const url = await getDocumentoDownloadUrl(documentoId);
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert("Error", "No se puede abrir el documento");
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+      Alert.alert("Error", "No se pudo descargar el documento");
+    }
+  };
+
   const handlePickDocument = async () => {
     if (!proceso) return;
     try {
@@ -126,12 +194,15 @@ export default function CaseDetailScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const file = result.assets[0];
-        const doc = await saveDocumento({
+        
+        // Upload document to server (which saves to S3)
+        const { uploadDocument } = await import("@/lib/storage");
+        const doc = await uploadDocument({
           procesoId: proceso.id,
           nombre: file.name,
-          uri: file.uri,
           tipo: file.mimeType || "application/octet-stream",
           tamano: file.size || 0,
+          uri: file.uri,
         });
 
         await saveActualizacion({
@@ -159,12 +230,12 @@ export default function CaseDetailScreen() {
     );
   }
 
-  const statusColor = ESTADO_COLORS[proceso.estadoActual] || Colors.textTertiary;
+  const statusColor = ESTADO_COLORS[proceso.estado?.codigo || "archivado"] || Colors.textTertiary;
 
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
-        <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Pressable onPress={handleGoBack} hitSlop={8}>
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </Pressable>
         <Text style={styles.headerTitle}>Proceso</Text>
@@ -178,7 +249,18 @@ export default function CaseDetailScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        onScroll={({ nativeEvent }) => {
+          if (isLoadingMoreRef.current || !hasMoreActualizaciones) return;
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
+          if (isCloseToBottom) {
+            loadMoreActualizaciones();
+          }
+        }}
+        scrollEventThrottle={400}
+      >
         <View style={styles.topCard}>
           <View style={styles.topCardHeader}>
             <View style={styles.topCardInfo}>
@@ -187,7 +269,7 @@ export default function CaseDetailScreen() {
             </View>
             <View style={[styles.estadoBadge, { backgroundColor: statusColor + "15" }]}>
               <View style={[styles.estadoDot, { backgroundColor: statusColor }]} />
-              <Text style={[styles.estadoText, { color: statusColor }]}>{ESTADO_LABELS[proceso.estadoActual]}</Text>
+              <Text style={[styles.estadoText, { color: statusColor }]}>{ESTADO_LABELS[proceso.estado?.codigo || "archivado"]}</Text>
             </View>
           </View>
           {!!proceso.descripcionEstado && <Text style={styles.descripcion}>{proceso.descripcionEstado}</Text>}
@@ -261,7 +343,7 @@ export default function CaseDetailScreen() {
                 <Text style={styles.emptySubtext}>Agrega la primera actualizacion</Text>
               </View>
             ) : (
-              <View style={styles.timeline}>
+              <View>
                 {actualizaciones.map((act, idx) => (
                   <Pressable key={act.id} onLongPress={() => handleDeleteUpdate(act)} style={styles.timelineItem}>
                     <View style={styles.timelineLine}>
@@ -281,6 +363,15 @@ export default function CaseDetailScreen() {
                           <View style={styles.docBadge}>
                             <Ionicons name="attach" size={12} color={Colors.accent} />
                             <Text style={styles.docBadgeText}>Documento</Text>
+                            {act.documentoId && (
+                              <Pressable 
+                                onPress={() => handleDownloadFromUpdate(act.documentoId!)} 
+                                hitSlop={4}
+                                style={styles.docDownloadBadge}
+                              >
+                                <Ionicons name="download-outline" size={12} color={Colors.accent} />
+                              </Pressable>
+                            )}
                           </View>
                         )}
                       </View>
@@ -289,6 +380,22 @@ export default function CaseDetailScreen() {
                     </View>
                   </Pressable>
                 ))}
+                {/* Sentinel for infinite scroll */}
+                <View 
+                  onLayout={(event) => {
+                    // Only load more if initial load is complete and not already loading
+                    if (isInitialLoad || isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) {
+                      return;
+                    }
+                    loadMoreActualizaciones();
+                  }}
+                  style={{ height: 20 }}
+                />
+                {actualizacionesLoading && (
+                  <View style={styles.loadingMore}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  </View>
+                )}
               </View>
             )}
           </>
@@ -333,10 +440,22 @@ export default function CaseDetailScreen() {
                         {new Date(doc.fechaSubida).toLocaleDateString("es-CO", { month: "short", day: "numeric", year: "numeric" })}
                       </Text>
                     </View>
+                    {doc.descripcion && (
+                      <Text style={styles.docDescription} numberOfLines={2}>{doc.descripcion}</Text>
+                    )}
                   </View>
-                  <Pressable onPress={() => handleDeleteDoc(doc)} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={18} color={Colors.textTertiary} />
-                  </Pressable>
+                  <View style={styles.docActions}>
+                    <Pressable 
+                      onPress={() => handleDownloadDoc(doc)} 
+                      hitSlop={8}
+                      style={styles.docActionButton}
+                    >
+                      <Ionicons name="download-outline" size={20} color={Colors.primary} />
+                    </Pressable>
+                    <Pressable onPress={() => handleDeleteDoc(doc)} hitSlop={8}>
+                      <Ionicons name="trash-outline" size={18} color={Colors.textTertiary} />
+                    </Pressable>
+                  </View>
                 </Pressable>
               ))
             )}
@@ -469,6 +588,7 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: "center", paddingVertical: 32, gap: 6 },
   emptyText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
   emptySubtext: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
+  loadingMore: { paddingVertical: 16, alignItems: "center" },
   uploadEmptyBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -529,6 +649,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   docBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.accent },
+  docDownloadBadge: { marginLeft: 4, padding: 2 },
   timelineTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text, marginTop: 4 },
   timelineDesc: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 6, lineHeight: 18 },
   docCard: {
@@ -558,4 +679,7 @@ const styles = StyleSheet.create({
   docMeta: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   docMetaText: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
   docMetaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.textTertiary },
+  docDescription: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 4 },
+  docActions: { flexDirection: "row", alignItems: "center", gap: 12 },
+  docActionButton: { padding: 4 },
 });

@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1771471347254,
+      "tag": "0000_wide_hellion",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1771478806998,
+      "tag": "0001_tranquil_puma",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1771521623702,
+      "tag": "0002_fat_scrambler",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1771529700303,
+      "tag": "0003_small_wasp",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1771531869213,
+      "tag": "0004_crazy_wendell_vaughn",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1771533700303,
+      "tag": "0005_add_tipo_to_actualizaciones",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1771534000303,
+      "tag": "0006_make_tipo_id_nullable",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1771534300303,
+      "tag": "0007_seed_tipos_actualizacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1771534600303,
+      "tag": "0008_drop_tipo_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1771534900303,
+      "tag": "0009_add_descripcion_to_documentos",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1771624056787,
+      "tag": "0010_gigantic_invisible_woman",
+      "breakpoints": true
+    }
+  ]
+}

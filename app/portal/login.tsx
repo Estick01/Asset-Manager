@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, KeyboardAvoidingView, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { loginCliente } from "@/lib/storage";
+import { loginCliente, getCurrentCliente, isClientAuthenticated } from "@/lib/storage";
 
 export default function ClientPortalLoginScreen() {
   const insets = useSafeAreaInsets();
@@ -14,7 +14,42 @@ export default function ClientPortalLoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  // Si ya hay un cliente guardado en local storage, verificar si está autenticado
+  useEffect(() => {
+  let isMounted = true;
+
+  const checkAuth = async () => {
+    try {
+      const currentCliente = await getCurrentCliente();
+
+      if (!currentCliente) {
+        return;
+      }
+      const response = await isClientAuthenticated();
+
+      if (!response.authenticated) return;
+
+      if (response.authenticated) {
+        router.replace("/portal");
+      }
+    } catch (error) {
+      console.log("Error verificando auth:", error);
+    } finally {
+      if (isMounted) {
+        setCheckingAuth(false);
+      }
+    }
+  };
+
+  checkAuth();
+
+  return () => {
+    isMounted = false;
+  };
+}, []);
 
   const handleLogin = async () => {
     if (!documento.trim() || !password.trim()) {
@@ -24,8 +59,8 @@ export default function ClientPortalLoginScreen() {
     setLoading(true);
     setError("");
     try {
-      const cliente = await loginCliente(documento.trim(), password);
-      if (cliente) {
+      const authData = await loginCliente(documento.trim(), password);
+      if (authData) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         router.replace("/portal");
       } else {
@@ -38,6 +73,14 @@ export default function ClientPortalLoginScreen() {
       setLoading(false);
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={Colors.white} />
+      </View>
+    );
+  }
 
   return (
     <LinearGradient colors={["#0D3B66", "#1B5A8C", "#2980B9"]} style={styles.gradient}>

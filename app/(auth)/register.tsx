@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, KeyboardAvoidingView, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,14 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
-  const { register } = useAuth();
+  const { register, isLoggedIn, isLoading } = useAuth();
+
+  // Si ya está autenticado, redirigir al dashboard
+  useEffect(() => {
+    if (!isLoading && isLoggedIn) {
+      router.replace("/(tabs)");
+    }
+  }, [isLoading, isLoggedIn]);
   const [form, setForm] = useState({ nombre: "", correo: "", password: "", despacho: "", telefono: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,17 +36,23 @@ export default function RegisterScreen() {
     setLoading(true);
     setError("");
     try {
-      await register({
+      const success = await register({
         nombre: form.nombre.trim(),
         correo: form.correo.trim(),
         password: form.password,
         despacho: form.despacho.trim(),
         telefono: form.telefono.trim(),
       });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.dismissAll();
-      router.replace("/(tabs)");
-    } catch {
+      if (success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.dismissAll();
+        router.replace("/(tabs)");
+      } else {
+        setError("Error al registrar. Intenta de nuevo.");
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+    } catch (err) {
+      console.error("Error during registration:", err);
       setError("Error al registrar");
     } finally {
       setLoading(false);

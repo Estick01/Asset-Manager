@@ -10,11 +10,11 @@ type ClientFormProps = {
   initialData?: Partial<ClientFormData>;
   onSave: (data: ClientFormData) => Promise<void>;
   isLoading: boolean;
-  error: string;
+  error?: string;
   isEditing?: boolean;
 };
 
-export function ClientForm({ initialData, onSave, isLoading, error, isEditing = false }: ClientFormProps) {
+export function ClientForm({ initialData, onSave, isLoading, error = "", isEditing = false }: ClientFormProps) {
   const [form, setForm] = useState<ClientFormData>({
     nombre: initialData?.nombre || "",
     correo: initialData?.correo || "",

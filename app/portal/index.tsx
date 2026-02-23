@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Platform, Alert } from "react-native";
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { StyledModal } from "@/components/StyledModal";
-import { Abogado, Cliente, getAbogado, getCliente, getProcesosByCliente, isClientAuthenticated, logoutCliente, Proceso } from "@/lib/storage";
+import { Abogado, Cliente, getAbogado, getCurrentCliente, getProcesosByCliente, logoutCliente, Proceso } from "@/lib/storage";
 
 const ESTADO_COLORS: Record<string, string> = {
   activo: Colors.success,
@@ -32,27 +32,30 @@ export default function ClientPortalScreen() {
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
   const loadData = useCallback(async () => {
-    const { authenticated, clienteId } = await isClientAuthenticated();
-    if (!authenticated || !clienteId) {
-      router.replace("/portal/login");
-      return;
-    }
-    const c = await getCliente(clienteId);
+    const c = await getCurrentCliente();
     if (!c) {
-      router.replace("/portal/login");
       return;
     }
+
     setCliente(c);
+
     const ab = await getAbogado();
     setAbogado(ab);
+
     const procs = await getProcesosByCliente(c.id);
-    setProcesos(procs.sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime()));
+    setProcesos(
+      procs.data.sort(
+        (a, b) =>
+          new Date(b.fechaCreacion).getTime() -
+          new Date(a.fechaCreacion).getTime()
+      )
+    );
   }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData]),
+    }, [loadData])
   );
 
   const onRefresh = async () => {
@@ -68,7 +71,7 @@ export default function ClientPortalScreen() {
     router.replace("/portal/login");
   };
 
-  const activos = procesos.filter((p) => p.estadoActual === "activo" || p.estadoActual === "en_tramite").length;
+  const activos = procesos.filter((p) => p.estado?.codigo === "activo" || p.estado?.codigo === "en_tramite").length;
 
   return (
     <View style={styles.screen}>
@@ -131,10 +134,10 @@ export default function ClientPortalScreen() {
                     <Text style={styles.procesoRadicado}>{p.radicado}</Text>
                     <Text style={styles.procesoTipo}>{p.tipoProceso}</Text>
                   </View>
-                  <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[p.estadoActual] || Colors.textTertiary) + "15" }]}>
-                    <View style={[styles.estadoDot, { backgroundColor: ESTADO_COLORS[p.estadoActual] || Colors.textTertiary }]} />
-                    <Text style={[styles.estadoText, { color: ESTADO_COLORS[p.estadoActual] || Colors.textTertiary }]}>
-                      {ESTADO_LABELS[p.estadoActual] || p.estadoActual}
+                  <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[p.estado?.codigo || "archivado"] || Colors.textTertiary) + "15" }]}>
+                    <View style={[styles.estadoDot, { backgroundColor: ESTADO_COLORS[p.estado?.codigo || "archivado"] || Colors.textTertiary }]} />
+                    <Text style={[styles.estadoText, { color: ESTADO_COLORS[p.estado?.codigo || "archivado"] || Colors.textTertiary }]}>
+                      {ESTADO_LABELS[p.estado?.codigo || "archivado"] || p.estado?.nombre}
                     </Text>
                   </View>
                 </View>

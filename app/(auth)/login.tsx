@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, KeyboardAvoidingView, ScrollView } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,10 +7,31 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
+import { isClientAuthenticated } from "@/lib/storage";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { login, isLoggedIn, isLoading } = useAuth();
+
+  // Si ya está autenticado como abogado, redirigir al dashboard
+  // Si ya está autenticado como cliente, redirigir al portal
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!isLoading) {
+        // Verificar si es cliente
+        const clientAuth = await isClientAuthenticated();
+        if (clientAuth.authenticated) {
+          router.replace("/portal");
+          return;
+        }
+        // Verificar si es abogado
+        if (isLoggedIn) {
+          router.replace("/(tabs)");
+        }
+      }
+    };
+    checkAuth();
+  }, [isLoading, isLoggedIn]);
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);

@@ -1,15 +1,47 @@
+import "dotenv/config";
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import multer from "multer";
+import cookieParser from "cookie-parser";
+import { registerRoutes } from "./routes.js";
+import { storage } from "./storage.js";
 import * as fs from "fs";
 import * as path from "path";
 
 const app = express();
+app.use(cookieParser());
 const log = console.log;
 
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
+  }
+}
+
+async function seedDatabase() {
+  // A simple seeding mechanism to ensure a default plan exists.
+  // In a real app, this would be a more robust migration or seeding script.
+  const defaultPlanId = "default-plan-id";
+  const defaultPlan = await storage.getPlan(defaultPlanId);
+
+  if (!defaultPlan) {
+    log("No default plan found, creating one.");
+    await storage.createPlan({
+      id: defaultPlanId,
+      nombre: "Básico",
+      precio: "0.00",
+      caracteristicas: "Plan básico gratuito",
+    });
+  }
+
+  // Seed default estados if they don't exist
+  const estados = await storage.getEstadosProceso();
+  if (estados.length === 0) {
+    log("No estados found, creating default estados.");
+    await storage.createEstado({ nombre: "Activo", codigo: "activo", color: "#22c55e" });
+    await storage.createEstado({ nombre: "En Tramite", codigo: "en_tramite", color: "#f59e0b" });
+    await storage.createEstado({ nombre: "Finalizado", codigo: "finalizado", color: "#3b82f6" });
+    await storage.createEstado({ nombre: "Archivado", codigo: "archivado", color: "#9ca3af" });
   }
 }
 
@@ -40,7 +72,7 @@ function setupCors(app: express.Application) {
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, DELETE, OPTIONS",
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
       res.header("Access-Control-Allow-Credentials", "true");
     }
 
@@ -55,13 +87,25 @@ function setupCors(app: express.Application) {
 function setupBodyParsing(app: express.Application) {
   app.use(
     express.json({
+      limit: "50mb", // Increase limit for file uploads
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       },
     }),
   );
 
-  app.use(express.urlencoded({ extended: false }));
+  app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+  
+  // Configure multer for multipart/form-data (file uploads)
+  const upload = multer({
+    storage: multer.memoryStorage(), // Store files in memory for S3 upload
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    },
+  });
+  
+  // Make multer available to routes
+  app.set("upload", upload);
 }
 
 function setupRequestLogging(app: express.Application) {
@@ -226,6 +270,7 @@ function setupErrorHandler(app: express.Application) {
 }
 
 (async () => {
+  await seedDatabase();
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);

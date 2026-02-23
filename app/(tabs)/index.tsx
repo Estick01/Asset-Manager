@@ -6,53 +6,43 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { getDashboardStats, getProcesos, getClientes, type Proceso, type Cliente } from "@/lib/storage";
+import { getDashboardStats, getProcesos, type Proceso } from "@/lib/storage";
 
-const ESTADO_LABELS: Record<string, string> = {
-  activo: "Activo",
-  en_tramite: "En Tramite",
-  finalizado: "Finalizado",
-  archivado: "Archivado",
-};
-
-const ESTADO_COLORS: Record<string, string> = {
-  activo: Colors.success,
-  en_tramite: Colors.warning,
-  finalizado: Colors.info,
-  archivado: Colors.textTertiary,
-};
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, isLoading } = useAuth();
   const [stats, setStats] = useState({ totalClientes: 0, totalProcesos: 0, procesosActivos: 0, procesosFinalizados: 0 });
   const [recentCases, setRecentCases] = useState<(Proceso & { clienteNombre?: string })[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
+
   const loadData = useCallback(async () => {
     if (!user) return;
-    const s = await getDashboardStats(user.id);
+
+    const [s, procesos] = await Promise.all([
+      getDashboardStats(user.id),
+      getProcesos(user.id, 5, 0),
+    ]);
+
     setStats(s);
-    const procesos = await getProcesos(user.id);
-    const clientes = await getClientes(user.id);
-    const clienteMap = new Map(clientes.map((c) => [c.id, c.nombre]));
-    const recent = procesos
-      .sort((a, b) => new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime())
-      .slice(0, 5)
-      .map((p) => ({ ...p, clienteNombre: clienteMap.get(p.clienteId) || "Sin cliente" }));
-    setRecentCases(recent);
+    setRecentCases(procesos.data);
   }, [user]);
 
   useFocusEffect(
     useCallback(() => {
+      if (isLoading) return;
+
       if (!isLoggedIn) {
         router.replace("/(auth)/login");
         return;
       }
-      loadData();
-    }, [isLoggedIn, loadData]),
-  );
 
+      if (recentCases.length === 0 && stats.totalProcesos === 0) {
+        loadData();
+      }
+    }, [isLoading, isLoggedIn, recentCases.length, stats.totalProcesos, loadData]),
+  );
   const onRefresh = async () => {
     setRefreshing(true);
     await loadData();
@@ -139,10 +129,10 @@ export default function DashboardScreen() {
                     <Text style={styles.caseRadicado}>{caso.radicado}</Text>
                     <Text style={styles.caseTipo}>{caso.tipoProceso}</Text>
                   </View>
-                  <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[caso.estadoActual] || Colors.textTertiary) + "15" }]}>
-                    <View style={[styles.estadoDot, { backgroundColor: ESTADO_COLORS[caso.estadoActual] || Colors.textTertiary }]} />
-                    <Text style={[styles.estadoText, { color: ESTADO_COLORS[caso.estadoActual] || Colors.textTertiary }]}>
-                      {ESTADO_LABELS[caso.estadoActual] || caso.estadoActual}
+                  <View style={[styles.estadoBadge, { backgroundColor: (caso.estado?.color ?? Colors.textTertiary) + "1A"  }]}>
+                    <View style={[styles.estadoDot, { backgroundColor: caso.estado?.color || Colors.textTertiary }]} />
+                    <Text style={[styles.estadoText, { color: caso.estado?.color || Colors.textTertiary }]}>
+                      {caso.estado?.nombre}
                     </Text>
                   </View>
                 </View>

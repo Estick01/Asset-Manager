@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView } from "react-native";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { getClientes, type Cliente, type Proceso } from "@/lib/storage";
+import { getClientes, type Cliente, type Proceso, EstadoProceso, getEstadosProceso, getTiposProceso, type TiposProceso} from "@/lib/storage";
 
-const TIPOS_PROCESO = ["Civil", "Penal", "Laboral", "Administrativo", "Familia", "Comercial", "Constitucional", "Otro"];
-const ESTADOS = [
-  { value: "activo", label: "Activo" },
-  { value: "en_tramite", label: "En Tramite" },
-  { value: "finalizado", label: "Finalizado" },
-  { value: "archivado", label: "Archivado" },
-] as const;
-
-export type CaseFormData = Omit<Proceso, "id" | "fechaCreacion" | "abogadoId">;
+// Type for form data (simplified for the form)
+export type CaseFormData = {
+  clienteId: string;
+  tipoProcesoId: number;
+  radicado: string;
+  juzgado: string;
+  estadoId: number;
+  descripcionEstado: string;
+};
 
 type CaseFormProps = {
   initialData?: Partial<CaseFormData>;
@@ -22,33 +22,95 @@ type CaseFormProps = {
   error: string;
 };
 
+const CLIENTES_LIMIT = 10;
+
 export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProps) {
   const { user } = useAuth();
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesOffset, setClientesOffset] = useState(0);
+  const [hasMoreClientes, setHasMoreClientes] = useState(true);
+  const [isLoadingClientes, setIsLoadingClientes] = useState(false);
+  const [clienteSearch, setClienteSearch] = useState("");
+  const [estadosProceso, setEstadosProceso] = useState<EstadoProceso[]>([]);
+  const [tiposProceso, setTiposProceso] = useState<TiposProceso[]>([]);
   const [form, setForm] = useState<CaseFormData>({
     clienteId: initialData?.clienteId || "",
-    tipoProceso: initialData?.tipoProceso || "",
+    tipoProcesoId: initialData?.tipoProcesoId ?? 0,
     radicado: initialData?.radicado || "",
     juzgado: initialData?.juzgado || "",
-    estadoActual: initialData?.estadoActual || "activo",
+    estadoId: initialData?.estadoId || 0,
     descripcionEstado: initialData?.descripcionEstado || "",
   });
   const [showClientes, setShowClientes] = useState(false);
   const [showTipos, setShowTipos] = useState(false);
+  const isLoadingMoreRef = useRef(false);
 
+  const loadClientes = useCallback(async (reset: boolean = false) => {
+    if (!user || isLoadingMoreRef.current || (!reset && !hasMoreClientes)) return;
+    
+    if (reset) {
+      setClientesOffset(0);
+    }
+    
+    isLoadingMoreRef.current = true;
+    setIsLoadingClientes(true);
+    
+    try {
+      const offset = reset ? 0 : clientesOffset;
+      const data = await getClientes(user.id, CLIENTES_LIMIT, offset, clienteSearch || undefined);
+      
+      if (reset) {
+        setClientes(data);
+        setClientesOffset(data.length);
+        setHasMoreClientes(data.length === CLIENTES_LIMIT);
+      } else {
+        setClientes(prev => [...prev, ...data]);
+        setClientesOffset(prev => prev + data.length);
+        setHasMoreClientes(data.length === CLIENTES_LIMIT);
+      }
+    } catch (err) {
+      console.error("Error loading clientes:", err);
+    } finally {
+      setIsLoadingClientes(false);
+      isLoadingMoreRef.current = false;
+    }
+  }, [user, hasMoreClientes, clienteSearch, clientesOffset]);
+
+  // Load initial clientes and estados/tipos
   useEffect(() => {
     if (user) {
-      getClientes(user.id).then(setClientes);
+      loadClientes(true);
+      const loadData = async () => {
+        const [estados, tipos] = await Promise.all([
+          getEstadosProceso(),
+          getTiposProceso()
+        ]);
+        setEstadosProceso(estados);
+        setTiposProceso(tipos);
+      };
+      loadData();
     }
   }, [user]);
 
-  const updateField = (key: keyof CaseFormData, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  // Reload clientes when search changes
+  useEffect(() => {
+    loadClientes(true);
+  }, [clienteSearch]);
 
+  const updateField = (
+      key: keyof CaseFormData,
+      value: string | number
+    ) => {
+      setForm((prev) => ({
+        ...prev,
+        [key]: key === "tipoProcesoId" ? Number(value) : value,
+      }));
+    };
   const selectedCliente = clientes.find((c) => c.id === form.clienteId);
 
   const handleSave = () => {
-    if (!form.clienteId || !form.tipoProceso || !form.radicado.trim() || !form.juzgado.trim()) {
-      onSave(form); // Trigger error in parent
+    if (!form.clienteId || !form.tipoProcesoId || !form.radicado.trim() || !form.juzgado.trim() || !form.estadoId) {
+      onSave(form);
       return;
     }
     onSave(form);
@@ -66,7 +128,12 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Cliente <Text style={styles.required}>*</Text></Text>
-          <Pressable style={styles.selectBtn} onPress={() => setShowClientes(!showClientes)}>
+          <Pressable style={styles.selectBtn} onPress={() => {
+            setShowClientes(!showClientes);
+            if (!showClientes && clientes.length === 0) {
+              loadClientes(true);
+            }
+          }}>
             <Ionicons name="person-outline" size={20} color={Colors.textTertiary} />
             <Text style={[styles.selectText, !selectedCliente && styles.placeholder]}>
               {selectedCliente ? selectedCliente.nombre : "Seleccionar cliente"}
@@ -75,47 +142,76 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
           </Pressable>
           {showClientes && (
             <View style={styles.dropdown}>
-              {clientes.length === 0 ? (
-                <Text style={styles.dropdownEmpty}>Sin clientes. Crea uno primero.</Text>
-              ) : (
-                clientes.map((c) => (
-                  <Pressable
-                    key={c.id}
-                    style={[styles.dropdownItem, form.clienteId === c.id && styles.dropdownItemActive]}
-                    onPress={() => {
-                      updateField("clienteId", c.id);
-                      setShowClientes(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownText, form.clienteId === c.id && styles.dropdownTextActive]}>{c.nombre}</Text>
+              {/* Search input */}
+              <View style={styles.searchWrapper}>
+                <Ionicons name="search" size={16} color={Colors.textTertiary} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar cliente..."
+                  placeholderTextColor={Colors.textTertiary}
+                  value={clienteSearch}
+                  onChangeText={setClienteSearch}
+                />
+                {clienteSearch.length > 0 && (
+                  <Pressable onPress={() => setClienteSearch("")}>
+                    <Ionicons name="close-circle" size={16} color={Colors.textTertiary} />
                   </Pressable>
-                ))
+                )}
+              </View>
+              {clientes.length === 0 ? (
+                <Text style={styles.dropdownEmpty}>
+                  {isLoadingClientes ? "Cargando..." : "Sin clientes. Crea uno primero."}
+                </Text>
+              ) : (
+                <FlatList
+                  data={clientes}
+                  keyExtractor={(c) => c.id}
+                  renderItem={({ item: c }) => (
+                    <Pressable
+                      style={[styles.dropdownItem, form.clienteId === c.id && styles.dropdownItemActive]}
+                      onPress={() => {
+                        updateField("clienteId", c.id);
+                        setShowClientes(false);
+                      }}
+                    >
+                      <Text style={[styles.dropdownText, form.clienteId === c.id && styles.dropdownTextActive]}>{c.nombre}</Text>
+                      <Text style={styles.dropdownSubtext}>{c.documento}</Text>
+                    </Pressable>
+                  )}
+                  onEndReached={() => loadClientes(false)}
+                  onEndReachedThreshold={0.5}
+                  ListFooterComponent={
+                    isLoadingClientes ? (
+                      <ActivityIndicator size="small" color={Colors.primary} style={styles.loadingFooter} />
+                    ) : null
+                  }
+                  style={styles.dropdownList}
+                />
               )}
             </View>
           )}
         </View>
-
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Tipo de Proceso <Text style={styles.required}>*</Text></Text>
           <Pressable style={styles.selectBtn} onPress={() => setShowTipos(!showTipos)}>
             <Ionicons name="briefcase-outline" size={20} color={Colors.textTertiary} />
-            <Text style={[styles.selectText, !form.tipoProceso && styles.placeholder]}>
-              {form.tipoProceso || "Seleccionar tipo"}
+            <Text style={[styles.selectText, !form.tipoProcesoId && styles.placeholder]}>
+              {tiposProceso.find(t => Number(t.id) === Number(form.tipoProcesoId))?.nombre || "Seleccionar tipo"}
             </Text>
             <Ionicons name={showTipos ? "chevron-up" : "chevron-down"} size={20} color={Colors.textTertiary} />
           </Pressable>
           {showTipos && (
             <View style={styles.dropdown}>
-              {TIPOS_PROCESO.map((tipo) => (
+              {tiposProceso.map((tipo) => (
                 <Pressable
-                  key={tipo}
-                  style={[styles.dropdownItem, form.tipoProceso === tipo && styles.dropdownItemActive]}
+                  key={tipo.id}
+                  style={[styles.dropdownItem,Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownItemActive]}
                   onPress={() => {
-                    updateField("tipoProceso", tipo);
+                    updateField("tipoProcesoId", tipo.id);
                     setShowTipos(false);
                   }}
                 >
-                  <Text style={[styles.dropdownText, form.tipoProceso === tipo && styles.dropdownTextActive]}>{tipo}</Text>
+                  <Text style={[styles.dropdownText, Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownTextActive]}>{tipo.nombre}</Text>
                 </Pressable>
               ))}
             </View>
@@ -153,14 +249,14 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Estado</Text>
           <View style={styles.estadoGrid}>
-            {ESTADOS.map((estado) => (
+            {estadosProceso.map((estado) => (
               <Pressable
-                key={estado.value}
-                style={[styles.estadoChip, form.estadoActual === estado.value && styles.estadoChipActive]}
-                onPress={() => updateField("estadoActual", estado.value)}
+                key={estado.id}
+                style={[styles.estadoChip, form.estadoId === estado.id && styles.estadoChipActive]}
+                onPress={() => updateField("estadoId", estado.id)}
               >
-                <Text style={[styles.estadoChipText, form.estadoActual === estado.value && styles.estadoChipTextActive]}>
-                  {estado.label}
+                <Text style={[styles.estadoChipText, form.estadoId === estado.id && styles.estadoChipTextActive]}>
+                  {estado.nombre}
                 </Text>
               </Pressable>
             ))}
@@ -259,6 +355,32 @@ const styles = StyleSheet.create({
   dropdownText: { fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.text },
   dropdownTextActive: { fontFamily: "Inter_600SemiBold", color: Colors.primary },
   dropdownEmpty: { padding: 16, fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textTertiary, textAlign: "center" },
+  searchWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    margin: 8,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: Colors.text,
+  },
+  dropdownList: {
+    maxHeight: 300,
+  },
+  dropdownSubtext: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 2,
+  },
+  loadingFooter: {
+    paddingVertical: 12,
+  },
   estadoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   estadoChip: {
     paddingHorizontal: 16,
