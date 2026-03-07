@@ -7,63 +7,65 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { isClientAuthenticated } from "@/lib/storage";
+
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
-  const { login, isLoggedIn, isLoading } = useAuth();
-
-  // Si ya está autenticado como abogado, redirigir al dashboard
-  // Si ya está autenticado como cliente, redirigir al portal
-  useEffect(() => {
-    const checkAuth = async () => {
-      if (!isLoading) {
-        // Verificar si es cliente
-        const clientAuth = await isClientAuthenticated();
-        if (clientAuth.authenticated) {
-          router.replace("/portal");
-          return;
-        }
-        // Verificar si es abogado
-        if (isLoggedIn) {
-          router.replace("/(tabs)");
-        }
-      }
-    };
-    checkAuth();
-  }, [isLoading, isLoggedIn]);
+  const { login, user } = useAuth();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
-    if (!correo.trim() || !password.trim()) {
-      setError("Completa todos los campos");
-      return;
-    }
-    setLoading(true);
-    setError("");
-    try {
-      const success = await login(correo.trim(), password);
-      if (success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.dismissAll();
-        router.replace("/(tabs)");
+  // Redirect based on user role after successful login
+  useEffect(() => {
+    if (user) {
+      const rolNombre = user.user.rol?.nombre?.toLowerCase() || "";
+      if (rolNombre.includes("firm") || rolNombre.includes("bufete") || rolNombre.includes("empresa")) {
+        router.replace("/(firm-tabs)");
+      } else if (rolNombre.includes("cliente")) {
+        router.replace("/portal");
       } else {
-        setError("Correo o contrasena incorrectos");
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        router.replace("/(lawyer-tabs)");
       }
-    } catch {
-      setError("Error al iniciar sesion");
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [user]);
+
+
+const handleLogin = async () => {
+  if (!correo.trim() || !password.trim()) {
+    setError("Completa todos los campos");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+
+  try {
+    const success = await login(correo.trim(), password);
+    if (success) {
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success
+      );
+      // Redirect is handled by useEffect when user state changes
+
+    } else {
+      setError("Correo o contrasena incorrectos");
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Error
+      );
+    }
+
+  } catch {
+    setError("Error al iniciar sesion");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
-    <LinearGradient colors={[Colors.primaryDark, Colors.primary, Colors.primaryLight]} style={styles.gradient}>
+    <LinearGradient colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]} style={styles.gradient}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
           contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 40), paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 20) }]}
@@ -137,15 +139,10 @@ export default function LoginScreen() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>No tienes cuenta?</Text>
-            <Pressable onPress={() => router.push("/(auth)/register")}>
+            <Pressable onPress={() => router.push("/(auth)/register-type")}>
               <Text style={styles.footerLink}>Registrate</Text>
             </Pressable>
           </View>
-
-          <Pressable onPress={() => { router.dismissAll(); router.push("/portal/login"); }} style={styles.portalLink}>
-            <Ionicons name="person-circle-outline" size={18} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.portalLinkText}>Soy cliente - Acceder al portal</Text>
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>

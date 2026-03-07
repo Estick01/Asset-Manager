@@ -1,124 +1,77 @@
+// app/client/new.tsx
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, KeyboardAvoidingView, ScrollView } from "react-native";
+import {
+  View, Text, StyleSheet, Platform, KeyboardAvoidingView, Pressable
+} from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { saveCliente } from "@/lib/storage";
+import { saveCliente } from "@/lib/services/clienteService";
+import { ClientForm, ClientFormData } from "@/components/ClientForm";
 
 export default function NewClientScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [form, setForm] = useState({ nombre: "", correo: "", telefono: "", documento: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const updateField = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
+  const handleSave = async (data: ClientFormData) => {
+    if (!data.nombre.trim()) { setError("El nombre es obligatorio"); return; }
+    if (!data.apellido.trim()) { setError("El apellido es obligatorio"); return; }
+    if (!data.correo.trim()) { setError("El correo es obligatorio"); return; }
+    if (!data.documento.trim()) { setError("El documento es obligatorio"); return; }
+    if (!data.password?.trim()) { setError("La contraseña es obligatoria"); return; }
 
-  const handleGoBack = () => {
-      router.replace("/clients");
-  };
+    const lawyerId = (user as any)?.id || (user as any)?.user?.id;
 
-  const handleSave = async () => {
-    if (!form.nombre.trim()) {
-      setError("El nombre es obligatorio");
-      return;
-    }
-    if (!form.documento.trim()) {
-      setError("El documento es obligatorio para el portal del cliente");
-      return;
-    }
-    if (!form.password.trim()) {
-      setError("La contrasena es obligatoria para el acceso del cliente");
-      return;
-    }
-    if (!user) return;
     setLoading(true);
     setError("");
     try {
       await saveCliente({
-        abogadoId: user.id,
-        nombre: form.nombre.trim(),
-        correo: form.correo.trim(),
-        telefono: form.telefono.trim(),
-        documento: form.documento.trim(),
-        password: form.password,
-      });
+        nombre:          data.nombre.trim(),
+        apellido:        data.apellido.trim(),
+        correo:          data.correo.trim(),
+        telefono:        data.telefono.trim(),
+        documento:       data.documento.trim(),
+        tipoDocumentoId: data.tipoDocumentoId,
+        direccion:       data.direccion.trim(),
+        password:        data.password,
+        departamentoId:  data.departamentoId || null,
+        municipioId:     data.municipioId || null,
+        lawyerId:        lawyerId || null,
+      } as any);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      handleGoBack();
-    } catch {
-      setError("Error al guardar");
+      router.replace("/clients");
+    } catch (err: any) {
+      setError(err.message || "Error al guardar");
     } finally {
       setLoading(false);
     }
   };
 
-  const fields = [
-    { key: "nombre", label: "Nombre completo", icon: "person-outline" as const, placeholder: "Nombre del cliente", required: true },
-    { key: "documento", label: "Documento de identidad", icon: "card-outline" as const, placeholder: "CC o NIT", required: true },
-    { key: "correo", label: "Correo electronico", icon: "mail-outline" as const, placeholder: "cliente@correo.com", keyboard: "email-address" as const },
-    { key: "telefono", label: "Telefono", icon: "call-outline" as const, placeholder: "+57 300 000 0000", keyboard: "phone-pad" as const },
-    { key: "password", label: "Contrasena del portal", icon: "lock-closed-outline" as const, placeholder: "Contrasena para acceso del cliente", required: true, secure: true },
-  ];
-
   return (
     <View style={styles.screen}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 8) }]}>
-          <Pressable onPress={handleGoBack} hitSlop={8}>
-            <Ionicons name="close" size={28} color={Colors.text} />
+          <Pressable onPress={() => router.replace("/clients")} hitSlop={8}>
+            <Ionicons name="close" size={26} color={Colors.text} />
           </Pressable>
           <Text style={styles.headerTitle}>Nuevo Cliente</Text>
-          <View style={{ width: 28 }} />
+          <View style={{ width: 26 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {!!error && (
-            <View style={styles.errorBox}>
-              <Ionicons name="alert-circle" size={16} color={Colors.danger} />
-              <Text style={styles.errorText}>{error}</Text>
-            </View>
-          )}
-
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
-            <Text style={styles.infoText}>El documento y contrasena permiten al cliente acceder al Portal del Cliente para consultar sus procesos.</Text>
-          </View>
-
-          {fields.map((field) => (
-            <View key={field.key} style={styles.inputGroup}>
-              <Text style={styles.label}>
-                {field.label}
-                {field.required && <Text style={styles.required}> *</Text>}
-              </Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name={field.icon} size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={form[field.key as keyof typeof form]}
-                  onChangeText={(v) => updateField(field.key, v)}
-                  placeholder={field.placeholder}
-                  placeholderTextColor={Colors.textTertiary}
-                  keyboardType={field.keyboard || "default"}
-                  autoCapitalize={field.key === "correo" ? "none" : field.secure ? "none" : "words"}
-                  secureTextEntry={!!field.secure}
-                />
-              </View>
-            </View>
-          ))}
-        </ScrollView>
-
-        <View style={[styles.footer, { paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 16) }]}>
-          <Pressable
-            onPress={handleSave}
-            disabled={loading}
-            style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed, loading && styles.saveBtnDisabled]}
-          >
-            {loading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.saveBtnText}>Guardar Cliente</Text>}
-          </Pressable>
-        </View>
+        <ClientForm
+          onSave={handleSave}
+          isLoading={loading}
+          error={error}
+          isEditing={false}
+        />
       </KeyboardAvoidingView>
     </View>
   );
@@ -141,83 +94,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
-  },
-  content: {
-    padding: 20,
-    gap: 16,
-  },
-  errorBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.dangerLight,
-    padding: 12,
-    borderRadius: 10,
-  },
-  errorText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: Colors.danger,
-    flex: 1,
-  },
-  infoBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 8,
-    backgroundColor: Colors.infoLight,
-    padding: 12,
-    borderRadius: 10,
-  },
-  infoText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: Colors.info,
-    flex: 1,
-    lineHeight: 18,
-  },
-  inputGroup: { gap: 6 },
-  label: {
-    fontSize: 13,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textSecondary,
-    marginLeft: 4,
-  },
-  required: { color: Colors.danger },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  inputIcon: { marginLeft: 14 },
-  input: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-    color: Colors.text,
-  },
-  footer: {
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  saveBtnPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
-  saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.white,
   },
 });

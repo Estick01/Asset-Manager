@@ -1,149 +1,150 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from "react";
-import { type Abogado, getAbogado, isAuthenticated, loginAbogado, registerAbogado, logout as doLogout, saveAbogado, getPermisos, saveAuthToken, getAuthToken, clearAuthToken } from "@/lib/storage";
+/**
+ * Unified Authentication Context
+ * 
+ * React Context for managing unified authentication state.
+ * Supports roles: LAWYER, FIRM, CLIENT
+ * This is the new authentication context for the SaaS architecture.
+ */
 
-interface AuthContextValue {
-  user: Abogado | null;
-  permisos: string[];
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
+import {
+  loginUnified,
+  logoutUnified,
+  verifyUnifiedSession,
+  saveStoredUser,
+  hasRole,
+  type UnifiedUser,
+  type Profile,
+} from './auth';
+import { Rol } from '@/shared/schema';
+
+export interface AuthContextValue {
   isLoading: boolean;
   isLoggedIn: boolean;
-  login: (correo: string, password: string) => Promise<boolean>;
-  register: (data: { nombre: string; correo: string; password: string; despacho: string; telefono: string }) => Promise<boolean>;
+  user: UnifiedUser | null;
+  profile: Profile | undefined;
+  isClientUser: boolean;
+  isLawyerUser: boolean;
+  isFirmUser: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<Abogado>) => Promise<void>;
-  hasPermission: (permiso: string) => boolean;
-  refreshPermisos: () => Promise<void>;
+  updateProfile: (updates: Partial<UnifiedUser>) => Promise<void>;
+  checkRole: (role: Rol) => boolean;
 }
+
+// Legacy type exports for backward compatibility
+export interface AbogadoUser extends UnifiedUser {
+  numeroTarjetaProfesional?: string;
+  firstName?: string;
+  lastName?: string;
+  specialization?: string;
+  licenseNumber?: string;
+}
+
+export interface BufeteUser extends UnifiedUser {
+  name?: string;
+}
+
+export interface ClienteUser extends UnifiedUser {
+  telefono?: string;
+}
+
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<Abogado | null>(null);
-  const [permisos, setPermisos] = useState<string[]>([]);
+export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<UnifiedUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Check session on mount
   useEffect(() => {
-    (async () => {
+    const bootstrap = async () => {
       try {
-        const auth = await isAuthenticated();
-        if (auth) {
-          const abogado = await getAbogado();
-          if (abogado) {
-            setUser(abogado);
-            // Cargar permisos (with timeout to prevent hanging)
-            try {
-              const perms = await Promise.race([
-                getPermisos(),
-                new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 5000))
-              ]);
-              setPermisos(perms);
-            } catch (permError) {
-              console.error("Error loading permisos:", permError);
-              setPermisos([]);
-            }
-          }
+        const data = await verifyUnifiedSession();
+        if (data.authenticated && data?.user && data.profile) {
+          setUser({user:data.user,profile:data.profile});
+          await saveStoredUser({user:data.user,profile:data.profile});
+        } else {
+          setUser(null);
         }
+
       } catch (error) {
-        console.error("Error checking authentication:", error);
+        console.error("Error checking unified session:", error);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
-    })();
+    };
+
+    bootstrap();
   }, []);
 
-  const login = async (correo: string, password: string): Promise<boolean> => {
+  const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     try {
-      const user = await loginAbogado(correo, password);
-      if (user) {
-        setUser(user);
-        // Load permissions after login (with timeout to prevent hanging)
-        try {
-          const perms = await Promise.race([
-            getPermisos(),
-            new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 5000))
-          ]);
-          setPermisos(perms);
-        } catch (permError) {
-          console.error("Error loading permisos:", permError);
-          setPermisos([]);
-        }
+      const loggedInUser = await loginUnified(email, password);
+      if (loggedInUser && loggedInUser.user && loggedInUser.profile) {
+        setUser(loggedInUser);
         return true;
       }
       return false;
     } catch (error) {
-      console.error("Login error:", error);
+      console.error('Unified login error:', error);
       return false;
     }
-  };
+  }, []);
 
-  const register = async (data: { nombre: string; correo: string; password: string; despacho: string; telefono: string }): Promise<boolean> => {
-    try {
-      const newUser = await registerAbogado(data);
-      setUser(newUser);
-      // Load permissions after registration (with timeout to prevent hanging)
-      try {
-        const perms = await Promise.race([
-          getPermisos(),
-          new Promise<string[]>((resolve) => setTimeout(() => resolve([]), 5000))
-        ]);
-        setPermisos(perms);
-      } catch (permError) {
-        console.error("Error loading permisos:", permError);
-        setPermisos([]);
-      }
-      return true;
-    } catch (error) {
-      console.error("Registration error:", error);
-      return false;
-    }
-  };
-
-  const logout = async () => {
-    await doLogout();
-    await clearAuthToken();
+  const logout = useCallback(async () => {
+    await logoutUnified();
     setUser(null);
-    setPermisos([]);
-  };
+  }, []);
 
-  const updateProfile = async (updates: Partial<Abogado>) => {
+  const updateProfile = useCallback(async (updates: Partial<UnifiedUser>) => {
     if (user) {
       const updated = { ...user, ...updates };
-      await saveAbogado(updated);
+      await saveStoredUser(updated);
       setUser(updated);
     }
-  };
+  }, [user]);
 
-  const refreshPermisos = async () => {
-    const perms = await getPermisos();
-    setPermisos(perms);
-  };
+  const checkRole = useCallback((role: Rol): boolean => {
+    return hasRole(user, role);
+  }, [user]);
 
-  const hasPermission = (permiso: string): boolean => {
-    return permisos.includes(permiso);
-  };
-
-  const value = useMemo(
-    () => ({
-      user,
-      permisos,
+  const value: AuthContextValue = useMemo(() => {
+    // Only compute derived values if user exists
+    const profile = user?.profile;
+    const userRole = user?.user?.rol?.nombre?.toLowerCase() || "";
+    
+    return {
+      user: user || null,
+      profile: profile || undefined,
       isLoading,
-      isLoggedIn: !!user,
+      isLoggedIn: !!(user && user.user && user.profile),
+      isClientUser: userRole.includes('cliente'),
+      isLawyerUser: userRole.includes('abogado') || userRole.includes('lawyer'),
+      isFirmUser: userRole.includes('bufete') || userRole.includes('firm') || userRole.includes('empresa'),
       login,
-      register,
       logout,
       updateProfile,
-      hasPermission,
-      refreshPermisos,
-    }),
-    [user, permisos, isLoading],
-  );
+      checkRole,
+    };
+  }, [user, isLoading, login, logout, updateProfile, checkRole]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within UnifiedAuthProvider');
   }
   return context;
 }
+
+// Alias for backward compatibility
+export const useUnifiedAuth = useAuth;
+

@@ -1,8 +1,8 @@
 {
   "version": "5",
   "dialect": "mysql",
-  "id": "07007255-7d12-4707-bed4-407281eb2df2",
-  "prevId": "5ed4ca44-39f2-46ec-a57e-d7fc365a871c",
+  "id": "c9496abd-20cf-46df-bf77-e6280b384e80",
+  "prevId": "07007255-7d12-4707-bed4-407281eb2df2",
   "tables": {
     "abogados": {
       "name": "abogados",
@@ -78,6 +78,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "now()"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -145,6 +153,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -158,6 +174,118 @@
         }
       },
       "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "client_profiles": {
+      "name": "client_profiles",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lawyer_id": {
+          "name": "lawyer_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "document_type": {
+          "name": "document_type",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'CC'"
+        },
+        "document_number": {
+          "name": "document_number",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "client_profiles_id": {
+          "name": "client_profiles_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "client_profiles_user_id_unique": {
+          "name": "client_profiles_user_id_unique",
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
       "checkConstraint": {}
     },
     "clientes": {
@@ -235,6 +363,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "now()"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -309,6 +445,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "now()"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -401,6 +545,208 @@
       },
       "checkConstraint": {}
     },
+    "firm_profiles": {
+      "name": "firm_profiles",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nit": {
+          "name": "nit",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "plan_id": {
+          "name": "plan_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "firm_profiles_id": {
+          "name": "firm_profiles_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "firm_profiles_user_id_unique": {
+          "name": "firm_profiles_user_id_unique",
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
+    "lawyer_profiles": {
+      "name": "lawyer_profiles",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "firm_id": {
+          "name": "firm_id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "is_independent": {
+          "name": "is_independent",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "first_name": {
+          "name": "first_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "license_number": {
+          "name": "license_number",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "specialty": {
+          "name": "specialty",
+          "type": "varchar(100)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "address": {
+          "name": "address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "lawyer_profiles_id": {
+          "name": "lawyer_profiles_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "lawyer_profiles_user_id_unique": {
+          "name": "lawyer_profiles_user_id_unique",
+          "columns": [
+            "user_id"
+          ]
+        }
+      },
+      "checkConstraint": {}
+    },
     "modulos": {
       "name": "modulos",
       "columns": {
@@ -464,6 +810,14 @@
           "autoincrement": false,
           "onUpdate": true,
           "default": "(now())"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -484,6 +838,106 @@
           ]
         }
       },
+      "checkConstraint": {}
+    },
+    "notificaciones": {
+      "name": "notificaciones",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "int",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "proceso_id": {
+          "name": "proceso_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cliente_id": {
+          "name": "cliente_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "abogado_id": {
+          "name": "abogado_id",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "mensaje": {
+          "name": "mensaje",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "varchar(50)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'estado_cambio'"
+        },
+        "leido_cliente": {
+          "name": "leido_cliente",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "leido_abogado": {
+          "name": "leido_abogado",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "(now())"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "(now())"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "notificaciones_id": {
+          "name": "notificaciones_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
       "checkConstraint": {}
     },
     "permisos": {
@@ -548,6 +1002,14 @@
           "autoincrement": false,
           "onUpdate": true,
           "default": "(now())"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -600,6 +1062,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -688,6 +1158,14 @@
           "notNull": true,
           "autoincrement": false,
           "default": "now()"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -751,6 +1229,14 @@
           "autoincrement": false,
           "onUpdate": true,
           "default": "(now())"
+        },
+        "state": {
+          "name": "state",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
         }
       },
       "indexes": {},
@@ -911,6 +1397,83 @@
         }
       },
       "uniqueConstraints": {},
+      "checkConstraint": {}
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "varchar(36)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "email": {
+          "name": "email",
+          "type": "varchar(255)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "role": {
+          "name": "role",
+          "type": "varchar(20)",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "onUpdate": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "users_id": {
+          "name": "users_id",
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "users_email_unique": {
+          "name": "users_email_unique",
+          "columns": [
+            "email"
+          ]
+        }
+      },
       "checkConstraint": {}
     }
   },

@@ -3,7 +3,10 @@ import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Scroll
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { getClientes, type Cliente, type Proceso, EstadoProceso, getEstadosProceso, getTiposProceso, type TiposProceso} from "@/lib/storage";
+import { getEstadosProceso, getTiposProceso } from '@/lib/services/procesoService';
+import { Cliente, EstadoProceso, TiposProceso } from "@/shared/schema";
+import { getClientes } from "@/lib/services/clienteService";
+
 
 // Type for form data (simplified for the form)
 export type CaseFormData = {
@@ -47,18 +50,18 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
 
   const loadClientes = useCallback(async (reset: boolean = false) => {
     if (!user || isLoadingMoreRef.current || (!reset && !hasMoreClientes)) return;
-    
+
     if (reset) {
       setClientesOffset(0);
     }
-    
+
     isLoadingMoreRef.current = true;
     setIsLoadingClientes(true);
-    
+
     try {
       const offset = reset ? 0 : clientesOffset;
-      const data = await getClientes(user.id, CLIENTES_LIMIT, offset, clienteSearch || undefined);
-      
+      const data = await getClientes(CLIENTES_LIMIT, offset, clienteSearch || undefined);
+
       if (reset) {
         setClientes(data);
         setClientesOffset(data.length);
@@ -98,14 +101,14 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
   }, [clienteSearch]);
 
   const updateField = (
-      key: keyof CaseFormData,
-      value: string | number
-    ) => {
-      setForm((prev) => ({
-        ...prev,
-        [key]: key === "tipoProcesoId" ? Number(value) : value,
-      }));
-    };
+    key: keyof CaseFormData,
+    value: string | number
+  ) => {
+    setForm((prev) => ({
+      ...prev,
+      [key]: key === "tipoProcesoId" ? Number(value) : value,
+    }));
+  };
   const selectedCliente = clientes.find((c) => c.id === form.clienteId);
 
   const handleSave = () => {
@@ -166,6 +169,7 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
                 <FlatList
                   data={clientes}
                   keyExtractor={(c) => c.id}
+                  scrollEnabled={false}  // ← agregar esto
                   renderItem={({ item: c }) => (
                     <Pressable
                       style={[styles.dropdownItem, form.clienteId === c.id && styles.dropdownItemActive]}
@@ -205,7 +209,7 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
               {tiposProceso.map((tipo) => (
                 <Pressable
                   key={tipo.id}
-                  style={[styles.dropdownItem,Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownItemActive]}
+                  style={[styles.dropdownItem, Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownItemActive]}
                   onPress={() => {
                     updateField("tipoProcesoId", tipo.id);
                     setShowTipos(false);
@@ -253,7 +257,7 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
               <Pressable
                 key={estado.id}
                 style={[styles.estadoChip, form.estadoId === estado.id && styles.estadoChipActive]}
-                onPress={() => updateField("estadoId", estado.id)}
+                onPress={() => updateField("estadoId", estado.id!)}
               >
                 <Text style={[styles.estadoChipText, form.estadoId === estado.id && styles.estadoChipTextActive]}>
                   {estado.nombre}

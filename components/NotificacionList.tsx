@@ -3,7 +3,8 @@ import { View, Text, FlatList, Pressable, StyleSheet, RefreshControl } from "rea
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
-import { type Notificacion } from "@/lib/storage";
+import { Notificacion } from "@/shared/schema";
+
 
 interface NotificacionListProps {
   notificaciones: Notificacion[];
@@ -96,7 +97,7 @@ export function NotificacionList({
           <Text style={styles.message} numberOfLines={2}>
             {item.mensaje}
           </Text>
-          <Text style={styles.date}>{formatDate(item.createdAt)}</Text>
+          <Text style={styles.date}>{formatDate(item.createdAt.toString())}</Text>
         </View>
         <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
       </Pressable>

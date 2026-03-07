@@ -5,7 +5,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { saveActualizacion } from "@/lib/storage";
+import { saveActualizacion } from "@/lib/services/procesoService";
 
 export default function NewUpdateScreen() {
   const insets = useSafeAreaInsets();

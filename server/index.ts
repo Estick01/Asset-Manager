@@ -1,12 +1,14 @@
+
 import "dotenv/config";
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes.js";
-import { storage } from "./storage.js";
+
 import * as fs from "fs";
 import * as path from "path";
+import { storage } from './storage/storeage/database-storage.js';
 
 const app = express();
 app.use(cookieParser());

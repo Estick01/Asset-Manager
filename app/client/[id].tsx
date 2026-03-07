@@ -5,7 +5,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { getCliente, getProcesosByCliente, deleteCliente, updateCliente, type Cliente, type Proceso } from "@/lib/storage";
+import { getCliente, deleteCliente, updateCliente } from '@/lib/services/clienteService';
+import { getProcesosByCliente } from '@/lib/services/procesoService';
+import { ProcesoDTO, type Cliente, type Proceso } from '@/shared/schema';
 import { ClientForm } from "@/components/ClientForm";
 
 const ESTADO_COLORS: Record<string, string> = {
@@ -30,7 +32,7 @@ export default function ClientDetailScreen() {
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [cliente, setCliente] = useState<Cliente | null>(null);
-  const [procesos, setProcesos] = useState<Proceso[]>([]);
+  const [procesos, setProcesos] = useState<ProcesoDTO[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -50,7 +52,9 @@ export default function ClientDetailScreen() {
       (async () => {
         if (!id) return;
         const c = await getCliente(id);
-        setCliente(c);
+        if(c){
+          setCliente(c);
+        }
         if (c) {
           const p = await getProcesosByCliente(c.id);
           setProcesos(p.data);
@@ -82,9 +86,10 @@ export default function ClientDetailScreen() {
       await updateCliente(cliente.id, formData);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsEditing(false);
-      // Refresh data
       const c = await getCliente(cliente.id);
-      setCliente(c);
+      if(c){
+        setCliente(c);
+      }
     } catch (error) {
       Alert.alert("Error", "No se pudo guardar el cliente");
     } finally {
@@ -126,9 +131,12 @@ export default function ClientDetailScreen() {
   }
 
   const infoRows = [
-    { icon: "card-outline" as const, label: "Documento", value: cliente.documento || "No registrado" },
-    { icon: "mail-outline" as const, label: "Correo", value: cliente.correo || "No registrado" },
+    { icon: "card-outline" as const, label:cliente.tipoDocumento?.nombre, value: cliente.documento || "Sin documento" },
+    { icon: "mail-outline" as const, label: "Correo", value: cliente.user?.email || "No registrado" },
+    { icon: "location-outline" as const, label: "Direccion", value: cliente.direccion || "No registrado" },
     { icon: "call-outline" as const, label: "Telefono", value: cliente.telefono || "No registrado" },
+    { icon: "globe-outline" as const, label: "Departamento", value: cliente.departamento?.nombre || "No registrado" },
+    { icon: "location-outline" as const, label: "Municipio", value: cliente.municipio?.nombre || "No registrado" },
     { icon: "calendar-outline" as const, label: "Registrado", value: new Date(cliente.fechaCreacion).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" }) },
   ];
 
@@ -154,7 +162,7 @@ export default function ClientDetailScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{cliente.nombre.charAt(0).toUpperCase()}</Text>
           </View>
-          <Text style={styles.clientName}>{cliente.nombre}</Text>
+          <Text style={styles.clientName}>{cliente.nombre +" "+ cliente.apellido}</Text>
         </View>
 
         <View style={styles.infoCard}>
@@ -191,7 +199,7 @@ export default function ClientDetailScreen() {
               <View style={[styles.statusDot, { backgroundColor: ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary }]} />
               <View style={styles.procesoInfo}>
                 <Text style={styles.procesoRadicado}>{p.radicado}</Text>
-                <Text style={styles.procesoTipo}>{p.tipoProceso}</Text>
+                <Text style={styles.procesoTipo}>{p.tipoProceso?.nombre}</Text>
               </View>
               <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary) + "15" }]}>
                 <Text style={[styles.estadoText, { color: ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary }]}>{ESTADO_LABELS[getEstadoKey(p.estado)]}</Text>

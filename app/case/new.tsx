@@ -6,12 +6,12 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { saveProceso, getTiposProceso } from "@/lib/storage";
+import { saveProceso, getTiposProceso } from '@/lib/services/procesoService';
 import { CaseForm, type CaseFormData } from "@/components/CaseForm";
 
 export default function NewCaseScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuth();
+  const { user ,profile } = useAuth();
   const params = useLocalSearchParams<{ clienteId?: string }>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -38,7 +38,7 @@ export default function NewCaseScreen() {
       await saveProceso({
         ...data,
         tipoProceso,
-        abogadoId: user.id,
+        lawyerId: profile?.id || user.user.id,
         clienteId: params.clienteId || data.clienteId,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

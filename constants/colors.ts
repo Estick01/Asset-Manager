@@ -24,6 +24,9 @@ const Colors = {
   white: "#FFFFFF",
   black: "#000000",
   overlay: "rgba(0,0,0,0.5)",
+  gradientPrimary: ["#1B3A5C", "#2A5A8C"] as const,
+  gradientAccent: ["#D4A853", "#E8C97A"] as const,
+  gradientSuccess: ["#10B981", "#34D399"] as const,
   light: {
     text: "#1A1D21",
     background: "#F8F9FB",

@@ -1,21 +1,22 @@
 import { migrate } from "drizzle-orm/mysql2/migrator";
 import { drizzle } from "drizzle-orm/mysql2";
-import mysql2 from "mysql2/promise";
+import 'dotenv/config';
 import path from "path";
+import mysql from 'mysql2/promise';
 
 async function main() {
-  console.log("Connecting to database...");
-  const dbConnection = await mysql2.createConnection({
-    uri: "mysql://root:Pelusa1589@localhost:3306/Nueva",
-  });
+  console.log("DATABASE_URL:", process.env.DATABASE_URL);
+  const connection = await mysql.createConnection(
+    process.env.DATABASE_URL as string
+  );
 
-  const db = drizzle(dbConnection);
+  const db = drizzle(connection);
 
   console.log("Running migrations...");
   await migrate(db, { migrationsFolder: path.join(__dirname, "../migrations") });
 
   console.log("Migrations applied successfully!");
-  await dbConnection.end();
+  await connection.end();
 }
 
 main().catch((error) => {

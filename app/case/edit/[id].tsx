@@ -6,7 +6,8 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { getProceso, saveProceso, updateProceso, getTiposProceso, type Proceso } from "@/lib/storage";
+import { getProceso, updateProceso, getTiposProceso } from '@/lib/services/procesoService';
+import { type Proceso } from '@/shared/schema';
 import { CaseForm, type CaseFormData } from "@/components/CaseForm";
 
 export default function EditCaseScreen() {
@@ -73,7 +74,10 @@ export default function EditCaseScreen() {
         </View>
         {proceso ? (
           <CaseForm
-            initialData={proceso}
+            initialData={{
+              ...proceso,
+              tipoProcesoId: proceso.tipoProcesoId ?? undefined,
+            }}
             onSave={handleSave}
             isLoading={loading}
             error={error}

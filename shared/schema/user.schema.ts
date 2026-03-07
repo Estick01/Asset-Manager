@@ -1,0 +1,78 @@
+/**
+ * User Schema
+ * Database table definition for users
+ */
+
+import { mysqlTable, varchar, boolean, timestamp, text, int } from "drizzle-orm/mysql-core";
+import { relations } from "drizzle-orm";
+import { roles } from "./rol.schema";
+
+export const users = mysqlTable("users", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  email: varchar("email", { length: 255 }).notNull().unique(),
+  passwordHash: varchar("password_hash", { length: 255 }).notNull(),
+  name: varchar("name", { length: 100 }),
+  rolId: int("rol_id"),
+  planId: varchar("plan_id", { length: 36 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().default(new Date()),
+  updatedAt: timestamp("updated_at").notNull().default(new Date()).onUpdateNow(),
+});
+
+
+export const usersRelations = relations(users, ({ one }) => ({
+  rol: one(roles, {
+    fields: [users.rolId],
+    references: [roles.id],
+  }),
+}));
+
+// ===========================================
+// Interfaces
+// ============================================
+
+/** User table row type */
+export interface User {
+  id: string;
+  email: string;
+  passwordHash: string;
+  name: string | null;
+  rolId: number | null;
+  planId: string | null;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** User insert type */
+export interface InsertUser {
+  id: string;
+  email: string;
+  passwordHash: string;
+  name?: string | null;
+  rolId?: number | null;
+  planId?: string | null;
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+/** User relation types */
+export interface UserRelations {
+  rol: import("./rol.schema").Rol | null;
+}
+export interface UserWithRol extends User {
+  rol: UserRelations['rol']; // Rol | null
+}
+
+export enum EnumRol {
+  ADMIN = "admin",
+  ABOGADO = "abogado",
+  NUEVO = "nuevo",
+  CLIENTE = "cliente",
+  BUFETE = "bufete",
+}
+
+// Aliases for backward compatibility
+export type UserDTO = User;
+

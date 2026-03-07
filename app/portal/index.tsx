@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, Platform } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,56 +7,36 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { StyledModal } from "@/components/StyledModal";
-import { Abogado, Cliente, getAbogado, getCurrentCliente, getProcesosByCliente, logoutCliente, Proceso } from "@/lib/storage";
+import { useUnifiedAuth } from "@/lib/auth-context";
+import { getProcesosByCliente } from "@/lib/services/procesoService";
+import { ProcesoDTO } from "@/shared/schema/proceso.schema";
 
-const ESTADO_COLORS: Record<string, string> = {
-  activo: Colors.success,
-  en_tramite: Colors.warning,
-  finalizado: Colors.info,
-  archivado: Colors.textTertiary,
-};
-
-const ESTADO_LABELS: Record<string, string> = {
-  activo: "Activo",
-  en_tramite: "En Tramite",
-  finalizado: "Finalizado",
-  archivado: "Archivado",
+const ESTADO_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  activo:     { color: Colors.success,      label: "Activo",      icon: "pulse" },
+  en_tramite: { color: Colors.warning,      label: "En Trámite",  icon: "time-outline" },
+  finalized:  { color: Colors.info,         label: "Finalizado",  icon: "checkmark-circle-outline" },
+  archivado:  { color: Colors.textTertiary, label: "Archivado",   icon: "archive-outline" },
 };
 
 export default function ClientPortalScreen() {
   const insets = useSafeAreaInsets();
-  const [cliente, setCliente] = useState<Cliente | null>(null);
-  const [abogado, setAbogado] = useState<Abogado | null>(null);
-  const [procesos, setProcesos] = useState<Proceso[]>([]);
+  const { user, profile, logout } = useUnifiedAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [procesos, setProcesos] = useState<ProcesoDTO[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
 
   const loadData = useCallback(async () => {
-    const c = await getCurrentCliente();
-    if (!c) {
-      return;
-    }
-
-    setCliente(c);
-
-    const ab = await getAbogado();
-    setAbogado(ab);
-
-    const procs = await getProcesosByCliente(c.id);
+    if (!user || !profile) return;
+    const procs = await getProcesosByCliente(user.user.id);
     setProcesos(
-      procs.data.sort(
-        (a, b) =>
-          new Date(b.fechaCreacion).getTime() -
-          new Date(a.fechaCreacion).getTime()
+      procs.data.sort((a, b) =>
+        new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime()
       )
     );
-  }, []);
+  }, [user, profile]);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadData();
-    }, [loadData])
-  );
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -65,100 +45,155 @@ export default function ClientPortalScreen() {
   };
 
   const handleConfirmLogout = async () => {
-    await logoutCliente();
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsLogoutModalVisible(false);
-    router.replace("/portal/login");
+    setLoggingOut(true);
+    try {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await logout();
+      router.replace("/(auth)/login");
+    } catch {
+      setLoggingOut(false);
+    }
   };
 
-  const activos = procesos.filter((p) => p.estado?.codigo === "activo" || p.estado?.codigo === "en_tramite").length;
+  const activos    = procesos.filter(p => p.estado?.codigo === "activo" || p.estado?.codigo === "en_tramite").length;
+  const finalizados = procesos.filter(p => p.estado?.codigo === "finalized").length;
+
+  // ── Render proceso card ───────────────────────────────────────
+  const renderProceso = ({ item: p }: { item: ProcesoDTO }) => {
+    const estado = ESTADO_CONFIG[p.estado?.codigo || "archivado"] ?? ESTADO_CONFIG.archivado;
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+        onPress={() => router.push({ pathname: "/portal/case", params: { id: p.id } })}
+      >
+        {/* Barra lateral */}
+        <View style={[styles.cardAccent, { backgroundColor: estado.color }]} />
+
+        <View style={styles.cardBody}>
+          {/* Header */}
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleSection}>
+              <Text style={styles.radicado}>{p.radicado}</Text>
+              {p.tipoProceso?.nombre && (
+                <Text style={styles.tipo}>{p.tipoProceso.nombre}</Text>
+              )}
+            </View>
+            <View style={[styles.estadoBadge, { backgroundColor: estado.color + "15" }]}>
+              <View style={[styles.estadoDot, { backgroundColor: estado.color }]} />
+              <Text style={[styles.estadoText, { color: estado.color }]}>
+                {estado.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* Footer */}
+          <View style={styles.cardFooter}>
+            {p.juzgado && (
+              <View style={styles.metaRow}>
+                <Ionicons name="business-outline" size={12} color={Colors.textTertiary} />
+                <Text style={styles.metaText} numberOfLines={1}>{p.juzgado}</Text>
+              </View>
+            )}
+            <View style={styles.metaRow}>
+              <Ionicons name="calendar-outline" size={12} color={Colors.textTertiary} />
+              <Text style={styles.metaText}>
+                {new Date(p.fechaCreacion).toLocaleDateString("es-CO", {
+                  day: "numeric", month: "short", year: "numeric"
+                })}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} style={{ marginRight: 14 }} />
+      </Pressable>
+    );
+  };
+
+  // ── Header component ──────────────────────────────────────────
+  const ListHeader = () => (
+    <>
+      <LinearGradient
+        colors={["#0D3B66", "#1B5A8C"]}
+        style={[styles.headerGradient, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
+      >
+        {/* Top row */}
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>Hola,</Text>
+            <Text style={styles.clientName}>
+              {user?.user?.name || user?.user?.email || "Cliente"}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <Pressable onPress={() => router.push("/portal/profile")} style={styles.headerBtn} hitSlop={8}>
+              <Ionicons name="person-outline" size={20} color={Colors.white} />
+            </Pressable>
+            <Pressable onPress={() => setIsLogoutModalVisible(true)} style={styles.headerBtn} hitSlop={8}>
+              <Ionicons name="log-out-outline" size={20} color={Colors.white} />
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Summary */}
+        <View style={styles.summaryRow}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>{procesos.length}</Text>
+            <Text style={styles.summaryLabel}>Total</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: Colors.warning }]}>{activos}</Text>
+            <Text style={styles.summaryLabel}>Activos</Text>
+          </View>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryItem}>
+            <Text style={[styles.summaryValue, { color: "rgba(255,255,255,0.6)" }]}>{finalizados}</Text>
+            <Text style={styles.summaryLabel}>Finalizados</Text>
+          </View>
+        </View>
+      </LinearGradient>
+
+      <View style={styles.listHeader}>
+        <Text style={styles.sectionTitle}>Mis Procesos</Text>
+        {procesos.length > 0 && (
+          <Text style={styles.sectionCount}>{procesos.length}</Text>
+        )}
+      </View>
+    </>
+  );
 
   return (
     <View style={styles.screen}>
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2980B9" />}
-        contentContainerStyle={{ paddingBottom: 40 }}
-      >
-        <LinearGradient colors={["#0D3B66", "#1B5A8C"]} style={[styles.headerGradient, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerLeft}>
-              <Text style={styles.greeting}>Hola,</Text>
-              <Text style={styles.clientName}>{cliente?.nombre || "Cliente"}</Text>
-              {abogado && (
-                <View style={styles.abogadoRow}>
-                  <Ionicons name="briefcase-outline" size={14} color="rgba(255,255,255,0.6)" />
-                  <Text style={styles.abogadoText}>{abogado.despacho}</Text>
-                </View>
-              )}
+      <FlatList
+        data={procesos}
+        keyExtractor={item => item.id}
+        renderItem={renderProceso}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={styles.listContent}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2980B9" />
+        }
+        ListEmptyComponent={() => (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="document-text-outline" size={38} color={Colors.primary} />
             </View>
-            <View style={styles.headerRight}>
-              <Pressable onPress={() => router.push("/portal/profile")} style={styles.headerBtn}>
-                <Ionicons name="person-outline" size={22} color={Colors.white} />
-              </Pressable>
-              <Pressable onPress={() => setIsLogoutModalVisible(true)} style={styles.headerBtn}>
-                <Ionicons name="log-out-outline" size={22} color={Colors.white} />
-              </Pressable>
-            </View>
+            <Text style={styles.emptyTitle}>Sin procesos</Text>
+            <Text style={styles.emptySubtitle}>No tienes procesos registrados aún</Text>
           </View>
-        </LinearGradient>
+        )}
+      />
 
-        <View style={styles.content}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryCard}>
-              <Text style={styles.summaryValue}>{procesos.length}</Text>
-              <Text style={styles.summaryLabel}>Total Procesos</Text>
-            </View>
-            <View style={styles.summaryCard}>
-              <Text style={[styles.summaryValue, { color: Colors.success }]}>{activos}</Text>
-              <Text style={styles.summaryLabel}>Activos</Text>
-            </View>
-          </View>
-
-          <Text style={styles.sectionTitle}>Mis Procesos</Text>
-
-          {procesos.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="document-text-outline" size={48} color={Colors.textTertiary} />
-              <Text style={styles.emptyTitle}>Sin procesos</Text>
-              <Text style={styles.emptySubtitle}>No tienes procesos registrados aun</Text>
-            </View>
-          ) : (
-            procesos.map((p) => (
-              <Pressable
-                key={p.id}
-                style={({ pressed }) => [styles.procesoCard, pressed && styles.procesoCardPressed]}
-                onPress={() => router.push({ pathname: "/portal/case", params: { id: p.id } })}
-              >
-                <View style={styles.procesoHeader}>
-                  <View style={styles.procesoInfo}>
-                    <Text style={styles.procesoRadicado}>{p.radicado}</Text>
-                    <Text style={styles.procesoTipo}>{p.tipoProceso}</Text>
-                  </View>
-                  <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[p.estado?.codigo || "archivado"] || Colors.textTertiary) + "15" }]}>
-                    <View style={[styles.estadoDot, { backgroundColor: ESTADO_COLORS[p.estado?.codigo || "archivado"] || Colors.textTertiary }]} />
-                    <Text style={[styles.estadoText, { color: ESTADO_COLORS[p.estado?.codigo || "archivado"] || Colors.textTertiary }]}>
-                      {ESTADO_LABELS[p.estado?.codigo || "archivado"] || p.estado?.nombre}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.procesoFooter}>
-                  <View style={styles.metaRow}>
-                    <Ionicons name="business-outline" size={13} color={Colors.textTertiary} />
-                    <Text style={styles.metaText}>{p.juzgado}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
-                </View>
-              </Pressable>
-            ))
-          )}
-        </View>
-      </ScrollView>
       <StyledModal
         visible={isLogoutModalVisible}
         onClose={() => setIsLogoutModalVisible(false)}
-        title="Salir"
+        title="Cerrar Sesión"
         onConfirm={handleConfirmLogout}
-        confirmText="Salir"
+        confirmText={loggingOut ? "Saliendo..." : "Salir"}
         cancelText="Cancelar"
       >
         <Text style={styles.modalText}>¿Deseas cerrar tu sesión?</Text>
@@ -169,164 +204,131 @@ export default function ClientPortalScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+
+  // ── Header ──────────────────────────────────────────────────
   headerGradient: {
-    paddingHorizontal: 24,
-    paddingBottom: 28,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
+    marginBottom: 20,
   },
-  headerLeft: { flex: 1 },
   greeting: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.7)",
   },
   clientName: {
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
     marginTop: 2,
   },
-  abogadoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginTop: 6,
-  },
-  abogadoText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.6)",
-  },
-  headerRight: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  headerActions: { flexDirection: "row", gap: 8 },
   headerBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38, height: 38, borderRadius: 19,
     backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: "center", justifyContent: "center",
   },
-  content: {
-    paddingHorizontal: 20,
-    marginTop: -8,
-  },
+
+  // ── Summary ──────────────────────────────────────────────────
   summaryRow: {
     flexDirection: "row",
-    gap: 12,
-    marginBottom: 24,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 14,
+    padding: 12,
+    justifyContent: "space-around",
   },
-  summaryCard: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 18,
+  summaryItem: { alignItems: "center", gap: 2 },
+  summaryValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.white },
+  summaryLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" },
+  summaryDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
+
+  // ── List ─────────────────────────────────────────────────────
+  listContent: { paddingBottom: 40 },
+  listHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  summaryValue: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-  },
-  summaryLabel: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-    marginTop: 4,
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
-    marginBottom: 12,
   },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 40,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textSecondary,
-  },
-  emptySubtitle: {
+  sectionCount: {
     fontSize: 13,
-    fontFamily: "Inter_400Regular",
+    fontFamily: "Inter_600SemiBold",
     color: Colors.textTertiary,
   },
-  procesoCard: {
+
+  // ── Card ─────────────────────────────────────────────────────
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.white,
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    overflow: "hidden",
+    marginHorizontal: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  procesoCardPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  procesoHeader: {
+  cardPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
+  cardAccent: { width: 4, alignSelf: "stretch" },
+  cardBody: { flex: 1, padding: 14, gap: 10 },
+  cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 12,
+    gap: 10,
   },
-  procesoInfo: { flex: 1, marginRight: 12 },
-  procesoRadicado: {
-    fontSize: 16,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-  },
-  procesoTipo: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginTop: 2,
+  cardTitleSection: { flex: 1 },
+  radicado: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.text },
+  tipo: {
+    fontSize: 12, fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary, marginTop: 2,
   },
   estadoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 9, paddingVertical: 4, borderRadius: 10,
   },
   estadoDot: { width: 6, height: 6, borderRadius: 3 },
-  estadoText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  procesoFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
+  estadoText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  cardFooter: { flexDirection: "row", gap: 14 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
+    fontSize: 11, fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary, maxWidth: 140,
   },
+
+  // ── Empty ─────────────────────────────────────────────────────
+  emptyState: {
+    alignItems: "center", justifyContent: "center",
+    gap: 10, paddingVertical: 60, paddingHorizontal: 32,
+  },
+  emptyIconWrap: {
+    width: 80, height: 80, borderRadius: 40,
+    backgroundColor: Colors.primary + "12",
+    alignItems: "center", justifyContent: "center", marginBottom: 4,
+  },
+  emptyTitle: { fontSize: 17, fontFamily: "Inter_700Bold", color: Colors.text },
+  emptySubtitle: {
+    fontSize: 13, fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary, textAlign: "center",
+  },
+
+  // ── Modal ─────────────────────────────────────────────────────
   modalText: {
-    fontSize: 15,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
+    fontSize: 15, fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary, textAlign: "center", lineHeight: 22,
   },
 });
-
