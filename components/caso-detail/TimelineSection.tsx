@@ -12,10 +12,7 @@ interface TimelineSectionProps {
   rol: string | undefined;
   actualizaciones: ActualizacionRelations[];
   actualizacionesLoading: boolean;
-  hasMore: boolean;
-  onLoadMore: () => void;
   onDelete: (act: Actualizacion) => void;
-  isInitialLoad: boolean;
 }
 
 export default function TimelineSection({
@@ -23,10 +20,7 @@ export default function TimelineSection({
   rol,
   actualizaciones,
   actualizacionesLoading,
-  hasMore,
-  onLoadMore,
   onDelete,
-  isInitialLoad,
 }: TimelineSectionProps) {
   if (!proceso) return null;
 
@@ -133,15 +127,6 @@ export default function TimelineSection({
               </View>
             </Pressable>
           ))}
-
-          {/* Sentinel para infinite scroll */}
-          <View
-            onLayout={() => {
-              if (isInitialLoad || !hasMore || actualizacionesLoading) return;
-              onLoadMore();
-            }}
-            style={{ height: 20 }}
-          />
 
           {actualizacionesLoading && (
             <View style={styles.loadingMore}>

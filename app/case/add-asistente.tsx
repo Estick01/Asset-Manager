@@ -12,8 +12,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { LawyerProfile } from "@/shared/schema";
-import { addAsistenteToProceso, getAbogadosDisponibles } from "@/lib/services/procesoLawyerService";
+import { setResponsableProceso, getAbogadosDisponibles } from "@/lib/services/procesoLawyerService";
 import { EnumRol, UserWithRol } from "@/shared/schema/user.schema";
+import { Modal } from "react-native";
 
 export default function AddAsistenteScreen() {
   const { procesoId } = useLocalSearchParams<{ procesoId: string }>();
@@ -24,6 +25,8 @@ export default function AddAsistenteScreen() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
+
+  const [confirmLawyer, setConfirmLawyer] = useState<LawyerProfile | null>(null);
 
   const lawyerProfile = profile as LawyerProfile;
   const usuario = user?.user as UserWithRol;
@@ -61,29 +64,25 @@ export default function AddAsistenteScreen() {
   useEffect(() => { loadData(); }, [loadData]);
 
   const handleAddAsistente = (lawyer: LawyerProfile) => {
-    Alert.alert(
-      "Confirmar asignación",
-      `¿Agregar a ${lawyer.firstName} ${lawyer.lastName} como asistente en este proceso?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Agregar",
-          onPress: async () => {
-            setSubmitting(lawyer.id);
-            const result = await addAsistenteToProceso({ procesoId, lawyerId: lawyer.id });
-            if (result.error) {
-              toast.error(result.error);
-            } else {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              toast.success(`${lawyer.firstName} agregado como asistente`);
-              router.back();
-            }
-            setSubmitting(null);
-          },
-        },
-      ]
-    );
+    setConfirmLawyer(lawyer);
   };
+
+  const handleConfirm = async () => {
+    if (!confirmLawyer) return;
+    setSubmitting(confirmLawyer.id);
+    setConfirmLawyer(null);
+    const result = await setResponsableProceso(procesoId, confirmLawyer.id);
+    if (result.error) {
+      toast.error(result.error);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.success(`${confirmLawyer.firstName} asignado como responsable`);
+      router.back();
+    }
+    setSubmitting(null);
+  };
+
+
 
   // ─── Sin firma ────────────────────────────────────────────────
   if (!firmId) {
@@ -98,7 +97,7 @@ export default function AddAsistenteScreen() {
               <Ionicons name="arrow-back" size={22} color={Colors.white} />
             </Pressable>
             <View style={styles.headerCenter}>
-              <Text style={styles.headerTitle}>Agregar Asistente</Text>
+              <Text style={styles.headerTitle}>Agregar Responsable</Text>
             </View>
             <View style={{ width: 36 }} />
           </View>
@@ -109,7 +108,7 @@ export default function AddAsistenteScreen() {
           </View>
           <Text style={styles.emptyTitle}>Sin firma asignada</Text>
           <Text style={styles.emptySubtext}>
-            Solo los abogados de una firma pueden agregar asistentes a un proceso
+            Solo los abogados de una firma pueden agregar responsables a un proceso
           </Text>
           <Pressable style={styles.backBtn} onPress={() => router.back()}>
             <Text style={styles.backBtnText}>Volver al proceso</Text>
@@ -183,7 +182,7 @@ export default function AddAsistenteScreen() {
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
           </Pressable>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Agregar Asistente</Text>
+            <Text style={styles.headerTitle}>Agregar Responsable</Text>
             {!loading && (
               <Text style={styles.headerSubtitle}>
                 {filtered.length} disponible{filtered.length !== 1 ? "s" : ""}
@@ -280,7 +279,70 @@ export default function AddAsistenteScreen() {
           refreshing={loading}
         />
       )}
+      {/* ── Confirm Modal ── */}
+      <Modal
+        visible={!!confirmLawyer}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmLawyer(null)}
+      >
+        <Pressable style={modalStyles.overlay} onPress={() => setConfirmLawyer(null)}>
+          <Pressable style={modalStyles.sheet} onPress={e => e.stopPropagation()}>
+
+            {/* Icon */}
+            <View style={modalStyles.iconWrap}>
+              <Ionicons name="person-add" size={28} color={Colors.primary} />
+            </View>
+
+            <Text style={modalStyles.title}>Confirmar asignación</Text>
+            <Text style={modalStyles.subtitle}>
+              ¿Agregar a este abogado como responsable en el proceso?
+            </Text>
+
+            {/* Lawyer card */}
+            {confirmLawyer && (
+              <View style={modalStyles.lawyerCard}>
+                <View style={modalStyles.lawyerAvatar}>
+                  <Text style={modalStyles.lawyerAvatarText}>
+                    {confirmLawyer.firstName.charAt(0)}{confirmLawyer.lastName.charAt(0)}
+                  </Text>
+                </View>
+                <View style={modalStyles.lawyerInfo}>
+                  <Text style={modalStyles.lawyerName}>
+                    {confirmLawyer.firstName} {confirmLawyer.lastName}
+                  </Text>
+                  {confirmLawyer.specialization && (
+                    <View style={modalStyles.rolBadge}>
+                      <Ionicons name="briefcase-outline" size={11} color={Colors.primary} />
+                      <Text style={modalStyles.rolBadgeText}>{confirmLawyer.specialization}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Actions */}
+            <View style={modalStyles.actions}>
+              <Pressable
+                style={({ pressed }) => [modalStyles.btnCancel, pressed && { opacity: 0.7 }]}
+                onPress={() => setConfirmLawyer(null)}
+              >
+                <Text style={modalStyles.btnCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [modalStyles.btnConfirm, pressed && { opacity: 0.85 }]}
+                onPress={handleConfirm}
+              >
+                <Ionicons name="checkmark" size={16} color={Colors.white} />
+                <Text style={modalStyles.btnConfirmText}>Agregar</Text>
+              </Pressable>
+            </View>
+
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
+
   );
 }
 
@@ -330,9 +392,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    marginTop: 12,  // separación del summaryRow
+    marginTop: 12,
   },
-   searchInput: {
+  searchInput: {
     flex: 1,
     fontSize: 14,
     fontFamily: "Inter_400Regular",
@@ -409,4 +471,95 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary, borderRadius: 12,
   },
   backBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.white },
+});
+
+const TEAL  = "#2196A6";
+const WHITE = "#FFFFFF";
+const TEXT  = "#1B2B3B";
+const TEXT2 = "#6B7B8D";
+const TEXT3 = "#9AAABB";
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(10,20,35,0.55)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  sheet: {
+    width: "100%",
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+
+  iconWrap: {
+    width: 60, height: 60, borderRadius: 18,
+    backgroundColor: "#E8F4FD",
+    alignItems: "center", justifyContent: "center",
+    marginBottom: 4,
+  },
+
+  title: {
+    fontSize: 18, fontFamily: "Inter_700Bold",
+    color: TEXT, textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 14, fontFamily: "Inter_400Regular",
+    color: TEXT2, textAlign: "center",
+    lineHeight: 20, marginBottom: 8,
+  },
+
+  lawyerCard: {
+    flexDirection: "row", alignItems: "center",
+    width: "100%",
+    backgroundColor: "#F4F6F8",
+    borderRadius: 14, padding: 14, gap: 12,
+    marginBottom: 8,
+    borderWidth: 1, borderColor: "#E0E7EF",
+  },
+  lawyerAvatar: {
+    width: 44, height: 44, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+  },
+  lawyerAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  lawyerInfo: { flex: 1, gap: 4 },
+  lawyerName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT },
+  rolBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    alignSelf: "flex-start",
+    backgroundColor: "#E8F4FD",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  rolBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEAL },
+
+  actions: {
+    flexDirection: "row", gap: 10,
+    width: "100%", marginTop: 4,
+  },
+  btnCancel: {
+    flex: 1, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: "#F4F6F8",
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: "#E0E7EF",
+  },
+  btnCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT2 },
+
+  btnConfirm: {
+    flex: 1, paddingVertical: 13, borderRadius: 14,
+    backgroundColor: TEAL,
+    flexDirection: "row",
+    alignItems: "center", justifyContent: "center", gap: 6,
+    shadowColor: TEAL, shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+  },
+  btnConfirmText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: WHITE },
 });

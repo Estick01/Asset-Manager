@@ -19,7 +19,7 @@ export { lawyerProfiles, lawyerProfilesRelations, type LawyerProfile, type Inser
 export { clientes, clientesRelations, type Cliente, type InsertCliente } from "./cliente.schema";
 
 // Lawyer-Clients (intermediate table)
-export { lawyerClients, type LawyerClient, type InsertLawyerClient, type LawyerClientStatus } from "./lawyer-clients.schema";
+export { lawyerClients, lawyerClientsRelations, type LawyerClient, type InsertLawyerClient, type LawyerClientStatus } from "./lawyer-clients.schema";
 
 // Tipos Documento
 export { tiposDocumento, type TiposDocumento, type InsertTiposDocumento } from "./tipos-documento.schema";
@@ -83,6 +83,14 @@ export {
   type InsertTipoAsignacion
 } from "./tipo-asignacion.schema";
 
+// Proceso Responsables
+export {
+  procesoResponsables,
+  procesoResponsablesRelations,
+  type ProcesoResponsable,
+  type InsertProcesoResponsable
+} from "./proceso-responsables.schema";
+
 // LawyerFirmaHistory
 export {
   lawyerFirmaHistory,
@@ -106,8 +114,54 @@ export { documentos, documentosRelations, type Documento, type InsertDocumento }
 // Notificacion
 export { notificaciones, type Notificacion, type InsertNotificacion } from "./notificacion.schema";
 
+// Chat
+export {
+  conversations,
+  conversationsRelations,
+  conversationParticipants,
+  conversationParticipantsRelations,
+  messages,
+  messagesRelations,
+  type ConversationType,
+  type MessageType,
+  type Conversation,
+  type ConversationParticipant,
+  type Message,
+  type InsertConversation,
+  type InsertConversationParticipant,
+  type InsertMessage,
+  type ConversationDTO,
+  type MessageDTO,
+  type WsIncomingMessage,
+  type WsOutgoingMessage,
+} from "./chat.schema";
+
+// Sessions (JWT revocation)
+export {
+  sessions,
+  sessionsRelations,
+  type Session,
+  type InsertSession,
+} from "./session.schema";
+
+// Tareas
+export {
+  tareas,
+  tareasRelations,
+  type Tarea,
+  type InsertTarea,
+  type TareaEstado,
+  type TareaPrioridad,
+  type CreateTareaDTO,
+  type UpdateTareaDTO,
+  type CambiarEstadoDTO,
+  type TareaResponseDTO,
+  type TareasProgresoDTO,
+  type MisTareasDTO,
+} from "./tarea.schema";
+
 // Ubicación (Departamentos y Municipios)
-export { 
+export {
   departamentos, 
   departamentosRelations,
   municipios, 

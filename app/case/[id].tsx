@@ -16,7 +16,7 @@ import {
   saveActualizacion,
   getDocumentoDownloadUrl,
 } from "@/lib/services/procesoService";
-import { type Actualizacion, type Documento, type ProcesoDTO } from "@/shared/schema";
+import { type Actualizacion, type Documento, type ProcesoDTO, type TareasProgresoDTO } from "@/shared/schema";
 import {
   HeaderActions,
   ClienteInfoSection,
@@ -25,6 +25,8 @@ import {
   DocumentsSection,
 } from "../../components/caso-detail";
 import { ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
+import { TareasList } from "@/components/tareas/TareasList";
+import { getTareasByProceso } from "@/lib/services/tareaService";
 
 const ACTUALIZACIONES_LIMIT = 10;
 
@@ -36,11 +38,12 @@ export default function CaseDetailScreen() {
   const [proceso, setProceso] = useState<ProcesoDTO | null>(null);
   const [actualizaciones, setActualizaciones] = useState<ActualizacionRelations[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
-  const [activeTab, setActiveTab] = useState<"timeline" | "documents">("timeline");
+  const [activeTab, setActiveTab] = useState<"timeline" | "documents" | "tareas">("tareas");
+  const [tareasData, setTareasData] = useState<TareasProgresoDTO | null>(null);
   const [actualizacionesOffset, setActualizacionesOffset] = useState(0);
   const [actualizacionesLoading, setActualizacionesLoading] = useState(false);
   const [hasMoreActualizaciones, setHasMoreActualizaciones] = useState(true);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
   const isLoadingMoreRef = useRef(false);
 
   // ============================================
@@ -48,8 +51,8 @@ export default function CaseDetailScreen() {
   // ============================================
   const loadData = useCallback(async () => {
     if (!id) return;
-    setIsInitialLoad(true);
-
+    // Prevent resetting data while we're in the middle of loading more
+    if (isLoadingMoreRef.current) return;
     const p: ProcesoDTO = await getProceso(id);
     setProceso(p);
 
@@ -58,15 +61,21 @@ export default function CaseDetailScreen() {
       setActualizaciones(acts);
       setActualizacionesOffset(acts.length);
       setHasMoreActualizaciones(acts.length === ACTUALIZACIONES_LIMIT);
-      setIsInitialLoad(false);
 
       const docs = await getDocumentos(p.id);
       setDocumentos(docs);
+
+      try {
+        const td = await getTareasByProceso(p.id);
+        setTareasData(td);
+      } catch {
+        // tareas are non-critical — don't block the rest of the screen
+      }
     }
   }, [id]);
 
   const loadMoreActualizaciones = useCallback(async () => {
-    if (!proceso || isLoadingMoreRef.current || !hasMoreActualizaciones) return;
+    if (!proceso || isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) return;
     isLoadingMoreRef.current = true;
     setActualizacionesLoading(true);
     try {
@@ -84,7 +93,7 @@ export default function CaseDetailScreen() {
       setActualizacionesLoading(false);
       isLoadingMoreRef.current = false;
     }
-  }, [proceso, hasMoreActualizaciones, actualizacionesOffset]);
+  }, [proceso, hasMoreActualizaciones, actualizacionesOffset, actualizacionesLoading]);
 
   useFocusEffect(
     useCallback(() => {
@@ -160,8 +169,9 @@ export default function CaseDetailScreen() {
           fecha: new Date(),
           titulo: "Documento agregado",
           descripcion: `Se agrego el documento "${file.name}"`,
-          tipoId: 1,
+          tipoId: 2,
           documentoId: doc.id,
+          tipo: "documento",
         });
 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -195,7 +205,7 @@ export default function CaseDetailScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         onScroll={({ nativeEvent }) => {
-          if (isLoadingMoreRef.current || !hasMoreActualizaciones) return;
+          if (isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) return;
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
           const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 100;
           if (isCloseToBottom) loadMoreActualizaciones();
@@ -208,18 +218,26 @@ export default function CaseDetailScreen() {
           proceso={proceso}
           rol={rol}
           currentLawyerId={user?.profile?.id!}
-          onAddAsistente={() => router.push({ 
-            pathname: "/case/add-asistente", 
-            params: { procesoId: proceso.id } 
+          onAddAsistente={() => router.push({
+            pathname: "/case/add-asistente",
+            params: { procesoId: proceso.id }
           })}
-          onTransferirCaso={() => router.push({ 
-            pathname: "/case/transferir", 
-            params: { procesoId: proceso.id } 
+          onTransferirCaso={() => router.push({
+            pathname: "/case/transferir" as any,
+            params: { procesoId: proceso.id }
           })}
         />
 
         {/* Tabs */}
         <View style={styles.tabBar}>
+          <View style={[styles.tab, activeTab === "tareas" && styles.tabActive]}>
+            <Text
+              style={[styles.tabText, activeTab === "tareas" && styles.tabTextActive]}
+              onPress={() => setActiveTab("tareas")}
+            >
+              Tareas{tareasData ? ` (${tareasData.progreso.total})` : ""}
+            </Text>
+          </View>
           <View style={[styles.tab, activeTab === "timeline" && styles.tabActive]}>
             <Text
               style={[styles.tabText, activeTab === "timeline" && styles.tabTextActive]}
@@ -244,10 +262,7 @@ export default function CaseDetailScreen() {
             rol={rol}
             actualizaciones={actualizaciones}
             actualizacionesLoading={actualizacionesLoading}
-            hasMore={hasMoreActualizaciones}
-            onLoadMore={loadMoreActualizaciones}
             onDelete={handleDeleteActualizacion}
-            isInitialLoad={isInitialLoad}
           />
         )}
 
@@ -260,6 +275,17 @@ export default function CaseDetailScreen() {
             onDownload={handleDownloadDocumento}
           />
         )}
+        {activeTab === "tareas" && tareasData && (
+          <TareasList
+            procesoId={proceso.id}
+            data={tareasData}
+            onRefresh={loadData}
+            canCreate={rol !== "cliente"}
+            canEdit={rol === "bufete" || rol === "abogado"}
+            currentProfileId={user?.profile?.id}
+          />
+        )}
+
       </ScrollView>
     </View>
   );

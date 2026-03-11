@@ -18,7 +18,7 @@ import { ActualizacionRelations } from '@/shared/schema/actualizaciones.schema';
 export async function getProcesos(
   limit?: number,
   offset?: number,
-  filter?: { estadoCodigo?: string; search?: string }
+  filter?: { estadoCodigo?: string; search?: string; hasResponsable?: boolean }
 ): Promise<{ data: Proceso[]; total: number }> {
   try {
     const params = new URLSearchParams();
@@ -27,6 +27,8 @@ export async function getProcesos(
     if (filter?.estadoCodigo)
       params.append('estadoCodigo', filter.estadoCodigo);
     if (filter?.search) params.append('search', filter.search);
+    if (filter?.hasResponsable !== undefined)
+      params.append('hasResponsable', filter.hasResponsable.toString());
 
     const response = await apiRequest(
       "GET",

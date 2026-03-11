@@ -13,6 +13,10 @@ export interface FirmDashboardStats {
   procesosEsteMes: number;
   totalDocumentos: number;
   actualizacionesEsteMes: number;
+  totalTareas: number;
+  tareasPendientes: number;
+  tareasEnProgreso: number;
+  tareasCompletadas: number;
   procesosPorEstado: { nombre: string; color: string; total: number }[];
   procesosPorTipo: { nombre: string; total: number }[];
 }

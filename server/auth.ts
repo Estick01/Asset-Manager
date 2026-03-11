@@ -1,7 +1,6 @@
-import { profile } from 'node:console';
-
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { randomUUID } from "crypto";
 import type { Request, Response, NextFunction } from "express";
 import { JWTPayload } from "@/shared/model.schema.js";
 import { Rol } from "./storage/index.js";
@@ -15,18 +14,24 @@ import { Profile } from '@/lib/services/authService.js';
    CONFIG
 ===================================================== */
 
-const JWT_SECRET = process.env.JWT_SECRET ?? (() => {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET environment variable must be set in production');
+const JWT_SECRET = (() => {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable must be set');
   }
-  return "lextrack-dev-secret";
+  return secret;
 })();
-const JWT_EXPIRES_IN = "7d";
+const JWT_EXPIRES_IN = "2h";
 
 const COOKIE_NAME = "lextrack_token";
 export const AUTH_COOKIE_NAME = COOKIE_NAME;
 
-const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const COOKIE_MAX_AGE = 2 * 60 * 60 * 1000;
+
+const REFRESH_COOKIE_NAME = "lextrack_refresh";
+export const AUTH_REFRESH_COOKIE_NAME = REFRESH_COOKIE_NAME;
+export const REFRESH_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? "12", 10);
 
 /* =====================================================
@@ -52,6 +57,25 @@ export function getClearCookieOptions(isProduction: boolean) {
   };
 }
 
+export function getRefreshCookieOptions(isProduction: boolean) {
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "strict" as const,
+    maxAge: REFRESH_MAX_AGE,
+    path: "/",
+  };
+}
+
+/* =====================================================
+   REFRESH TOKEN
+===================================================== */
+
+/** Generate a 64-char opaque refresh token */
+export function generateRefreshToken(): string {
+  return randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, "");
+}
+
 /* =====================================================
    PASSWORD
 ===================================================== */
@@ -72,8 +96,10 @@ export async function verifyPassword(password: string, hash: string) {
    JWT
 ===================================================== */
 
-export function generateToken(payload: JWTPayload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+export function generateToken(payload: Omit<JWTPayload, "jti">): { token: string; jti: string } {
+  const jti = randomUUID();
+  const token = jwt.sign({ ...payload, jti }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return { token, jti };
 }
 
 export function verifyToken(token: string): JWTPayload | null {
@@ -119,7 +145,7 @@ declare global {
   }
 }
 
-export function authenticate(req: Request, res: Response, next: NextFunction) {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   const token = extractToken(req);
 
   if (!token) {
@@ -130,6 +156,12 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
 
   if (!payload) {
     return res.status(401).json({ error: "Token inválido o expirado" });
+  }
+
+  // Validate session is still active (not revoked)
+  const sessionValid = await storage.sessions.isValid(payload.jti);
+  if (!sessionValid) {
+    return res.status(401).json({ error: "Sesión inválida o cerrada" });
   }
 
   req.user = payload;
@@ -198,28 +230,26 @@ export function requirePermission(...requiredPermissions: string[]) {
 ===================================================== */
 
 export function createAuthResponse(
-  user: { id: string; email: string },
+  user: { id: string; email: string; name: string | null },
   rol: Rol,
   res?: Response,
-  profile?:Profile
-) {
-  const payload: JWTPayload = {
+  profile?: Profile
+): { token: string; jti: string; user: JWTPayload; profile: Profile | undefined } {
+  const payloadBase: Omit<JWTPayload, "jti"> = {
     id: user.id,
     email: user.email,
     rol,
-    idProfile:profile?.id,
+    idProfile: profile?.id,
+    UserName: user.name,
   };
 
-  const token = generateToken(payload);
+  const { token, jti } = generateToken(payloadBase);
+  const payload: JWTPayload = { ...payloadBase, jti };
 
   if (res) {
     const isProduction = process.env.NODE_ENV === "production";
     res.cookie(COOKIE_NAME, token, getCookieOptions(isProduction));
   }
 
-  return {
-    token,
-    user: payload,
-    profile,
-  };
+  return { token, jti, user: payload, profile };
 }

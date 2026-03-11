@@ -35,13 +35,13 @@ export const usersRelations = relations(users, ({ one }) => ({
 export interface User {
   id: string;
   email: string;
-  passwordHash: string;
   name: string | null;
-  rolId: number | null;
-  planId: string | null;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  rolId?: number | null;
+  planId?: string | null;
+  isActive?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+  passwordHash?: string;
 }
 
 /** User insert type */

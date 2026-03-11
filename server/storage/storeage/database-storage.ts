@@ -24,6 +24,9 @@ import { DepartamentoStorage } from "./models/departamento-storage";
 import { MunicipioStorage } from "./models/municipio-storage";
 import { LawyerFirmaHistoryStorage } from "./models/lawyer-firma-history-storage";
 import { FirmInvitationStorage } from "./models/firm-invitation-storage";
+import { ChatStorage } from "./models/chat-storage";
+import { SessionStorage } from "./models/session-storage";
+import { TareaStorage } from "./models/tarea-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -54,7 +57,9 @@ export class DatabaseStorage {
   public lawyerFirmaHistory: LawyerFirmaHistoryStorage;
   public firmInvitation: FirmInvitationStorage;
   public FirmDashboardStorage: FirmDashboardStorage;
-
+  public chat: ChatStorage;
+  public sessions: SessionStorage;
+  public tareas: TareaStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -88,7 +93,12 @@ export class DatabaseStorage {
     this.lawyerFirmaHistory = new LawyerFirmaHistoryStorage(this.db);
     this.firmInvitation = new FirmInvitationStorage(this.db);
     this.FirmDashboardStorage = new FirmDashboardStorage(this.db);
+    this.chat = new ChatStorage(this.db);
+    this.sessions = new SessionStorage(this.db);
+    this.tareas = new TareaStorage(this.db);
 
+    // Cleanup expired sessions every hour
+    setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
   }
 
   // Backwards compatibility wrapper methods for routes
@@ -118,7 +128,6 @@ export class DatabaseStorage {
       id: user.id,
       nombre: `${lawyer.firstName} ${lawyer.lastName}`,
       correo: user.email,
-      password: user.passwordHash,
       despacho: '',
       telefono: lawyer.phone || '',
       planId: lawyer.firmId || 'free',
@@ -141,6 +150,10 @@ export class DatabaseStorage {
       updatedAt: new Date(),
     });
     return lawyer;
+  }
+
+  async getLawyerProfileById(id: string){
+    return this.abogados.getLawyer(id);
   }
 
   async getAllLawyers(limit: number, offset: number, filter?: any ) {
@@ -301,7 +314,7 @@ export class DatabaseStorage {
   }
 
   async getActualizaciones(procesoId: string , limit: number, offset: number, filter?: any) {
-    return this.actualizaciones.getActualizaciones(procesoId);
+    return this.actualizaciones.getActualizaciones(procesoId, limit, offset);
   }
 
   async deleteActualizacion(id: string) {
@@ -331,8 +344,16 @@ export class DatabaseStorage {
     return this.notificaciones.getNotificacionesByClienteId(clienteId);
   }
 
+  async getNotificacionesCountByClienteId(clienteId: string) {
+    return this.notificaciones.countNoLeidasByClienteId(clienteId);
+  }
+
   async markNotificacionLeidaCliente(id: number) {
     return this.notificaciones.marcarComoLeidaByClienteId(id);
+  }
+
+  async markTodasLeidasCliente(clienteId: string) {
+    return this.notificaciones.marcarTodasComoLeidasByClienteId(clienteId);
   }
 
   async getNotificacionesByAbogadoId(abogadoId: string) {
@@ -347,6 +368,26 @@ export class DatabaseStorage {
     return this.notificaciones.marcarComoLeidaByLawyerId(id);
   }
 
+  async markTodasLeidasAbogado(abogadoId: string) {
+    return this.notificaciones.marcarTodasComoLeidasByLawyerId(abogadoId);
+  }
+
+  async getNotificacionesByFirmaId(firmaId: string) {
+    return this.notificaciones.getNotificacionesByFirmId(firmaId);
+  }
+
+  async getNotificacionesCountByFirmaId(firmaId: string) {
+    return this.notificaciones.countNoLeidasByFirmId(firmaId);
+  }
+
+  async markNotificacionLeidaFirma(id: number) {
+    return this.notificaciones.marcarComoLeidaByFirmaId(id);
+  }
+
+  async markTodasLeidasFirma(firmaId: string) {
+    return this.notificaciones.marcarTodasComoLeidasByFirmId(firmaId);
+  }
+
   async getFirmProfileByUserId(userId: string) {
     return this.firmProfiles.getFirmProfileByUserId(userId);
   }
@@ -359,12 +400,24 @@ export class DatabaseStorage {
     return this.procesos.addLawyerToProceso(procesoId, lawyerId, options);
   }
 
+  async getProcesoLawyers(procesoId: string) {
+    return this.procesos.getProcesoLawyers(procesoId);
+  }
+
+  async removeLawyerFromProceso(procesoId: string, lawyerId: string) {
+    return this.procesos.removeLawyerFromProceso(procesoId, lawyerId);
+  }
+
   async getProcesosByClienteAndFirma(clienteId: string, firmaId: string, limit: number, offset: number, filter?: any) {
     return this.procesos.getProcesosByClienteAndFirma(clienteId, firmaId, limit, offset, filter);
   }
 
   async getProcesosByFirma( idProfile:string , limit: number, offset: number, filter?: any){
     return this.procesos.getProcesosByFirma(idProfile, limit, offset, filter);
+  }
+
+  async setResponsable(procesoId: string, responsableId: string | null, options?: { asignadoPor?: string | null; asignadoPorNombre?: string | null; razon?: string | null }) {
+    return this.procesos.setResponsable(procesoId, responsableId, options);
   }
 
 

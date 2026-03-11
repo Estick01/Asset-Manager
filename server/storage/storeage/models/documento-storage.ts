@@ -33,6 +33,7 @@ export class DocumentoStorage {
     const newDocumento: Documento = {
       ...insertDocumento,
       id,
+      tamano: insertDocumento.tamano ?? 0,
       descripcion: insertDocumento.descripcion ?? "",
       fechaSubida,
       state: insertDocumento.state ?? true,

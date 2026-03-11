@@ -8,19 +8,22 @@ import { ProcesoDTO } from "@/shared/schema";
 interface LawyersSectionProps {
   proceso: ProcesoDTO | null;
   rol: string | undefined;
-  currentLawyerId?: string;  
+  currentLawyerId?: string;
   onAddAsistente?: () => void;
   onTransferirCaso?: () => void;
 }
 
-export default function LawyersSection({ 
-  proceso, 
+export default function LawyersSection({
+  proceso,
   rol,
   currentLawyerId,
   onAddAsistente,
   onTransferirCaso,
 }: LawyersSectionProps) {
-  if (!proceso?.lawyers || proceso.lawyers.length === 0) return null;
+  const hasLawyers = proceso?.lawyers && proceso.lawyers.length > 0;
+  const hasResponsable = !!proceso?.responsable;
+
+  if (!hasLawyers && !hasResponsable) return null;
 
   const canSeeRazonAsignacion = rol === "abogado" || rol === "bufete";
   const canSeeTipoAsignacion = rol === "abogado" || rol === "bufete";
@@ -28,129 +31,205 @@ export default function LawyersSection({
   const canSeeFechaFin = rol === "abogado" || rol === "bufete";
   const canNavigateLawyer = rol === "bufete";
 
-  // Abogado solo puede agregar asistente a su propio caso
-  const isOwnCase = proceso.lawyers.some(l => l.lawyerId === currentLawyerId);
-  const canAddAsistente = rol === "bufete" || (rol === "abogado" && isOwnCase);
+  // Solo bufete puede asignar/cambiar responsable
+  const canSetResponsable = rol === "bufete";
 
   // Solo bufete puede transferir el caso
   const canTransferirCaso = rol === "bufete";
 
   const lawyers = rol === "cliente"
-    ? proceso.lawyers.filter(l => l.rol === "principal")
-    : proceso.lawyers;
+    ? (proceso?.lawyers ?? []).filter(l => l.rol === "principal")
+    : (proceso?.lawyers ?? []);
+
+  const responsable = proceso?.responsable;
 
   return (
     <View style={styles.container}>
-      {/* Header con acciones */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>
-          {rol === "cliente" ? "Tu Abogado" : "Abogados Asignados"}
-        </Text>
-        <View style={styles.headerActions}>
-          {canAddAsistente && (
-            <Pressable style={styles.actionBtn} onPress={onAddAsistente}>
-              <Ionicons name="person-add-outline" size={14} color={Colors.primary} />
-              <Text style={styles.actionBtnText}>Asistente</Text>
-            </Pressable>
-          )}
-          {canTransferirCaso && (
-            <Pressable style={[styles.actionBtn, styles.actionBtnWarning]} onPress={onTransferirCaso}>
-              <Ionicons name="swap-horizontal-outline" size={14} color={Colors.warning} />
-              <Text style={[styles.actionBtnText, { color: Colors.warning }]}>Transferir</Text>
-            </Pressable>
-          )}
-        </View>
-      </View>
-
-      {lawyers.map((l, idx) => (
-        <View
-          key={l.id}
-          style={[
-            styles.lawyerCard,
-            idx < lawyers.length - 1 && styles.lawyerCardBorder,
-          ]}
-        >
-          <View style={styles.lawyerHeader}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {l.lawyer?.firstName?.charAt(0).toUpperCase() || "A"}
-              </Text>
+      {/* ── Sección Responsable ── */}
+      {(canSetResponsable || hasResponsable) && (
+        <View style={styles.responsableSection}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleRow}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={Colors.primary} />
+              <Text style={styles.sectionTitle}>Responsable del Proceso</Text>
             </View>
-            <View style={styles.lawyerInfo}>
-              <Text style={styles.lawyerNombre}>
-                {l.lawyer?.firstName} {l.lawyer?.lastName}
-              </Text>
-              <View style={styles.rolBadge}>
-                <Text style={styles.rolText}>{l.rol}</Text>
-              </View>
-            </View>
-            {canNavigateLawyer && (
-              <Pressable
-                onPress={() => router.push({ pathname: "/profile/lawyer", params: { id: l.lawyerId } })}
-                hitSlop={8}
-              >
-                <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
+            {canSetResponsable && (
+              <Pressable style={styles.actionBtn} onPress={onAddAsistente}>
+                <Ionicons name="person-add-outline" size={14} color={Colors.primary} />
+                <Text style={styles.actionBtnText}>
+                  {hasResponsable ? "Cambiar" : "Asignar"}
+                </Text>
               </Pressable>
             )}
           </View>
 
-          {canSeeTipoAsignacion && l.tipoAsignacion && (
-            <View style={styles.detailRow}>
-              <Ionicons name="git-branch-outline" size={14} color={Colors.textTertiary} />
-              <Text style={styles.detailLabel}>Tipo:</Text>
-              <Text style={styles.detailValue}>{l.tipoAsignacion.nombre}</Text>
+          {responsable ? (
+            <View style={styles.responsableCard}>
+              <View style={styles.responsableAvatar}>
+                <Text style={styles.avatarText}>
+                  {responsable.firstName?.charAt(0).toUpperCase() || "R"}
+                </Text>
+              </View>
+              <View style={styles.lawyerInfo}>
+                <Text style={styles.lawyerNombre}>
+                  {responsable.firstName} {responsable.lastName}
+                </Text>
+                {responsable.specialization && (
+                  <Text style={styles.responsableSpec}>{responsable.specialization}</Text>
+                )}
+                {proceso?.responsableFechaAsignacion && (
+                  <View style={styles.detailRow}>
+                    <Ionicons name="calendar-outline" size={12} color={Colors.textTertiary} />
+                    <Text style={styles.detailLabel}>Asignado:</Text>
+                    <Text style={styles.detailValue}>
+                      {new Date(proceso.responsableFechaAsignacion).toLocaleDateString("es-CO", {
+                        year: "numeric", month: "short", day: "numeric",
+                      })}
+                    </Text>
+                  </View>
+                )}
+                {proceso?.responsableAsignadoPorNombre && (
+                  <View style={styles.detailRow}>
+                    <Ionicons name="person-add-outline" size={12} color={Colors.textTertiary} />
+                    <Text style={styles.detailLabel}>Por:</Text>
+                    <Text style={styles.detailValue}>{proceso.responsableAsignadoPorNombre}</Text>
+                  </View>
+                )}
+                {proceso?.responsableRazon && (
+                  <View style={styles.detailRow}>
+                    <Ionicons name="information-circle-outline" size={12} color={Colors.textTertiary} />
+                    <Text style={styles.detailLabel}>Razón:</Text>
+                    <Text style={styles.detailValue}>{proceso.responsableRazon}</Text>
+                  </View>
+                )}
+              </View>
+              {canNavigateLawyer && (
+                <Pressable
+                  onPress={() => router.push({ pathname: "/profile/lawyer", params: { id: responsable.id } })}
+                  hitSlop={8}
+                >
+                  <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
+                </Pressable>
+              )}
+            </View>
+          ) : (
+            <View style={styles.emptyResponsable}>
+              <Ionicons name="person-outline" size={18} color={Colors.textTertiary} />
+              <Text style={styles.emptyResponsableText}>Sin responsable asignado</Text>
             </View>
           )}
-
-          {canSeeRazonAsignacion && l.razonAsignacion && (
-            <View style={styles.detailRow}>
-              <Ionicons name="information-circle-outline" size={14} color={Colors.textTertiary} />
-              <Text style={styles.detailLabel}>Razón:</Text>
-              <Text style={styles.detailValue}>{l.razonAsignacion}</Text>
-            </View>
-          )}
-
-          {canSeeAsignadoPor && l.asignadoPorUser && (
-            <View style={styles.detailRow}>
-              <Ionicons name="person-add-outline" size={14} color={Colors.textTertiary} />
-              <Text style={styles.detailLabel}>Asignado por:</Text>
-              <Text style={styles.detailValue}>
-                {l.asignadoPorUser.name || l.asignadoPorUser.email}
-              </Text>
-            </View>
-          )}
-
-          {canSeeFechaFin && l.fechaFin && (
-            <View style={styles.detailRow}>
-              <Ionicons name="calendar-outline" size={14} color={Colors.textTertiary} />
-              <Text style={styles.detailLabel}>Fecha fin:</Text>
-              <Text style={styles.detailValue}>
-                {new Date(l.fechaFin).toLocaleDateString("es-CO", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </Text>
-            </View>
-          )}
-
-          <View style={[
-            styles.statusBadge,
-            { backgroundColor: l.status === "activo" ? Colors.success + "15" : Colors.textTertiary + "15" }
-          ]}>
-            <View style={[
-              styles.statusDot,
-              { backgroundColor: l.status === "activo" ? Colors.success : Colors.textTertiary }
-            ]} />
-            <Text style={[
-              styles.statusText,
-              { color: l.status === "activo" ? Colors.success : Colors.textTertiary }
-            ]}>
-              {l.status}
-            </Text>
-          </View>
         </View>
-      ))}
+      )}
+
+      {/* ── Sección Abogados Asignados ── */}
+      {hasLawyers && (
+        <View style={[styles.lawyersSection, (canSetResponsable || hasResponsable) && styles.lawyersSectionBorder]}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {rol === "cliente" ? "Tu Abogado" : "Abogados Asignados"}
+            </Text>
+            {canTransferirCaso && (
+              <Pressable style={[styles.actionBtn, styles.actionBtnWarning]} onPress={onTransferirCaso}>
+                <Ionicons name="swap-horizontal-outline" size={14} color={Colors.warning} />
+                <Text style={[styles.actionBtnText, { color: Colors.warning }]}>Transferir</Text>
+              </Pressable>
+            )}
+          </View>
+
+          {lawyers.map((l, idx) => (
+            <View
+              key={l.id}
+              style={[
+                styles.lawyerCard,
+                idx < lawyers.length - 1 && styles.lawyerCardBorder,
+              ]}
+            >
+              <View style={styles.lawyerHeader}>
+                <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>
+                    {l.lawyer?.firstName?.charAt(0).toUpperCase() || "A"}
+                  </Text>
+                </View>
+                <View style={styles.lawyerInfo}>
+                  <Text style={styles.lawyerNombre}>
+                    {l.lawyer?.firstName
+                      ? `${l.lawyer.firstName} ${l.lawyer.lastName}`
+                      : l.asignadoPorUser?.name
+                    }
+                  </Text>
+                  <View style={styles.rolBadge}>
+                    <Text style={styles.rolText}>{l.rol}</Text>
+                  </View>
+                </View>
+                {canNavigateLawyer && (
+                  <Pressable
+                    onPress={() => router.push({ pathname: "/profile/lawyer", params: { id: l.lawyerId } })}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
+                  </Pressable>
+                )}
+              </View>
+
+              {canSeeTipoAsignacion && l.tipoAsignacion && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="git-branch-outline" size={14} color={Colors.textTertiary} />
+                  <Text style={styles.detailLabel}>Tipo:</Text>
+                  <Text style={styles.detailValue}>{l.tipoAsignacion.nombre}</Text>
+                </View>
+              )}
+
+              {canSeeRazonAsignacion && l.razonAsignacion && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="information-circle-outline" size={14} color={Colors.textTertiary} />
+                  <Text style={styles.detailLabel}>Razon:</Text>
+                  <Text style={styles.detailValue}>{l.razonAsignacion}</Text>
+                </View>
+              )}
+
+              {canSeeAsignadoPor && l.asignadoPorUser && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="person-add-outline" size={14} color={Colors.textTertiary} />
+                  <Text style={styles.detailLabel}>Asignado por:</Text>
+                  <Text style={styles.detailValue}>
+                    {l.asignadoPorUser.name || l.asignadoPorUser.email}
+                  </Text>
+                </View>
+              )}
+
+              {canSeeFechaFin && l.fechaFin && (
+                <View style={styles.detailRow}>
+                  <Ionicons name="calendar-outline" size={14} color={Colors.textTertiary} />
+                  <Text style={styles.detailLabel}>Fecha fin:</Text>
+                  <Text style={styles.detailValue}>
+                    {new Date(l.fechaFin).toLocaleDateString("es-CO", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </View>
+              )}
+
+              <View style={[
+                styles.statusBadge,
+                { backgroundColor: l.status === "activo" ? Colors.success + "15" : Colors.textTertiary + "15" }
+              ]}>
+                <View style={[
+                  styles.statusDot,
+                  { backgroundColor: l.status === "activo" ? Colors.success : Colors.textTertiary }
+                ]} />
+                <Text style={[
+                  styles.statusText,
+                  { color: l.status === "activo" ? Colors.success : Colors.textTertiary }
+                ]}>
+                  {l.status}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -168,10 +247,66 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
-    marginBottom: 12,
+  },
+  sectionTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  responsableSection: {
+    marginBottom: 4,
+  },
+  lawyersSection: {
+    marginTop: 4,
+  },
+  lawyersSectionBorder: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+    paddingTop: 12,
+    marginTop: 12,
+  },
+  responsableCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: Colors.primary + "08",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary + "20",
+  },
+  responsableAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.primary + "25",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  responsableSpec: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  emptyResponsable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderStyle: "dashed",
+  },
+  emptyResponsableText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
   },
   lawyerCard: {
     paddingVertical: 12,

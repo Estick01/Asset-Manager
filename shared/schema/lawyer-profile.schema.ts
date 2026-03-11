@@ -1,3 +1,4 @@
+import { users } from './user.schema';
 /**
  * Lawyer Profile Schema
  * Database table definition for lawyer_profiles
@@ -5,14 +6,15 @@
 
 import { relations } from "drizzle-orm";
 import { mysqlTable, text, varchar, boolean, timestamp } from "drizzle-orm/mysql-core";
-import { users } from "./user.schema";
+
 import { firmProfiles } from "./firm-profile.schema";
+import { lawyerClients } from "./lawyer-clients.schema";
 
 
 export const lawyerProfiles = mysqlTable("lawyer_profiles", {
   id: varchar("id", { length: 36 }).primaryKey(),
   userId: varchar("user_id", { length: 36 }).notNull().unique(),
-  firmId: varchar("firm_id", { length: 36 }).references(() => firmProfiles.id), // FK a firm_profiles (nullable para independientes)
+  firmId: varchar("firm_id", { length: 36 }).references(() => firmProfiles.id),
   firstName: varchar("first_name", { length: 100 }).notNull(),
   lastName: varchar("last_name", { length: 100 }).notNull(),
   phone: varchar("phone", { length: 50 }),
@@ -33,6 +35,7 @@ export const lawyerProfilesRelations = relations(lawyerProfiles, ({ one, many })
     fields: [lawyerProfiles.firmId],
     references: [firmProfiles.id],
   }),
+  lawyerClients: many(lawyerClients),
 }));
 
 // ============================================
@@ -81,7 +84,7 @@ export interface InsertLawyerProfile {
 }
 
 /** LawyerProfile relation types */
-export interface LawyerProfileRelations {
+export interface LawyerProfileRelations extends LawyerProfile {
   user: import("./user.schema").User | null;
   firm: import("./firm-profile.schema").FirmProfile | null;
 }

@@ -1,105 +1,109 @@
 /**
  * Notification (Notificaciones) Routes
- * 
- * Notification management endpoints for clients and lawyers.
- * Maintains backward compatibility with the original monolithic routes.
+ *
+ * Endpoints for clients, lawyers and firms to read/mark notifications.
  */
 
 import { Router, type Request, type Response, type NextFunction } from "express";
-
 import { authenticate, requirePermission } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
 
 const router = Router();
 
-// GET /api/notificaciones/cliente/:clienteId - Get notifications for a client
+// ─── Client ──────────────────────────────────────────────────────────────────
+
 router.get("/notificaciones/cliente/:clienteId", authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { clienteId } = req.params;
-    const clienteIdStr = Array.isArray(clienteId) ? clienteId[0] : clienteId;
-    const notificaciones = await storage.getNotificacionesByClienteId(clienteIdStr);
+    const notificaciones = await storage.getNotificacionesByClienteId(req.params.clienteId);
     res.json(notificaciones);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// GET /api/notificaciones/cliente/:clienteId/count - Get unread count for client
+router.get("/notificaciones/cliente/:clienteId/count", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const count = await storage.getNotificacionesCountByClienteId(req.params.clienteId);
+    res.json({ count });
+  } catch (err) { next(err); }
+});
 
-
-// PUT /api/notificaciones/:id/leer-cliente - Mark notification as read for client
 router.put("/notificaciones/:id/leer-cliente", authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    const notificacionId = parseInt(Array.isArray(id) ? id[0] : id);
-    
-    if (isNaN(notificacionId)) {
-      return res.status(400).json({ error: "ID de notificación inválido" });
-    }
-    
-    await storage.markNotificacionLeidaCliente(notificacionId);
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID inválido" });
+    await storage.markNotificacionLeidaCliente(id);
     res.json({ message: "Notificación marcada como leída" });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// GET /api/notificaciones/abogado/:abogadoId - Get notifications for a lawyer
+router.put("/notificaciones/cliente/:clienteId/leer-todas", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await storage.markTodasLeidasCliente(req.params.clienteId);
+    res.json({ message: "Todas las notificaciones marcadas como leídas" });
+  } catch (err) { next(err); }
+});
+
+// ─── Lawyer ───────────────────────────────────────────────────────────────────
+
 router.get("/notificaciones/abogado/:abogadoId", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { abogadoId } = req.params;
-    const abogadoIdStr = Array.isArray(abogadoId) ? abogadoId[0] : abogadoId;
-    const notificaciones = await storage.getNotificacionesByAbogadoId(abogadoIdStr);
+    const notificaciones = await storage.getNotificacionesByAbogadoId(req.params.abogadoId);
     res.json(notificaciones);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// GET /api/notificaciones/abogado/:abogadoId/count - Get unread count for lawyer
 router.get("/notificaciones/abogado/:abogadoId/count", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { abogadoId } = req.params;
-    const abogadoIdStr = Array.isArray(abogadoId) ? abogadoId[0] : abogadoId;
-    const count = await storage.getNotificacionesCountByAbogadoId(abogadoIdStr);
+    const count = await storage.getNotificacionesCountByAbogadoId(req.params.abogadoId);
     res.json({ count });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// PUT /api/notificaciones/:id/leer-abogado - Mark notification as read for lawyer
 router.put("/notificaciones/:id/leer-abogado", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    const notificacionId = parseInt(Array.isArray(id) ? id[0] : id);
-    
-    if (isNaN(notificacionId)) {
-      return res.status(400).json({ error: "ID de notificación inválido" });
-    }
-    
-    await storage.markNotificacionLeidaAbogado(notificacionId);
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID inválido" });
+    await storage.markNotificacionLeidaAbogado(id);
     res.json({ message: "Notificación marcada como leída" });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
-// POST /api/notificaciones - Create new notification
-router.post("/notificaciones", authenticate, requirePermission("notificaciones.crear"), async (req: Request, res: Response, next: NextFunction) => {
+router.put("/notificaciones/abogado/:abogadoId/leer-todas", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const notificacionData = req.body;
-    
-    // Validate required fields
-    if (!notificacionData.procesoId || !notificacionData.clienteId || !notificacionData.abogadoId || !notificacionData.titulo || !notificacionData.mensaje) {
-      return res.status(400).json({ error: "Faltan campos requeridos" });
-    }
-    
-    const created = await storage.createNotificacion(notificacionData);
-    res.status(201).json(created);
-  } catch (err) {
-    next(err);
-  }
+    await storage.markTodasLeidasAbogado(req.params.abogadoId);
+    res.json({ message: "Todas las notificaciones marcadas como leídas" });
+  } catch (err) { next(err); }
+});
+
+// ─── Firm ─────────────────────────────────────────────────────────────────────
+
+router.get("/notificaciones/firma/:firmaId", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const notificaciones = await storage.getNotificacionesByFirmaId(req.params.firmaId);
+    res.json(notificaciones);
+  } catch (err) { next(err); }
+});
+
+router.get("/notificaciones/firma/:firmaId/count", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const count = await storage.getNotificacionesCountByFirmaId(req.params.firmaId);
+    res.json({ count });
+  } catch (err) { next(err); }
+});
+
+router.put("/notificaciones/:id/leer-firma", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ error: "ID inválido" });
+    await storage.markNotificacionLeidaFirma(id);
+    res.json({ message: "Notificación marcada como leída" });
+  } catch (err) { next(err); }
+});
+
+router.put("/notificaciones/firma/:firmaId/leer-todas", authenticate, requirePermission("notificaciones.ver"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await storage.markTodasLeidasFirma(req.params.firmaId);
+    res.json({ message: "Todas las notificaciones marcadas como leídas" });
+  } catch (err) { next(err); }
 });
 
 export default router;

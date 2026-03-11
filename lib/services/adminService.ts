@@ -259,6 +259,10 @@ export async function getDashboardStats(): Promise<{
     totalProcesos: number;
     procesosActivos: number;
     procesosFinalizados: number;
+    totalTareas: number;
+    tareasPendientes: number;
+    tareasEnProgreso: number;
+    tareasCompletadas: number;
     procesosRecientes: Array<{
       id: string;
       clienteId: string;
@@ -274,6 +278,10 @@ export async function getDashboardStats(): Promise<{
         totalProcesos: 0,
         procesosActivos: 0,
         procesosFinalizados: 0,
+        totalTareas: 0,
+        tareasPendientes: 0,
+        tareasEnProgreso: 0,
+        tareasCompletadas: 0,
         procesosRecientes: [],
     };
 

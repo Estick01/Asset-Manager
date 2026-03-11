@@ -1,9 +1,10 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { ProcesoDTO } from "@/shared/schema";
+import { getOrCreateConversation } from "@/lib/services/chatService";
 
 interface ClienteInfoSectionProps {
   proceso: ProcesoDTO | null;
@@ -65,16 +66,39 @@ export default function ClienteInfoSection({ proceso, rol }: ClienteInfoSectionP
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Cliente</Text>
               <Text style={styles.infoValue}>
-                {proceso.clienteNombre || "Desconocido"}
+                {proceso.cliente?.nombre+" "+proceso.cliente?.apellido || "Desconocido"}
               </Text>
             </View>
             {canNavigateCliente && proceso.clienteId && (
-              <Pressable
-                onPress={() => router.push({ pathname: "/client/[id]", params: { id: proceso.clienteId } })}
-                hitSlop={8}
-              >
-                <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
-              </Pressable>
+              <>
+                <Pressable
+                  onPress={async () => {
+                    if (!proceso.cliente?.userId) {
+                      Alert.alert("Error", "El cliente no tiene usuario vinculado");
+                      return;
+                    }
+                    try {
+                      const conv = await getOrCreateConversation(proceso.cliente?.userId, "lawyer_client");
+                      router.push({
+                        pathname: "/chat/[id]",
+                        params: { id: conv.id, name: proceso.cliente.nombre +" "+proceso.cliente.apellido || "Cliente" },
+                      });
+                    } catch {
+                      Alert.alert("Error", "No se pudo abrir el chat");
+                    }
+                  }}
+                  hitSlop={8}
+                  style={styles.chatBtn}
+                >
+                  <Ionicons name="chatbubble-ellipses-outline" size={20} color={Colors.primary} />
+                </Pressable>
+                <Pressable
+                  onPress={() => router.push({ pathname: "/client/[id]", params: { id: proceso.clienteId } })}
+                  hitSlop={8}
+                >
+                  <Ionicons name="chevron-forward" size={20} color={Colors.textTertiary} />
+                </Pressable>
+              </>
             )}
           </View>
         )}
@@ -181,5 +205,8 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_500Medium",
     color: Colors.text,
     marginTop: 2,
+  },
+  chatBtn: {
+    padding: 4,
   },
 });

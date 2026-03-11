@@ -18,6 +18,8 @@ import ubicacionRoutes from "./ubicacion.js";
 import lawyerFirmaHistoryRoutes from "./lawyer-firma-history.js";
 import dashboardRoutes from "./dashboard.js";
 import firmInvitationsRoutes from "./firm-invitations.js";
+import chatRoutes from "./chat.js";
+import tareasRoutes from "./tareas.js";
 
 /**
  * Register all application routes
@@ -38,6 +40,8 @@ export function registerAppRoutes(app: Express): void {
   app.use("/api", lawyerFirmaHistoryRoutes);
   app.use("/api", dashboardRoutes);
   app.use("/api", firmInvitationsRoutes);
+  app.use("/api", chatRoutes);
+  app.use("/api", tareasRoutes);
 }
 
 export default registerAppRoutes;

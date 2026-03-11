@@ -5,6 +5,8 @@
 
 import { relations } from "drizzle-orm";
 import { mysqlTable, varchar, text, timestamp, mysqlEnum } from "drizzle-orm/mysql-core";
+import { lawyerProfiles } from "./lawyer-profile.schema";
+import { clientes } from "./cliente.schema";
 
 export const lawyerClients = mysqlTable("lawyer_clients", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -50,3 +52,18 @@ export interface InsertLawyerClient {
   createdBy?: string | null;
   notes?: string | null;
 }
+
+// ============================================
+// Relations
+// ============================================
+
+export const lawyerClientsRelations = relations(lawyerClients, ({ one }) => ({
+  lawyer: one(lawyerProfiles, {
+    fields: [lawyerClients.lawyerId],
+    references: [lawyerProfiles.id],
+  }),
+  client: one(clientes, {
+    fields: [lawyerClients.clientId],
+    references: [clientes.id],
+  }),
+}));

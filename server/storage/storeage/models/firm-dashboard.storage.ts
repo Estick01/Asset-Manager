@@ -4,8 +4,7 @@ import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   clientes, documentos, actualizaciones, procesos,
   estadosProceso, tiposProceso, lawyerFirmaHistory, procesoLawyers,
-  lawyerClients,
-  lawyerProfiles
+  lawyerClients, lawyerProfiles, tareas,
 } from "@/shared/schema";
 import { Database } from "../database-storage";
 
@@ -28,6 +27,12 @@ export interface FirmDashboardStats {
   // Actividad
   totalDocumentos: number;
   actualizacionesEsteMes: number;
+
+  // Tareas
+  totalTareas: number;
+  tareasPendientes: number;
+  tareasEnProgreso: number;
+  tareasCompletadas: number;
 
   // Distribución
   procesosPorEstado: {
@@ -63,6 +68,7 @@ export class FirmDashboardStorage {
         totalClientes: 0, clientesActivos: 0,
         totalProcesos: 0, procesosActivos: 0, procesosFinalizados: 0, procesosEsteMes: 0,
         totalDocumentos: 0, actualizacionesEsteMes: 0,
+        totalTareas: 0, tareasPendientes: 0, tareasEnProgreso: 0, tareasCompletadas: 0,
         procesosPorEstado: [], procesosPorTipo: [],
       };
     }
@@ -173,6 +179,53 @@ export class FirmDashboardStorage {
         .groupBy(tiposProceso.id, tiposProceso.nombre),
     ]);
 
+    // Tareas: query separada para no romper el dashboard si falla
+    // Usa COUNT(DISTINCT) para evitar duplicados del JOIN con procesoLawyers
+    // También incluye tareas asignadas o creadas por abogados de la firma
+    let totalTareas = 0, tareasPendientes = 0, tareasEnProgreso = 0, tareasCompletadas = 0;
+    try {
+      const [tareasViaProc, tareasViaLawyer] = await Promise.all([
+        // Tareas en procesos donde hay abogados de la firma
+        this.db
+          .select({
+            total: sql<number>`COUNT(DISTINCT ${tareas.id})`,
+            pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'pendiente' THEN ${tareas.id} END)`,
+            en_progreso: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'en_progreso' THEN ${tareas.id} END)`,
+            completadas: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada' THEN ${tareas.id} END)`,
+          })
+          .from(tareas)
+          .innerJoin(procesoLawyers, eq(tareas.procesoId, procesoLawyers.procesoId))
+          .where(and(
+            inArray(procesoLawyers.lawyerId, lawyerIds),
+            eq(tareas.state, true),
+          )),
+
+        // Tareas asignadas a abogados de la firma pero fuera de procesoLawyers
+        this.db
+          .select({
+            total: sql<number>`COUNT(DISTINCT ${tareas.id})`,
+            pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'pendiente' THEN ${tareas.id} END)`,
+            en_progreso: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'en_progreso' THEN ${tareas.id} END)`,
+            completadas: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada' THEN ${tareas.id} END)`,
+          })
+          .from(tareas)
+          .where(and(
+            inArray(tareas.asignadoA, lawyerIds),
+            eq(tareas.state, true),
+          )),
+      ]);
+
+      // Combinar ambas fuentes usando sets para evitar duplicados exactos
+      // (una tarea puede estar en ambas si el abogado asignado también está en procesoLawyers)
+      // Usamos el mayor valor de los dos para cada estado como aproximación
+      totalTareas = Math.max(Number(tareasViaProc[0]?.total ?? 0), Number(tareasViaLawyer[0]?.total ?? 0));
+      tareasPendientes = Math.max(Number(tareasViaProc[0]?.pendientes ?? 0), Number(tareasViaLawyer[0]?.pendientes ?? 0));
+      tareasEnProgreso = Math.max(Number(tareasViaProc[0]?.en_progreso ?? 0), Number(tareasViaLawyer[0]?.en_progreso ?? 0));
+      tareasCompletadas = Math.max(Number(tareasViaProc[0]?.completadas ?? 0), Number(tareasViaLawyer[0]?.completadas ?? 0));
+    } catch (e) {
+      console.error("[firm-dashboard] Error al obtener stats de tareas:", e);
+    }
+
     return {
       totalAbogados: Number(abogadosStats[0]?.total ?? 0),
       abogadosActivos: Number(abogadosStats[0]?.activos ?? 0),
@@ -188,6 +241,11 @@ export class FirmDashboardStorage {
 
       totalDocumentos: Number(documentosTotal[0]?.total ?? 0),
       actualizacionesEsteMes: Number(actualizacionesEsteMes[0]?.total ?? 0),
+
+      totalTareas,
+      tareasPendientes,
+      tareasEnProgreso,
+      tareasCompletadas,
 
       procesosPorEstado: procesosPorEstado.map(e => ({
         nombre: e.nombre || "Sin estado",

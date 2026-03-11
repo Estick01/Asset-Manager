@@ -6,7 +6,7 @@ import { eq, desc, sql } from "drizzle-orm";
 
 
 export class ActualizacionStorage {
-  constructor(private db: any) {}
+  constructor(private db: any) { }
 
   async getActualizaciones(procesoId: string, limit: number = 10, offset: number = 0): Promise<Actualizacion[]> {
     const results = await this.db.query.actualizaciones.findMany({
@@ -17,7 +17,7 @@ export class ActualizacionStorage {
       with: { tipo: true },
     });
 
-    return results.map((row:any) => ({
+    return results.map((row: any) => ({
       id: row.id,
       procesoId: row.procesoId,
       fecha: row.fecha,
@@ -26,6 +26,10 @@ export class ActualizacionStorage {
       tipoId: row.tipo?.id ?? 1,
       documentoId: row.documentoId ?? null,
       state: row.state ?? true,
+      tipo: row.tipo ? {
+        id: row.tipo.id,
+        nombre: row.tipo.nombre
+      } : null,
     }));
   }
 
@@ -37,22 +41,22 @@ export class ActualizacionStorage {
       : new Date();
 
     // Handle tipoId - must be a valid number
-    if (insertActualizacion.tipoId === undefined || insertActualizacion.tipoId === null) {
-      throw new Error("tipoId es requerido");
+    if (insertActualizacion.tipo === undefined || insertActualizacion.tipo === null) {
+      throw new Error("tipo es requerido");
     }
-    
-    const tipoIdValue = Number(insertActualizacion.tipoId);
-    if (isNaN(tipoIdValue) || tipoIdValue < 1) {
-      throw new Error("tipoId debe ser un número válido");
-    }
+
 
     const tipoLookup = await this.db
       .select()
       .from(tiposActualizacion)
-      .where(eq(tiposActualizacion.id, tipoIdValue))
+      .where(eq(tiposActualizacion.nombre, insertActualizacion.tipo))
       .limit(1);
 
-    const tipoValue = tipoLookup[0]?.nombre as 'manual' | 'documento' || 'manual';
+    const tipo = tipoLookup[0];
+
+    if (!tipo) {
+      throw new Error("Tipo de actualización no válido");
+    }
 
     const dbActualizacion = {
       id,
@@ -60,9 +64,10 @@ export class ActualizacionStorage {
       fecha: fechaValue,
       titulo: insertActualizacion.titulo,
       descripcion: insertActualizacion.descripcion,
-      tipoId: tipoIdValue,
+      tipoId: tipo.id,
       documentoId: insertActualizacion.documentoId ?? null,
       state: insertActualizacion.state ?? true,
+      tipo: tipo.nombre as 'manual' | 'documento'
     };
 
     await this.db.insert(actualizaciones).values(dbActualizacion);
@@ -73,7 +78,7 @@ export class ActualizacionStorage {
       fecha: fechaValue,
       titulo: insertActualizacion.titulo,
       descripcion: insertActualizacion.descripcion,
-      tipoId: tipoIdValue,
+      tipoId: insertActualizacion.tipoId,
       documentoId: insertActualizacion.documentoId ?? null,
       state: insertActualizacion.state ?? true
     };

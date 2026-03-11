@@ -8,6 +8,7 @@
 export const STORAGE_KEYS = {
   // Auth tokens
   AUTH_TOKEN: 'lextrack_auth_token',
+  REFRESH_TOKEN: 'lextrack_refresh_token',
   
   // Unified user data (new SaaS system)
   USER: 'lextrack_user',

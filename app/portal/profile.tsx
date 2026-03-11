@@ -201,7 +201,7 @@ export default function ClientProfileScreen() {
         {/* ── Header gradiente ── */}
         <LinearGradient
           colors={[PORTAL_BLUE_DARK, PORTAL_BLUE]}
-          style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
+          style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 25 : 16) }]}
         >
           <View style={styles.headerRow}>
             <Pressable onPress={() => router.replace("/portal")} style={styles.headerBtn} hitSlop={8}>

@@ -127,9 +127,6 @@ export default function ClientPortalScreen() {
             </Text>
           </View>
           <View style={styles.headerActions}>
-            <Pressable onPress={() => router.push("/portal/profile")} style={styles.headerBtn} hitSlop={8}>
-              <Ionicons name="person-outline" size={20} color={Colors.white} />
-            </Pressable>
             <Pressable onPress={() => setIsLogoutModalVisible(true)} style={styles.headerBtn} hitSlop={8}>
               <Ionicons name="log-out-outline" size={20} color={Colors.white} />
             </Pressable>
@@ -248,7 +245,7 @@ const styles = StyleSheet.create({
   summaryDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
 
   // ── List ─────────────────────────────────────────────────────
-  listContent: { paddingBottom: 40 },
+  listContent: { paddingBottom: 100 },
   listHeader: {
     flexDirection: "row",
     alignItems: "center",

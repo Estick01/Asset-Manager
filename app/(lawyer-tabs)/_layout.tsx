@@ -7,10 +7,9 @@ import { Platform, StyleSheet, useColorScheme, View, Text } from "react-native";
 import React from "react";
 import Colors from "@/constants/colors";
 import { useInvitations } from "@/lib/invitations-context";
+import { useChatNotifications } from "@/lib/chat-context";
+import { useNotifications } from "@/lib/notifications-context";
 
-// ============================================
-// Badge component
-// ============================================
 function BadgeIcon({ name, size, color, count }: {
   name: keyof typeof Ionicons.glyphMap;
   size: number;
@@ -44,6 +43,14 @@ function NativeTabLayout() {
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
         <Label>Clientes</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="chat">
+        <Icon sf={{ default: "message", selected: "message.fill" }} />
+        <Label>Mensajes</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="notifications">
+        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
+        <Label>Alertas</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>Ajustes</Label>
@@ -57,7 +64,9 @@ function ClassicTabLayout() {
   const isDark = colorScheme === "dark";
   const isWeb = Platform.OS === "web";
   const isIOS = Platform.OS === "ios";
-  const { pendingCount } = useInvitations();  // ✅
+  const { pendingCount } = useInvitations();
+  const { unreadCount: unreadChatCount } = useChatNotifications();
+  const { unreadCount: unreadNotifCount } = useNotifications();
 
   return (
     <Tabs
@@ -90,12 +99,7 @@ function ClassicTabLayout() {
         options={{
           title: "Abogado",
           tabBarIcon: ({ color, size }) => (
-            <BadgeIcon
-              name="briefcase"
-              size={size}
-              color={color}
-              count={pendingCount}  // ✅ badge en el dashboard
-            />
+            <BadgeIcon name="briefcase" size={size} color={color} count={pendingCount} />
           ),
         }}
       />
@@ -118,6 +122,24 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="chat"
+        options={{
+          title: "Mensajes",
+          tabBarIcon: ({ color, size }) => (
+            <BadgeIcon name="chatbubbles" size={size} color={color} count={unreadChatCount} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="notifications"
+        options={{
+          title: "Alertas",
+          tabBarIcon: ({ color, size }) => (
+            <BadgeIcon name="notifications" size={size} color={color} count={unreadNotifCount} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="settings"
         options={{
           title: "Ajustes",
@@ -126,12 +148,7 @@ function ClassicTabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="invitations"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="invitations" options={{ href: null }} />
     </Tabs>
   );
 }

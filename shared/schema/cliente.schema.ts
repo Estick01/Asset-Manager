@@ -1,3 +1,4 @@
+
 /**
  * Cliente Schema
  * Database table definition for clientes (clients)
@@ -9,6 +10,7 @@ import { users } from "./user.schema";
 import { tiposDocumento } from "./tipos-documento.schema";
 import { procesos } from "./proceso.schema";
 import { departamentos, municipios } from "./ubicacion.schema";
+import { lawyerClients } from "./lawyer-clients.schema";
 
 export const clientes = mysqlTable("clientes", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -43,6 +45,7 @@ export const clientesRelations = relations(clientes, ({ one, many }) => ({
     references: [municipios.id],
   }),
   procesos: many(procesos),
+  lawyerClients: many(lawyerClients),
 }));
 
 // ============================================
@@ -106,12 +109,6 @@ export interface ClienteRelations  {
   procesos: import("./proceso.schema").ProcesoDTO[];
 }
 
-export interface ClienteDTO extends Cliente {
-  user?: import("./user.schema").User;
-  tipoDocumento?: import("./tipos-documento.schema").TiposDocumento;
-  departamento?: import("./ubicacion.schema").Departamento;
-  municipio?: import("./ubicacion.schema").Municipio;
-  procesos?: import("./proceso.schema").ProcesoDTO[];
-}
+
 
 

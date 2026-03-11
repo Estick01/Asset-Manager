@@ -17,7 +17,7 @@ import { useInvitations } from "@/lib/invitations-context";
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [stats, setStats] = useState({ totalClientes: 0, totalProcesos: 0, procesosActivos: 0, procesosFinalizados: 0 });
+  const [stats, setStats] = useState({ totalClientes: 0, totalProcesos: 0, procesosActivos: 0, procesosFinalizados: 0, totalTareas: 0, tareasPendientes: 0, tareasEnProgreso: 0, tareasCompletadas: 0 });
   const [recentCases, setRecentCases] = useState<ProcesoDTO[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const { pendingCount, refreshCount } = useInvitations();
@@ -49,6 +49,9 @@ export default function DashboardScreen() {
     { label: "Procesos", value: stats.totalProcesos, icon: "document-text" as const, color: Colors.info },
     { label: "Activos", value: stats.procesosActivos, icon: "pulse" as const, color: Colors.success },
     { label: "Finalizados", value: stats.procesosFinalizados, icon: "checkmark-circle" as const, color: Colors.accent },
+    { label: "Tareas Pendientes", value: stats.tareasPendientes, icon: "time" as const, color: Colors.warning },
+    { label: "Tareas En Progreso", value: stats.tareasEnProgreso, icon: "reload" as const, color: Colors.info },
+    { label: "Tareas Completadas", value: stats.tareasCompletadas, icon: "checkmark-done" as const, color: Colors.success },
   ];
 
   return (

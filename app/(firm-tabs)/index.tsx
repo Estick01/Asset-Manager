@@ -208,6 +208,27 @@ export default function FirmDashboardScreen() {
               icon="trending-up"
               color={Colors.danger}
             />
+            <StatCard
+              label="Tareas Pendientes"
+              value={stats?.tareasPendientes ?? 0}
+              total={stats?.totalTareas ?? 0}
+              icon="time"
+              color={Colors.warning}
+            />
+            <StatCard
+              label="Tareas En Progreso"
+              value={stats?.tareasEnProgreso ?? 0}
+              total={stats?.totalTareas ?? 0}
+              icon="reload"
+              color={Colors.info}
+            />
+            <StatCard
+              label="Tareas Completadas"
+              value={stats?.tareasCompletadas ?? 0}
+              total={stats?.totalTareas ?? 0}
+              icon="checkmark-done"
+              color={Colors.success}
+            />
           </View>
 
           {/* Gráfica de estados - Procesos por estado */}

@@ -4,11 +4,13 @@ import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import multer from "multer";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
 import { registerRoutes } from "./routes.js";
 
 import * as fs from "fs";
 import * as path from "path";
 import { storage } from './storage/storeage/database-storage.js';
+import { setupWebSocketServer } from "./websocket/ws-server.js";
 
 const app = express();
 app.use(cookieParser());
@@ -63,16 +65,18 @@ function setupCors(app: express.Application) {
 
     const origin = req.header("origin");
 
-    // Allow localhost origins for Expo web development (any port)
+    // Allow localhost only outside production (Expo web development)
+    const isProduction = process.env.NODE_ENV === "production";
     const isLocalhost =
-      origin?.startsWith("http://localhost:") ||
-      origin?.startsWith("http://127.0.0.1:");
+      !isProduction &&
+      (origin?.startsWith("http://localhost:") ||
+        origin?.startsWith("http://127.0.0.1:"));
 
     if (origin && (origins.has(origin) || isLocalhost)) {
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS",
+        "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       );
       res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
       res.header("Access-Control-Allow-Credentials", "true");
@@ -194,9 +198,6 @@ function serveLandingPage({
   const baseUrl = `${protocol}://${host}`;
   const expsUrl = `${host}`;
 
-  log(`baseUrl`, baseUrl);
-  log(`expsUrl`, expsUrl);
-
   const html = landingPageTemplate
     .replace(/BASE_URL_PLACEHOLDER/g, baseUrl)
     .replace(/EXPS_URL_PLACEHOLDER/g, expsUrl)
@@ -259,13 +260,22 @@ function setupErrorHandler(app: express.Application) {
     };
 
     const status = error.status || error.statusCode || 500;
-    const message = error.message || "Internal Server Error";
+    const isProduction = process.env.NODE_ENV === "production";
 
-    console.error("Internal Server Error:", err);
+    // Only log full error server-side, never expose stack traces to clients
+    if (!isProduction) {
+      console.error("Error:", err);
+    }
 
     if (res.headersSent) {
       return next(err);
     }
+
+    // In production expose only generic message for 500 errors
+    const message =
+      isProduction && status >= 500
+        ? "Error interno del servidor"
+        : error.message || "Internal Server Error";
 
     return res.status(status).json({ message });
   });
@@ -273,6 +283,9 @@ function setupErrorHandler(app: express.Application) {
 
 (async () => {
   await seedDatabase();
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // needed for Expo assets
+  }));
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
@@ -280,6 +293,9 @@ function setupErrorHandler(app: express.Application) {
   configureExpoAndLanding(app);
 
   const server = await registerRoutes(app);
+
+  // Setup WebSocket server for real-time chat
+  setupWebSocketServer(server);
 
   setupErrorHandler(app);
 

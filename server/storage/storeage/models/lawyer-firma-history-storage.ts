@@ -3,7 +3,9 @@ import {
     InsertLawyerFirmaHistory,
     lawyerFirmaHistory,
     LawyerProfile,
-    lawyerProfiles
+    lawyerProfiles,
+    users,
+    User
 } from "@/shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 
@@ -74,68 +76,76 @@ export class LawyerFirmaHistoryStorage {
     // ============================
     // Obtener miembros activos de una firma
     // ============================
-    async getActiveMembersByFirmaId(firmaId: string): Promise<(LawyerFirmaHistory & { lawyer: LawyerProfile })[]> {
-        const results = await this.db
-            .select({
-                // LawyerFirmaHistory fields
-                id: lawyerFirmaHistory.id,
-                lawyerId: lawyerFirmaHistory.lawyerId,
-                firmaId: lawyerFirmaHistory.firmaId,
-                fechaIngreso: lawyerFirmaHistory.fechaIngreso,
-                fechaSalida: lawyerFirmaHistory.fechaSalida,
-                motivoSalida: lawyerFirmaHistory.motivoSalida,
-                estado: lawyerFirmaHistory.estado,
-                createdBy: lawyerFirmaHistory.createdBy,
-                notas: lawyerFirmaHistory.notas,
-                createdAt: lawyerFirmaHistory.createdAt,
-                // LawyerProfile fields
-                lawyerProfileId: lawyerProfiles.id,
-                firstName: lawyerProfiles.firstName,
-                lastName: lawyerProfiles.lastName,
-                phone: lawyerProfiles.phone,
-                specialization: lawyerProfiles.specialization,
-                licenseNumber: lawyerProfiles.licenseNumber,
-                isIndependent: lawyerProfiles.isIndependent,
-                firmId: lawyerProfiles.firmId,
-                userId: lawyerProfiles.userId,
-            })
-            .from(lawyerFirmaHistory)
-            .innerJoin(lawyerProfiles, eq(lawyerFirmaHistory.lawyerId, lawyerProfiles.id))
-            .where(
-                and(
-                    eq(lawyerFirmaHistory.firmaId, firmaId),
-                    eq(lawyerFirmaHistory.estado, "activo")
-                )
+    async getActiveMembersByFirmaId(firmaId: string): Promise<(LawyerFirmaHistory & { lawyer: LawyerProfile & { user?: User } })[]> {
+    const results = await this.db
+        .select({
+            // LawyerFirmaHistory fields
+            id: lawyerFirmaHistory.id,
+            lawyerId: lawyerFirmaHistory.lawyerId,
+            firmaId: lawyerFirmaHistory.firmaId,
+            fechaIngreso: lawyerFirmaHistory.fechaIngreso,
+            fechaSalida: lawyerFirmaHistory.fechaSalida,
+            motivoSalida: lawyerFirmaHistory.motivoSalida,
+            estado: lawyerFirmaHistory.estado,
+            createdBy: lawyerFirmaHistory.createdBy,
+            notas: lawyerFirmaHistory.notas,
+            createdAt: lawyerFirmaHistory.createdAt,
+            lawyerProfileId: lawyerProfiles.id,
+            firstName: lawyerProfiles.firstName,
+            lastName: lawyerProfiles.lastName,
+            phone: lawyerProfiles.phone,
+            specialization: lawyerProfiles.specialization,
+            licenseNumber: lawyerProfiles.licenseNumber,
+            isIndependent: lawyerProfiles.isIndependent,
+            firmId: lawyerProfiles.firmId,
+            userId: lawyerProfiles.userId,
+            userEmail: users.email,
+            userName: users.name,   
+        })
+        .from(lawyerFirmaHistory)
+        .innerJoin(lawyerProfiles, eq(lawyerFirmaHistory.lawyerId, lawyerProfiles.id))
+        .innerJoin(users, eq(lawyerProfiles.userId, users.id)) 
+        .where(
+            and(
+                eq(lawyerFirmaHistory.firmaId, firmaId),
+                eq(lawyerFirmaHistory.estado, "activo")
             )
-            .orderBy(desc(lawyerFirmaHistory.fechaIngreso));
+        )
+        .orderBy(desc(lawyerFirmaHistory.fechaIngreso));
 
-        return results.map((r: any) => ({
-            id: r.id,
-            lawyerId: r.lawyerId,
-            firmaId: r.firmaId,
-            fechaIngreso: r.fechaIngreso,
-            fechaSalida: r.fechaSalida ?? null,
-            motivoSalida: r.motivoSalida ?? null,
-            estado: r.estado,
-            createdBy: r.createdBy ?? null,
-            notas: r.notas ?? null,
+    return results.map((r: any) => ({
+        id: r.id,
+        lawyerId: r.lawyerId,
+        firmaId: r.firmaId,
+        fechaIngreso: r.fechaIngreso,
+        fechaSalida: r.fechaSalida ?? null,
+        motivoSalida: r.motivoSalida ?? null,
+        estado: r.estado,
+        createdBy: r.createdBy ?? null,
+        notas: r.notas ?? null,
+        createdAt: r.createdAt,
+        lawyer: {
+            id: r.lawyerProfileId,
+            userId: r.userId,
+            firmId: r.firmId,
+            firstName: r.firstName,
+            lastName: r.lastName,
+            phone: r.phone ?? null,
+            address: null,
+            specialization: r.specialization ?? null,
+            licenseNumber: r.licenseNumber ?? null,
+            isIndependent: r.isIndependent,
             createdAt: r.createdAt,
-            lawyer: {
-                id: r.lawyerProfileId,
-                userId: r.userId,
-                firmId: r.firmId,
-                firstName: r.firstName,
-                lastName: r.lastName,
-                phone: r.phone ?? null,
-                address: null,
-                specialization: r.specialization ?? null,
-                licenseNumber: r.licenseNumber ?? null,
-                isIndependent: r.isIndependent,
-                createdAt: r.createdAt,
-                updatedAt: r.createdAt,
+            updatedAt: r.createdAt,
+            user: {                        // 👈 objeto user anidado
+                id: r.userId,
+                email: r.userEmail,
+                name: r.userName ?? null,
+                role: r.userRole ?? null,
             },
-        }));
-    }
+        },
+    }));
+}
 
     // ============================
     // Crear registro de historial

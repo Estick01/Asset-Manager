@@ -1,6 +1,5 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
 import { Platform } from 'react-native';
 import { API_URL } from './config';
 import { STORAGE_KEYS } from './keys';
@@ -11,12 +10,28 @@ export { apiRequest };
 
 // --- Token Management ---
 
+// Token storage key for WebSocket (we need this even on web)
+const WS_TOKEN_KEY = "lextrack_ws_token";
+
 export async function saveAuthToken(token: string): Promise<void> {
-  // On mobile, we save the token to AsyncStorage.
-  // On web, this is not used as we rely on HttpOnly cookies.
-  if (Platform.OS !== 'web') {
-    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-  }
+  // Save to AsyncStorage for mobile and for WebSocket on all platforms
+  await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+  // Also save under a separate key that we can use for WebSocket even on web
+  await AsyncStorage.setItem(WS_TOKEN_KEY, token);
+}
+
+export async function saveRefreshToken(token: string): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+}
+
+export async function getRefreshToken(): Promise<string | null> {
+  return AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+}
+
+export async function getWsToken(): Promise<string | null> {
+  // WebSocket always needs the token from AsyncStorage
+  return await AsyncStorage.getItem(WS_TOKEN_KEY)
+    || await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
 }
 
 export async function getAuthToken(): Promise<string | null> {
@@ -28,9 +43,9 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 export async function clearAuthToken(): Promise<void> {
-  if (Platform.OS !== 'web') {
-    await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
-  }
+  await AsyncStorage.removeItem(STORAGE_KEYS.AUTH_TOKEN);
+  await AsyncStorage.removeItem(STORAGE_KEYS.REFRESH_TOKEN);
+  await AsyncStorage.removeItem(WS_TOKEN_KEY);
 }
 
 // --- Core API Client ---
@@ -81,19 +96,61 @@ export async function authenticatedFetch(
     credentials: 'include',
   });
 
-  // If the response is 401 Unauthorized, the session has expired or is invalid.
+  // If the response is 401 Unauthorized, try a silent token refresh first.
   if (response.status === 401) {
-    console.warn('Session expired (401 Unauthorized). Logging out.');
-    // Clean up local session data
+    // Avoid infinite loop: don't refresh if we're already on the refresh endpoint.
+    if (!endpoint.includes('/auth/refresh')) {
+      const refreshed = await attemptSilentRefresh();
+      if (refreshed) {
+        // Retry the original request with the new token
+        return authenticatedFetch(endpoint, options);
+      }
+    }
+
+    // Refresh failed or was unavailable — clear session and return the 401
     await clearAuthToken();
     await AsyncStorage.removeItem(STORAGE_KEYS.USER);
-    await AsyncStorage.removeItem(STORAGE_KEYS.ABOGADO);
     await AsyncStorage.removeItem(STORAGE_KEYS.CLIENTE);
-
-    // We return the original response so the caller can still handle it if needed,
-    // though the redirect will typically interrupt the flow.
     return response;
   }
 
   return response;
+}
+
+// --- Silent Refresh ---
+
+// Shared promise so concurrent 401s don't trigger multiple refresh calls
+let _refreshPromise: Promise<boolean> | null = null;
+
+async function attemptSilentRefresh(): Promise<boolean> {
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = _doRefresh().finally(() => { _refreshPromise = null; });
+  return _refreshPromise;
+}
+
+async function _doRefresh(): Promise<boolean> {
+  try {
+    const refreshToken = await getRefreshToken();
+    const isWeb = Platform.OS === 'web';
+
+    const body = isWeb ? undefined : JSON.stringify({ refreshToken });
+
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // sends httpOnly refresh cookie on web
+      body,
+    });
+
+    if (!res.ok) return false;
+
+    const data = await res.json();
+
+    if (data.token) await saveAuthToken(data.token);
+    if (data.refreshToken) await saveRefreshToken(data.refreshToken);
+
+    return true;
+  } catch {
+    return false;
+  }
 }

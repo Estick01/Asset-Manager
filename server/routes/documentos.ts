@@ -10,6 +10,7 @@ import multer from "multer";
 
 import { authenticate, requirePermission, extractToken, verifyToken } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
+import { notificacionesService } from "../services/notificacion.service.js";
 
 const router = Router();
 
@@ -79,7 +80,6 @@ router.get("/documentos/:id/download", async (req: Request, res: Response, next:
     // Check if it's an S3 key (contains '/' and doesn't start with '/')
     if (fileUri && fileUri.includes("/") && !fileUri.startsWith("/") && !fileUri.includes(":\\")) {
       // It's an S3 key - generate presigned URL with 5 minute expiration
-      console.log("Downloading from S3:", fileUri);
       const { getPresignedDownloadUrl } = await import("../services/s3-storage.js");
       const presignedUrl = await getPresignedDownloadUrl(fileUri, documento.nombre, 300); // 5 minutes, force download
       return res.redirect(presignedUrl);
@@ -89,7 +89,6 @@ router.get("/documentos/:id/download", async (req: Request, res: Response, next:
     const fs = await import("fs");
     if (fileUri && fs.existsSync(fileUri)) {
       // Server file - send as download
-      console.log("Downloading server file:", fileUri);
       res.setHeader("Content-Disposition", `attachment; filename="${documento.nombre}"`);
       res.setHeader("Content-Type", documento.tipo || "application/octet-stream");
       const fileBuffer = fs.readFileSync(fileUri);
@@ -99,7 +98,6 @@ router.get("/documentos/:id/download", async (req: Request, res: Response, next:
     // If file doesn't exist, return error
     return res.status(404).json({ error: "Archivo no encontrado" });
   } catch (err) {
-    console.error("Download error:", err);
     next(err);
   }
 });
@@ -119,7 +117,7 @@ router.post(
         return res.status(400).json({ error: "No se proporcionó archivo" });
       }
 
-      let uri = "";
+      let url = "";
 
       // If there's a file, upload to S3
       if (file) {
@@ -149,14 +147,14 @@ router.post(
           file.mimetype
         );
 
-        uri = s3Key;
+        url = s3Key;
       }
 
       // Prepare data to save in DB
       const docData = {
         procesoId,
         nombre: nombre || file?.originalname || "Documento sin nombre",
-        uri,
+        url,
         tipo: file?.mimetype || tipo,
         tamano: file?.size || tamano,
         descripcion: descripcion || null,
@@ -165,9 +163,23 @@ router.post(
       // Save document in the database
       const newDocumento = await storage.createDocumento(docData as any);
 
+      // Notify the client (fire-and-forget)
+      try {
+        const proc = await storage.getProceso(procesoId);
+        if (proc?.clienteId) {
+          notificacionesService.onDocumentoSubido({
+            procesoId,
+            clienteId: proc.clienteId,
+            documentoNombre: docData.nombre,
+          }).catch(() => {});
+        }
+      } catch {
+        // non-critical
+      }
+
       res.status(201).json(newDocumento);
     } catch (err) {
-      console.error("Error uploading document:", err);
+      // error handled by global error handler
       next(err);
     }
   }
@@ -189,23 +201,34 @@ router.delete("/documentos/:id", authenticate, requirePermission("documentos.eli
     await storage.deleteDocumento(id.toString());
     res.status(204).send();
   } catch (err) {
-    console.error("Error deleting document:", err);
     next(err);
   }
 });
 
 // GET /uploads/:filename - Serve uploaded files
-router.get("/uploads/:filename", async (req: Request, res: Response, next: NextFunction) => {
+router.get("/uploads/:filename", authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const filename = Array.isArray(req.params.filename) ? req.params.filename[0] : req.params.filename;
-    const path = await import("path");
-    const filePath = path.join(process.cwd(), "uploads", filename);
-    
+    const pathModule = await import("path");
+
+    // Prevent path traversal: resolve and verify it stays inside uploads/
+    const uploadsDir = pathModule.resolve(process.cwd(), "uploads");
+    const filePath = pathModule.resolve(uploadsDir, filename);
+
+    if (!filePath.startsWith(uploadsDir + pathModule.sep) && filePath !== uploadsDir) {
+      return res.status(400).json({ error: "Nombre de archivo inválido" });
+    }
+
+    // Only allow safe filename characters (no slashes, dots leading path)
+    if (!/^[\w\-. ]+$/.test(filename)) {
+      return res.status(400).json({ error: "Nombre de archivo inválido" });
+    }
+
     const fs = await import("fs");
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ error: "Archivo no encontrado" });
     }
-    
+
     res.sendFile(filePath);
   } catch (err) {
     next(err);

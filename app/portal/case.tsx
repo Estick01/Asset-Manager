@@ -13,6 +13,8 @@ import {
 } from "@/lib/services/procesoService";
 import { type ProcesoDTO, type Documento } from "@/shared/schema";
 import { type ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
+import { useUnifiedAuth } from "@/lib/auth-context";
+import { getOrCreateConversation } from "@/lib/services/chatService";
 
 const PORTAL_BLUE      = "#1B5A8C";
 const PORTAL_BLUE_DARK = "#0D3B66";
@@ -64,9 +66,11 @@ async function handleDownloadDocById(documentoId: string) {
 export default function ClientCaseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { user } = useUnifiedAuth();
 
   const [proceso, setProceso] = useState<ProcesoDTO | null>(null);
-  const [abogado, setAbogado] = useState<{ nombre: string; telefono?: string; email?: string } | null>(null);
+  const [abogado, setAbogado] = useState<{ nombre: string; telefono?: string; email?: string; userId?: string } | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
   const [actualizaciones, setActualizaciones] = useState<ActualizacionRelations[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [activeTab, setActiveTab] = useState<"timeline" | "documents">("timeline");
@@ -80,16 +84,28 @@ export default function ClientCaseDetailScreen() {
 
   const loadData = useCallback(async () => {
     if (!id) return;
+    // Prevent resetting data while we're in the middle of loading more
+    if (isLoadingMoreRef.current) return;
     setIsInitialLoad(true);
     const p = await getProceso(id);
     setProceso(p);
     if (p) {
-      const lawyer = p.lawyers?.find((l: any) => l.rol === "principal");
-      if (lawyer) {
+      // Prefer the designated responsable; fall back to principal lawyer
+      if (p.responsable) {
         setAbogado({
-          nombre: `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName}`,
-          telefono: lawyer.lawyer.phone || undefined,
+          nombre: `${p.responsable.firstName} ${p.responsable.lastName}`,
+          telefono: (p.responsable as any).phone || undefined,
+          userId: p.responsable.userId,
         });
+      } else {
+        const lawyer = p.lawyers?.find((l: any) => l.rol === "principal" && l.lawyer);
+        if (lawyer) {
+          setAbogado({
+            nombre: `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName}`,
+            telefono: lawyer.lawyer.phone || undefined,
+            userId: lawyer.lawyer.userId,
+          });
+        }
       }
       const acts = await getActualizaciones(p.id, LIMIT, 0);
       setActualizaciones(acts);
@@ -102,7 +118,7 @@ export default function ClientCaseDetailScreen() {
   }, [id]);
 
   const loadMoreActualizaciones = useCallback(async () => {
-    if (!proceso || isLoadingMoreRef.current || !hasMoreActualizaciones) return;
+    if (!proceso || isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) return;
     isLoadingMoreRef.current = true;
     setActualizacionesLoading(true);
     try {
@@ -118,7 +134,23 @@ export default function ClientCaseDetailScreen() {
       setActualizacionesLoading(false);
       isLoadingMoreRef.current = false;
     }
-  }, [proceso, hasMoreActualizaciones, actualizacionesOffset]);
+  }, [proceso, hasMoreActualizaciones, actualizacionesOffset, actualizacionesLoading]);
+
+  const handleOpenChat = useCallback(async () => {
+    if (!abogado?.userId || !user?.user?.id) return;
+    setChatLoading(true);
+    try {
+      const conv = await getOrCreateConversation(abogado.userId, "lawyer_client");
+      router.push({
+        pathname: "/chat/[id]",
+        params: { id: conv.id, name: abogado.nombre, from: "/portal/case" },
+      });
+    } catch {
+      Alert.alert("Error", "No se pudo abrir el chat. Intenta de nuevo.");
+    } finally {
+      setChatLoading(false);
+    }
+  }, [abogado, user]);
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
@@ -142,7 +174,7 @@ export default function ClientCaseDetailScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: 48 }}
         onScroll={({ nativeEvent }) => {
-          if (isLoadingMoreRef.current || !hasMoreActualizaciones) return;
+          if (isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) return;
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
           if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 100) {
             loadMoreActualizaciones();
@@ -157,7 +189,7 @@ export default function ClientCaseDetailScreen() {
           style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
         >
           <View style={styles.headerRow}>
-            <Pressable onPress={() => router.replace("/portal")} style={styles.headerBtn} hitSlop={8}>
+            <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
               <Ionicons name="arrow-back" size={22} color={Colors.white} />
             </Pressable>
             <Text style={styles.headerTitle}>Detalle del Proceso</Text>
@@ -209,19 +241,30 @@ export default function ClientCaseDetailScreen() {
             {abogado && (
               <View style={[styles.infoRow, styles.infoRowBorder]}>
                 <View style={[styles.infoIconWrap, { backgroundColor: Colors.success + "12" }]}>
-                  <Ionicons name="briefcase-outline" size={18} color={Colors.success} />
+                  <Ionicons name="person-outline" size={18} color={Colors.success} />
                 </View>
                 <View style={styles.infoContent}>
-                  <Text style={styles.infoLabel}>Abogado asignado</Text>
+                  <Text style={styles.infoLabel}>
+                    {proceso.responsable ? "Abogado responsable" : "Abogado asignado"}
+                  </Text>
                   <Text style={styles.infoValue}>{abogado.nombre}</Text>
+                  {proceso.responsableAsignadoPorNombre && (
+                    <Text style={styles.infoSubValue}>
+                      Asignado por {proceso.responsableAsignadoPorNombre}
+                    </Text>
+                  )}
                 </View>
-                {abogado.telefono && (
+                {abogado.userId && (
                   <Pressable
-                    onPress={() => Linking.openURL(`tel:${abogado.telefono}`)}
-                    style={styles.contactBtn}
+                    onPress={handleOpenChat}
+                    style={[styles.contactBtn, chatLoading && { opacity: 0.6 }]}
                     hitSlop={8}
+                    disabled={chatLoading}
                   >
-                    <Ionicons name="call-outline" size={18} color={Colors.success} />
+                    {chatLoading
+                      ? <ActivityIndicator size="small" color={PORTAL_BLUE} />
+                      : <Ionicons name="chatbubble-outline" size={18} color={PORTAL_BLUE} />
+                    }
                   </Pressable>
                 )}
               </View>
@@ -288,15 +331,19 @@ export default function ClientCaseDetailScreen() {
               )}
             </Pressable>
 
-            {abogado?.telefono && (
+            {abogado?.userId && (
               <Pressable
-                style={styles.quickAction}
-                onPress={() => Linking.openURL(`tel:${abogado.telefono}`)}
+                style={[styles.quickAction, chatLoading && { opacity: 0.6 }]}
+                onPress={handleOpenChat}
+                disabled={chatLoading}
               >
-                <View style={[styles.quickActionIcon, { backgroundColor: Colors.success + "15" }]}>
-                  <Ionicons name="call-outline" size={20} color={Colors.success} />
+                <View style={[styles.quickActionIcon, { backgroundColor: PORTAL_BLUE + "15" }]}>
+                  {chatLoading
+                    ? <ActivityIndicator size="small" color={PORTAL_BLUE} />
+                    : <Ionicons name="chatbubble-ellipses-outline" size={20} color={PORTAL_BLUE} />
+                  }
                 </View>
-                <Text style={styles.quickActionText}>Llamar</Text>
+                <Text style={styles.quickActionText}>Mensaje</Text>
               </Pressable>
             )}
           </View>
@@ -357,13 +404,6 @@ export default function ClientCaseDetailScreen() {
                   </View>
                 ))}
 
-                <View
-                  onLayout={() => {
-                    if (isInitialLoad || isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) return;
-                    loadMoreActualizaciones();
-                  }}
-                  style={{ height: 20 }}
-                />
                 {actualizacionesLoading && (
                   <View style={styles.loadingMore}>
                     <ActivityIndicator size="small" color={PORTAL_BLUE} />
@@ -516,9 +556,10 @@ const styles = StyleSheet.create({
   infoContent: { flex: 1 },
   infoLabel: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textTertiary },
   infoValue: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text, marginTop: 2 },
+  infoSubValue: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 2 },
   contactBtn: {
     width: 34, height: 34, borderRadius: 17,
-    backgroundColor: Colors.success + "15",
+    backgroundColor: PORTAL_BLUE + "15",
     alignItems: "center", justifyContent: "center",
   },
 

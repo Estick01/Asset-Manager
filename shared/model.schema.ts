@@ -163,7 +163,10 @@ export interface JWTPayload {
   id: string;
   email: string;
   rol: Rol;
-  idProfile?:string;
+  idProfile?: string;
+  UserName: string | null;
+  /** JWT ID — used to look up / revoke the session */
+  jti: string;
 }
 
 export interface LawyerDTO {

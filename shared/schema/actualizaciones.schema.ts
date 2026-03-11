@@ -49,6 +49,7 @@ export interface InsertActualizacion {
   tipoId: number;
   documentoId?: string | null;
   state?: boolean;
+  tipo:string
 }
 
 /** Actualizacion relation types */

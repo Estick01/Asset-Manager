@@ -22,6 +22,27 @@ const updateLawyerProfileSchema = z.object({
   licenseNumber: z.string().optional(),
 });
 
+// --- Lawyer Profile ---
+// Get /api/api/lawyer-profile/lawyerId/profile
+
+router.get("/lawyer-profile/:lawyerId/profile", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { lawyerId } = req.params;
+    if (!lawyerId || Array.isArray(lawyerId)) {
+      return res.status(400).json({ error: "ID de abogado inválido" });
+    }
+
+    const profile = await storage.getLawyerProfileById(lawyerId);
+        if (!profile) {
+      return res.status(404).json({ error: "Perfil no encontrado" });
+    }
+
+    res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/lawyer-profile - Get current lawyer profile
 router.get("/lawyer-profile", authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {

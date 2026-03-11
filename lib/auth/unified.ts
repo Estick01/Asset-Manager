@@ -11,6 +11,7 @@ import { STORAGE_KEYS } from '../keys';
 import {
   apiRequest,
   saveAuthToken,
+  saveRefreshToken,
   clearAuthToken,
 } from '../apiClient';
 import type { 
@@ -66,14 +67,14 @@ export async function loginUnified(
 
   const authData: UnifiedAuthResponse = await response.json();
 
-  if (Platform.OS !== 'web' && authData.token) {
-    await saveAuthToken(authData.token);
-  }
+  // Save tokens (access + refresh) for mobile; web uses httpOnly cookies
+  if (authData.token) await saveAuthToken(authData.token);
+  if ((authData as any).refreshToken) await saveRefreshToken((authData as any).refreshToken);
 
   const user: UnifiedUser = {
     user: authData.user,
     profile: authData.profile,
-  }
+  };
   await saveStoredUser(user);
   return user;
 }
@@ -93,7 +94,8 @@ export async function registerUnified(
 
   const authData: UnifiedAuthResponse = await response.json();
 
-  if (Platform.OS !== 'web' && authData.token) {
+  // Save token for WebSocket (needed on all platforms including web)
+  if (authData.token) {
     await saveAuthToken(authData.token);
   }
 

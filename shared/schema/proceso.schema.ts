@@ -11,6 +11,7 @@ import { Cliente, clientes } from "./cliente.schema";
 import { TiposProceso, tiposProceso } from "./tipo-proceso.schema";
 import { EstadoProceso, estadosProceso } from "./estado-proceso.schema";
 import { procesoLawyers, ProcesoLawyerWithLawyer } from "./proceso-lawyer.schema";
+import { type LawyerProfile } from "./lawyer-profile.schema";
 
 export const procesos = mysqlTable("procesos", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -77,7 +78,17 @@ export interface ProcesoDTO extends Proceso {
   estado?: EstadoProceso | null;
   lawyers?: ProcesoLawyerWithLawyer[];
   clienteNombre?: string;
+  clienteUserId?: string;
+  responsable?: LawyerProfile | null;
+  responsableFechaAsignacion?: Date | null;
+  responsableRazon?: string | null;
+  responsableAsignadoPorNombre?: string | null;
+  tareasConteo?: {
+    total: number;
+    pendientes: number;
+    en_progreso: number;
+    completadas: number;
+  } | null;
 }
 
-// Legacy aliases
 export type InsertProcesoLegacy = typeof procesos.$inferInsert;

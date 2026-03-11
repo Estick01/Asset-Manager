@@ -1,6 +1,6 @@
 import { eq, and, or, like, desc, sql, SQL, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { Cliente, clientes, InsertCliente, lawyerClients } from "@/shared/schema";
+import { Cliente, clientes, InsertCliente, lawyerClients, procesos } from "@/shared/schema";
 import { db } from "../db";
 import { hashPassword } from "@/server/auth";
 import { storage } from "../storage/storeage/database-storage";
@@ -18,8 +18,17 @@ export class ClientesService {
         )
       );
 
-    const clientIds = lawyerClientRelations.map(r => r.clientId);
-    
+    // Also get client IDs from procesos where lawyer is responsable
+    const responsableClients = await db
+      .select({ clientId: procesos.clienteId })
+      .from(procesos)
+      .where(eq(procesos.responsableId, lawyerId));
+
+    const clientIds = [...new Set([
+      ...lawyerClientRelations.map(r => r.clientId),
+      ...responsableClients.map(r => r.clientId).filter((id): id is string => id !== null),
+    ])];
+
     if (clientIds.length === 0) {
       return [];
     }
@@ -65,8 +74,17 @@ export class ClientesService {
         )
       );
 
-    const clientIds = lawyerClientRelations.map(r => r.clientId);
-    
+    // Also get client IDs from procesos where lawyer is responsable
+    const responsableClients = await db
+      .select({ clientId: procesos.clienteId })
+      .from(procesos)
+      .where(eq(procesos.responsableId, lawyerId));
+
+    const clientIds = [...new Set([
+      ...lawyerClientRelations.map(r => r.clientId),
+      ...responsableClients.map(r => r.clientId).filter((id): id is string => id !== null),
+    ])];
+
     if (clientIds.length === 0) {
       return 0;
     }
@@ -97,6 +115,53 @@ export class ClientesService {
     return result[0]?.count ?? 0;
   }
 
+  async getClientesByFirm(
+    firmId: string,
+    limit: number,
+    offset: number,
+    filter?: { search?: string; activo?: boolean }
+  ): Promise<Cliente[]> {
+    const lawyers = await storage.abogados.getLawyersByFirm(firmId);
+    const lawyerIds = lawyers.map((l) => l.id);
+    const allLawyerIds = [...new Set([...lawyerIds, firmId])];
+
+    const relations = await db
+      .select({ clientId: lawyerClients.clientId })
+      .from(lawyerClients)
+      .where(
+        and(
+          inArray(lawyerClients.lawyerId, allLawyerIds), // ← allLawyerIds
+          eq(lawyerClients.status, "active")
+        )
+      );
+
+    const clientIds = [...new Set(relations.map((r) => r.clientId))];
+    if (clientIds.length === 0) return [];
+
+    const conditions: any[] = [inArray(clientes.id, clientIds)];
+
+    if (filter?.search) {
+      const s = `${filter.search}%`;
+      const likeConditions = [
+        like(clientes.nombre, s),
+        like(clientes.documento, s),
+      ].filter((c): c is SQL<unknown> => c !== undefined);
+      if (likeConditions.length > 0) conditions.push(or(...likeConditions));
+    }
+
+    if (filter?.activo !== undefined) {
+      conditions.push(eq(clientes.activo, filter.activo));
+    }
+
+    return db
+      .select()
+      .from(clientes)
+      .where(and(...conditions))
+      .orderBy(desc(clientes.fechaCreacion))
+      .limit(limit)
+      .offset(offset);
+  }
+
   async getCliente(id: string): Promise<Cliente | undefined> {
     const result = await db.query.clientes.findFirst({ where: eq(clientes.id, id) });
     if (!result) return undefined;
@@ -111,7 +176,7 @@ export class ClientesService {
 
   async createCliente(insertCliente: InsertCliente, password: string, email: string, lawyerId?: string): Promise<Cliente> {
     const hashedPassword = await hashPassword(password);
-    
+
     // Create the user and cliente
     const cliente = await storage.createClienteWithUser(
       {
@@ -119,8 +184,8 @@ export class ClientesService {
         email: email,
         passwordHash: hashedPassword,
         planId: "",
-        rolId: 4, 
-        name:`${insertCliente.nombre} ${insertCliente.apellido}`
+        rolId: 4,
+        name: `${insertCliente.nombre} ${insertCliente.apellido}`
       },
       {
         ...insertCliente,

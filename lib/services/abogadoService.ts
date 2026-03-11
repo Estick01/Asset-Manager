@@ -19,6 +19,9 @@ export interface LawyerProfile {
   firmId?: string;
   createdAt: Date;
   updatedAt: Date;
+  // Populated when fetching by ID (includes user & firm relations)
+  user?: { id: string; email: string; name: string } | null;
+  firm?: { id: string; name: string } | null;
 }
 
 export interface UpdateLawyerProfile {
@@ -48,6 +51,22 @@ export async function getLawyerProfile(): Promise<LawyerProfile | null> {
     return null;
   }
 }
+
+export async function getLawyerProfileByid(lawyerId:string): Promise<LawyerProfile | null> {
+  try {
+    const response = await apiRequest("GET", "/api/lawyer-profile/" + lawyerId + "/profile");
+    if (!response.ok) {
+      console.error("Failed to fetch lawyer profile");
+      return null;
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Error fetching lawyer profile:", error);
+    return null;
+  }
+}
+
+
 
 /**
  * Update lawyer profile

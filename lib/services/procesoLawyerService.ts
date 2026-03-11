@@ -3,6 +3,7 @@
 import { LawyerProfile, ProcesoLawyerWithLawyer, LawyerFirmaHistory } from "@/shared/schema";
 import { apiRequest } from "../query-client";
 import { TIPO_ASIGNACION_IDS } from "@/shared/schema/tipo-asignacion.schema";
+import { LawyerProfileRelations } from "@/shared/schema/lawyer-profile.schema";
 
 // ============================================
 // Types
@@ -47,32 +48,17 @@ export async function getProcesoLawyers(
 
 export async function getAbogadosByFirma(
   firmaId: string
-): Promise<ServiceResult<LawyerProfile[]>> {
+): Promise<ServiceResult<LawyerProfileRelations[]>> {
   try {
-    // Get active members from lawyer-firma-history
-    const historyResponse = await apiRequest("GET", "/api/lawyer-firma-history/members/" + firmaId);
+    const historyResponse = await apiRequest("GET", `/api/lawyer-firma-history/members`);
     if (!historyResponse.ok) {
       return { data: null, error: "Error: " + historyResponse.status };
     }
-    const historyRecords: LawyerFirmaHistory[] = await historyResponse.json();
-    
-    // Extract lawyer IDs from history records
-    const lawyerIds = historyRecords.map(function(m) { return m.lawyerId; });
-    
-    // Fetch lawyer profiles for each lawyer ID
-    const lawyerProfiles: LawyerProfile[] = [];
-    for (const lawyerId of lawyerIds) {
-      try {
-        const lawyerResponse = await apiRequest("GET", "/api/abogado/" + lawyerId);
-        if (lawyerResponse.ok) {
-          const lawyer = await lawyerResponse.json();
-          lawyerProfiles.push(lawyer);
-        }
-      } catch {
-        // Skip failed individual lawyer fetches
-      }
-    }
-    
+
+    const historyRecords: (LawyerFirmaHistory & { lawyer: LawyerProfileRelations })[] = await historyResponse.json();
+
+    const lawyerProfiles = historyRecords.map((record) => record.lawyer);
+
     return { data: lawyerProfiles, error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al obtener abogados de la firma" };
@@ -121,9 +107,9 @@ export async function addAsistenteToProceso(
   try {
     const response = await apiRequest("POST", "/api/procesos/" + procesoId + "/lawyers", {
       lawyerId: lawyerId,
-      rol: "asistente",
+      rol: "responsable",
       tipoAsignacionId: TIPO_ASIGNACION_IDS.ASISTENCIA,
-      razonAsignacion: razonAsignacion || "Agregado como asistente",
+      razonAsignacion: razonAsignacion || "Agregado como responsable",
     });
     if (!response.ok) {
       return { data: null, error: "Error: " + response.status };
@@ -165,5 +151,23 @@ export async function removeLawyerFromProceso(
     return { data: undefined, error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al remover abogado del proceso" };
+  }
+}
+
+export async function setResponsableProceso(
+  procesoId: string,
+  responsableId: string
+): Promise<ServiceResult<void>> {
+  try {
+    const response = await apiRequest("PUT", "/api/procesos/" + procesoId + "/responsable", {
+      responsableId,
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      return { data: null, error: (body as any)?.error || "Error: " + response.status };
+    }
+    return { data: undefined, error: null };
+  } catch (error: any) {
+    return { data: null, error: error?.message || "Error al asignar responsable" };
   }
 }

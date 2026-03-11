@@ -12,37 +12,36 @@ import { getClientes, deleteCliente } from '@/lib/services/clienteService.js';
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 
-import { hashPassword, authenticate, requirePermission, extractToken, verifyToken } from "../auth.js";
+import { hashPassword, authenticate, requirePermission } from "../auth.js";
 
 import { storage } from '../storage/storeage/database-storage.js';
 import { clientesService } from '../services';
 
 const router = Router();
 
-// GET /api/clientes - Get clients for a lawyer (with lawyer_clients)
+// GET /api/clientes - Get clients for a lawyer or firm
 router.get("/clientes", authenticate, requirePermission("clientes.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { limit, offset } = req.query;
-    
-    const token = extractToken(req);
-    
-    if (!token) {
-      return res.status(401).json({
-        error: "No se proporcionó token",
-        authenticated: false,
-      });
-    }
-    
-    const idProfile = verifyToken(token)?.idProfile;
-    
-    if (!idProfile || typeof idProfile !== "string") {
-      return res.status(400).json({ error: "abogadoId is required" });
-    }
-    const limitNum = limit ? parseInt(limit as string, 10) : 10;
-    const offsetNum = offset ? parseInt(offset as string, 10) : 0;
+    const user = (req as any).user;
+    const { limit, offset, search } = req.query;
 
-    const clientes = await clientesService.getClientes(idProfile, limitNum, offsetNum);
-    res.json(clientes);
+    const idProfile = user?.idProfile;
+    if (!idProfile || typeof idProfile !== "string") {
+      return res.status(400).json({ error: "Perfil de usuario no encontrado" });
+    }
+
+    const limitNum = limit ? parseInt(limit as string, 10) : 50;
+    const offsetNum = offset ? parseInt(offset as string, 10) : 0;
+    const filter = { search: search as string | undefined };
+
+    let result: any[];
+    if (user?.rol?.nombre === "bufete") {
+      result = await clientesService.getClientesByFirm(idProfile, limitNum, offsetNum, filter);
+    } else {
+      result = await clientesService.getClientes(idProfile, limitNum, offsetNum, filter);
+    }
+
+    res.json(result);
   } catch (err) {
     next(err);
   }
@@ -70,10 +69,10 @@ router.post("/clientes", authenticate, requirePermission("clientes.crear"), asyn
   try {
     const user = (req as any).user;
     const { password, tipoDocumentoId, departamentoId, municipioId, ...rest } = req.body;
-    const hashedPassword = password ? await hashPassword(password) : "";
+
     
     // Get lawyer ID from the logged-in user
-    const lawyerId = user.id;
+    const lawyerId = user.idProfile;
     
     // Create the cliente through the service (which handles lawyer_clients relationship)
     const newCliente = await clientesService.createCliente(
@@ -192,7 +191,7 @@ router.post("/register/client", authenticate, async (req: Request, res: Response
     }
 
     // Get lawyerId from the authenticated user
-    const lawyerId = user.id;
+    const lawyerId = user.idProfile;
 
     const cliente = await clientesService.createCliente(
       {

@@ -7,8 +7,9 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 
-import { authenticate } from "../auth.js";
+import { authenticate, extractToken, verifyToken } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
+import { JWTPayload } from "@/shared/model.schema.js";
 
 const router = Router();
 
@@ -81,15 +82,20 @@ router.get("/lawyer-firma-history/active/:lawyerId", authenticate, async (req: R
 });
 
 // GET /api/lawyer-firma-history/members/:firmaId - Get active members of a firm
-router.get("/lawyer-firma-history/members/:firmaId", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/lawyer-firma-history/members", authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { firmaId } = req.params;
+    const token = extractToken(req);
+    if (!token) {
+      return res.status(401).json({ error: "No se proporcionó token" });
+    }
 
-    if (!firmaId || Array.isArray(firmaId)) {
+    const { idProfile } = verifyToken(token) as JWTPayload;
+
+    if (!idProfile || Array.isArray(idProfile)) {
       return res.status(400).json({ error: "ID de firma inválido" });
     }
 
-    const members = await storage.lawyerFirmaHistory.getActiveMembersByFirmaId(firmaId);
+    const members = await storage.lawyerFirmaHistory.getActiveMembersByFirmaId(idProfile);
 
     res.json(members);
   } catch (err) {
@@ -146,12 +152,12 @@ router.post("/lawyer-firma-history", authenticate, async (req: Request, res: Res
     }
 
     const user = req.user!;
-    
+
     // Check if lawyer already has an active membership
     const existingActive = await storage.lawyerFirmaHistory.getActiveByLawyerId(parsed.data.lawyerId);
     if (existingActive) {
-      return res.status(400).json({ 
-        error: "El abogado ya tiene una membresía activa en otra firma" 
+      return res.status(400).json({
+        error: "El abogado ya tiene una membresía activa en otra firma"
       });
     }
 

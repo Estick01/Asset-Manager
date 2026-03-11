@@ -1,131 +1,169 @@
-import { InsertNotificacion, Notificacion, notificaciones } from "@/shared/schema";
-import { eq, and, desc } from "drizzle-orm";
-import { db } from "../db";
-import { ProcesoDTO } from "@/shared/schema/proceso.schema";
-
-
+import { storage } from "../storage/storeage/database-storage.js";
+import type { InsertNotificacion, Notificacion } from "@/shared/schema";
 
 export class NotificacionesService {
-  async getNotificacionesByClienteId(clienteId: string): Promise<Notificacion[]> {
+
+  async createNotificacion(data: InsertNotificacion): Promise<Notificacion> {
+    return storage.notificaciones.createNotificacion(data);
+  }
+
+  // ── Targeted helpers ──────────────────────────────────────────────────────
+
+  /** Notify a single lawyer */
+  async notifyLawyer(
+    lawyerId: string,
+    procesoId: string,
+    titulo: string,
+    mensaje: string,
+    tipo: string,
+  ): Promise<void> {
     try {
-      return await db
-        .select()
-        .from(notificaciones)
-        .where(eq(notificaciones.clienteId, clienteId))
-        .orderBy(desc(notificaciones.createdAt));
-    } catch (e) {
-      console.error("Error getting notificaciones:", e);
-      return [];
+      await storage.notificaciones.createNotificacion({
+        procesoId,
+        lawyerId,
+        titulo,
+        mensaje,
+        tipo,
+      });
+    } catch (err) {
+      console.error("[notificaciones] notifyLawyer error:", err);
     }
   }
 
-  async getNotificacionesCountByClienteId(clienteId: string): Promise<number> {
+  /** Notify a client */
+  async notifyCliente(
+    clienteId: string,
+    procesoId: string,
+    titulo: string,
+    mensaje: string,
+    tipo: string,
+  ): Promise<void> {
     try {
-      const results = await db
-        .select()
-        .from(notificaciones)
-        .where(and(
-          eq(notificaciones.clienteId, clienteId),
-          eq(notificaciones.leidoCliente, false)
-        ));
-      return results.length;
-    } catch (e) {
-      console.error("Error getting notificaciones count:", e);
-      return 0;
+      await storage.notificaciones.createNotificacion({
+        procesoId,
+        clienteId,
+        titulo,
+        mensaje,
+        tipo,
+      });
+    } catch (err) {
+      console.error("[notificaciones] notifyCliente error:", err);
     }
   }
 
-  async markNotificacionLeidaCliente(notificacionId: number): Promise<void> {
-    await db
-      .update(notificaciones)
-      .set({ leidoCliente: true, updatedAt: new Date() })
-      .where(eq(notificaciones.id, notificacionId));
-  }
-
-  async getNotificacionesByAbogadoId(abogadoId: string): Promise<Notificacion[]> {
+  /** Notify a firm */
+  async notifyFirm(
+    firmId: string,
+    procesoId: string,
+    titulo: string,
+    mensaje: string,
+    tipo: string,
+  ): Promise<void> {
     try {
-      return await db
-        .select()
-        .from(notificaciones)
-        .where(eq(notificaciones.lawyerId, abogadoId))
-        .orderBy(desc(notificaciones.createdAt));
-    } catch (e) {
-      console.error("Error getting notificaciones:", e);
-      return [];
+      await storage.notificaciones.createNotificacion({
+        procesoId,
+        firmId,
+        titulo,
+        mensaje,
+        tipo,
+      });
+    } catch (err) {
+      console.error("[notificaciones] notifyFirm error:", err);
     }
   }
 
-  async getNotificacionesCountByAbogadoId(abogadoId: string): Promise<number> {
-    try {
-      const results = await db
-        .select()
-        .from(notificaciones)
-        .where(and(
-          eq(notificaciones.lawyerId, abogadoId),
-          eq(notificaciones.leidoLawyer, false)
-        ));
-      return results.length;
-    } catch (e) {
-      console.error("Error getting notificaciones count:", e);
-      return 0;
-    }
-  }
+  // ── Domain events ─────────────────────────────────────────────────────────
 
-  async markNotificacionLeidaAbogado(notificacionId: number): Promise<void> {
-    await db
-      .update(notificaciones)
-      .set({ leidoLawyer: true, updatedAt: new Date() })
-      .where(eq(notificaciones.id, notificacionId));
-  }
-
-  async createNotificacion(notificacion: InsertNotificacion): Promise<Notificacion> {
-    const newNotificacion = {
-      ...notificacion,
-      tipo: notificacion.tipo || "estado_cambio",
-      leidoCliente: false,
-      leidoAbogado: false,
-    };
-    await db.insert(notificaciones).values(newNotificacion);
-    
-    const results = await db
-      .select()
-      .from(notificaciones)
-      .where(eq(notificaciones.procesoId, notificacion.procesoId))
-      .orderBy(desc(notificaciones.createdAt));
-    return results[0];
-  }
-
-    async notifyProcesoLawyers(
-      proceso: ProcesoDTO,
-      data: {
-        titulo: string;
-        mensaje: string;
-        tipo: string;
-      }
-    ): Promise<{ success: boolean; count: number }> {
-
-      if (!proceso.lawyers?.length) {
-        return { success: true, count: 0 };
-      }
-
-      const results = await Promise.all(
-        proceso.lawyers.map((pl) =>
-          notificacionesService.createNotificacion({
-            procesoId: proceso.id,
-            clienteId: proceso.clienteId,
-            lawyerId: pl.lawyer.userId,
-            titulo: data.titulo,
-            mensaje: data.mensaje,
-            tipo: data.tipo,
-          })
-        )
+  /** Called when a new tarea is created — notifies the assigned lawyer and/or the firm. */
+  async onTareaCreada(opts: {
+    procesoId: string;
+    procoNombre:string;
+    tareaTitle: string;
+    lawlerId: string | null;
+    creadoPorNombre: string | null;
+    firmId: string | null;
+  }): Promise<void> {
+    // Notify assigned lawyer (if any)
+    if (opts.lawlerId) {
+      await this.notifyLawyer(
+        opts.lawlerId,
+        opts.procesoId,
+        "Nueva tarea creada en proceso",
+        `se creó la tarea: "${opts.tareaTitle}" en el proceso: "${opts.procoNombre}" por ${opts.creadoPorNombre ?? "Alguien"}`,
+        "nueva_tarea",
       );
-
-      return {
-        success: true,
-        count: results.length,
-      };
     }
+
+    // Notify firm (if any and different from assigned lawyer to avoid duplicates)
+    if (opts.firmId) {
+      await this.notifyFirm(
+        opts.firmId,
+        opts.procesoId,
+        "Nueva tarea creada",
+        `se creó la tarea: "${opts.tareaTitle}" en el proceso: "${opts.procoNombre}" por ${opts.creadoPorNombre ?? "Alguien"}`,
+        "nueva_tarea",
+      );
+    }
+  }
+
+  /** Called when a tarea is marked completada — notifies creator and the firm. */
+  async onTareaCompletada(opts: {
+    procesoId: string;
+    tareaTitle: string;
+    creadoPorId: string;
+    responsableNombre: string | null;
+    firmId: string | null;
+  }): Promise<void> {
+    // Notify task creator
+    await this.notifyLawyer(
+      opts.creadoPorId,
+      opts.procesoId,
+      "Tarea completada",
+      `${opts.responsableNombre ?? "Un abogado"} completó la tarea: "${opts.tareaTitle}"`,
+      "tarea_completada",
+    );
+
+    // Notify firm
+    if (opts.firmId) {
+      await this.notifyFirm(
+        opts.firmId,
+        opts.procesoId,
+        "Tarea completada",
+        `${opts.responsableNombre ?? "Un abogado"} completó la tarea: "${opts.tareaTitle}"`,
+        "tarea_completada",
+      );
+    }
+  }
+
+  /** Called when an actualizacion is added — notifies the process client. */
+  async onActualizacionCreada(opts: {
+    procesoId: string;
+    clienteId: string;
+    titulo: string;
+  }): Promise<void> {
+    await this.notifyCliente(
+      opts.clienteId,
+      opts.procesoId,
+      "Nueva actualización en tu proceso",
+      `Se agregó la actualización: "${opts.titulo}"`,
+      "nueva_actualizacion",
+    );
+  }
+
+  /** Called when a document is uploaded — notifies the process client. */
+  async onDocumentoSubido(opts: {
+    procesoId: string;
+    clienteId: string;
+    documentoNombre: string;
+  }): Promise<void> {
+    await this.notifyCliente(
+      opts.clienteId,
+      opts.procesoId,
+      "Nuevo documento disponible",
+      `Se subió el documento: "${opts.documentoNombre}" a tu proceso`,
+      "nuevo_documento",
+    );
+  }
 }
 
 export const notificacionesService = new NotificacionesService();

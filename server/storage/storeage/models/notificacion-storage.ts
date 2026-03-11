@@ -15,12 +15,21 @@ export class NotificacionStorage {
       ...data,
       leidoCliente: data.leidoCliente ?? false,
       leidoLawyer: data.leidoLawyer ?? false,
+      leidoFirma: data.leidoFirma ?? false,
       createdAt: new Date(),
     };
 
     await this.db.insert(notificaciones).values(newNotificacion);
 
-    return newNotificacion as Notificacion;
+    // Return the just-inserted row
+    const rows = await this.db
+      .select()
+      .from(notificaciones)
+      .where(eq(notificaciones.procesoId, data.procesoId))
+      .orderBy(desc(notificaciones.createdAt))
+      .limit(1);
+
+    return rows[0] ?? (newNotificacion as Notificacion);
   }
 
   // ============================
@@ -29,10 +38,11 @@ export class NotificacionStorage {
   async getNotificacionesByClienteId(
     clienteId: string
   ): Promise<Notificacion[]> {
-    return this.db.query.notificaciones.findMany({
-      where: eq(notificaciones.clienteId, clienteId),
-      orderBy: [desc(notificaciones.createdAt)],
-    });
+    return this.db
+      .select()
+      .from(notificaciones)
+      .where(eq(notificaciones.clienteId, clienteId))
+      .orderBy(desc(notificaciones.createdAt));
   }
 
   // ============================
@@ -41,45 +51,37 @@ export class NotificacionStorage {
   async getNotificacionesByLawyerId(
     lawyerId: string
   ): Promise<Notificacion[]> {
-    return this.db.query.notificaciones.findMany({
-      where: eq(notificaciones.lawyerId, lawyerId),
-      orderBy: [desc(notificaciones.createdAt)],
-    });
+    return this.db
+      .select()
+      .from(notificaciones)
+      .where(eq(notificaciones.lawyerId, lawyerId))
+      .orderBy(desc(notificaciones.createdAt));
   }
 
   // ============================
-  // Obtener no leídas por cliente
+  // Obtener notificaciones por firma
   // ============================
-  async getNotificacionesNoLeidasByClienteId(
-    clienteId: string
+  async getNotificacionesByFirmId(
+    firmId: string
   ): Promise<Notificacion[]> {
-    return this.db.query.notificaciones.findMany({
-      where: and(
-        eq(notificaciones.clienteId, clienteId),
-        eq(notificaciones.leidoCliente, false)
-      ),
-    });
-  }
-
-  // ============================
-  // Obtener no leídas por abogado
-  // ============================
-  async getNotificacionesNoLeidasByLawyerId(
-    lawyerId: string
-  ): Promise<Notificacion[]> {
-    return this.db.query.notificaciones.findMany({
-      where: and(
-        eq(notificaciones.lawyerId, lawyerId),
-        eq(notificaciones.leidoLawyer, false)
-      ),
-    });
+    return this.db
+      .select()
+      .from(notificaciones)
+      .where(eq(notificaciones.firmId, firmId))
+      .orderBy(desc(notificaciones.createdAt));
   }
 
   // ============================
   // Contar no leídas por cliente
   // ============================
   async countNoLeidasByClienteId(clienteId: string): Promise<number> {
-    const result = await this.getNotificacionesNoLeidasByClienteId(clienteId);
+    const result = await this.db
+      .select()
+      .from(notificaciones)
+      .where(and(
+        eq(notificaciones.clienteId, clienteId),
+        eq(notificaciones.leidoCliente, false)
+      ));
     return result.length;
   }
 
@@ -87,7 +89,27 @@ export class NotificacionStorage {
   // Contar no leídas por abogado
   // ============================
   async countNoLeidasByLawyerId(lawyerId: string): Promise<number> {
-    const result = await this.getNotificacionesNoLeidasByLawyerId(lawyerId);
+    const result = await this.db
+      .select()
+      .from(notificaciones)
+      .where(and(
+        eq(notificaciones.lawyerId, lawyerId),
+        eq(notificaciones.leidoLawyer, false)
+      ));
+    return result.length;
+  }
+
+  // ============================
+  // Contar no leídas por firma
+  // ============================
+  async countNoLeidasByFirmId(firmId: string): Promise<number> {
+    const result = await this.db
+      .select()
+      .from(notificaciones)
+      .where(and(
+        eq(notificaciones.firmId, firmId),
+        eq(notificaciones.leidoFirma, false)
+      ));
     return result.length;
   }
 
@@ -112,6 +134,16 @@ export class NotificacionStorage {
   }
 
   // ============================
+  // Marcar como leída por firma
+  // ============================
+  async marcarComoLeidaByFirmaId(id: number): Promise<void> {
+    await this.db
+      .update(notificaciones)
+      .set({ leidoFirma: true })
+      .where(eq(notificaciones.id, id));
+  }
+
+  // ============================
   // Marcar todas como leídas por cliente
   // ============================
   async marcarTodasComoLeidasByClienteId(clienteId: string): Promise<void> {
@@ -129,6 +161,16 @@ export class NotificacionStorage {
       .update(notificaciones)
       .set({ leidoLawyer: true })
       .where(eq(notificaciones.lawyerId, lawyerId));
+  }
+
+  // ============================
+  // Marcar todas como leídas por firma
+  // ============================
+  async marcarTodasComoLeidasByFirmId(firmId: string): Promise<void> {
+    await this.db
+      .update(notificaciones)
+      .set({ leidoFirma: true })
+      .where(eq(notificaciones.firmId, firmId));
   }
 
   // ============================

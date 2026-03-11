@@ -39,14 +39,14 @@ export const firmProfilesRelations = relations(firmProfiles, ({ one, many }) => 
 /** FirmProfile table row type */
 export interface FirmProfile {
   id: string;
-  userId: string;
+  userId?: string;
   name: string;
-  nit: string;
-  address: string | null;
-  phone: string | null;
-  planId: string;
-  createdAt: Date;
-  updatedAt: Date;
+  nit?: string;
+  address?: string | null;
+  phone?: string | null;
+  planId?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 /** FirmProfile insert type */
