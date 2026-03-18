@@ -96,7 +96,7 @@ export default function ProfessionalRegisterScreen() {
           <Text style={styles.footerText}>
             ¿Ya tienes cuenta?{" "}
           </Text>
-          <Pressable onPress={() => router.push("/(auth)/login")}>
+          <Pressable onPress={() => router.push("/login")}>
             <Text style={styles.footerLink}>Iniciar sesión</Text>
           </Pressable>
         </View>

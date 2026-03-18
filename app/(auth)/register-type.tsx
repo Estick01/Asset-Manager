@@ -37,7 +37,7 @@ export default function RegisterTypeScreen() {
     const routes = {
       lawyer: "/register-lawyer",
       firm:   "/register-firm",
-      client: "/register-client",
+      client: "/register-cliente",
     };
     router.push(routes[type] as any);
   };
@@ -96,7 +96,7 @@ export default function RegisterTypeScreen() {
       {/* Footer */}
       <View style={[styles.footer, { paddingBottom: insets.bottom + 24 }]}>
         <Text style={styles.footerText}>¿Ya tienes cuenta?</Text>
-        <Pressable onPress={() => router.push("/(auth)/login")} hitSlop={8}>
+        <Pressable onPress={() => router.push("/login")} hitSlop={8}>
           <Text style={styles.footerLink}>Iniciar sesión</Text>
         </Pressable>
       </View>

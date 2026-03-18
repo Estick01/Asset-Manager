@@ -22,6 +22,7 @@ function toDTO(t: Tarea): TareaResponseDTO {
     t.fechaLimite !== null &&
     t.fechaLimite < now;
 
+  console.log(t.asignadoA)
   return {
     id: t.id,
     procesoId: t.procesoId,

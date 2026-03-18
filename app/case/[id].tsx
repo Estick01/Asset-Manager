@@ -219,7 +219,7 @@ export default function CaseDetailScreen() {
           rol={rol}
           currentLawyerId={user?.profile?.id!}
           onAddAsistente={() => router.push({
-            pathname: "/case/add-asistente",
+            pathname: "/case/add-responsable",
             params: { procesoId: proceso.id }
           })}
           onTransferirCaso={() => router.push({

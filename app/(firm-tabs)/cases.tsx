@@ -36,20 +36,24 @@ function formatDate(date: Date | string | null | undefined): string {
 function ProcesoCard({ item, index, pageOffset = 0 }: {
   item: ProcesoDTO;
   index: number;
-  pageOffset?: number; // ← índice relativo a la página actual
+  pageOffset?: number;
 }) {
   const anim = useRef(new Animated.Value(0)).current;
   const estadoColor = item.estado?.color ?? TEXT3;
 
   useEffect(() => {
-    // ✅ Usar índice relativo a la página, no el absoluto
     const relativeIndex = index - pageOffset;
     Animated.timing(anim, {
       toValue: 1, duration: 300,
-      delay: Math.min(relativeIndex * 45, 200), // ← cap en 200ms máximo
+      delay: Math.min(relativeIndex * 45, 200),
       useNativeDriver: true,
     }).start();
   }, []);
+
+  const ubicacion = [
+    item.clienteMunicipio?.nombre,
+    item.clienteDepartamento?.nombre,
+  ].filter(Boolean).join(", ");
 
   return (
     <Animated.View style={{
@@ -60,16 +64,20 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         onPress={() => router.push({ pathname: "/case/[id]", params: { id: item.id } })}
       >
-        {/* Accent strip colored by estado */}
         <View style={[styles.cardAccent, { backgroundColor: estadoColor }]} />
 
         <View style={styles.cardBody}>
-          {/* Top: radicado + estado badge */}
+
+          {/* ── Top: radicado + tipo + estado badge ── */}
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleGroup}>
-              <Text style={styles.cardRadicado} numberOfLines={1}>{item.radicado}</Text>
+              <Text style={styles.cardRadicado} numberOfLines={1}>
+                {item.radicado}
+              </Text>
               {item.tipoProceso?.nombre && (
-                <Text style={styles.cardTipo} numberOfLines={1}>{item.tipoProceso.nombre}</Text>
+                <Text style={styles.cardTipo} numberOfLines={1}>
+                  {item.tipoProceso.nombre}
+                </Text>
               )}
             </View>
             <View style={[styles.estadoBadge, { backgroundColor: estadoColor + "1A" }]}>
@@ -82,20 +90,27 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
 
           <View style={styles.cardDivider} />
 
-          {/* Footer: cliente, juzgado, responsable, fecha */}
+          {/* ── Footer: cliente, juzgado, responsable ── */}
           <View style={styles.cardFooter}>
             <View style={styles.footerItem}>
               <View style={[styles.footerIconWrap, { backgroundColor: TEAL + "15" }]}>
-                <Ionicons name="person-outline" size={11} color={TEAL} />
+                <Ionicons
+                  name={item.tipoCliente === "empresa" ? "business-outline" : "person-outline"}
+                  size={11}
+                  color={TEAL}
+                />
               </View>
               <Text style={styles.footerText} numberOfLines={1}>
-                {item.clienteNombre || item.cliente?.nombre || "Sin cliente"}
+                {item.clienteNombre || "Sin cliente"}
+                {item.tipoCliente ? (
+                  <Text style={styles.footerTextMuted}> · {item.tipoCliente}</Text>
+                ) : null}
               </Text>
             </View>
 
             <View style={styles.footerItem}>
               <View style={[styles.footerIconWrap, { backgroundColor: AMBER + "15" }]}>
-                <Ionicons name="business-outline" size={11} color={AMBER} />
+                <Ionicons name="document-text-outline" size={11} color={AMBER} />
               </View>
               <Text style={styles.footerText} numberOfLines={1}>
                 {item.juzgado || "—"}
@@ -103,37 +118,116 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
             </View>
 
             <View style={styles.footerItem}>
-              <View style={[styles.footerIconWrap, { backgroundColor: (item.responsable ? GREEN : RED_S) + "15" }]}>
-                <Ionicons name="person-outline" size={11} color={item.responsable ? GREEN : RED_S} />
+              <View style={[styles.footerIconWrap, {
+                backgroundColor: (item.responsable ? GREEN : RED_S) + "15"
+              }]}>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={11}
+                  color={item.responsable ? GREEN : RED_S}
+                />
               </View>
-              <Text style={[styles.footerText, !item.responsable && { color: RED_S }]} numberOfLines={1}>
-                {item.responsable ? `${item.responsable.firstName} ${item.responsable.lastName}` : "Sin responsable"}
+              <Text
+                style={[styles.footerText, !item.responsable && { color: RED_S }]}
+                numberOfLines={1}
+              >
+                {item.responsable
+                  ? `${item.responsable.lawyer?.persona?.nombre} ${item.responsable.lawyer?.persona?.apellido}`
+                  : "Sin responsable"}
               </Text>
             </View>
           </View>
 
-          {/* Tareas row */}
+          {/* ── Info extra: documento, teléfono, ubicación (solo persona natural) ── */}
+          {item.tipoCliente === "natural" && (
+            <View style={styles.extraRow}>
+              {item.clienteDocumento && (
+                <View style={styles.extraItem}>
+                  <Ionicons name="card-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>CC {item.clienteDocumento}</Text>
+                </View>
+              )}
+              {item.clienteTelefono && (
+                <View style={styles.extraItem}>
+                  <Ionicons name="call-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>{item.clienteTelefono}</Text>
+                </View>
+              )}
+              {ubicacion.length > 0 && (
+                <View style={styles.extraItem}>
+                  <Ionicons name="location-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>{ubicacion}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ── Representante legal (solo empresa) ── */}
+          {item.representanteLegal && (
+            <View style={styles.repBox}>
+              <Text style={styles.repLabel}>Rep. legal</Text>
+              <View style={styles.repRow}>
+                <View style={styles.extraItem}>
+                  <Ionicons name="person-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>
+                    {item.representanteLegal.nombre} {item.representanteLegal.apellido}
+                    {item.representanteLegal.cargo
+                      ? <Text style={styles.footerTextMuted}> · {item.representanteLegal.cargo}</Text>
+                      : null}
+                  </Text>
+                </View>
+                {item.representanteLegal.email && (
+                  <View style={styles.extraItem}>
+                    <Ionicons name="mail-outline" size={11} color={TEXT3} />
+                    <Text style={styles.extraText} numberOfLines={1}>
+                      {item.representanteLegal.email}
+                    </Text>
+                  </View>
+                )}
+                {item.representanteLegal.telefono && (
+                  <View style={styles.extraItem}>
+                    <Ionicons name="call-outline" size={11} color={TEXT3} />
+                    <Text style={styles.extraText}>{item.representanteLegal.telefono}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ── Tareas ── */}
           {item.tareasConteo && item.tareasConteo.total > 0 && (
             <View style={styles.tareasRow}>
               <Ionicons name="checkmark-circle-outline" size={11} color={TEXT3} />
               <Text style={styles.tareasTotal}>{item.tareasConteo.total} tareas</Text>
               {item.tareasConteo.pendientes > 0 && (
                 <View style={[styles.tareasPill, { backgroundColor: AMBER + "20" }]}>
-                  <Text style={[styles.tareasPillTxt, { color: AMBER }]}>{item.tareasConteo.pendientes} pend.</Text>
+                  <Text style={[styles.tareasPillTxt, { color: AMBER }]}>
+                    {item.tareasConteo.pendientes} pend.
+                  </Text>
                 </View>
               )}
               {item.tareasConteo.en_progreso > 0 && (
                 <View style={[styles.tareasPill, { backgroundColor: TEAL + "20" }]}>
-                  <Text style={[styles.tareasPillTxt, { color: TEAL }]}>{item.tareasConteo.en_progreso} prog.</Text>
+                  <Text style={[styles.tareasPillTxt, { color: TEAL }]}>
+                    {item.tareasConteo.en_progreso} prog.
+                  </Text>
                 </View>
               )}
               {item.tareasConteo.completadas > 0 && (
                 <View style={[styles.tareasPill, { backgroundColor: GREEN + "20" }]}>
-                  <Text style={[styles.tareasPillTxt, { color: GREEN }]}>{item.tareasConteo.completadas} listas</Text>
+                  <Text style={[styles.tareasPillTxt, { color: GREEN }]}>
+                    {item.tareasConteo.completadas} listas
+                  </Text>
                 </View>
               )}
             </View>
           )}
+
+          {/* ── Fecha creación ── */}
+          <Text style={styles.cardFecha}>
+            Creado: {formatDate(item.fechaCreacion)}
+          </Text>
+
         </View>
 
         <Ionicons name="chevron-forward" size={14} color={TEXT3} style={{ flexShrink: 0, marginRight: 4 }} />
@@ -141,7 +235,6 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
     </Animated.View>
   );
 }
-
 // ─── Screen ───────────────────────────────────────────────────────────────
 export default function FirmCasesScreen() {
   const insets = useSafeAreaInsets();
@@ -624,5 +717,51 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 4,
+  },
+  footerTextMuted: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: TEXT3,
+  },
+  extraRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 8,
+  },
+  extraItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  extraText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: TEXT3,
+  },
+  repBox: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#F0F2F4",
+  },
+  repLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    color: TEXT3,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 5,
+  },
+  repRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  cardFecha: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: TEXT3,
+    marginTop: 8,
   },
 });

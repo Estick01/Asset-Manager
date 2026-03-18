@@ -7,22 +7,21 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
 import { getClientes } from "@/lib/services/clienteService";
 import { getOrCreateConversation } from "@/lib/services/chatService";
 import { type Cliente } from "@/shared/schema";
 
-// ─── Design tokens (mismo sistema que FirmTeamScreen) ─────────────────────
-const NAVY     = "#0F2640";
+// ─── Design tokens ─────────────────────────────────────────────────────────
+const NAVY = "#0F2640";
 const NAVY_MID = "#243447";
-const WHITE    = "#FFFFFF";
-const BG       = "#F4F6F8";
-const TEXT     = "#1B2B3B";
-const TEXT2    = "#6B7B8D";
-const TEXT3    = "#9AAABB";
-const TEAL     = "#2196A6";
-const GREEN    = "#27AE7A";
-const AMBER    = "#F5A623";
+const WHITE = "#FFFFFF";
+const BG = "#F4F6F8";
+const TEXT = "#1B2B3B";
+const TEXT2 = "#6B7B8D";
+const TEXT3 = "#9AAABB";
+const TEAL = "#2196A6";
+const GREEN = "#27AE7A";
+const AMBER = "#F5A623";
 
 const AVATAR_COLORS = [
   { bg: "#E8F4FD", text: TEAL },
@@ -40,19 +39,67 @@ function getInitials(nombre: string, apellido: string): string {
   return ((nombre?.charAt(0) ?? "") + (apellido?.charAt(0) ?? "")).toUpperCase();
 }
 
+// ─── Helpers para normalizar cliente natural o empresa ──────────────────────
+function getDisplayName(item: Cliente): { nombre: string; apellido: string } {
+  if (item.tipo === "natural" && item.natural?.persona) {
+    return {
+      nombre: item.natural.persona.nombre ?? "",
+      apellido: item.natural.persona.apellido ?? "",
+    };
+  }
+  if (item.tipo === "empresa" && item.empresa) {
+    return { nombre: item.empresa.razonSocial ?? "", apellido: "" };
+  }
+  return { nombre: "Sin nombre", apellido: "" };
+}
+
+function getDocumento(item: Cliente): string {
+  if (item.tipo === "natural" && item.natural?.persona) {
+    const tipo = item.natural.persona.tipoDocumento?.nombre ?? "Doc.";
+    const doc = item.natural.persona.documento ?? "Sin documento";
+    return `${tipo} · ${doc}`;
+  }
+  if (item.tipo === "empresa" && item.empresa) {
+    return `NIT · ${item.empresa.nit ?? "Sin NIT"}`;
+  }
+  return "Sin documento";
+}
+
+function getTelefono(item: Cliente): string | null {
+  if (item.tipo === "natural" && item.natural?.persona) {
+    return item.natural.persona.telefono ?? null;
+  }
+  if (item.tipo === "empresa" && item.empresa?.representanteLegal?.persona) {
+    return item.empresa.representanteLegal.persona.telefono ?? null;
+  }
+  return null;
+}
+
+function getLocation(item: Cliente): string {
+  const persona =
+    item.tipo === "natural"
+      ? item.natural?.persona
+      : item.empresa?.representanteLegal?.persona;
+  return [persona?.municipio?.nombre, persona?.departamento?.nombre]
+    .filter(Boolean).join(", ");
+}
+
 type FilterTab = "todos" | "activos" | "inactivos";
 
 // ─── Client Card ──────────────────────────────────────────────────────────
 function ClientCard({ item, index }: { item: Cliente; index: number }) {
   const anim = useRef(new Animated.Value(0)).current;
-  const av   = avatarColor(item.nombre || "?");
-  const location = [item.municipio?.nombre, item.departamento?.nombre]
-    .filter(Boolean).join(", ");
+
+  const { nombre, apellido } = getDisplayName(item);
+  const av = avatarColor(nombre || "?");
+  const documento = getDocumento(item);
+  const telefono = getTelefono(item);
+  const location = getLocation(item);
+  const isEmpresa = item.tipo === "empresa";
 
   useEffect(() => {
     Animated.timing(anim, {
-      toValue: 1,
-      duration: 300,
+      toValue: 1, duration: 300,
       delay: index * 45,
       useNativeDriver: true,
     }).start();
@@ -62,7 +109,7 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
     if (!item.userId) return;
     try {
       const conv = await getOrCreateConversation(item.userId, "lawyer_client");
-      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: item.nombre } });
+      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: nombre } });
     } catch (e) {
       console.error("Error al iniciar chat:", e);
     }
@@ -77,36 +124,60 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         onPress={() => router.push({ pathname: "/client/[id]", params: { id: item.id } })}
       >
-        {/* Accent strip */}
-        <View style={[ { backgroundColor: av.text }]} />
         {/* Avatar */}
         <View style={[styles.avatar, { backgroundColor: av.bg }]}>
-          <Text style={[styles.avatarText, { color: av.text }]}>
-            {getInitials(item.nombre, item.apellido) || "?"}
-          </Text>
+          {isEmpresa ? (
+            <Ionicons name="business-outline" size={22} color={av.text} />
+          ) : (
+            <Text style={[styles.avatarText, { color: av.text }]}>
+              {getInitials(nombre, apellido) || "?"}
+            </Text>
+          )}
         </View>
 
         {/* Info */}
         <View style={styles.cardContent}>
           <View style={styles.nameRow}>
             <Text style={styles.clientName} numberOfLines={1}>
-              {item.nombre} {item.apellido}
+              {nombre}{apellido ? ` ${apellido}` : ""}
             </Text>
             <View style={[
-              styles.statusDot,
-              { backgroundColor: item.activo ? GREEN : TEXT3 },
-            ]} />
+              styles.tipoBadge,
+              isEmpresa ? styles.tipoBadgeEmpresa : styles.tipoBadgeNatural,
+            ]}>
+              <Text style={[styles.tipoBadgeText, { color: isEmpresa ? AMBER : TEAL }]}>
+                {isEmpresa ? "Empresa" : "Natural"}
+              </Text>
+            </View>
+            <View style={[styles.statusDot, { backgroundColor: item.activo ? GREEN : TEXT3 }]} />
           </View>
 
-          <Text style={styles.docText} numberOfLines={1}>
-            {item.tipoDocumento?.nombre ?? "Doc."} · {item.documento || "Sin documento"}
-          </Text>
+          <Text style={styles.docText} numberOfLines={1}>{documento}</Text>
+
+          {/* Sector (solo empresa) */}
+          {isEmpresa && item.empresa?.sector ? (
+            <View style={[styles.chip, { marginBottom: 2 }]}>
+              <Ionicons name="briefcase-outline" size={11} color={TEXT3} />
+              <Text style={styles.chipText}>{item.empresa.sector}</Text>
+            </View>
+          ) : null}
+
+          {/* Representante legal (solo empresa) */}
+          {isEmpresa && item.empresa?.representanteLegal?.persona ? (
+            <View style={[styles.chip, { marginBottom: 2 }]}>
+              <Ionicons name="person-outline" size={11} color={TEXT3} />
+              <Text style={styles.chipText} numberOfLines={1}>
+                Rep: {item.empresa.representanteLegal.persona.nombre}{" "}
+                {item.empresa.representanteLegal.persona.apellido}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.chipsRow}>
-            {item.telefono ? (
+            {telefono ? (
               <View style={styles.chip}>
                 <Ionicons name="call-outline" size={11} color={TEXT3} />
-                <Text style={styles.chipText}>{item.telefono}</Text>
+                <Text style={styles.chipText}>{telefono}</Text>
               </View>
             ) : null}
             {location ? (
@@ -123,6 +194,36 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
               <Text style={styles.emailText} numberOfLines={1}>{item.user.email}</Text>
             </View>
           ) : null}
+          {/* ── Procesos Stats ── */}
+          {item.procesosStats && item.procesosStats.total > 0 && (
+            <View style={styles.procesosSection}>
+              <View style={styles.procesosSectionHeader}>
+                <Ionicons name="folder-outline" size={11} color={TEXT3} />
+                <Text style={styles.procesosSectionLabel}>
+                  {item.procesosStats.total} {item.procesosStats.total === 1 ? "proceso" : "procesos"}
+                </Text>
+              </View>
+              <View style={styles.procesosPillsRow}>
+                {item.procesosStats.porEstado.map((e:any) => {
+                  const estadoColors: Record<string, { bg: string; text: string }> = {
+                    activo: { bg: GREEN + "20", text: GREEN },
+                    en_tramite: { bg: AMBER + "20", text: AMBER },
+                    finalizado: { bg: TEAL + "20", text: TEAL },
+                    archivado: { bg: TEXT3 + "30", text: TEXT3 },
+                  };
+                  const color = estadoColors[e.codigo] ?? { bg: TEXT3 + "20", text: TEXT3 };
+                  return (
+                    <View key={e.codigo} style={[styles.procesosPill, { backgroundColor: color.bg }]}>
+                      <View style={[styles.procesosPillDot, { backgroundColor: color.text }]} />
+                      <Text style={[styles.procesosPillText, { color: color.text }]}>
+                        {e.nombre} · {e.count}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Chat button */}
@@ -146,10 +247,10 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
 export default function FirmClientsScreen() {
   const insets = useSafeAreaInsets();
   const [allClientes, setAllClientes] = useState<Cliente[]>([]);
-  const [refreshing,  setRefreshing]  = useState(false);
-  const [loading,     setLoading]     = useState(true);
-  const [search,      setSearch]      = useState("");
-  const [filterTab,   setFilterTab]   = useState<FilterTab>("todos");
+  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterTab, setFilterTab] = useState<FilterTab>("todos");
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchClientes = useCallback(async (searchTerm?: string) => {
@@ -180,18 +281,19 @@ export default function FirmClientsScreen() {
     }, 400);
   };
 
-  const activeCount   = useMemo(() => allClientes.filter(c => c.activo).length,  [allClientes]);
+  const activeCount = useMemo(() => allClientes.filter(c => c.activo).length, [allClientes]);
   const inactiveCount = useMemo(() => allClientes.filter(c => !c.activo).length, [allClientes]);
+  const empresaCount = useMemo(() => allClientes.filter(c => c.tipo === "empresa").length, [allClientes]);
 
   const clientes = useMemo(() => {
-    if (filterTab === "activos")   return allClientes.filter(c => c.activo);
+    if (filterTab === "activos") return allClientes.filter(c => c.activo);
     if (filterTab === "inactivos") return allClientes.filter(c => !c.activo);
     return allClientes;
   }, [allClientes, filterTab]);
 
   const TABS: { key: FilterTab; label: string; count: number }[] = [
-    { key: "todos",     label: "Todos",     count: allClientes.length },
-    { key: "activos",   label: "Activos",   count: activeCount },
+    { key: "todos", label: "Todos", count: allClientes.length },
+    { key: "activos", label: "Activos", count: activeCount },
     { key: "inactivos", label: "Inactivos", count: inactiveCount },
   ];
 
@@ -237,19 +339,13 @@ export default function FirmClientsScreen() {
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statNum}>{inactiveCount}</Text>
-          <Text style={styles.statLbl}>Inactivos</Text>
+          <Text style={styles.statNum}>{allClientes.length - empresaCount}</Text>
+          <Text style={styles.statLbl}>Naturales</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
-          <Text style={styles.statNum}>
-            {allClientes.filter(c => {
-              const d = new Date(c.fechaCreacion);
-              const now = new Date();
-              return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            }).length}
-          </Text>
-          <Text style={styles.statLbl}>Este mes</Text>
+          <Text style={styles.statNum}>{empresaCount}</Text>
+          <Text style={styles.statLbl}>Empresas</Text>
         </View>
       </View>
 
@@ -273,18 +369,6 @@ export default function FirmClientsScreen() {
             </Pressable>
           )}
         </View>
-
-        {/* Acción rápida */}
-        <Pressable
-          style={({ pressed }) => [styles.actionCard, pressed && { opacity: 0.85 }]}
-          onPress={() => router.push("/client/new")}
-        >
-          <View style={[styles.actionIcon, { backgroundColor: "#E8F8F2" }]}>
-            <Ionicons name="person-add-outline" size={20} color={GREEN} />
-          </View>
-          <Text style={styles.actionText}>Agregar nuevo cliente</Text>
-          <Ionicons name="chevron-forward" size={16} color={TEXT3} />
-        </Pressable>
 
         {/* Filter tabs */}
         {allClientes.length > 0 && (
@@ -314,7 +398,11 @@ export default function FirmClientsScreen() {
         {clientes.length > 0 && (
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>
-              {filterTab === "todos" ? "Todos los Clientes" : filterTab === "activos" ? "Clientes Activos" : "Clientes Inactivos"}
+              {filterTab === "todos"
+                ? "Todos los Clientes"
+                : filterTab === "activos"
+                  ? "Clientes Activos"
+                  : "Clientes Inactivos"}
             </Text>
             <View style={styles.sectionLine} />
           </View>
@@ -342,8 +430,8 @@ export default function FirmClientsScreen() {
                 {search
                   ? `No se encontraron clientes para "${search}"`
                   : filterTab !== "todos"
-                  ? `No hay clientes ${filterTab} aún`
-                  : "Agrega tu primer cliente para comenzar"}
+                    ? `No hay clientes ${filterTab} aún`
+                    : "Agrega tu primer cliente para comenzar"}
               </Text>
               {!search && filterTab === "todos" && (
                 <Pressable style={styles.emptyBtn} onPress={() => router.push("/client/new")}>
@@ -360,86 +448,55 @@ export default function FirmClientsScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen:  { flex: 1, backgroundColor: NAVY },
-  centered:{ justifyContent: "center", alignItems: "center" },
+  screen: { flex: 1, backgroundColor: NAVY },
+  centered: { justifyContent: "center", alignItems: "center" },
 
-  // Header
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    paddingHorizontal: 20,
-    paddingTop: 32,
-    paddingBottom: 32,
+    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
+    paddingHorizontal: 20, paddingTop: 32, paddingBottom: 32,
   },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE, marginTop: 2 },
-  headerSub:   { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", marginTop: 4 },
+  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", marginTop: 4 },
   addBtn: {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
   },
 
-  // Stats
   statsBar: {
-    flexDirection: "row",
-    backgroundColor: NAVY_MID,
-    marginHorizontal: 16,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    flexDirection: "row", backgroundColor: NAVY_MID,
+    marginHorizontal: 16, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 8,
   },
-  statItem:    { flex: 1, alignItems: "center" },
-  statNum:     { fontSize: 20, fontFamily: "Inter_700Bold", color: WHITE },
-  statLbl:     { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 2 },
+  statItem: { flex: 1, alignItems: "center" },
+  statNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: WHITE },
+  statLbl: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 2 },
   statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.1)", marginVertical: 4 },
 
-  // Body
   body: {
-    flex: 1,
-    backgroundColor: BG,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: 14,
-    paddingTop: 16,
+    flex: 1, backgroundColor: BG,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    marginTop: 14, paddingTop: 16,
   },
 
-  // Search
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: WHITE,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    paddingHorizontal: 14,
-    marginBottom: 12,
-    gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: WHITE, borderRadius: 12,
+    marginHorizontal: 16, paddingHorizontal: 14, marginBottom: 12, gap: 8,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
   searchInput: {
     flex: 1, paddingVertical: 12,
     fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT,
   },
 
-  // Action card
   actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: WHITE,
-    borderRadius: 14,
-    marginHorizontal: 16,
-    padding: 14,
-    gap: 12,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: WHITE, borderRadius: 14,
+    marginHorizontal: 16, padding: 14, gap: 12, marginBottom: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
   actionIcon: {
     width: 38, height: 38, borderRadius: 10,
@@ -447,7 +504,6 @@ const styles = StyleSheet.create({
   },
   actionText: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT },
 
-  // Tabs
   tabsWrap: { borderBottomWidth: 1, borderBottomColor: "#E8ECF0", marginBottom: 4 },
   tabs: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   tab: {
@@ -456,60 +512,49 @@ const styles = StyleSheet.create({
     borderRadius: 20, backgroundColor: WHITE,
     borderWidth: 1, borderColor: "#E0E5EA",
   },
-  tabActive:         { backgroundColor: TEAL + "12", borderColor: TEAL },
-  tabText:           { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
-  tabTextActive:     { color: TEAL, fontFamily: "Inter_600SemiBold" },
-  tabBadge:          { backgroundColor: "#E0E5EA", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, minWidth: 20, alignItems: "center" },
-  tabBadgeActive:    { backgroundColor: TEAL },
-  tabBadgeText:      { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT2 },
-  tabBadgeTextActive:{ color: WHITE },
+  tabActive: { backgroundColor: TEAL + "12", borderColor: TEAL },
+  tabText: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  tabTextActive: { color: TEAL, fontFamily: "Inter_600SemiBold" },
+  tabBadge: { backgroundColor: "#E0E5EA", borderRadius: 10, paddingHorizontal: 6, paddingVertical: 1, minWidth: 20, alignItems: "center" },
+  tabBadgeActive: { backgroundColor: TEAL },
+  tabBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT2 },
+  tabBadgeTextActive: { color: WHITE },
 
-  // Section
   sectionRow: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 16, marginBottom: 10, marginTop: 6, gap: 10,
   },
   sectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2 },
-  sectionLine:  { height: 2, backgroundColor: TEAL, borderRadius: 2, width: 32 },
+  sectionLine: { height: 2, backgroundColor: TEAL, borderRadius: 2, width: 32 },
 
-  // List
   list: { paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
 
-  // Card
   card: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: WHITE,
-    borderRadius: 14,
-    overflow: "hidden",
-    gap: 12,
-    paddingVertical: 14,
-    paddingRight: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: WHITE, borderRadius: 14, overflow: "hidden", gap: 12,
+    paddingVertical: 14, paddingRight: 14,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
   cardPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   avatar: {
-    width: 46, height: 46, borderRadius: 12,
+    width: 46, height: 46, borderRadius: 12, marginLeft: 14,
     alignItems: "center", justifyContent: "center",
   },
-  avatarText:  { fontSize: 17, fontFamily: "Inter_700Bold" },
+  avatarText: { fontSize: 17, fontFamily: "Inter_700Bold" },
   cardContent: { flex: 1, minWidth: 0, gap: 3 },
-  nameRow:     { flexDirection: "row", alignItems: "center", gap: 6 },
-  clientName:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT, flexShrink: 1 },
-  statusDot:   { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
-  docText:     { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT3 },
-  chipsRow:    { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  nameRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  clientName: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT, flexShrink: 1 },
+  statusDot: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
+  docText: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT3 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: BG, borderRadius: 6,
     paddingHorizontal: 7, paddingVertical: 3,
   },
-  chipText:  { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2 },
-  emailRow:  { flexDirection: "row", alignItems: "center", gap: 4 },
+  chipText: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT2 },
+  emailRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   emailText: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3, flexShrink: 1 },
   chatBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -518,20 +563,59 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
 
-  // Empty
-  empty:     { alignItems: "center", paddingTop: 60, gap: 8 },
+  tipoBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  tipoBadgeNatural: { backgroundColor: TEAL + "18" },
+  tipoBadgeEmpresa: { backgroundColor: AMBER + "22" },
+  tipoBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+
+  empty: { alignItems: "center", paddingTop: 60, gap: 8 },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: WHITE, alignItems: "center", justifyContent: "center",
-    marginBottom: 8,
+    width: 72, height: 72, borderRadius: 20, backgroundColor: WHITE,
+    alignItems: "center", justifyContent: "center", marginBottom: 8,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
   },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
-  emptySub:   { fontSize: 13, color: TEXT3, fontFamily: "Inter_400Regular", textAlign: "center" },
-  emptyBtn:   {
-    marginTop: 16, backgroundColor: NAVY,
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24,
-  },
+  emptySub: { fontSize: 13, color: TEXT3, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyBtn: { marginTop: 16, backgroundColor: NAVY, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
   emptyBtnText: { color: WHITE, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  procesosSection: {
+  marginTop: 8,
+  paddingTop: 8,
+  borderTopWidth: 1,
+  borderTopColor: "#F0F2F4",
+},
+procesosSectionHeader: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+  marginBottom: 6,
+},
+procesosSectionLabel: {
+  fontSize: 11,
+  fontFamily: "Inter_500Medium",
+  color: TEXT3,
+},
+procesosPillsRow: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 5,
+},
+procesosPill: {
+  flexDirection: "row",
+  alignItems: "center",
+  gap: 4,
+  paddingHorizontal: 8,
+  paddingVertical: 3,
+  borderRadius: 10,
+},
+procesosPillDot: {
+  width: 5,
+  height: 5,
+  borderRadius: 3,
+},
+procesosPillText: {
+  fontSize: 11,
+  fontFamily: "Inter_600SemiBold",
+},
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList,
   Pressable, ActivityIndicator, Alert, TextInput, Platform
@@ -12,9 +12,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { LawyerProfile } from "@/shared/schema";
-import { setResponsableProceso, getAbogadosDisponibles } from "@/lib/services/procesoLawyerService";
-import { EnumRol, UserWithRol } from "@/shared/schema/user.schema";
+import { setResponsableProceso, getAbogadosByFirma, getProcesoLawyers } from "@/lib/services/procesoLawyerService";
+import { EnumRol, EnumRolType, UserWithRol } from "@/shared/schema/user.schema";
 import { Modal } from "react-native";
+
+const DEBOUNCE_MS = 400;
 
 export default function AddAsistenteScreen() {
   const { procesoId } = useLocalSearchParams<{ procesoId: string }>();
@@ -22,46 +24,79 @@ export default function AddAsistenteScreen() {
   const insets = useSafeAreaInsets();
 
   const [abogados, setAbogados] = useState<LawyerProfile[]>([]);
+  const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
 
   const [confirmLawyer, setConfirmLawyer] = useState<LawyerProfile | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const lawyerProfile = profile as LawyerProfile;
   const usuario = user?.user as UserWithRol;
 
   const firmId = useMemo<string | null>(() => {
-    switch (usuario?.rol?.nombre as EnumRol) {
-      case EnumRol.BUFETE: return lawyerProfile?.id ?? null;
-      case EnumRol.ABOGADO: return lawyerProfile?.firmId ?? null;
+    switch (usuario?.rol?.nombre as EnumRolType) {
+      case EnumRol.BUFETE.nombre: return lawyerProfile?.id ?? null;
+      case EnumRol.ABOGADO.nombre: return lawyerProfile?.firmId ?? null;
       default: return null;
     }
   }, [usuario?.rol?.nombre, lawyerProfile?.id, lawyerProfile?.firmId]);
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return abogados;
-    const q = search.toLowerCase();
-    return abogados.filter(a =>
-      `${a.firstName} ${a.lastName}`.toLowerCase().includes(q) ||
-      a.specialization?.toLowerCase().includes(q) ||
-      a.licenseNumber?.toLowerCase().includes(q)
-    );
-  }, [search, abogados]);
+  const fetchAbogados = useCallback(async (q?: string) => {
+    if (!firmId) return;
+    setLoading(true);
+    try {
+      const result = await getAbogadosByFirma(firmId, q);
+      if (result.error) { toast.error(result.error); return; }
+      const all = result.data || [];
+      setAbogados(all.filter(a => !assignedIds.has(a.id) && a.id !== lawyerProfile?.id));
+    } finally {
+      setLoading(false);
+    }
+  }, [firmId, assignedIds, lawyerProfile?.id]);
 
+  // Initial load: get assigned IDs then fetch abogados
   const loadData = useCallback(async () => {
     if (!firmId) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      const result = await getAbogadosDisponibles(procesoId, firmId, lawyerProfile.id);
-      if (result.error) { toast.error(result.error); return; }
-      setAbogados(result.data || []);
+      const [assignedResult, membersResult] = await Promise.all([
+        getProcesoLawyers(procesoId),
+        getAbogadosByFirma(firmId),
+      ]);
+      const ids = new Set<string>(
+        (assignedResult.data || []).map(l => l.lawyerId)
+      );
+      ids.add(lawyerProfile?.id ?? "");
+      setAssignedIds(ids);
+      const all = membersResult.data || [];
+      setAbogados(all.filter(a => !ids.has(a.id)));
     } finally {
       setLoading(false);
     }
   }, [firmId, procesoId, lawyerProfile?.id]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Debounced server-side search
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const trimmed = search.trim();
+    if (!trimmed) {
+      // Reset to unfiltered list
+      fetchAbogados(undefined);
+      return;
+    }
+    debounceRef.current = setTimeout(() => {
+      fetchAbogados(trimmed);
+    }, DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [search]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filtered = abogados;
 
   const handleAddAsistente = (lawyer: LawyerProfile) => {
     setConfirmLawyer(lawyer);
@@ -76,7 +111,7 @@ export default function AddAsistenteScreen() {
       toast.error(result.error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.success(`${confirmLawyer.firstName} asignado como responsable`);
+      toast.success(`${confirmLawyer.persona?.nombre} asignado como responsable`);
       router.back();
     }
     setSubmitting(null);
@@ -121,7 +156,7 @@ export default function AddAsistenteScreen() {
   // ─── Render card ──────────────────────────────────────────────
   const renderAbogado = ({ item }: { item: LawyerProfile }) => {
     const isSubmitting = submitting === item.id;
-    const initials = `${item.firstName.charAt(0)}${item.lastName.charAt(0)}`.toUpperCase();
+    const initials = `${item.persona?.nombre.charAt(0)}${item.persona?.apellido.charAt(0)}`.toUpperCase();
 
     return (
       <View style={[styles.card, isSubmitting && styles.cardSubmitting]}>
@@ -137,7 +172,7 @@ export default function AddAsistenteScreen() {
 
             {/* Info */}
             <View style={styles.cardInfo}>
-              <Text style={styles.cardNombre}>{item.firstName} {item.lastName}</Text>
+              <Text style={styles.cardNombre}>{item.persona?.nombre} {item.persona?.apellido}</Text>
               {item.specialization && (
                 <View style={styles.infoRow}>
                   <Ionicons name="briefcase-outline" size={12} color={Colors.textTertiary} />
@@ -304,12 +339,12 @@ export default function AddAsistenteScreen() {
               <View style={modalStyles.lawyerCard}>
                 <View style={modalStyles.lawyerAvatar}>
                   <Text style={modalStyles.lawyerAvatarText}>
-                    {confirmLawyer.firstName.charAt(0)}{confirmLawyer.lastName.charAt(0)}
+                    {confirmLawyer.persona?.nombre.charAt(0)}{confirmLawyer.persona?.apellido.charAt(0)}
                   </Text>
                 </View>
                 <View style={modalStyles.lawyerInfo}>
                   <Text style={modalStyles.lawyerName}>
-                    {confirmLawyer.firstName} {confirmLawyer.lastName}
+                    {confirmLawyer.persona?.nombre} {confirmLawyer.persona?.apellido}
                   </Text>
                   {confirmLawyer.specialization && (
                     <View style={modalStyles.rolBadge}>

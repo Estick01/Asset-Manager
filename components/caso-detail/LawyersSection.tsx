@@ -67,39 +67,39 @@ export default function LawyersSection({
             <View style={styles.responsableCard}>
               <View style={styles.responsableAvatar}>
                 <Text style={styles.avatarText}>
-                  {responsable.firstName?.charAt(0).toUpperCase() || "R"}
+                  {responsable.lawyer?.persona?.nombre?.charAt(0).toUpperCase() || "R"}
                 </Text>
               </View>
               <View style={styles.lawyerInfo}>
                 <Text style={styles.lawyerNombre}>
-                  {responsable.firstName} {responsable.lastName}
+                  {responsable.lawyer?.persona?.nombre} {responsable.lawyer?.persona?.apellido}
                 </Text>
-                {responsable.specialization && (
-                  <Text style={styles.responsableSpec}>{responsable.specialization}</Text>
+                {responsable.lawyer?.specialization && (
+                  <Text style={styles.responsableSpec}>{responsable.lawyer.specialization}</Text>
                 )}
-                {proceso?.responsableFechaAsignacion && (
+                {proceso?.responsable?.fechaAsignacion && (
                   <View style={styles.detailRow}>
                     <Ionicons name="calendar-outline" size={12} color={Colors.textTertiary} />
                     <Text style={styles.detailLabel}>Asignado:</Text>
                     <Text style={styles.detailValue}>
-                      {new Date(proceso.responsableFechaAsignacion).toLocaleDateString("es-CO", {
+                      {new Date(proceso.responsable.fechaAsignacion).toLocaleDateString("es-CO", {
                         year: "numeric", month: "short", day: "numeric",
                       })}
                     </Text>
                   </View>
                 )}
-                {proceso?.responsableAsignadoPorNombre && (
+                {proceso?.responsable?.asignadoPorNombre && (
                   <View style={styles.detailRow}>
                     <Ionicons name="person-add-outline" size={12} color={Colors.textTertiary} />
                     <Text style={styles.detailLabel}>Por:</Text>
-                    <Text style={styles.detailValue}>{proceso.responsableAsignadoPorNombre}</Text>
+                    <Text style={styles.detailValue}>{proceso.responsable.asignadoPorNombre}</Text>
                   </View>
                 )}
-                {proceso?.responsableRazon && (
+                {proceso?.responsable?.razon && (
                   <View style={styles.detailRow}>
                     <Ionicons name="information-circle-outline" size={12} color={Colors.textTertiary} />
                     <Text style={styles.detailLabel}>Razón:</Text>
-                    <Text style={styles.detailValue}>{proceso.responsableRazon}</Text>
+                    <Text style={styles.detailValue}>{proceso.responsable.razon}</Text>
                   </View>
                 )}
               </View>
@@ -147,13 +147,13 @@ export default function LawyersSection({
               <View style={styles.lawyerHeader}>
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
-                    {l.lawyer?.firstName?.charAt(0).toUpperCase() || "A"}
+                    {l.lawyer?.persona?.nombre?.charAt(0).toUpperCase() || "A"}
                   </Text>
                 </View>
                 <View style={styles.lawyerInfo}>
                   <Text style={styles.lawyerNombre}>
-                    {l.lawyer?.firstName
-                      ? `${l.lawyer.firstName} ${l.lawyer.lastName}`
+                    {l.lawyer?.persona?.nombre
+                      ? `${l.lawyer.persona.nombre} ${l.lawyer.persona.apellido}`
                       : l.asignadoPorUser?.name
                     }
                   </Text>

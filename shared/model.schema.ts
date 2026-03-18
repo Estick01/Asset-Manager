@@ -128,20 +128,7 @@ export interface FirmProfile {
   updatedAt: string | Date;
 }
 
-export interface LawyerProfile {
-  id: string;
-  userId: string;
-  firmId?: string | null;
-  isIndependent: boolean;
-  firstName: string;
-  lastName: string;
-  licenseNumber: string;
-  specialty?: string | null;
-  phone?: string | null;
-  address?: string | null;
-  createdAt: string | Date;
-  updatedAt: string | Date;
-}
+
 
 export interface ClientProfile {
   id: string;

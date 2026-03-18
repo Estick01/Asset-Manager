@@ -49,7 +49,7 @@ export default function ClientPortalScreen() {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       await logout();
-      router.replace("/(auth)/login");
+      // AuthRouteProtection handles the redirect to /login automatically
     } catch {
       setLoggingOut(false);
     }

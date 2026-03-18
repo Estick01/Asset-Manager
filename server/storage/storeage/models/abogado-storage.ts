@@ -1,84 +1,74 @@
-
 /**
  * Abogado (Lawyer) Storage
  * Handles all database operations for lawyers (lawyer_profiles)
  */
 
-import { InsertLawyerProfile, LawyerProfile, lawyerProfiles, users, firmProfiles } from "@/shared/schema";
+import { InsertLawyerProfile, LawyerProfile, lawyerProfiles, users, firmProfiles, personas } from "@/shared/schema";
 import { LawyerProfileRelations, UpdateLawyerProfileDTO } from "@/shared/schema/lawyer-profile.schema";
 import { and, eq, like } from "drizzle-orm";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "@/shared/schema";
 
-// Use proper typing with schema
 type Database = MySql2Database<typeof schema>;
 
 export class AbogadoStorage {
-  constructor(private db: Database) { }
+  constructor(private db: Database) {}
 
   async getAllLawyer() {
     return this.db.select().from(lawyerProfiles);
   }
 
   async getLawyer(id: string): Promise<LawyerProfileRelations | undefined> {
-  // Get lawyer
-  const lawyerResult = await this.db
-    .select()
-    .from(lawyerProfiles)
-    .where(eq(lawyerProfiles.id, id))
-    .limit(1);
-
-  if (!lawyerResult[0]) return undefined;
-
-  const lawyer = lawyerResult[0];
-
-  // Get related user (ONLY required fields)
-  const userResult = await this.db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-    })
-    .from(users)
-    .where(eq(users.id, lawyer.userId))
-    .limit(1);
-
-  let firm = null;
-
-  if (lawyer.firmId) {
-    const firmResult = await this.db
+    const rows = await this.db
       .select({
-        id: firmProfiles.id,
-        name: firmProfiles.name,
+        id: lawyerProfiles.id,
+        userId: lawyerProfiles.userId,
+        firmId: lawyerProfiles.firmId,
+        personaId: lawyerProfiles.personaId,
+        specialization: lawyerProfiles.specialization,
+        licenseNumber: lawyerProfiles.licenseNumber,
+        isIndependent: lawyerProfiles.isIndependent,
+        createdAt: lawyerProfiles.createdAt,
+        updatedAt: lawyerProfiles.updatedAt,
+        user: { id: users.id, email: users.email, name: users.name },
+        firm: { id: firmProfiles.id, name: firmProfiles.name },
+        persona: {
+          id: personas.id,
+          nombre: personas.nombre,
+          apellido: personas.apellido,
+          telefono: personas.telefono,
+          documento: personas.documento,
+          tipoDocumentoId: personas.tipoDocumentoId,
+          direccion: personas.direccion,
+          departamentoId: personas.departamentoId,
+          municipioId: personas.municipioId,
+        },
       })
-      .from(firmProfiles)
-      .where(eq(firmProfiles.id, lawyer.firmId))
+      .from(lawyerProfiles)
+      .innerJoin(users, eq(lawyerProfiles.userId, users.id))
+      .innerJoin(personas, eq(lawyerProfiles.personaId, personas.id))
+      .leftJoin(firmProfiles, eq(lawyerProfiles.firmId, firmProfiles.id))
+      .where(eq(lawyerProfiles.id, id))
       .limit(1);
 
-    firm = firmResult[0] || null;
+    if (!rows[0]) return undefined;
+    const row = rows[0];
+    return {
+      ...row,
+      user: row.user?.id ? row.user : null,
+      firm: row.firm?.id ? row.firm : null,
+      persona: row.persona?.id ? row.persona : null,
+    };
   }
 
-  return {
-    ...lawyer,
-    user: userResult[0] || null,
-    firm,
-  };
-}
   async getLawyerByEmail(email: string): Promise<LawyerProfile | undefined> {
     const userResult = await this.db
       .select()
       .from(users)
       .where(eq(users.email, email))
       .limit(1);
-
     if (!userResult[0]) return undefined;
-
-    const result = await this.db
-      .select()
-      .from(lawyerProfiles)
-      .where(eq(lawyerProfiles.userId, userResult[0].id))
-      .limit(1);
-    return result[0];
+    return this.getLawyerByUserId(userResult[0].id);
   }
 
   async getLawyerByUserId(userId: string): Promise<LawyerProfile | undefined> {
@@ -93,30 +83,29 @@ export class AbogadoStorage {
   async getAllLawyers(
     limit: number,
     offset: number,
-    filter?: {
-      firstName?: string;
-      city?: string;
-      isActive?: boolean;
-    }
+    filter?: { nombre?: string; firstName?: string; isActive?: boolean }
   ): Promise<LawyerProfile[]> {
-
     const conditions = [];
 
-    if (filter?.firstName) {
-      conditions.push(
-        like(lawyerProfiles.firstName, `%${filter.firstName}%`)
-      );
+    const searchNombre = filter?.nombre ?? filter?.firstName;
+    if (searchNombre) {
+      conditions.push(like(personas.nombre, `%${searchNombre}%`));
     }
 
-     if (filter?.isActive !== undefined) {
-       // Note: Filtering by user.isActive requires a join - for now we skip this filter
-       // To properly implement, would need to join with users table
-     }
-
-
-    return await this.db
-      .select()
+    return this.db
+      .select({
+        id: lawyerProfiles.id,
+        userId: lawyerProfiles.userId,
+        firmId: lawyerProfiles.firmId,
+        personaId: lawyerProfiles.personaId,
+        specialization: lawyerProfiles.specialization,
+        licenseNumber: lawyerProfiles.licenseNumber,
+        isIndependent: lawyerProfiles.isIndependent,
+        createdAt: lawyerProfiles.createdAt,
+        updatedAt: lawyerProfiles.updatedAt,
+      })
       .from(lawyerProfiles)
+      .innerJoin(personas, eq(lawyerProfiles.personaId, personas.id))
       .where(conditions.length ? and(...conditions) : undefined)
       .limit(limit)
       .offset(offset);
@@ -135,11 +124,25 @@ export class AbogadoStorage {
   }
 
   async updateLawyer(id: string, updates: Partial<UpdateLawyerProfileDTO>): Promise<LawyerProfile | undefined> {
-    const { createdAt, ...updateData } = updates as any;
-    await this.db
-      .update(lawyerProfiles)
-      .set({ ...updateData, updatedAt: new Date() })
-      .where(eq(lawyerProfiles.id, id));
+    const { persona: personaUpdates, ...lawyerUpdates } = updates as any;
+
+    if (Object.keys(lawyerUpdates).length > 0) {
+      await this.db
+        .update(lawyerProfiles)
+        .set({ ...lawyerUpdates, updatedAt: new Date() })
+        .where(eq(lawyerProfiles.id, id));
+    }
+
+    if (personaUpdates) {
+      const lawyer = await this.db
+        .select({ personaId: lawyerProfiles.personaId })
+        .from(lawyerProfiles)
+        .where(eq(lawyerProfiles.id, id))
+        .limit(1);
+      if (lawyer[0]?.personaId) {
+        await this.db.update(personas).set(personaUpdates).where(eq(personas.id, lawyer[0].personaId));
+      }
+    }
 
     const result = await this.db
       .select()
@@ -152,11 +155,11 @@ export class AbogadoStorage {
   async deleteLawyer(id: string): Promise<void> {
     await this.db.delete(lawyerProfiles).where(eq(lawyerProfiles.id, id));
   }
-  async updateFirmId(lawyerId: string, firmId: string | null): Promise<void> {
-  await this.db
-    .update(lawyerProfiles)
-    .set({ firmId })
-    .where(eq(lawyerProfiles.id, lawyerId));
-}
 
+  async updateFirmId(lawyerId: string, firmId: string | null): Promise<void> {
+    await this.db
+      .update(lawyerProfiles)
+      .set({ firmId })
+      .where(eq(lawyerProfiles.id, lawyerId));
+  }
 }

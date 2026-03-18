@@ -1,4 +1,4 @@
-// app/firm/invite-lawyer.tsx
+// app/firm-invite-lawyer.tsx
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable,
@@ -45,7 +45,7 @@ export default function InviteLawyerScreen() {
       Toast.show({
         type: "success",
         text1: "Invitación enviada",
-        text2: `${inviteModalLawyer.firstName} ${inviteModalLawyer.lastName} recibirá tu invitación`,
+        text2: `${inviteModalLawyer.persona?.nombre} ${inviteModalLawyer.persona?.apellido} recibirá tu invitación`,
       });
     }
     setSubmitting(null);
@@ -55,7 +55,7 @@ export default function InviteLawyerScreen() {
   const renderLawyer = ({ item }: { item: LawyerProfile }) => {
     const isInvited = invited.includes(item.id);
     const isSubmitting = submitting === item.id;
-    const initials = `${item.firstName?.charAt(0) || ""}${item.lastName?.charAt(0) || ""}`.toUpperCase();
+    const initials = `${item.persona?.nombre?.charAt(0) || ""}${item.persona?.apellido?.charAt(0) || ""}`.toUpperCase();
 
     return (
       <View style={[styles.card, isInvited && styles.cardInvited]}>
@@ -68,7 +68,7 @@ export default function InviteLawyerScreen() {
 
         {/* Info */}
         <View style={styles.info}>
-          <Text style={styles.nombre}>{item.firstName} {item.lastName}</Text>
+          <Text style={styles.nombre}>{item.persona?.nombre} {item.persona?.apellido}</Text>
 
           {item.specialization && (
             <View style={styles.infoRow}>
@@ -135,7 +135,7 @@ export default function InviteLawyerScreen() {
             <Text style={styles.headerTitle}>Invitar Abogado</Text>
             <Text style={styles.headerSubtitle}>Busca y agrega abogados a tu firma</Text>
           </View>
-          <Pressable onPress={() => router.push("/(firm-tabs)/invitations")} style={styles.headerBtn} hitSlop={8}>
+          <Pressable onPress={() => router.push("/firm-components/firm-invitations" as any)} style={styles.headerBtn} hitSlop={8}>
             <Ionicons name="list-outline" size={22} color={Colors.white} />
           </Pressable>
         </View>
@@ -210,7 +210,7 @@ export default function InviteLawyerScreen() {
           <View style={styles.modalAvatarWrapper}>
             <View style={styles.modalAvatar}>
               <Text style={styles.modalAvatarText}>
-                {`${inviteModalLawyer?.firstName?.charAt(0) || ""}${inviteModalLawyer?.lastName?.charAt(0) || ""}`.toUpperCase()}
+                {`${inviteModalLawyer?.persona?.nombre?.charAt(0) || ""}${inviteModalLawyer?.persona?.apellido?.charAt(0) || ""}`.toUpperCase()}
               </Text>
             </View>
             <View style={styles.modalAvatarBadge}>
@@ -220,7 +220,7 @@ export default function InviteLawyerScreen() {
 
           {/* Nombre */}
           <Text style={styles.modalNombre}>
-            {inviteModalLawyer?.firstName} {inviteModalLawyer?.lastName}
+            {inviteModalLawyer?.persona?.nombre} {inviteModalLawyer?.persona?.apellido}
           </Text>
 
           {/* Info pills */}

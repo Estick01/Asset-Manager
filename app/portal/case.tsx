@@ -84,13 +84,12 @@ export default function ClientCaseDetailScreen() {
 
   const loadData = useCallback(async () => {
     if (!id) return;
-    // Prevent resetting data while we're in the middle of loading more
     if (isLoadingMoreRef.current) return;
     setIsInitialLoad(true);
     const p = await getProceso(id);
     setProceso(p);
     if (p) {
-      // Prefer the designated responsable; fall back to principal lawyer
+      console.log(p)
       if (p.responsable) {
         setAbogado({
           nombre: `${p.responsable.firstName} ${p.responsable.lastName}`,
@@ -101,8 +100,8 @@ export default function ClientCaseDetailScreen() {
         const lawyer = p.lawyers?.find((l: any) => l.rol === "principal" && l.lawyer);
         if (lawyer) {
           setAbogado({
-            nombre: `${lawyer.lawyer.firstName} ${lawyer.lawyer.lastName}`,
-            telefono: lawyer.lawyer.phone || undefined,
+            nombre: `${lawyer.lawyer.persona.nombre} ${lawyer.lawyer.persona.apellido}`,
+            telefono: lawyer.lawyer.persona.telefono || undefined,
             userId: lawyer.lawyer.userId,
           });
         }
@@ -168,6 +167,7 @@ export default function ClientCaseDetailScreen() {
     d.nombre?.toLowerCase().includes(documentSearch.toLowerCase()) ||
     d.descripcion?.toLowerCase().includes(documentSearch.toLowerCase())
   );
+
 
   return (
     <View style={styles.screen}>
@@ -248,9 +248,9 @@ export default function ClientCaseDetailScreen() {
                     {proceso.responsable ? "Abogado responsable" : "Abogado asignado"}
                   </Text>
                   <Text style={styles.infoValue}>{abogado.nombre}</Text>
-                  {proceso.responsableAsignadoPorNombre && (
+                  {proceso.responsable?.asignadoPorNombre && (
                     <Text style={styles.infoSubValue}>
-                      Asignado por {proceso.responsableAsignadoPorNombre}
+                      Asignado por {proceso.responsable.asignadoPorNombre}
                     </Text>
                   )}
                 </View>

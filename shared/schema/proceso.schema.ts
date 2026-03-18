@@ -12,6 +12,7 @@ import { TiposProceso, tiposProceso } from "./tipo-proceso.schema";
 import { EstadoProceso, estadosProceso } from "./estado-proceso.schema";
 import { procesoLawyers, ProcesoLawyerWithLawyer } from "./proceso-lawyer.schema";
 import { type LawyerProfile } from "./lawyer-profile.schema";
+import { ProcesoResponsableDTO } from "./proceso-responsables.schema";
 
 export const procesos = mysqlTable("procesos", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -79,10 +80,24 @@ export interface ProcesoDTO extends Proceso {
   lawyers?: ProcesoLawyerWithLawyer[];
   clienteNombre?: string;
   clienteUserId?: string;
-  responsable?: LawyerProfile | null;
-  responsableFechaAsignacion?: Date | null;
-  responsableRazon?: string | null;
-  responsableAsignadoPorNombre?: string | null;
+  /** 'natural' | 'empresa' */
+  tipoCliente?: string | null;
+  /** Documento de identidad del cliente natural */
+  clienteDocumento?: string | null;
+  clienteTelefono?: string | null;
+  clienteDepartamento?: { id: string; nombre: string } | null;
+  clienteMunicipio?: { id: string; nombre: string } | null;
+  /** Solo presente cuando tipoCliente === 'empresa' */
+  representanteLegal?: {
+    id: string;
+    cargo: string;
+    email: string;
+    nombre: string;
+    apellido: string;
+    documento: string | null;
+    telefono: string | null;
+  } | null;
+  responsable?: ProcesoResponsableDTO | null;
   tareasConteo?: {
     total: number;
     pendientes: number;

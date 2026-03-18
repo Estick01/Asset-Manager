@@ -1,6 +1,4 @@
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform, StyleSheet, useColorScheme, View, Text } from "react-native";
@@ -27,28 +25,6 @@ function BadgeIcon({ name, size, color, count }: {
   );
 }
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "doc.text", selected: "doc.text.fill" }} />
-        <Label>Procesos</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="notifications">
-        <Icon sf={{ default: "bell", selected: "bell.fill" }} />
-        <Label>Alertas</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="chat">
-        <Icon sf={{ default: "message", selected: "message.fill" }} />
-        <Label>Mensajes</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>Perfil</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
 
 function ClassicTabLayout() {
   const colorScheme = useColorScheme();
@@ -126,9 +102,6 @@ function ClassicTabLayout() {
 }
 
 export default function PortalLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
   return <ClassicTabLayout />;
 }
 

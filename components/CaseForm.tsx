@@ -7,8 +7,33 @@ import { getEstadosProceso, getTiposProceso } from '@/lib/services/procesoServic
 import { Cliente, EstadoProceso, TiposProceso } from "@/shared/schema";
 import { getClientes } from "@/lib/services/clienteService";
 
+// ─── Helpers para normalizar cliente natural o empresa ──────────────────────
+function getClienteDisplayName(c: Cliente): string {
+  if (c.tipo === "natural" && c.natural?.persona) {
+    const { nombre, apellido } = c.natural.persona;
+    return `${nombre ?? ""} ${apellido ?? ""}`.trim();
+  }
+  if (c.tipo === "empresa" && c.empresa) {
+    return c.empresa.razonSocial ?? "Sin razón social";
+  }
+  return "Sin nombre";
+}
 
-// Type for form data (simplified for the form)
+function getClienteDocumento(c: Cliente): string {
+  if (c.tipo === "natural" && c.natural?.persona) {
+    return c.natural.persona.documento ?? "Sin documento";
+  }
+  if (c.tipo === "empresa" && c.empresa) {
+    return `NIT: ${c.empresa.nit ?? "Sin NIT"}`;
+  }
+  return "Sin documento";
+}
+
+function getClienteIcon(c: Cliente): "business-outline" | "person-outline" {
+  return c.tipo === "empresa" ? "business-outline" : "person-outline";
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────
 export type CaseFormData = {
   clienteId: string;
   tipoProcesoId: number;
@@ -27,41 +52,38 @@ type CaseFormProps = {
 
 const CLIENTES_LIMIT = 10;
 
+// ─── Component ─────────────────────────────────────────────────────────────
 export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProps) {
   const { user } = useAuth();
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientes,       setClientes]       = useState<Cliente[]>([]);
   const [clientesOffset, setClientesOffset] = useState(0);
-  const [hasMoreClientes, setHasMoreClientes] = useState(true);
+  const [hasMoreClientes,setHasMoreClientes]= useState(true);
   const [isLoadingClientes, setIsLoadingClientes] = useState(false);
-  const [clienteSearch, setClienteSearch] = useState("");
+  const [clienteSearch,  setClienteSearch]  = useState("");
   const [estadosProceso, setEstadosProceso] = useState<EstadoProceso[]>([]);
-  const [tiposProceso, setTiposProceso] = useState<TiposProceso[]>([]);
+  const [tiposProceso,   setTiposProceso]   = useState<TiposProceso[]>([]);
   const [form, setForm] = useState<CaseFormData>({
-    clienteId: initialData?.clienteId || "",
-    tipoProcesoId: initialData?.tipoProcesoId ?? 0,
-    radicado: initialData?.radicado || "",
-    juzgado: initialData?.juzgado || "",
-    estadoId: initialData?.estadoId || 0,
-    descripcionEstado: initialData?.descripcionEstado || "",
+    clienteId:         initialData?.clienteId         || "",
+    tipoProcesoId:     initialData?.tipoProcesoId      ?? 0,
+    radicado:          initialData?.radicado           || "",
+    juzgado:           initialData?.juzgado            || "",
+    estadoId:          initialData?.estadoId           || 0,
+    descripcionEstado: initialData?.descripcionEstado  || "",
   });
   const [showClientes, setShowClientes] = useState(false);
-  const [showTipos, setShowTipos] = useState(false);
+  const [showTipos,    setShowTipos]    = useState(false);
   const isLoadingMoreRef = useRef(false);
 
+  // ── Load clientes ────────────────────────────────────────────
   const loadClientes = useCallback(async (reset: boolean = false) => {
     if (!user || isLoadingMoreRef.current || (!reset && !hasMoreClientes)) return;
-
-    if (reset) {
-      setClientesOffset(0);
-    }
+    if (reset) setClientesOffset(0);
 
     isLoadingMoreRef.current = true;
     setIsLoadingClientes(true);
-
     try {
       const offset = reset ? 0 : clientesOffset;
       const data = await getClientes(CLIENTES_LIMIT, offset, clienteSearch || undefined);
-
       if (reset) {
         setClientes(data);
         setClientesOffset(data.length);
@@ -79,45 +101,26 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
     }
   }, [user, hasMoreClientes, clienteSearch, clientesOffset]);
 
-  // Load initial clientes and estados/tipos
   useEffect(() => {
     if (user) {
       loadClientes(true);
-      const loadData = async () => {
-        const [estados, tipos] = await Promise.all([
-          getEstadosProceso(),
-          getTiposProceso()
-        ]);
+      (async () => {
+        const [estados, tipos] = await Promise.all([getEstadosProceso(), getTiposProceso()]);
         setEstadosProceso(estados);
         setTiposProceso(tipos);
-      };
-      loadData();
+      })();
     }
   }, [user]);
 
-  // Reload clientes when search changes
-  useEffect(() => {
-    loadClientes(true);
-  }, [clienteSearch]);
+  useEffect(() => { loadClientes(true); }, [clienteSearch]);
 
-  const updateField = (
-    key: keyof CaseFormData,
-    value: string | number
-  ) => {
-    setForm((prev) => ({
-      ...prev,
-      [key]: key === "tipoProcesoId" ? Number(value) : value,
-    }));
+  const updateField = (key: keyof CaseFormData, value: string | number) => {
+    setForm(prev => ({ ...prev, [key]: key === "tipoProcesoId" ? Number(value) : value }));
   };
-  const selectedCliente = clientes.find((c) => c.id === form.clienteId);
 
-  const handleSave = () => {
-    if (!form.clienteId || !form.tipoProcesoId || !form.radicado.trim() || !form.juzgado.trim() || !form.estadoId) {
-      onSave(form);
-      return;
-    }
-    onSave(form);
-  };
+  const selectedCliente = clientes.find(c => c.id === form.clienteId);
+
+  const handleSave = () => onSave(form);
 
   return (
     <>
@@ -129,23 +132,30 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
           </View>
         )}
 
+        {/* ── Cliente ── */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Cliente <Text style={styles.required}>*</Text></Text>
-          <Pressable style={styles.selectBtn} onPress={() => {
-            setShowClientes(!showClientes);
-            if (!showClientes && clientes.length === 0) {
-              loadClientes(true);
-            }
-          }}>
-            <Ionicons name="person-outline" size={20} color={Colors.textTertiary} />
+          <Pressable
+            style={styles.selectBtn}
+            onPress={() => {
+              setShowClientes(!showClientes);
+              if (!showClientes && clientes.length === 0) loadClientes(true);
+            }}
+          >
+            <Ionicons
+              name={selectedCliente ? getClienteIcon(selectedCliente) : "person-outline"}
+              size={20}
+              color={Colors.textTertiary}
+            />
             <Text style={[styles.selectText, !selectedCliente && styles.placeholder]}>
-              {selectedCliente ? selectedCliente.nombre : "Seleccionar cliente"}
+              {selectedCliente ? getClienteDisplayName(selectedCliente) : "Seleccionar cliente"}
             </Text>
             <Ionicons name={showClientes ? "chevron-up" : "chevron-down"} size={20} color={Colors.textTertiary} />
           </Pressable>
+
           {showClientes && (
             <View style={styles.dropdown}>
-              {/* Search input */}
+              {/* Search */}
               <View style={styles.searchWrapper}>
                 <Ionicons name="search" size={16} color={Colors.textTertiary} />
                 <TextInput
@@ -161,6 +171,7 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
                   </Pressable>
                 )}
               </View>
+
               {clientes.length === 0 ? (
                 <Text style={styles.dropdownEmpty}>
                   {isLoadingClientes ? "Cargando..." : "Sin clientes. Crea uno primero."}
@@ -168,26 +179,56 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
               ) : (
                 <FlatList
                   data={clientes}
-                  keyExtractor={(c) => c.id}
-                  scrollEnabled={false}  // ← agregar esto
-                  renderItem={({ item: c }) => (
-                    <Pressable
-                      style={[styles.dropdownItem, form.clienteId === c.id && styles.dropdownItemActive]}
-                      onPress={() => {
-                        updateField("clienteId", c.id);
-                        setShowClientes(false);
-                      }}
-                    >
-                      <Text style={[styles.dropdownText, form.clienteId === c.id && styles.dropdownTextActive]}>{c.nombre}</Text>
-                      <Text style={styles.dropdownSubtext}>{c.documento}</Text>
-                    </Pressable>
-                  )}
+                  keyExtractor={c => c.id}
+                  scrollEnabled={false}
+                  renderItem={({ item: c }) => {
+                    const displayName = getClienteDisplayName(c);
+                    const documento   = getClienteDocumento(c);
+                    const icon        = getClienteIcon(c);
+                    const isActive    = form.clienteId === c.id;
+                    return (
+                      <Pressable
+                        style={[styles.dropdownItem, isActive && styles.dropdownItemActive]}
+                        onPress={() => {
+                          updateField("clienteId", c.id);
+                          setShowClientes(false);
+                        }}
+                      >
+                        <View style={styles.dropdownItemRow}>
+                          <Ionicons
+                            name={icon}
+                            size={16}
+                            color={isActive ? Colors.primary : Colors.textTertiary}
+                            style={{ marginRight: 8 }}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.dropdownText, isActive && styles.dropdownTextActive]}>
+                              {displayName}
+                            </Text>
+                            <Text style={styles.dropdownSubtext}>{documento}</Text>
+                          </View>
+                          {/* Tipo badge */}
+                          <View style={[
+                            styles.tipoBadge,
+                            c.tipo === "empresa" ? styles.tipoBadgeEmpresa : styles.tipoBadgeNatural,
+                          ]}>
+                            <Text style={[
+                              styles.tipoBadgeText,
+                              { color: c.tipo === "empresa" ? "#F5A623" : "#2196A6" },
+                            ]}>
+                              {c.tipo === "empresa" ? "Empresa" : "Natural"}
+                            </Text>
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  }}
                   onEndReached={() => loadClientes(false)}
                   onEndReachedThreshold={0.5}
                   ListFooterComponent={
-                    isLoadingClientes ? (
-                      <ActivityIndicator size="small" color={Colors.primary} style={styles.loadingFooter} />
-                    ) : null
+                    isLoadingClientes
+                      ? <ActivityIndicator size="small" color={Colors.primary} style={styles.loadingFooter} />
+                      : null
                   }
                   style={styles.dropdownList}
                 />
@@ -195,6 +236,8 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
             </View>
           )}
         </View>
+
+        {/* ── Tipo de Proceso ── */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Tipo de Proceso <Text style={styles.required}>*</Text></Text>
           <Pressable style={styles.selectBtn} onPress={() => setShowTipos(!showTipos)}>
@@ -206,22 +249,22 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
           </Pressable>
           {showTipos && (
             <View style={styles.dropdown}>
-              {tiposProceso.map((tipo) => (
+              {tiposProceso.map(tipo => (
                 <Pressable
                   key={tipo.id}
                   style={[styles.dropdownItem, Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownItemActive]}
-                  onPress={() => {
-                    updateField("tipoProcesoId", tipo.id);
-                    setShowTipos(false);
-                  }}
+                  onPress={() => { updateField("tipoProcesoId", tipo.id); setShowTipos(false); }}
                 >
-                  <Text style={[styles.dropdownText, Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownTextActive]}>{tipo.nombre}</Text>
+                  <Text style={[styles.dropdownText, Number(form.tipoProcesoId) === Number(tipo.id) && styles.dropdownTextActive]}>
+                    {tipo.nombre}
+                  </Text>
                 </Pressable>
               ))}
             </View>
           )}
         </View>
 
+        {/* ── Radicado ── */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Radicado <Text style={styles.required}>*</Text></Text>
           <View style={styles.inputWrapper}>
@@ -229,13 +272,14 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
             <TextInput
               style={styles.input}
               value={form.radicado}
-              onChangeText={(v) => updateField("radicado", v)}
+              onChangeText={v => updateField("radicado", v)}
               placeholder="Numero de radicado"
               placeholderTextColor={Colors.textTertiary}
             />
           </View>
         </View>
 
+        {/* ── Juzgado ── */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Juzgado <Text style={styles.required}>*</Text></Text>
           <View style={styles.inputWrapper}>
@@ -243,17 +287,18 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
             <TextInput
               style={styles.input}
               value={form.juzgado}
-              onChangeText={(v) => updateField("juzgado", v)}
+              onChangeText={v => updateField("juzgado", v)}
               placeholder="Nombre del juzgado"
               placeholderTextColor={Colors.textTertiary}
             />
           </View>
         </View>
 
+        {/* ── Estado ── */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Estado</Text>
           <View style={styles.estadoGrid}>
-            {estadosProceso.map((estado) => (
+            {estadosProceso.map(estado => (
               <Pressable
                 key={estado.id}
                 style={[styles.estadoChip, form.estadoId === estado.id && styles.estadoChipActive]}
@@ -267,13 +312,14 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
           </View>
         </View>
 
+        {/* ── Descripción ── */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Descripcion del estado</Text>
           <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={form.descripcionEstado}
-              onChangeText={(v) => updateField("descripcionEstado", v)}
+              onChangeText={v => updateField("descripcionEstado", v)}
               placeholder="Descripcion del estado actual del proceso"
               placeholderTextColor={Colors.textTertiary}
               multiline
@@ -290,11 +336,10 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
           disabled={isLoading}
           style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed, isLoading && styles.saveBtnDisabled]}
         >
-          {isLoading ? (
-            <ActivityIndicator color={Colors.white} />
-          ) : (
-            <Text style={styles.saveBtnText}>{initialData ? "Guardar Cambios" : "Crear Proceso"}</Text>
-          )}
+          {isLoading
+            ? <ActivityIndicator color={Colors.white} />
+            : <Text style={styles.saveBtnText}>{initialData ? "Guardar Cambios" : "Crear Proceso"}</Text>
+          }
         </Pressable>
       </View>
     </>
@@ -304,121 +349,80 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
 const styles = StyleSheet.create({
   content: { padding: 20, gap: 16, paddingBottom: 120 },
   errorBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.dangerLight,
-    padding: 12,
-    borderRadius: 10,
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: Colors.dangerLight, padding: 12, borderRadius: 10,
   },
   errorText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.danger, flex: 1 },
   inputGroup: { gap: 6 },
-  label: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary, marginLeft: 4 },
+  label:    { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary, marginLeft: 4 },
   required: { color: Colors.danger },
   inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: Colors.white, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
   },
-  inputIcon: { marginLeft: 14 },
+  inputIcon:       { marginLeft: 14 },
   input: {
-    flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    fontFamily: "Inter_400Regular",
-    color: Colors.text,
+    flex: 1, paddingVertical: 14, paddingHorizontal: 12,
+    fontSize: 16, fontFamily: "Inter_400Regular", color: Colors.text,
   },
   textAreaWrapper: { alignItems: "flex-start" },
-  textArea: { minHeight: 80, paddingTop: 14 },
+  textArea:        { minHeight: 80, paddingTop: 14 },
   selectBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    gap: 10,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: Colors.white, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingVertical: 14, paddingHorizontal: 14, gap: 10,
   },
-  selectText: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: Colors.text },
+  selectText:  { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular", color: Colors.text },
   placeholder: { color: Colors.textTertiary },
   dropdown: {
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    overflow: "hidden",
+    backgroundColor: Colors.white, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border, overflow: "hidden",
   },
-  dropdownItem: { paddingVertical: 12, paddingHorizontal: 16 },
+  dropdownItem:       { paddingVertical: 12, paddingHorizontal: 16 },
   dropdownItemActive: { backgroundColor: Colors.primary + "10" },
-  dropdownText: { fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.text },
+  dropdownItemRow:    { flexDirection: "row", alignItems: "center" },
+  dropdownText:       { fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.text },
   dropdownTextActive: { fontFamily: "Inter_600SemiBold", color: Colors.primary },
-  dropdownEmpty: { padding: 16, fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textTertiary, textAlign: "center" },
+  dropdownSubtext:    { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
+  dropdownEmpty: {
+    padding: 16, fontSize: 14, fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary, textAlign: "center",
+  },
+  dropdownList: { maxHeight: 300 },
   searchWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: "row", alignItems: "center",
     backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    margin: 8,
-    gap: 8,
+    borderRadius: 8, paddingHorizontal: 10, margin: 8, gap: 8,
   },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: Colors.text,
-  },
-  dropdownList: {
-    maxHeight: 300,
-  },
-  dropdownSubtext: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    marginTop: 2,
-  },
-  loadingFooter: {
-    paddingVertical: 12,
-  },
-  estadoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  searchInput: { flex: 1, paddingVertical: 8, fontSize: 14, color: Colors.text },
+  loadingFooter: { paddingVertical: 12 },
+
+  // Tipo badge dentro del dropdown
+  tipoBadge:        { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginLeft: 6 },
+  tipoBadgeNatural: { backgroundColor: "#2196A618" },
+  tipoBadgeEmpresa: { backgroundColor: "#F5A62322" },
+  tipoBadgeText:    { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+
+  estadoGrid:          { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   estadoChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: Colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 20, backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1, borderColor: Colors.border,
   },
-  estadoChipActive: {
-    backgroundColor: Colors.primary + "15",
-    borderColor: Colors.primary,
-  },
-  estadoChipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  estadoChipActive:     { backgroundColor: Colors.primary + "15", borderColor: Colors.primary },
+  estadoChipText:       { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
   estadoChipTextActive: { color: Colors.primary, fontFamily: "Inter_600SemiBold" },
+
   footer: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 24, // Adjust this based on safe area
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
     backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
+    borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
-  saveBtn: {
-    backgroundColor: Colors.primary,
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  saveBtnPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
+  saveBtn:         { backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  saveBtnPressed:  { opacity: 0.9, transform: [{ scale: 0.98 }] },
   saveBtnDisabled: { opacity: 0.6 },
-  saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.white },
+  saveBtnText:     { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.white },
 });

@@ -4,7 +4,49 @@ import { Cliente } from '../../shared/schema';
 import { apiRequest } from '../query-client';
 import { STORAGE_KEYS } from '../keys';
 
-// --- Online API Functions ---
+// ----------------------------------------------------------------
+// Types
+// ----------------------------------------------------------------
+
+export interface SaveClienteNaturalData {
+  tipo: "natural";
+  nombre: string;
+  apellido: string;
+  correo: string;
+  telefono: string;
+  documento: string;
+  tipoDocumentoId: number;
+  direccion?: string | null;
+  departamentoId?: string | null;
+  municipioId?: string | null;
+  password: string;
+}
+
+export interface SaveClienteEmpresaData {
+  tipo: "empresa";
+  razonSocial: string;
+  nit: string;
+  sector?: string | null;
+  correo: string;
+  password: string;
+  // representante legal
+  repNombre?: string;
+  repApellido?: string;
+  repDocumento?: string;
+  repTipoDocumentoId?: number;
+  repCargo?: string;
+  repEmail?: string;
+  repTelefono?: string;
+  repDireccion?: string;
+  repDepartamentoId?: string;
+  repMunicipioId?: string;
+}
+
+export type SaveClienteData = SaveClienteNaturalData | SaveClienteEmpresaData;
+
+// ----------------------------------------------------------------
+// API Functions
+// ----------------------------------------------------------------
 
 export async function getClientes(
   limit?: number,
@@ -17,61 +59,39 @@ export async function getClientes(
     if (offset) params.append('offset', offset.toString());
     if (search) params.append('search', search);
 
-    const response = await apiRequest(
-      "GET",
-      `/api/clientes?${params.toString()}`
-    );
-    if (!response.ok) {
-      console.error('Failed to fetch clients from API. Returning empty array.');
-      return [];
-    }
+    const response = await apiRequest("GET", `/api/clientes?${params.toString()}`);
+    if (!response.ok) return [];
     return await response.json();
-  } catch (e) {
-    console.error('Error fetching clients:', e);
-    return []; // Return empty array on error
+  } catch {
+    return [];
   }
 }
 
 export async function getCliente(id: string): Promise<Cliente | null> {
   try {
     const response = await apiRequest("GET", `/api/clientes/${id}`);
-    if (!response.ok) {
-      throw new Error('Failed to fetch cliente from API');
-    }
+    if (!response.ok) throw new Error('Failed to fetch cliente');
     return await response.json();
-  } catch (e) {
-    console.error('Error fetching cliente:', e, 'Falling back to local storage.');
-    // Fallback to local storage
+  } catch {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.CLIENTES);
     const all: Cliente[] = data ? JSON.parse(data) : [];
-    return all.find((c) => c.id === id) || null;
+    return all.find(c => c.id === id) || null;
   }
 }
 
-export async function saveCliente(
-  cliente: Omit<Cliente, 'id' | 'fechaCreacion' | 'activo' | 'abogadoId'> & { 
-    tipoDocumentoId: number; 
-    departamentoId?: string | null; 
-    municipioId?: string | null;
-    password: string;
-  }
-): Promise<Cliente> {
-  const response = await apiRequest("POST", '/api/register/client', cliente);
-
+export async function saveCliente(data: SaveClienteData): Promise<Cliente> {
+  const endpoint = data.tipo === "empresa" ? "/api/register/empresa" : "/api/register/client";
+  const response = await apiRequest("POST", endpoint, data);
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || 'Error al guardar cliente');
+    throw new Error(error.error || error.message || 'Error al guardar cliente');
   }
-
-  return await response.json();
+  const body = await response.json();
+  return body.data ?? body;
 }
 
-export async function updateCliente(
-  id: string,
-  updates: Partial<Cliente>
-): Promise<Cliente> {
+export async function updateCliente(id: string, updates: Partial<Cliente>): Promise<Cliente> {
   const response = await apiRequest("PUT", `/api/clientes/${id}`, updates);
-
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Error al actualizar cliente');
@@ -81,40 +101,27 @@ export async function updateCliente(
 
 export async function deleteCliente(id: string): Promise<void> {
   const response = await apiRequest("DELETE", `/api/clientes/${id}`);
-
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || 'Error al eliminar cliente');
   }
 }
 
-// --- Local Client Portal Functions ---
+// ----------------------------------------------------------------
+// Local portal helpers
+// ----------------------------------------------------------------
 
-/**
- * Gets the currently logged-in client's data from local storage.
- * Used for the client portal.
- */
 export async function getCurrentCliente(): Promise<Cliente | null> {
   const data = await AsyncStorage.getItem(STORAGE_KEYS.CLIENTE);
   if (data) {
-    try {
-      return JSON.parse(data);
-    } catch {
-      return null;
-    }
+    try { return JSON.parse(data); } catch { return null; }
   }
   return null;
 }
 
-/**
- * Updates the currently logged-in client's data in local storage.
- */
-export async function updateCurrentCliente(
-  cliente: Partial<Cliente>
-): Promise<void> {
-  const currentCliente = await getCurrentCliente();
-  if (currentCliente) {
-    const updatedCliente = { ...currentCliente, ...cliente };
-    await AsyncStorage.setItem(STORAGE_KEYS.CLIENTE, JSON.stringify(updatedCliente));
+export async function updateCurrentCliente(cliente: Partial<Cliente>): Promise<void> {
+  const current = await getCurrentCliente();
+  if (current) {
+    await AsyncStorage.setItem(STORAGE_KEYS.CLIENTE, JSON.stringify({ ...current, ...cliente }));
   }
 }

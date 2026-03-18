@@ -1,4 +1,4 @@
-// app/firm/invitations.tsx
+// app/firm-invitations.tsx
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList,
@@ -60,7 +60,7 @@ export default function FirmInvitationsScreen() {
   const handleCancel = (invitation: FirmInvitation) => {
     Alert.alert(
       "Cancelar Invitación",
-      `¿Cancelar la invitación a ${invitation.lawyer?.firstName} ${invitation.lawyer?.lastName}?`,
+      `¿Cancelar la invitación a ${invitation.lawyer?.persona?.nombre} ${invitation.lawyer?.persona?.apellido}?`,
       [
         { text: "No", style: "cancel" },
         {
@@ -85,7 +85,7 @@ export default function FirmInvitationsScreen() {
   const renderInvitation = ({ item }: { item: FirmInvitation }) => {
     const statusColor = STATUS_COLORS[item.status];
     const isCancelling = cancelling === item.id;
-    const initials = `${item.lawyer?.firstName?.charAt(0) || ""}${item.lawyer?.lastName?.charAt(0) || ""}`.toUpperCase() || "A";
+    const initials = `${item.lawyer?.persona?.nombre?.charAt(0) || ""}${item.lawyer?.persona?.apellido?.charAt(0) || ""}`.toUpperCase() || "A";
 
     return (
       <View style={styles.card}>
@@ -101,7 +101,7 @@ export default function FirmInvitationsScreen() {
 
             <View style={styles.info}>
               <Text style={styles.nombre}>
-                {item.lawyer?.firstName} {item.lawyer?.lastName}
+                {item.lawyer?.persona?.nombre} {item.lawyer?.persona?.apellido}
               </Text>
               {item.lawyer?.specialization && (
                 <View style={styles.especRow}>
@@ -170,7 +170,7 @@ export default function FirmInvitationsScreen() {
             <Text style={styles.headerSubtitle}>{invitations.length} en total</Text>
           </View>
           <Pressable
-            onPress={() => router.push("/(firm-tabs)/invite-lawyer")}
+            onPress={() => router.push("/firm-components/firm-invite-lawyer" as any)}
             style={styles.newBtn}
             hitSlop={8}
           >
@@ -209,7 +209,7 @@ export default function FirmInvitationsScreen() {
           </Text>
           <Pressable
             style={styles.inviteEmptyBtn}
-            onPress={() => router.push("/(firm-tabs)/invite-lawyer")}
+            onPress={() => router.push("/firm-components/firm-invite-lawyer" as any)}
           >
             <Ionicons name="person-add-outline" size={18} color={Colors.white} />
             <Text style={styles.inviteEmptyText}>Buscar Abogados</Text>

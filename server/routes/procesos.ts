@@ -11,6 +11,8 @@ import { JWTPayload } from '@/shared/model.schema.js';
 import { TIPO_ASIGNACION_IDS } from '@/shared/schema/tipo-asignacion.schema.js';
 import { Rol } from "../storage/index.js";
 import { procesosService } from "../services/proceso.service.js";
+import { clientesService } from "../services/cliente.service.js";
+import { tareaService } from "../services/tarea.service.js";
 
 const router = Router();
 
@@ -209,6 +211,10 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
 router.put("/procesos/:id", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id is required" });
+    }
     const updatedProceso = await procesosService.updateProceso(id, req.body);
     if (!updatedProceso) {
       return res.status(404).json({ error: "Proceso not found" });
@@ -223,6 +229,9 @@ router.put("/procesos/:id", authenticate, requirePermission("procesos.editar"), 
 router.delete("/procesos/:id", authenticate, requirePermission("procesos.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id is required" });
+    }
     await procesosService.deleteProceso(id);
     res.status(204).send();
   } catch (err) {
@@ -243,7 +252,13 @@ router.put("/procesos/:id/responsable", authenticate, requirePermission("proceso
       return res.status(400).json({ error: "responsableId es requerido" });
     }
 
-    const proceso = await storage.setResponsable(req.params.id, responsableId, {
+    const { id } = req.params;
+
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    const proceso = await storage.setResponsable(id, responsableId, {
       asignadoPorNombre: user.UserName ?? null,
       razon: razon ?? null,
     });
@@ -260,7 +275,13 @@ router.put("/procesos/:id/responsable", authenticate, requirePermission("proceso
 // GET /api/procesos/:id/lawyers - Get lawyers assigned to a proceso
 router.get("/procesos/:id/lawyers", authenticate, requirePermission("procesos.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const lawyers = await storage.getProcesoLawyers(req.params.id);
+    const {id} = req.params;
+
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    const lawyers = await storage.getProcesoLawyers(id);
     res.json(lawyers);
   } catch (err) {
     next(err);
@@ -277,7 +298,13 @@ router.post("/procesos/:id/lawyers", authenticate, requirePermission("procesos.e
       return res.status(400).json({ error: "lawyerId es requerido" });
     }
 
-    await storage.addLawyerToProceso(req.params.id, lawyerId, {
+    const {id} = req.params;
+
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    await storage.addLawyerToProceso(id, lawyerId, {
       rol: rol ?? "responsable",
       tipoAsignacionId: tipoAsignacionId ?? null,
       razonAsignacion: razonAsignacion ?? null,
@@ -293,7 +320,18 @@ router.post("/procesos/:id/lawyers", authenticate, requirePermission("procesos.e
 // DELETE /api/procesos/:id/lawyers/:lawyerId - Remove a lawyer from a proceso
 router.delete("/procesos/:id/lawyers/:lawyerId", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    await storage.removeLawyerFromProceso(req.params.id, req.params.lawyerId);
+
+    const {id} = req.params;
+    const { lawyerId } = req.params;
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id is required" });
+    }
+
+    if (!lawyerId || typeof lawyerId !== "string") {
+      return res.status(400).json({ error: "lawyerId is required" });
+    }
+
+    await storage.removeLawyerFromProceso(id,lawyerId);
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -420,13 +458,13 @@ router.get("/dashboard", authenticate, requirePermission("dashboard.ver"), async
       tareaStats,
       allProcesos,
     ] = await Promise.all([
-      storage.getClientesCount(abogadoId),
-      storage.getProcesCount(abogadoId),
-      storage.getProcesCount(abogadoId, { estadoCodigo: "activo" }),
-      storage.getProcesCount(abogadoId, { estadoCodigo: "en_tramite" }),
-      storage.getProcesCount(abogadoId, { estadoCodigo: "finalizado" }),
-      storage.tareas.countByLawyer(abogadoId),
-      storage.getProcesoByAbogadoId(abogadoId, 1000, 0, undefined),
+      clientesService.getClientesCount(abogadoId),
+      procesosService.getProcesosCount(abogadoId),
+      procesosService.getProcesosCount(abogadoId, { estadoCodigo: "activo" }),
+      procesosService.getProcesosCount(abogadoId, { estadoCodigo: "en_tramite" }),
+      procesosService.getProcesosCount(abogadoId, { estadoCodigo: "finalizado" }),
+      tareaService.countByLawyer(abogadoId),
+      procesosService.getProcesos(abogadoId, 1000, 0, undefined),
     ]);
 
     const procesosRecientes = allProcesos.data

@@ -95,7 +95,8 @@ router.get("/lawyer-firma-history/members", authenticate, async (req: Request, r
       return res.status(400).json({ error: "ID de firma inválido" });
     }
 
-    const members = await storage.lawyerFirmaHistory.getActiveMembersByFirmaId(idProfile);
+    const search = typeof req.query.q === "string" ? req.query.q : undefined;
+    const members = await storage.lawyerFirmaHistory.getActiveMembersByFirmaId(idProfile, search);
 
     res.json(members);
   } catch (err) {

@@ -22,10 +22,15 @@ export default function LoginScreen() {
   useEffect(() => {
     if (user) {
       const rolNombre = user.user.rol?.nombre?.toLowerCase() || "";
-      if (rolNombre.includes("firm") || rolNombre.includes("bufete") || rolNombre.includes("empresa")) {
+      const profile = user.profile as any;
+      if (rolNombre.includes("firm") || rolNombre.includes("bufete")) {
         router.replace("/(firm-tabs)");
       } else if (rolNombre.includes("cliente")) {
-        router.replace("/portal");
+        if (profile?.tipo === "empresa") {
+          router.replace("/portal-empresa" as any);
+        } else {
+          router.replace("/portal");
+        }
       } else {
         router.replace("/(lawyer-tabs)");
       }

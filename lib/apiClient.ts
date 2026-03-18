@@ -14,14 +14,19 @@ export { apiRequest };
 const WS_TOKEN_KEY = "lextrack_ws_token";
 
 export async function saveAuthToken(token: string): Promise<void> {
-  // Save to AsyncStorage for mobile and for WebSocket on all platforms
-  await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
-  // Also save under a separate key that we can use for WebSocket even on web
+  if (Platform.OS !== 'web') {
+    // Mobile: store in AsyncStorage (sandboxed, safe)
+    await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, token);
+  }
+  // WebSocket needs the token on all platforms (no HttpOnly cookie access from WS)
   await AsyncStorage.setItem(WS_TOKEN_KEY, token);
 }
 
 export async function saveRefreshToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+  if (Platform.OS !== 'web') {
+    // Mobile only: on web the refresh token arrives as HttpOnly cookie from the server
+    await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
+  }
 }
 
 export async function getRefreshToken(): Promise<string | null> {

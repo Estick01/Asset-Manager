@@ -8,6 +8,7 @@ import {
   mysqlTable,
   varchar,
   text,
+  int,
   timestamp,
   boolean,
   mysqlEnum,
@@ -49,11 +50,23 @@ export const messages = mysqlTable("messages", {
   id: varchar("id", { length: 36 }).primaryKey(),
   conversationId: varchar("conversation_id", { length: 36 }).notNull(),
   senderId: varchar("sender_id", { length: 36 }).notNull(),
-  content: text("content").notNull(),
+  /** Null for file-type messages */
+  content: text("content"),
   type: mysqlEnum("type", ["text", "file"]).notNull().default("text"),
   /** Soft-delete flag */
   isDeleted: boolean("is_deleted").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+  // ── File attachment fields ──────────────────────────────────
+  /** Internal S3 key — NEVER exposed to the frontend */
+  fileKey: varchar("file_key", { length: 500 }),
+  /** Original filename shown to the user */
+  fileName: varchar("file_name", { length: 255 }),
+  /** File size in bytes */
+  fileSize: int("file_size"),
+  /** MIME type (e.g. image/png, application/pdf) */
+  fileMime: varchar("file_mime", { length: 100 }),
+  /** SHA-256 hex digest of the file buffer — for audit only */
+  fileHash: varchar("file_hash", { length: 64 }),
 });
 
 // ============================================================
@@ -119,10 +132,16 @@ export interface Message {
   id: string;
   conversationId: string;
   senderId: string;
-  content: string;
+  /** Null for file-type messages */
+  content: string | null;
   type: MessageType;
   isDeleted: boolean;
   createdAt: Date;
+  // File metadata — fileKey is NEVER included here
+  fileName: string | null;
+  fileSize: number | null;
+  fileMime: string | null;
+  fileHash: string | null;
 }
 
 export interface InsertConversation {
@@ -141,8 +160,15 @@ export interface InsertMessage {
   id: string;
   conversationId: string;
   senderId: string;
-  content: string;
+  /** Null for file-type messages */
+  content: string | null;
   type?: MessageType;
+  /** Internal S3 key — stored in DB but never exposed to clients */
+  fileKey?: string | null;
+  fileName?: string | null;
+  fileSize?: number | null;
+  fileMime?: string | null;
+  fileHash?: string | null;
 }
 
 /** Conversation enriched with participants and latest message */
@@ -157,7 +183,7 @@ export interface ConversationDTO extends Conversation {
   unreadCount: number;
 }
 
-/** Message enriched with sender info */
+/** Message enriched with sender info — fileKey is NEVER present */
 export interface MessageDTO extends Message {
   sender: {
     id: string;
@@ -181,5 +207,9 @@ export interface WsNotificationData {
 
 export interface WsOutgoingMessage {
   type: "new_message" | "read_receipt" | "error" | "pong" | "notification";
-  data?: MessageDTO | { conversationId: string; userId: string; readAt: string } | { message: string } | WsNotificationData;
+  data?:
+    | (MessageDTO & { tempId?: string })
+    | { conversationId: string; userId: string; readAt: string }
+    | { message: string }
+    | WsNotificationData;
 }

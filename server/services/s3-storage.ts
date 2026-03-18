@@ -132,6 +132,28 @@ export async function deleteDocumentFromS3(key: string): Promise<void> {
 }
 
 /**
+ * Upload a raw buffer to S3 under an arbitrary key.
+ * Used for chat file attachments where the key is pre-computed by the caller.
+ */
+export async function uploadBuffer(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<void> {
+  validateFileSize(buffer);
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+    ServerSideEncryption: "AES256",
+  });
+
+  await s3Client.send(command);
+}
+
+/**
  * Get a presigned URL for downloading a document
  * Default expiration is 300 seconds (5 minutes) for legal documents
  * Forces download instead of inline rendering

@@ -1,11 +1,10 @@
 import { Router } from 'express';
 import { storage } from '../storage/storeage/database-storage.js';
-import { authenticate } from '../auth.js';
 
 const router = Router();
 
-// GET /api/departamentos - Obtener todos los departamentos
-router.get('/departamentos', authenticate, async (req, res) => {
+// GET /api/departamentos - Public: used in registration forms
+router.get('/departamentos', async (req, res) => {
   try {
     const departamentos = await storage.departamentos.findAll();
     res.json(departamentos);
@@ -16,7 +15,7 @@ router.get('/departamentos', authenticate, async (req, res) => {
 });
 
 // GET /api/departamentos/:id - Obtener un departamento por ID
-router.get('/departamentos/:id', authenticate, async (req, res) => {
+router.get('/departamentos/:id', async (req, res) => {
   try {
     const departamento = await storage.departamentos.findById(req.params.id as string);
     if (!departamento) {
@@ -30,7 +29,7 @@ router.get('/departamentos/:id', authenticate, async (req, res) => {
 });
 
 // GET /api/municipios - Obtener municipios por departamento con paginación
-router.get('/municipios', authenticate, async (req, res) => {
+router.get('/municipios', async (req, res) => {
   try {
     const { departamentoId, page = '1', pageSize = '10', search } = req.query;
     
@@ -53,7 +52,7 @@ router.get('/municipios', authenticate, async (req, res) => {
 });
 
 // GET /api/municipios/:id - Obtener un municipio por ID
-router.get('/municipios/:id', authenticate, async (req, res) => {
+router.get('/municipios/:id', async (req, res) => {
   try {
     const municipio = await storage.municipios.findById(req.params.id as string);
     if (!municipio) {

@@ -1,3 +1,4 @@
+// app/firm-team.tsx
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
@@ -21,7 +22,6 @@ import { type FirmProfile } from "@/shared/schema";
 import { LawyerProfileRelations } from "@/shared/schema/lawyer-profile.schema";
 
 // ─── Design tokens alineados con el sistema visual de la app ────────────────
-const NAVY = "linear-gradient(rgb(15, 38, 64), rgb(27, 58, 92));";
 const NAVY_MID = "#243447";
 const WHITE = "#FFFFFF";
 const BG = "#F4F6F8";
@@ -188,7 +188,7 @@ export default function FirmTeamScreen() {
         setTeamMembers(
           teamResult.data.map((l: LawyerProfileRelations) => ({
             id: l.id,
-            nombre: `${l.firstName || ""} ${l.lastName || ""}`.trim(),
+            nombre: `${l.persona?.nombre || ""} ${l.persona?.apellido || ""}`.trim(),
             correo: l.user?.email || "",
             rol: l.specialization || "Abogado",
             activo: true,
@@ -266,7 +266,7 @@ export default function FirmTeamScreen() {
         <View style={styles.actionsRow}>
           <Pressable
             style={styles.actionCard}
-            onPress={() => router.push("/(firm-tabs)/invite-lawyer")}
+            onPress={() => router.push("/firm-invite-lawyer")}
           >
             <View style={[styles.actionIcon, { backgroundColor: "#E8F8F2" }]}>
               <Ionicons name="person-add-outline" size={20} color={GREEN} />
@@ -276,7 +276,7 @@ export default function FirmTeamScreen() {
 
           <Pressable
             style={[styles.actionCard, pendingInvitations > 0 && styles.actionCardAlert]}
-            onPress={() => router.push("/(firm-tabs)/invitations")}
+            onPress={() => router.push("/firm-invitations")}
           >
             <View style={[styles.actionIcon, { backgroundColor: pendingInvitations > 0 ? "#FEF6E8" : "#F4F6F8" }]}>
               <Ionicons
@@ -325,7 +325,7 @@ export default function FirmTeamScreen() {
               <Text style={styles.emptySub}>Invita abogados a tu bufete</Text>
               <Pressable
                 style={styles.emptyBtn}
-                onPress={() => router.push("/(firm-tabs)/invite-lawyer")}
+                onPress={() => router.push("/firm-invite-lawyer")}
               >
                 <Text style={styles.emptyBtnText}>Invitar Abogado</Text>
               </Pressable>
@@ -339,7 +339,7 @@ export default function FirmTeamScreen() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: NAVY },
+  screen: { flex: 1, backgroundColor: "#0F2640" },
   centered: { justifyContent: "center", alignItems: "center" },
 
   // Header
@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
   emptySub: { fontSize: 13, color: TEXT3, fontFamily: "Inter_400Regular" },
   emptyBtn: {
-    marginTop: 16, backgroundColor: NAVY,
+    marginTop: 16, backgroundColor: "#0F2640",
     paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24,
   },
   emptyBtnText: { color: WHITE, fontSize: 14, fontFamily: "Inter_600SemiBold" },

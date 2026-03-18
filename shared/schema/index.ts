@@ -15,8 +15,40 @@ export { firmProfiles, firmProfilesRelations, type FirmProfile, type InsertFirmP
 // Lawyer Profile
 export { lawyerProfiles, lawyerProfilesRelations, type LawyerProfile, type InsertLawyerProfile } from "./lawyer-profile.schema";
 
-// Cliente
-export { clientes, clientesRelations, type Cliente, type InsertCliente } from "./cliente.schema";
+// Persona (base para cliente natural, abogado y representante legal)
+export {
+  personas,
+  personasRelations,
+  type Persona,
+  type InsertPersona,
+} from "./persona.schema";
+
+// Representante Legal
+export {
+  representantesLegales,
+  representantesLegalesRelations,
+  type RepresentanteLegal,
+  type InsertRepresentanteLegal,
+} from "./representante-legal.schema";
+
+// Cliente (base)
+export { clientes, clientesRelations, type Cliente, type InsertCliente, type ClienteTipo } from "./cliente.schema";
+
+// Cliente Natural (1:1 con clientes)
+export {
+  clientesNatural,
+  clientesNaturalRelations,
+  type ClienteNatural,
+  type InsertClienteNatural,
+} from "./cliente-natural.schema";
+
+// Cliente Empresa (1:1 con clientes)
+export {
+  clientesEmpresa,
+  clientesEmpresaRelations,
+  type ClienteEmpresa,
+  type InsertClienteEmpresa,
+} from "./cliente-empresa.schema";
 
 // Lawyer-Clients (intermediate table)
 export { lawyerClients, lawyerClientsRelations, type LawyerClient, type InsertLawyerClient, type LawyerClientStatus } from "./lawyer-clients.schema";
@@ -31,16 +63,24 @@ export { estadosProceso, type EstadoProceso, type InsertEstadoProceso } from "./
 export { tiposProceso, type TiposProceso, type InsertTiposProceso } from "./tipo-proceso.schema";
 
 // Rol
-export { roles, rolesRelations, type Rol, type InsertRol } from "./rol.schema";
+export { roles, type Rol, type InsertRol } from "./rol.schema";
 
 // Permiso
-export { permisos, permisosRelations, type Permiso, type InsertPermiso } from "./permiso.schema";
+export { permisos, type Permiso, type InsertPermiso } from "./permiso.schema";
 
 // Modulo
-export { modulos, modulosRelations, type Modulo, type InsertModulo } from "./modulo.schema";
+export { modulos, type Modulo, type InsertModulo } from "./modulo.schema";
 
 // Roles Permisos
-export { rolesPermisos, rolesPermisosRelations, type RolPermiso, type InsertRolPermiso } from "./rolesPermisos.schema";
+export { rolesPermisos, type RolPermiso, type InsertRolPermiso } from "./rolesPermisos.schema";
+
+// Auth relations (roles ↔ permisos ↔ modulos) — kept separate to avoid circular imports
+export {
+  rolesRelations,
+  permisosRelations,
+  modulosRelations,
+  rolesPermisosRelations,
+} from "./auth-relations";
 
 // Actualizaciones
 export { 

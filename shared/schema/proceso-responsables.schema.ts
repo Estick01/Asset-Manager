@@ -1,7 +1,7 @@
 import { boolean, datetime, mysqlTable, varchar } from 'drizzle-orm/mysql-core';
 import { relations } from 'drizzle-orm';
 import { procesos } from './proceso.schema';
-import { lawyerProfiles } from './lawyer-profile.schema';
+import { LawyerProfile, lawyerProfiles } from './lawyer-profile.schema';
 
 /**
  * Proceso Responsables table
@@ -36,3 +36,14 @@ export const procesoResponsablesRelations = relations(procesoResponsables, ({ on
 
 export type ProcesoResponsable = typeof procesoResponsables.$inferSelect;
 export type InsertProcesoResponsable = typeof procesoResponsables.$inferInsert;
+
+/** Shape returned by getActiveResponsable — lawyer + persona anidada */
+export interface ProcesoResponsableDTO {
+  id: string | null;
+  fechaAsignacion: Date | null;
+  razon: string | null;
+  asignadoPorNombre: string | null;
+  lawyer:LawyerProfile | null;
+}
+
+

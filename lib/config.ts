@@ -22,7 +22,7 @@ const getApiUrl = (): string => {
     }
     
     if (Platform.OS === 'ios') {
-      return 'http://localhost:5000';
+      return LOCAL_IP ? `http://${LOCAL_IP}:5000` : 'http://localhost:5000';
     }
     
     if (Platform.OS === 'android') {

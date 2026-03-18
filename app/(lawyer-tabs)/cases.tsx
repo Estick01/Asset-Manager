@@ -6,9 +6,8 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
-import { getProcesos } from "@/lib/services/procesoService";
-import { ProcesoDTO } from "@/shared/schema";
+import { getProcesos, getEstadosProceso } from "@/lib/services/procesoService";
+import { ProcesoDTO, type EstadoProceso } from "@/shared/schema";
 import { useAuth } from "@/lib/auth-context";
 
 // ─── Design tokens ────────────────────────────────────────────────────────
@@ -25,15 +24,7 @@ const RED_S    = "#E05252";
 const AMBER    = "#F5A623";
 const INFO     = "#3B82F6";
 
-const ESTADO_CONFIG: Record<string, { label: string; color: string }> = {
-  activo:     { label: "Activo",      color: GREEN },
-  en_tramite: { label: "En Trámite",  color: AMBER },
-  finalizado: { label: "Finalizado",  color: INFO  },
-  archivado:  { label: "Archivado",   color: TEXT3 },
-};
-
-const FILTERS = ["todos", "activo", "en_tramite", "finalizado", "archivado"] as const;
-type FilterKey = typeof FILTERS[number];
+const LIMIT = 10;
 
 function formatDate(date: Date | string | null | undefined): string {
   if (!date) return "";
@@ -42,97 +33,199 @@ function formatDate(date: Date | string | null | undefined): string {
   });
 }
 
-// ─── Proceso Card ─────────────────────────────────────────────────────────
-function ProcesoCard({ item, index }: { item: ProcesoDTO; index: number }) {
+// ─── Proceso Card — idéntico al de FirmCasesScreen ────────────────────────
+function ProcesoCard({ item, index, pageOffset = 0 }: {
+  item: ProcesoDTO;
+  index: number;
+  pageOffset?: number;
+}) {
   const anim = useRef(new Animated.Value(0)).current;
-  const estadoCodigo = item.estado?.codigo || "archivado";
-  const config = ESTADO_CONFIG[estadoCodigo] ?? { label: estadoCodigo, color: TEXT3 };
-  const estadoColor = item.estado?.color ?? config.color;
+  const estadoColor = item.estado?.color ?? TEXT3;
 
   useEffect(() => {
+    const relativeIndex = index - pageOffset;
     Animated.timing(anim, {
-      toValue: 1, duration: 280,
-      delay: Math.min(index * 40, 300),
+      toValue: 1, duration: 300,
+      delay: Math.min(relativeIndex * 45, 200),
       useNativeDriver: true,
     }).start();
   }, []);
 
+  const ubicacion = [
+    item.clienteMunicipio?.nombre,
+    item.clienteDepartamento?.nombre,
+  ].filter(Boolean).join(", ");
+
   return (
     <Animated.View style={{
       opacity: anim,
-      transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+      transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
     }}>
       <Pressable
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         onPress={() => router.push({ pathname: "/case/[id]", params: { id: item.id } })}
       >
-        {/* Accent strip */}
         <View style={[styles.cardAccent, { backgroundColor: estadoColor }]} />
 
         <View style={styles.cardBody}>
-          {/* Header */}
+
+          {/* ── Top: radicado + tipo + estado badge ── */}
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleGroup}>
-              <Text style={styles.radicado} numberOfLines={1}>{item.radicado}</Text>
+              <Text style={styles.cardRadicado} numberOfLines={1}>{item.radicado}</Text>
               {item.tipoProceso?.nombre && (
-                <Text style={styles.tipoProceso} numberOfLines={1}>{item.tipoProceso.nombre}</Text>
+                <Text style={styles.cardTipo} numberOfLines={1}>{item.tipoProceso.nombre}</Text>
               )}
             </View>
             <View style={[styles.estadoBadge, { backgroundColor: estadoColor + "1A" }]}>
               <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
               <Text style={[styles.estadoText, { color: estadoColor }]}>
-                {item.estado?.nombre ?? config.label}
+                {item.estado?.nombre ?? "—"}
               </Text>
             </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.cardDivider} />
 
-          {/* Footer */}
+          {/* ── Footer: cliente, juzgado, responsable ── */}
           <View style={styles.cardFooter}>
             <View style={styles.footerItem}>
               <View style={[styles.footerIconWrap, { backgroundColor: TEAL + "15" }]}>
-                <Ionicons name="person-outline" size={11} color={TEAL} />
+                <Ionicons
+                  name={item.tipoCliente === "empresa" ? "business-outline" : "person-outline"}
+                  size={11}
+                  color={TEAL}
+                />
               </View>
               <Text style={styles.footerText} numberOfLines={1}>
-                {item.clienteNombre || item.cliente?.nombre || "Sin cliente"}
+                {item.clienteNombre || "Sin cliente"}
+                {item.tipoCliente ? (
+                  <Text style={styles.footerTextMuted}> · {item.tipoCliente}</Text>
+                ) : null}
               </Text>
             </View>
+
             <View style={styles.footerItem}>
               <View style={[styles.footerIconWrap, { backgroundColor: AMBER + "15" }]}>
-                <Ionicons name="business-outline" size={11} color={AMBER} />
+                <Ionicons name="document-text-outline" size={11} color={AMBER} />
               </View>
               <Text style={styles.footerText} numberOfLines={1}>
                 {item.juzgado || "—"}
               </Text>
             </View>
+
+            <View style={styles.footerItem}>
+              <View style={[styles.footerIconWrap, {
+                backgroundColor: (item.responsable ? GREEN : RED_S) + "15"
+              }]}>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={11}
+                  color={item.responsable ? GREEN : RED_S}
+                />
+              </View>
+              <Text
+                style={[styles.footerText, !item.responsable && { color: RED_S }]}
+                numberOfLines={1}
+              >
+                {item.responsable
+                  ? `${item.responsable.lawyer?.persona?.nombre} ${item.responsable.lawyer?.persona?.apellido}`
+                  : "Sin responsable"}
+              </Text>
+            </View>
           </View>
 
-          {/* Tareas row */}
+          {/* ── Info extra: documento, teléfono, ubicación (solo persona natural) ── */}
+          {item.tipoCliente === "natural" && (
+            <View style={styles.extraRow}>
+              {item.clienteDocumento && (
+                <View style={styles.extraItem}>
+                  <Ionicons name="card-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>CC {item.clienteDocumento}</Text>
+                </View>
+              )}
+              {item.clienteTelefono && (
+                <View style={styles.extraItem}>
+                  <Ionicons name="call-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>{item.clienteTelefono}</Text>
+                </View>
+              )}
+              {ubicacion.length > 0 && (
+                <View style={styles.extraItem}>
+                  <Ionicons name="location-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>{ubicacion}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ── Representante legal (solo empresa) ── */}
+          {item.representanteLegal && (
+            <View style={styles.repBox}>
+              <Text style={styles.repLabel}>Rep. legal</Text>
+              <View style={styles.repRow}>
+                <View style={styles.extraItem}>
+                  <Ionicons name="person-outline" size={11} color={TEXT3} />
+                  <Text style={styles.extraText}>
+                    {item.representanteLegal.nombre} {item.representanteLegal.apellido}
+                    {item.representanteLegal.cargo
+                      ? <Text style={styles.footerTextMuted}> · {item.representanteLegal.cargo}</Text>
+                      : null}
+                  </Text>
+                </View>
+                {item.representanteLegal.email && (
+                  <View style={styles.extraItem}>
+                    <Ionicons name="mail-outline" size={11} color={TEXT3} />
+                    <Text style={styles.extraText} numberOfLines={1}>
+                      {item.representanteLegal.email}
+                    </Text>
+                  </View>
+                )}
+                {item.representanteLegal.telefono && (
+                  <View style={styles.extraItem}>
+                    <Ionicons name="call-outline" size={11} color={TEXT3} />
+                    <Text style={styles.extraText}>{item.representanteLegal.telefono}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* ── Tareas ── */}
           {item.tareasConteo && item.tareasConteo.total > 0 && (
             <View style={styles.tareasRow}>
               <Ionicons name="checkmark-circle-outline" size={11} color={TEXT3} />
               <Text style={styles.tareasTotal}>{item.tareasConteo.total} tareas</Text>
               {item.tareasConteo.pendientes > 0 && (
                 <View style={[styles.tareasPill, { backgroundColor: AMBER + "20" }]}>
-                  <Text style={[styles.tareasPillTxt, { color: AMBER }]}>{item.tareasConteo.pendientes} pend.</Text>
+                  <Text style={[styles.tareasPillTxt, { color: AMBER }]}>
+                    {item.tareasConteo.pendientes} pend.
+                  </Text>
                 </View>
               )}
               {item.tareasConteo.en_progreso > 0 && (
                 <View style={[styles.tareasPill, { backgroundColor: TEAL + "20" }]}>
-                  <Text style={[styles.tareasPillTxt, { color: TEAL }]}>{item.tareasConteo.en_progreso} prog.</Text>
+                  <Text style={[styles.tareasPillTxt, { color: TEAL }]}>
+                    {item.tareasConteo.en_progreso} prog.
+                  </Text>
                 </View>
               )}
               {item.tareasConteo.completadas > 0 && (
                 <View style={[styles.tareasPill, { backgroundColor: GREEN + "20" }]}>
-                  <Text style={[styles.tareasPillTxt, { color: GREEN }]}>{item.tareasConteo.completadas} listas</Text>
+                  <Text style={[styles.tareasPillTxt, { color: GREEN }]}>
+                    {item.tareasConteo.completadas} listas
+                  </Text>
                 </View>
               )}
             </View>
           )}
+
+          {/* ── Fecha creación ── */}
+          <Text style={styles.cardFecha}>Creado: {formatDate(item.fechaCreacion)}</Text>
+
         </View>
 
-        <Ionicons name="chevron-forward" size={14} color={TEXT3} style={{ marginRight: 4, flexShrink: 0 }} />
+        <Ionicons name="chevron-forward" size={14} color={TEXT3} style={{ flexShrink: 0, marginRight: 4 }} />
       </Pressable>
     </Animated.View>
   );
@@ -143,33 +236,46 @@ export default function CasesScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
 
-  const [procesos,      setProcesos]      = useState<ProcesoDTO[]>([]);
-  const [total,         setTotal]         = useState(0);
-  const [search,        setSearch]        = useState("");
-  const [filter,        setFilter]        = useState<FilterKey>("todos");
-  const [refreshing,    setRefreshing]    = useState(false);
-  const [hasMore,       setHasMore]       = useState(true);
-  const [isLoading,     setIsLoading]     = useState(false);
+  const [procesos, setProcesos]         = useState<ProcesoDTO[]>([]);
+  const [estados, setEstados]           = useState<EstadoProceso[]>([]);
+  const [total, setTotal]               = useState(0);
+  const [search, setSearch]             = useState("");
+  const [selectedEstado, setSelectedEstado] = useState<string | null>(null);
+  const [hasResponsable, setHasResponsable] = useState<boolean | null>(null);
+  const [refreshing, setRefreshing]     = useState(false);
+  const [isLoading, setIsLoading]       = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [hasMore, setHasMore]           = useState(true);
+  const [loadingMore, setLoadingMore]   = useState(false);
 
   const isLoadingRef = useRef(false);
   const offsetRef    = useRef(0);
-  const LIMIT        = 10;
+  const searchTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadProcesos = useCallback(async (reset = false) => {
+  const loadProcesos = useCallback(async (
+    reset = false,
+    searchTerm?: string,
+    estadoCodigo?: string | null,
+    responsableFilter?: boolean | null,
+    isMore = false,
+  ) => {
     if (!user || isLoadingRef.current) return;
-    if (!reset && !hasMore) return;
+    if (!reset && !isMore && !hasMore) return;
 
     isLoadingRef.current = true;
-    setIsLoading(true);
+    if (isMore) setLoadingMore(true);
+    else setIsLoading(true);
 
     try {
       const offset = reset ? 0 : offsetRef.current;
       const result = await getProcesos(LIMIT, offset, {
-        estadoCodigo: filter !== "todos" ? filter : undefined,
-        search: debouncedSearch || undefined,
+        search: searchTerm || undefined,
+        estadoCodigo: estadoCodigo || undefined,
+        hasResponsable: responsableFilter !== null && responsableFilter !== undefined
+          ? responsableFilter
+          : undefined,
       });
+
       const data = result.data as ProcesoDTO[];
       if (reset) {
         setProcesos(data);
@@ -184,40 +290,71 @@ export default function CasesScreen() {
       console.error(e);
     } finally {
       setIsLoading(false);
+      setLoadingMore(false);
       isLoadingRef.current = false;
       setIsInitialLoad(false);
     }
-  }, [user, debouncedSearch, filter, hasMore]);
+  }, [user, hasMore]);
 
+  // Carga inicial
   useFocusEffect(useCallback(() => {
-    if (user && procesos.length === 0) loadProcesos(true);
-  }, [user, procesos.length]));
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 400);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  useEffect(() => {
-    if (user) {
-      offsetRef.current = 0;
-      setHasMore(true);
-      loadProcesos(true);
+    if (user && procesos.length === 0) {
+      getEstadosProceso().then(setEstados).catch(() => {});
+      loadProcesos(true, search, selectedEstado, hasResponsable);
     }
-  }, [filter, debouncedSearch, user]);
+  }, [user]));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadProcesos(true);
+    offsetRef.current = 0;
+    setHasMore(true);
+    await loadProcesos(true, search, selectedEstado, hasResponsable);
     setRefreshing(false);
   };
 
-  // Stats por estado
-  const statCounts = {
-    activo:     procesos.filter(p => p.estado?.codigo === "activo").length,
-    en_tramite: procesos.filter(p => p.estado?.codigo === "en_tramite").length,
-    finalizado: procesos.filter(p => p.estado?.codigo === "finalizado").length,
+  const handleLoadMore = () => {
+    if (loadingMore || !hasMore) return;
+    loadProcesos(false, search, selectedEstado, hasResponsable, true);
   };
+
+  const handleSearch = (text: string) => {
+    setSearch(text);
+    offsetRef.current = 0;
+    setHasMore(true);
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      loadProcesos(true, text, selectedEstado, hasResponsable);
+    }, 400);
+  };
+
+  const handleEstadoFilter = (codigo: string | null) => {
+    setSelectedEstado(codigo);
+    offsetRef.current = 0;
+    setHasMore(true);
+    loadProcesos(true, search, codigo, hasResponsable);
+  };
+
+  const handleResponsableFilter = (value: boolean | null) => {
+    setHasResponsable(value);
+    offsetRef.current = 0;
+    setHasMore(true);
+    loadProcesos(true, search, selectedEstado, value);
+  };
+
+  // Stats por estado (igual que firma)
+  const statsByEstado = estados.slice(0, 3).map(e => ({
+    label: e.nombre,
+    count: procesos.filter(p => p.estado?.codigo === e.codigo).length,
+    color: e.color ?? TEXT3,
+  }));
+
+  if (isInitialLoad && isLoading) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }, styles.centered]}>
+        <ActivityIndicator size="large" color={TEAL} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -238,27 +375,27 @@ export default function CasesScreen() {
         </Pressable>
       </View>
 
-      {/* ── Stats bar ── */}
+      {/* ── Stats bar dinámica (mismo patrón que firma) ── */}
       <View style={styles.statsBar}>
-        <Pressable style={styles.statItem} onPress={() => setFilter("activo")}>
-          <Text style={[styles.statNum, { color: GREEN }]}>{statCounts.activo}</Text>
-          <Text style={styles.statLbl}>Activos</Text>
-        </Pressable>
-        <View style={styles.statDivider} />
-        <Pressable style={styles.statItem} onPress={() => setFilter("en_tramite")}>
-          <Text style={[styles.statNum, { color: AMBER }]}>{statCounts.en_tramite}</Text>
-          <Text style={styles.statLbl}>En Trámite</Text>
-        </Pressable>
-        <View style={styles.statDivider} />
-        <Pressable style={styles.statItem} onPress={() => setFilter("finalizado")}>
-          <Text style={[styles.statNum, { color: INFO }]}>{statCounts.finalizado}</Text>
-          <Text style={styles.statLbl}>Finalizados</Text>
-        </Pressable>
-        <View style={styles.statDivider} />
-        <Pressable style={styles.statItem} onPress={() => setFilter("todos")}>
+        <View style={styles.statItem}>
           <Text style={styles.statNum}>{total}</Text>
           <Text style={styles.statLbl}>Total</Text>
-        </Pressable>
+        </View>
+        <View style={styles.statDivider} />
+        {statsByEstado.map((s, i) => (
+          <React.Fragment key={s.label}>
+            <Pressable
+              style={styles.statItem}
+              onPress={() => handleEstadoFilter(
+                selectedEstado === estados[i]?.codigo ? null : estados[i]?.codigo
+              )}
+            >
+              <Text style={[styles.statNum, { color: s.color }]}>{s.count}</Text>
+              <Text style={styles.statLbl}>{s.label}</Text>
+            </Pressable>
+            {i < statsByEstado.length - 1 && <View style={styles.statDivider} />}
+          </React.Fragment>
+        ))}
       </View>
 
       {/* ── Body ── */}
@@ -269,41 +406,81 @@ export default function CasesScreen() {
           <Ionicons name="search-outline" size={17} color={TEXT3} />
           <TextInput
             style={styles.searchInput}
+            value={search}
+            onChangeText={handleSearch}
             placeholder="Buscar por radicado, cliente..."
             placeholderTextColor={TEXT3}
-            value={search}
-            onChangeText={setSearch}
             returnKeyType="search"
           />
           {search.length > 0 && (
-            <Pressable onPress={() => setSearch("")} hitSlop={8}>
+            <Pressable onPress={() => handleSearch("")} hitSlop={8}>
               <Ionicons name="close-circle" size={17} color={TEXT3} />
             </Pressable>
           )}
         </View>
 
-        {/* Filter chips */}
+        {/* Chips de estado (dinámicos desde API) */}
+        {estados.length > 0 && (
+          <View style={styles.chipsWrap}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Pressable
+                style={[styles.chip, selectedEstado === null && styles.chipActive]}
+                onPress={() => handleEstadoFilter(null)}
+              >
+                <Text style={[styles.chipText, selectedEstado === null && styles.chipTextActive]}>
+                  Todos
+                </Text>
+              </Pressable>
+              {estados.map(e => {
+                const active = selectedEstado === e.codigo;
+                return (
+                  <Pressable
+                    key={e.id}
+                    style={[
+                      styles.chip,
+                      active && { backgroundColor: (e.color ?? TEAL) + "20", borderColor: e.color ?? TEAL },
+                    ]}
+                    onPress={() => handleEstadoFilter(active ? null : e.codigo)}
+                  >
+                    <View style={[styles.chipDot, { backgroundColor: e.color ?? TEXT3 }]} />
+                    <Text style={[styles.chipText, active && { color: e.color ?? TEAL, fontFamily: "Inter_600SemiBold" }]}>
+                      {e.nombre}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Chips de responsable */}
         <View style={styles.chipsWrap}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-            {FILTERS.map(f => {
-              const active = filter === f;
-              const config = ESTADO_CONFIG[f];
-              const color  = config?.color ?? TEAL;
-              return (
-                <Pressable
-                  key={f}
-                  style={[styles.chip, active && { backgroundColor: color + "20", borderColor: color }]}
-                  onPress={() => setFilter(f)}
-                >
-                  {f !== "todos" && (
-                    <View style={[styles.chipDot, { backgroundColor: color }]} />
-                  )}
-                  <Text style={[styles.chipText, active && { color, fontFamily: "Inter_600SemiBold" }]}>
-                    {f === "todos" ? "Todos" : config?.label ?? f}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            <Pressable
+              style={[styles.chip, hasResponsable === null && styles.chipActive]}
+              onPress={() => handleResponsableFilter(null)}
+            >
+              <Ionicons name="people-outline" size={14} color={hasResponsable === null ? TEAL : TEXT2} />
+              <Text style={[styles.chipText, hasResponsable === null && styles.chipTextActive]}>Todos</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, hasResponsable === true && { backgroundColor: GREEN + "20", borderColor: GREEN }]}
+              onPress={() => handleResponsableFilter(hasResponsable === true ? null : true)}
+            >
+              <Ionicons name="person-outline" size={14} color={hasResponsable === true ? GREEN : TEXT2} />
+              <Text style={[styles.chipText, hasResponsable === true && { color: GREEN, fontFamily: "Inter_600SemiBold" }]}>
+                Con responsable
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.chip, hasResponsable === false && { backgroundColor: AMBER + "20", borderColor: AMBER }]}
+              onPress={() => handleResponsableFilter(hasResponsable === false ? null : false)}
+            >
+              <Ionicons name="person-add-outline" size={14} color={hasResponsable === false ? AMBER : TEXT2} />
+              <Text style={[styles.chipText, hasResponsable === false && { color: AMBER, fontFamily: "Inter_600SemiBold" }]}>
+                Sin responsable
+              </Text>
+            </Pressable>
           </ScrollView>
         </View>
 
@@ -311,55 +488,69 @@ export default function CasesScreen() {
         {procesos.length > 0 && (
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>
-              {filter === "todos" ? "Todos los Procesos" : ESTADO_CONFIG[filter]?.label ?? filter}
+              {selectedEstado
+                ? estados.find(e => e.codigo === selectedEstado)?.nombre ?? "Procesos"
+                : "Todos los Procesos"}
             </Text>
             <View style={styles.sectionLine} />
           </View>
         )}
 
-        {/* List */}
+        {/* Lista */}
         {isLoading && isInitialLoad ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={TEAL} />
           </View>
         ) : (
-          <FlatList
-            data={procesos}
-            keyExtractor={item => item.id}
-            renderItem={({ item, index }) => <ProcesoCard item={item} index={index} />}
-            contentContainerStyle={styles.list}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
-            }
-            onEndReached={() => { if (!isLoading && hasMore) loadProcesos(false); }}
-            onEndReachedThreshold={0.3}
-            ListFooterComponent={
-              isLoading && !isInitialLoad
-                ? <ActivityIndicator size="small" color={TEAL} style={{ paddingVertical: 20 }} />
-                : null
-            }
-            ListEmptyComponent={
-              <View style={styles.empty}>
-                <View style={styles.emptyIcon}>
-                  <Ionicons name="folder-open-outline" size={36} color={TEXT3} />
+          <>
+            <FlatList
+              data={procesos}
+              keyExtractor={item => item.id.toString()}
+              renderItem={({ item, index }) => (
+                <ProcesoCard
+                  item={item}
+                  index={index}
+                  pageOffset={procesos.length - (procesos.length % LIMIT || LIMIT)}
+                />
+              )}
+              contentContainerStyle={styles.list}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
+              }
+              onEndReached={handleLoadMore}
+              onEndReachedThreshold={0.3}
+              ListFooterComponent={<View style={{ height: 120 }} />}
+              ListEmptyComponent={
+                <View style={styles.empty}>
+                  <View style={styles.emptyIcon}>
+                    <Ionicons name="folder-open-outline" size={36} color={TEXT3} />
+                  </View>
+                  <Text style={styles.emptyTitle}>
+                    {search || selectedEstado ? "Sin resultados" : "Sin procesos"}
+                  </Text>
+                  <Text style={styles.emptySub}>
+                    {search || selectedEstado
+                      ? "Intenta con otros filtros"
+                      : "Crea tu primer proceso para comenzar"}
+                  </Text>
+                  {!search && !selectedEstado && (
+                    <Pressable style={styles.emptyBtn} onPress={() => router.push("/case/new")}>
+                      <Text style={styles.emptyBtnText}>Nuevo Proceso</Text>
+                    </Pressable>
+                  )}
                 </View>
-                <Text style={styles.emptyTitle}>
-                  {search || filter !== "todos" ? "Sin resultados" : "Sin procesos"}
-                </Text>
-                <Text style={styles.emptySub}>
-                  {search || filter !== "todos"
-                    ? "Intenta con otros filtros"
-                    : "Crea tu primer proceso para comenzar"}
-                </Text>
-                {!search && filter === "todos" && (
-                  <Pressable style={styles.emptyBtn} onPress={() => router.push("/case/new")}>
-                    <Text style={styles.emptyBtnText}>Nuevo Proceso</Text>
-                  </Pressable>
-                )}
+              }
+            />
+
+            {/* Loading more — fuera del FlatList */}
+            {loadingMore && (
+              <View style={styles.loadingMoreBar}>
+                <ActivityIndicator size="small" color={TEAL} />
+                <Text style={styles.loadingMoreText}>Cargando más procesos...</Text>
               </View>
-            }
-          />
+            )}
+          </>
         )}
       </View>
     </View>
@@ -368,8 +559,8 @@ export default function CasesScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen:   { flex: 1, backgroundColor: NAVY },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
+  screen:  { flex: 1, backgroundColor: NAVY },
+  centered:{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
 
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
@@ -406,33 +597,19 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
-  searchInput: {
-    flex: 1, paddingVertical: 12,
-    fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT,
-  },
-
-  actionCard: {
-    flexDirection: "row", alignItems: "center",
-    backgroundColor: WHITE, borderRadius: 14,
-    marginHorizontal: 16, padding: 14, gap: 12, marginBottom: 14,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
-  },
-  actionIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
-  },
-  actionText: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT },
 
   chipsWrap: { borderBottomWidth: 1, borderBottomColor: "#E8ECF0", marginBottom: 4 },
-  chips: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  chips:     { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
   chip: {
     flexDirection: "row", alignItems: "center", gap: 5,
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
     backgroundColor: WHITE, borderWidth: 1, borderColor: "#E0E5EA",
   },
-  chipDot:  { width: 6, height: 6, borderRadius: 3 },
-  chipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  chipActive:     { backgroundColor: TEAL + "12", borderColor: TEAL },
+  chipDot:        { width: 6, height: 6, borderRadius: 3 },
+  chipText:       { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  chipTextActive: { color: TEAL, fontFamily: "Inter_600SemiBold" },
 
   sectionRow: {
     flexDirection: "row", alignItems: "center",
@@ -443,69 +620,60 @@ const styles = StyleSheet.create({
 
   list: { paddingHorizontal: 16, paddingBottom: 100, gap: 10 },
 
+  // Card — idéntico a FirmCasesScreen
   card: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: WHITE, borderRadius: 14,
-    overflow: "hidden",
+    backgroundColor: WHITE, borderRadius: 14, overflow: "hidden",
     shadowColor: "#000", shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05, shadowRadius: 4, elevation: 1,
   },
-  cardPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-  cardAccent:  { width: 4, alignSelf: "stretch", flexShrink: 0 },
-  cardBody:    { flex: 1, padding: 14 },
-  cardHeader: {
-    flexDirection: "row", justifyContent: "space-between",
-    alignItems: "flex-start", marginBottom: 10,
-  },
+  cardPressed:    { opacity: 0.9, transform: [{ scale: 0.99 }] },
+  cardAccent:     { width: 4, alignSelf: "stretch", flexShrink: 0 },
+  cardBody:       { flex: 1, padding: 14 },
+  cardHeader:     { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 },
   cardTitleGroup: { flex: 1, marginRight: 10 },
-  radicado:       { fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 3 },
-  tipoProceso:    { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
-  estadoBadge: {
-    flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexShrink: 0,
-  },
-  estadoDot:  { width: 6, height: 6, borderRadius: 3 },
-  estadoText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  divider:    { height: 1, backgroundColor: "#F0F2F4", marginBottom: 10 },
-  cardFooter: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  footerItem: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0 },
-  footerIconWrap: {
-    width: 20, height: 20, borderRadius: 6,
-    alignItems: "center", justifyContent: "center",
-  },
-  footerText:  { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, flexShrink: 1 },
-  footerRight: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
-  footerDate:  { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3 },
+  cardRadicado:   { fontSize: 15, fontFamily: "Inter_700Bold", color: TEXT, marginBottom: 3 },
+  cardTipo:       { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
+  estadoBadge:    { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexShrink: 0 },
+  estadoDot:      { width: 6, height: 6, borderRadius: 3 },
+  estadoText:     { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  cardDivider:    { height: 1, backgroundColor: "#F0F2F4", marginBottom: 10 },
+  cardFooter:     { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  footerItem:     { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0 },
+  footerIconWrap: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  footerText:     { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, flexShrink: 1 },
+  footerTextMuted:{ fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3 },
 
-  tareasRow: {
-    flexDirection: "row", alignItems: "center", gap: 6,
-    marginTop: 8, flexWrap: "wrap",
-  },
-  tareasTotal: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3, marginLeft: 2 },
-  tareasPill: {
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10,
-  },
-  tareasPillTxt: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  extraRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  extraItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  extraText: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3 },
 
-  cardActions: { flexDirection: "row", alignItems: "center", gap: 6, marginRight: 10 },
-  chatBtn: {
-    width: 30, height: 30, borderRadius: 15,
-    backgroundColor: TEAL + "15",
-    alignItems: "center", justifyContent: "center",
-  },
+  repBox:  { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#F0F2F4" },
+  repLabel:{ fontSize: 10, fontFamily: "Inter_600SemiBold", color: TEXT3, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5 },
+  repRow:  { flexDirection: "row", flexWrap: "wrap", gap: 8 },
 
-  empty:     { alignItems: "center", paddingTop: 60, gap: 8 },
-  emptyIcon: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: WHITE, alignItems: "center", justifyContent: "center", marginBottom: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
-  },
+  tareasRow:    { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" },
+  tareasTotal:  { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3, marginLeft: 2 },
+  tareasPill:   { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
+  tareasPillTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
+
+  cardFecha: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3, marginTop: 8 },
+
+  empty:    { alignItems: "center", paddingTop: 60, gap: 8 },
+  emptyIcon:{ width: 72, height: 72, borderRadius: 20, backgroundColor: WHITE, alignItems: "center", justifyContent: "center", marginBottom: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 2 },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
   emptySub:   { fontSize: 13, color: TEXT3, fontFamily: "Inter_400Regular", textAlign: "center" },
-  emptyBtn: {
-    marginTop: 16, backgroundColor: NAVY,
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24,
-  },
+  emptyBtn:   { marginTop: 16, backgroundColor: NAVY, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
   emptyBtnText: { color: WHITE, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+
+  loadingMoreBar: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: WHITE, paddingVertical: 14,
+    alignItems: "center", justifyContent: "center",
+    flexDirection: "row", gap: 8,
+    borderTopWidth: 1, borderTopColor: "#E8ECF0",
+    shadowColor: "#000", shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06, shadowRadius: 4, elevation: 4,
+  },
+  loadingMoreText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_400Regular" },
 });

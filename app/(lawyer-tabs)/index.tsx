@@ -11,6 +11,7 @@ import { getProcesos } from '@/lib/services/procesoService';
 import { type ProcesoDTO } from '@/shared/schema';
 import { AbogadoUser, useAuth } from "@/lib/auth-context";
 import { useInvitations } from "@/lib/invitations-context";
+import { useNotifications } from "@/lib/notifications-context";
 
 
 
@@ -21,6 +22,7 @@ export default function DashboardScreen() {
   const [recentCases, setRecentCases] = useState<ProcesoDTO[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const { pendingCount, refreshCount } = useInvitations();
+  const { unreadCount: unreadNotifCount } = useNotifications();
 
   const loadData = async () => {
     const [s, procesos] = await Promise.all([
@@ -74,9 +76,24 @@ export default function DashboardScreen() {
                 {user?.profile && 'specialization' in user.profile ? user.profile.specialization : ''}
               </Text>
             </View>
-            <Pressable onPress={() => router.push("/profile/lawyer")} style={styles.avatarCircle}>
-              <Ionicons name="person" size={24} color={Colors.primary} />
-            </Pressable>
+            <View style={styles.headerActions}>
+              <Pressable
+                style={styles.headerIconBtn}
+                onPress={() => router.push("/lawyer-componts/lawyer-notifications")}
+              >
+                <Ionicons name="notifications-outline" size={22} color="#fff" />
+                {unreadNotifCount > 0 && (
+                  <View style={styles.notifBadge}>
+                    <Text style={styles.notifBadgeText}>
+                      {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
+                    </Text>
+                  </View>
+                )}
+              </Pressable>
+              <Pressable onPress={() => router.push("/profile/lawyer")} style={styles.avatarCircle}>
+                <Ionicons name="person" size={24} color={Colors.primary} />
+              </Pressable>
+            </View>
           </View>
         </LinearGradient>
 
@@ -109,7 +126,7 @@ export default function DashboardScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.actionBtn, styles.actionBtnInvitation, pressed && styles.actionBtnPressed]}
-              onPress={() => router.push("/(lawyer-tabs)/invitations")}
+              onPress={() => router.push("/lawyer-componts/lawyer-invitations")}
             >
               <View style={[styles.actionIcon, { backgroundColor: Colors.warning + "15" }]}>
                 <Ionicons name="mail" size={20} color={Colors.warning} />
@@ -120,7 +137,7 @@ export default function DashboardScreen() {
               </View>
             </Pressable>
           </View>
-          
+
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Procesos Recientes</Text>
 
@@ -133,36 +150,181 @@ export default function DashboardScreen() {
               <Text style={styles.emptySubtitle}>Crea tu primer proceso para comenzar</Text>
             </View>
           ) : (
-            recentCases.map((caso) => (
-              <Pressable
-                key={caso.id}
-                style={({ pressed }) => [styles.caseCard, pressed && styles.caseCardPressed]}
-                onPress={() => router.push({ pathname: "/case/[id]", params: { id: caso.id } })}
-              >
-                <View style={styles.caseCardHeader}>
-                  <View style={styles.caseInfo}>
-                    <Text style={styles.caseRadicado}>{caso.radicado}</Text>
-                    <Text style={styles.caseTipo}>{caso.tipoProceso?.nombre}</Text>
-                  </View>
-                  <View style={[styles.estadoBadge, { backgroundColor: (caso.estado?.color ?? Colors.textTertiary) + "1A" }]}>
-                    <View style={[styles.estadoDot, { backgroundColor: caso.estado?.color || Colors.textTertiary }]} />
-                    <Text style={[styles.estadoText, { color: caso.estado?.color || Colors.textTertiary }]}>
-                      {caso.estado?.nombre}
+            recentCases.map((caso, index) => {
+              const estadoColor = caso.estado?.color ?? Colors.textTertiary;
+              const ubicacion = [
+                caso.clienteMunicipio?.nombre,
+                caso.clienteDepartamento?.nombre,
+              ].filter(Boolean).join(", ");
+
+              return (
+                <Pressable
+                  key={caso.id}
+                  style={({ pressed }) => [styles.caseCard, pressed && styles.caseCardPressed]}
+                  onPress={() => router.push({ pathname: "/case/[id]", params: { id: caso.id } })}
+                >
+                  {/* Acento lateral de color */}
+                  <View style={[styles.caseAccent, { backgroundColor: estadoColor }]} />
+
+                  <View style={styles.caseCardInner}>
+                    {/* Header: radicado + tipo + badge estado */}
+                    <View style={styles.caseCardHeader}>
+                      <View style={styles.caseInfo}>
+                        <Text style={styles.caseRadicado} numberOfLines={1}>{caso.radicado}</Text>
+                        {caso.tipoProceso?.nombre && (
+                          <Text style={styles.caseTipo} numberOfLines={1}>{caso.tipoProceso.nombre}</Text>
+                        )}
+                      </View>
+                      <View style={[styles.estadoBadge, { backgroundColor: estadoColor + "1A" }]}>
+                        <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
+                        <Text style={[styles.estadoText, { color: estadoColor }]}>
+                          {caso.estado?.nombre ?? "—"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.caseDivider} />
+
+                    {/* Footer: cliente, juzgado, responsable */}
+                    <View style={styles.caseCardFooter}>
+                      <View style={styles.clienteRow}>
+                        <View style={[styles.caseIconWrap, { backgroundColor: Colors.primary + "15" }]}>
+                          <Ionicons
+                            name={caso.tipoCliente === "empresa" ? "business-outline" : "person-outline"}
+                            size={11}
+                            color={Colors.primary}
+                          />
+                        </View>
+                        <Text style={styles.clienteText} numberOfLines={1}>
+                          {caso.clienteNombre || "Sin cliente"}
+                          {caso.tipoCliente
+                            ? <Text style={styles.clienteTextMuted}> · {caso.tipoCliente}</Text>
+                            : null}
+                        </Text>
+                      </View>
+
+                      <View style={styles.clienteRow}>
+                        <View style={[styles.caseIconWrap, { backgroundColor: Colors.warning + "15" }]}>
+                          <Ionicons name="document-text-outline" size={11} color={Colors.warning} />
+                        </View>
+                        <Text style={styles.clienteText} numberOfLines={1}>
+                          {caso.juzgado || "—"}
+                        </Text>
+                      </View>
+
+                      <View style={styles.clienteRow}>
+                        <View style={[styles.caseIconWrap, {
+                          backgroundColor: (caso.responsable ? Colors.success : Colors.danger) + "15"
+                        }]}>
+                          <Ionicons
+                            name="person-circle-outline"
+                            size={11}
+                            color={caso.responsable ? Colors.success : Colors.danger}
+                          />
+                        </View>
+                        <Text style={[
+                          styles.clienteText,
+                          !caso.responsable && { color: Colors.danger }
+                        ]} numberOfLines={1}>
+                          {caso.responsable
+                            ? `${caso.responsable.lawyer?.persona?.nombre} ${caso.responsable.lawyer?.persona?.apellido}`
+                            : "Sin responsable"}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Info extra: solo persona natural */}
+                    {caso.tipoCliente === "natural" && (
+                      <View style={styles.caseExtraRow}>
+                        {caso.clienteDocumento && (
+                          <View style={styles.caseExtraItem}>
+                            <Ionicons name="card-outline" size={11} color={Colors.textTertiary} />
+                            <Text style={styles.caseExtraText}>CC {caso.clienteDocumento}</Text>
+                          </View>
+                        )}
+                        {caso.clienteTelefono && (
+                          <View style={styles.caseExtraItem}>
+                            <Ionicons name="call-outline" size={11} color={Colors.textTertiary} />
+                            <Text style={styles.caseExtraText}>{caso.clienteTelefono}</Text>
+                          </View>
+                        )}
+                        {ubicacion.length > 0 && (
+                          <View style={styles.caseExtraItem}>
+                            <Ionicons name="location-outline" size={11} color={Colors.textTertiary} />
+                            <Text style={styles.caseExtraText}>{ubicacion}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Representante legal: solo empresa */}
+                    {caso.representanteLegal && (
+                      <View style={styles.caseRepBox}>
+                        <Text style={styles.caseRepLabel}>Rep. legal</Text>
+                        <View style={styles.caseRepRow}>
+                          <View style={styles.caseExtraItem}>
+                            <Ionicons name="person-outline" size={11} color={Colors.textTertiary} />
+                            <Text style={styles.caseExtraText}>
+                              {caso.representanteLegal.nombre} {caso.representanteLegal.apellido}
+                              {caso.representanteLegal.cargo
+                                ? <Text style={styles.clienteTextMuted}> · {caso.representanteLegal.cargo}</Text>
+                                : null}
+                            </Text>
+                          </View>
+                          {caso.representanteLegal.email && (
+                            <View style={styles.caseExtraItem}>
+                              <Ionicons name="mail-outline" size={11} color={Colors.textTertiary} />
+                              <Text style={styles.caseExtraText} numberOfLines={1}>
+                                {caso.representanteLegal.email}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Tareas */}
+                    {caso.tareasConteo && caso.tareasConteo.total > 0 && (
+                      <View style={styles.caseTareasRow}>
+                        <Ionicons name="checkmark-circle-outline" size={11} color={Colors.textTertiary} />
+                        <Text style={styles.caseTareasTotal}>{caso.tareasConteo.total} tareas</Text>
+                        {caso.tareasConteo.pendientes > 0 && (
+                          <View style={[styles.caseTareasPill, { backgroundColor: Colors.warning + "20" }]}>
+                            <Text style={[styles.caseTareasPillTxt, { color: Colors.warning }]}>
+                              {caso.tareasConteo.pendientes} pend.
+                            </Text>
+                          </View>
+                        )}
+                        {caso.tareasConteo.en_progreso > 0 && (
+                          <View style={[styles.caseTareasPill, { backgroundColor: Colors.info + "20" }]}>
+                            <Text style={[styles.caseTareasPillTxt, { color: Colors.info }]}>
+                              {caso.tareasConteo.en_progreso} prog.
+                            </Text>
+                          </View>
+                        )}
+                        {caso.tareasConteo.completadas > 0 && (
+                          <View style={[styles.caseTareasPill, { backgroundColor: Colors.success + "20" }]}>
+                            <Text style={[styles.caseTareasPillTxt, { color: Colors.success }]}>
+                              {caso.tareasConteo.completadas} listas
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Fecha */}
+                    <Text style={styles.caseFecha}>
+                      Creado: {new Date(caso.fechaCreacion).toLocaleDateString("es-CO", {
+                        day: "2-digit", month: "short", year: "numeric"
+                      })}
                     </Text>
                   </View>
-                </View>
-                <View style={styles.caseCardFooter}>
-                  <View style={styles.clienteRow}>
-                    <Ionicons name="person-outline" size={14} color={Colors.textTertiary} />
-                    <Text style={styles.clienteText}>{caso.clienteNombre}</Text>
-                  </View>
-                  <View style={styles.clienteRow}>
-                    <Ionicons name="business-outline" size={14} color={Colors.textTertiary} />
-                    <Text style={styles.clienteText}>{caso.juzgado}</Text>
-                  </View>
-                </View>
-              </Pressable>
-            ))
+
+                  <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary}
+                    style={{ flexShrink: 0, marginRight: 4 }} />
+                </Pressable>
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -200,6 +362,38 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.6)",
     marginTop: 2,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerIconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255,255,255,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notifBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    backgroundColor: Colors.danger,
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: Colors.white,
+  },
+  notifBadgeText: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
   },
   avatarCircle: {
     width: 48,
@@ -323,73 +517,7 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
   },
-  caseCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  caseCardPressed: {
-    opacity: 0.9,
-    transform: [{ scale: 0.99 }],
-  },
-  caseCardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 12,
-  },
-  caseInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  caseRadicado: {
-    fontSize: 15,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-  },
-  caseTipo: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  estadoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-  },
-  estadoDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  estadoText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-  caseCardFooter: {
-    flexDirection: "row",
-    gap: 16,
-  },
-  clienteRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  clienteText: {
-    fontSize: 12,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
-  },
+
   actionBtnInvitation: {
     borderWidth: 1.5,
     borderColor: Colors.warning + "40",
@@ -408,4 +536,58 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: Colors.white,
   },
+  caseCard: {
+  flexDirection: "row",
+  alignItems: "center",
+  backgroundColor: Colors.white,
+  borderRadius: 16,
+  marginBottom: 12,
+  overflow: "hidden",
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.04,
+  shadowRadius: 4,
+  elevation: 1,
+},
+caseCardPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
+caseAccent:      { width: 4, alignSelf: "stretch", flexShrink: 0 },
+caseCardInner:   { flex: 1, padding: 14 },
+caseCardHeader: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "flex-start",
+  marginBottom: 10,
+},
+caseInfo:        { flex: 1, marginRight: 10 },
+caseRadicado:    { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.text },
+caseTipo:        { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
+estadoBadge: {
+  flexDirection: "row", alignItems: "center", gap: 6,
+  paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexShrink: 0,
+},
+estadoDot:  { width: 6, height: 6, borderRadius: 3 },
+estadoText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+caseDivider:{ height: 1, backgroundColor: "#F0F2F4", marginBottom: 10 },
+caseCardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+clienteRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, minWidth: 0 },
+caseIconWrap: {
+  width: 20, height: 20, borderRadius: 6,
+  alignItems: "center", justifyContent: "center",
+},
+clienteText:     { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, flexShrink: 1 },
+clienteTextMuted:{ fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
+caseExtraRow:    { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+caseExtraItem:   { flexDirection: "row", alignItems: "center", gap: 4 },
+caseExtraText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
+caseRepBox:      { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#F0F2F4" },
+caseRepLabel: {
+  fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.textTertiary,
+  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5,
+},
+caseRepRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+caseTareasRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" },
+caseTareasTotal: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginLeft: 2 },
+caseTareasPill:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
+caseTareasPillTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
+caseFecha:       { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 8 },
 });

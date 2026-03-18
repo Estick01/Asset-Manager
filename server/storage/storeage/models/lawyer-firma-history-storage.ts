@@ -4,10 +4,11 @@ import {
     lawyerFirmaHistory,
     LawyerProfile,
     lawyerProfiles,
+    personas,
     users,
     User
 } from "@/shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 
 export type LawyerFirmaHistoryEstado =
     | "activo"
@@ -76,10 +77,18 @@ export class LawyerFirmaHistoryStorage {
     // ============================
     // Obtener miembros activos de una firma
     // ============================
-    async getActiveMembersByFirmaId(firmaId: string): Promise<(LawyerFirmaHistory & { lawyer: LawyerProfile & { user?: User } })[]> {
+    async getActiveMembersByFirmaId(firmaId: string, search?: string): Promise<(LawyerFirmaHistory & { lawyer: LawyerProfile & { user?: User } })[]> {
+    const conditions: any[] = [
+        eq(lawyerFirmaHistory.firmaId, firmaId),
+        eq(lawyerFirmaHistory.estado, "activo"),
+    ];
+    if (search) {
+        const q = `%${search}%`;
+        conditions.push(sql`(LOWER(${personas.nombre}) LIKE LOWER(${q}) OR LOWER(${personas.apellido}) LIKE LOWER(${q}) OR LOWER(${users.email}) LIKE LOWER(${q}))`);
+    }
+
     const results = await this.db
         .select({
-            // LawyerFirmaHistory fields
             id: lawyerFirmaHistory.id,
             lawyerId: lawyerFirmaHistory.lawyerId,
             firmaId: lawyerFirmaHistory.firmaId,
@@ -91,26 +100,20 @@ export class LawyerFirmaHistoryStorage {
             notas: lawyerFirmaHistory.notas,
             createdAt: lawyerFirmaHistory.createdAt,
             lawyerProfileId: lawyerProfiles.id,
-            firstName: lawyerProfiles.firstName,
-            lastName: lawyerProfiles.lastName,
-            phone: lawyerProfiles.phone,
+            persona: personas,
             specialization: lawyerProfiles.specialization,
             licenseNumber: lawyerProfiles.licenseNumber,
             isIndependent: lawyerProfiles.isIndependent,
             firmId: lawyerProfiles.firmId,
             userId: lawyerProfiles.userId,
             userEmail: users.email,
-            userName: users.name,   
+            userName: users.name,
         })
         .from(lawyerFirmaHistory)
         .innerJoin(lawyerProfiles, eq(lawyerFirmaHistory.lawyerId, lawyerProfiles.id))
-        .innerJoin(users, eq(lawyerProfiles.userId, users.id)) 
-        .where(
-            and(
-                eq(lawyerFirmaHistory.firmaId, firmaId),
-                eq(lawyerFirmaHistory.estado, "activo")
-            )
-        )
+        .leftJoin(personas, eq(lawyerProfiles.personaId, personas.id))
+        .innerJoin(users, eq(lawyerProfiles.userId, users.id))
+        .where(and(...conditions))
         .orderBy(desc(lawyerFirmaHistory.fechaIngreso));
 
     return results.map((r: any) => ({
@@ -128,16 +131,13 @@ export class LawyerFirmaHistoryStorage {
             id: r.lawyerProfileId,
             userId: r.userId,
             firmId: r.firmId,
-            firstName: r.firstName,
-            lastName: r.lastName,
-            phone: r.phone ?? null,
-            address: null,
+            persona: r.persona,
             specialization: r.specialization ?? null,
             licenseNumber: r.licenseNumber ?? null,
             isIndependent: r.isIndependent,
             createdAt: r.createdAt,
             updatedAt: r.createdAt,
-            user: {                        // 👈 objeto user anidado
+            user: {                       
                 id: r.userId,
                 email: r.userEmail,
                 name: r.userName ?? null,

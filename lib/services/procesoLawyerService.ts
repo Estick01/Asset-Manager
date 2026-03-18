@@ -47,10 +47,14 @@ export async function getProcesoLawyers(
 }
 
 export async function getAbogadosByFirma(
-  firmaId: string
+  firmaId: string,
+  search?: string
 ): Promise<ServiceResult<LawyerProfileRelations[]>> {
   try {
-    const historyResponse = await apiRequest("GET", `/api/lawyer-firma-history/members`);
+    const url = search
+      ? `/api/lawyer-firma-history/members?q=${encodeURIComponent(search)}`
+      : `/api/lawyer-firma-history/members`;
+    const historyResponse = await apiRequest("GET", url);
     if (!historyResponse.ok) {
       return { data: null, error: "Error: " + historyResponse.status };
     }

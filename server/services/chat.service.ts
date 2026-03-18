@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { storage } from "../storage/storeage/database-storage";
+import { getPresignedDownloadUrl } from "./s3-storage";
 import type {
   ConversationDTO,
   ConversationType,
@@ -90,6 +91,53 @@ export class ChatService {
 
   async deleteMessage(messageId: string, userId: string): Promise<boolean> {
     return storage.chat.softDeleteMessage(messageId, userId);
+  }
+
+  /**
+   * Insert a file message after the file has already been uploaded to S3.
+   * The caller is responsible for the S3 upload; this method only writes to DB.
+   * fileKey is stored in DB but NEVER returned to the frontend.
+   */
+  async sendFileMessage(params: {
+    conversationId: string;
+    senderId: string;
+    fileKey: string;
+    fileName: string;
+    fileSize: number;
+    fileMime: string;
+    fileHash: string;
+  }): Promise<MessageDTO> {
+    const isMember = await storage.chat.isParticipant(params.conversationId, params.senderId);
+    if (!isMember) throw new Error("Forbidden");
+
+    return storage.chat.createMessage({
+      id: randomUUID(),
+      conversationId: params.conversationId,
+      senderId: params.senderId,
+      content: null,
+      type: "file",
+      fileKey: params.fileKey,
+      fileName: params.fileName,
+      fileSize: params.fileSize,
+      fileMime: params.fileMime,
+      fileHash: params.fileHash,
+    });
+  }
+
+  /**
+   * Generate a short-lived signed URL (60 s) for a file message.
+   * Validates that the requesting user is a participant before issuing the URL.
+   */
+  async getDownloadUrl(messageId: string, userId: string): Promise<string> {
+    const msg = await storage.chat.getRawMessage(messageId);
+    if (!msg || msg.type !== "file" || !msg.fileKey) {
+      throw new Error("NotFound");
+    }
+
+    const isMember = await storage.chat.isParticipant(msg.conversationId, userId);
+    if (!isMember) throw new Error("Forbidden");
+
+    return getPresignedDownloadUrl(msg.fileKey, msg.fileName ?? "archivo", 60);
   }
 }
 

@@ -1,4 +1,6 @@
 
+
+
 /**
  * Proceso Storage
  * Handles all database operations for processes (procesos)
@@ -7,146 +9,287 @@
 import { ProcesoFilter } from "@/server/services";
 import { randomUUID } from "crypto";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { clientes, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso } from "@/shared/schema";
+import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile } from "@/shared/schema";
 import { Database } from "../database-storage";
 import { alias } from 'drizzle-orm/mysql-core';
+
 
 
 export class ProcesoStorage {
   constructor(private db: Database) { }
 
   private async getActiveResponsable(procesoId: string): Promise<{
-    lawyer: typeof lawyerProfiles.$inferSelect;
+    lawyer: LawyerProfile;
     fechaInicio: Date;
     razon: string | null;
     asignadoPorNombre: string | null;
   } | null> {
+    const personasResponsable = alias(personas, 'personasResponsable');
     const result = await this.db
       .select({
         lawyer: lawyerProfiles,
+        personaId: personasResponsable.id,
+        personaNombre: personasResponsable.nombre,
+        personaApellido: personasResponsable.apellido,
+        personaTelefono: personasResponsable.telefono,
+        personaDocumento: personasResponsable.documento,
+        personaDireccion: personasResponsable.direccion,
+        personaTipoDocumentoId: personasResponsable.tipoDocumentoId,
+        personaDepartamentoId: personasResponsable.departamentoId,
+        personaMunicipioId: personasResponsable.municipioId,
         fechaInicio: procesoResponsables.fechaInicio,
         razon: procesoResponsables.razon,
         asignadoPorNombre: procesoResponsables.asignadoPorNombre,
       })
       .from(procesoResponsables)
       .innerJoin(lawyerProfiles, eq(procesoResponsables.lawyerId, lawyerProfiles.id))
+      .leftJoin(personasResponsable, eq(lawyerProfiles.personaId, personasResponsable.id))
       .where(and(
         eq(procesoResponsables.procesoId, procesoId),
         eq(procesoResponsables.activo, true)
       ))
       .limit(1);
-    return result[0] ?? null;
+
+    if (!result[0]) return null;
+    const r = result[0];
+    return {
+      lawyer: {
+        ...r.lawyer,
+        persona: r.personaId ? {
+          id: r.personaId,
+          nombre: r.personaNombre ?? '',
+          apellido: r.personaApellido ?? '',
+          telefono: r.personaTelefono ?? '',
+          documento: r.personaDocumento ?? '',
+          direccion: r.personaDireccion ?? '',
+          tipoDocumentoId: r.personaTipoDocumentoId ?? 0,
+          departamentoId: r.personaDepartamentoId ,
+          municipioId: r.personaMunicipioId,
+
+        } : null,
+      },
+      fechaInicio: r.fechaInicio,
+      razon: r.razon,
+      asignadoPorNombre: r.asignadoPorNombre,
+    };
   }
 
   async getProcesos(
-    lawyerId: string,
-    limit: number = 10,
-    offset: number = 0,
-    filter?: ProcesoFilter
-  ): Promise<{ data: ProcesoDTO[]; total: number }> {
-    // Get proceso IDs from junction table
-    const lawyerProcesoIds = await this.db
+  lawyerId: string,
+  limit: number = 10,
+  offset: number = 0,
+  filter?: ProcesoFilter
+): Promise<{ data: ProcesoDTO[]; total: number }> {
+
+  // 1. IDs de procesos del abogado (junction + responsable activo)
+  const [lawyerProcesoIds, responsableProcesoIds] = await Promise.all([
+    this.db
       .select({ procesoId: procesoLawyers.procesoId })
       .from(procesoLawyers)
-      .where(eq(procesoLawyers.lawyerId, lawyerId));
-
-    // Also get proceso IDs where the lawyer is the active responsable
-    const responsableProcesoIds = await this.db
+      .where(eq(procesoLawyers.lawyerId, lawyerId)),
+    this.db
       .select({ procesoId: procesoResponsables.procesoId })
       .from(procesoResponsables)
       .where(and(
         eq(procesoResponsables.lawyerId, lawyerId),
         eq(procesoResponsables.activo, true)
-      ));
+      )),
+  ]);
 
-    const procesoIds = [...new Set([
-      ...lawyerProcesoIds.map(p => p.procesoId),
-      ...responsableProcesoIds.map(p => p.procesoId),
-    ])];
+  const procesoIds = [...new Set([
+    ...lawyerProcesoIds.map(p => p.procesoId),
+    ...responsableProcesoIds.map(p => p.procesoId),
+  ])];
 
-    if (procesoIds.length === 0) {
-      return { data: [], total: 0 };
-    }
+  if (procesoIds.length === 0) return { data: [], total: 0 };
 
-    const conditions: any[] = [inArray(procesos.id, procesoIds)];
+  // 2. Alias — igual que getProcesosByFirma
+  const responsableLawyer    = alias(lawyerProfiles,         'responsableLawyer');
+  const responsableJoin      = alias(procesoResponsables,    'responsableJoin');
+  const personasResponsable  = alias(personas,               'personasResponsable');
+  const personasCliente      = alias(personas,               'personasCliente');
+  const deptosCliente        = alias(departamentos,          'deptosCliente');
+  const municipiosCliente    = alias(municipios,             'municipiosCliente');
+  const repLegal             = alias(representantesLegales,  'repLegal');
+  const personasRepLegal     = alias(personas,               'personasRepLegal');
 
-    if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-      conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
-    }
+  // 3. Condiciones de filtro
+  const conditions: any[] = [inArray(procesos.id, procesoIds)];
 
-    if (filter?.search) {
-      const search = `%${filter.search}%`;
-      conditions.push(
-        sql`(
+  if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
+    conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
+  }
+
+  if (filter?.search) {
+    const search = `%${filter.search}%`;
+    conditions.push(
+      sql`(
         LOWER(${procesos.radicado}) LIKE LOWER(${search}) OR
         LOWER(${procesos.juzgado}) LIKE LOWER(${search}) OR
-        LOWER(${clientes.nombre}) LIKE LOWER(${search}) OR
-        LOWER(${tiposProceso.nombre}) LIKE LOWER(${search})
+        LOWER(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido})) LIKE LOWER(${search}) OR
+        LOWER(${clientesEmpresa.razonSocial}) LIKE LOWER(${search}) OR
+        LOWER(${tiposProceso.nombre}) LIKE LOWER(${search}) OR
+        LOWER(CONCAT(${personasResponsable.nombre}, ' ', ${personasResponsable.apellido})) LIKE LOWER(${search})
       )`
-      );
-    }
-
-    // Get total
-    const [{ count }] = await this.db
-      .select({ count: sql<number>`COUNT(*)` })
-      .from(procesos)
-      .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
-      .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
-      .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
-      .where(and(...conditions));
-
-    // Get paginated data
-    const results = await this.db
-      .select({
-        id: procesos.id,
-        state: procesos.state,
-        fechaCreacion: procesos.fechaCreacion,
-        clienteId: procesos.clienteId,
-        tipoProcesoId: procesos.tipoProcesoId,
-        radicado: procesos.radicado,
-        juzgado: procesos.juzgado,
-        estadoId: procesos.estadoId,
-        descripcionEstado: procesos.descripcionEstado,
-        clienteNombre: clientes.nombre,
-        tipoProcesoNombre: tiposProceso.nombre,
-        estadoIdRel: estadosProceso.id,
-        estadoCodigo: estadosProceso.codigo,
-        estadoNombre: estadosProceso.nombre,
-        estadoColor: estadosProceso.color,
-      })
-      .from(procesos)
-      .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
-      .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
-      .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
-      .where(and(...conditions))
-      .orderBy(desc(procesos.fechaCreacion))
-      .limit(limit)
-      .offset(offset);
-
-    const data = results.map(p => ({
-      id: p.id,
-      state: p.state,
-      fechaCreacion: p.fechaCreacion,
-      clienteId: p.clienteId,
-      tipoProcesoId: p.tipoProcesoId,
-      radicado: p.radicado,
-      juzgado: p.juzgado,
-      estadoId: p.estadoId,
-      descripcionEstado: p.descripcionEstado,
-      clienteNombre: p.clienteNombre || "Sin cliente",
-      estado: p.estadoIdRel
-        ? {
-          id: p.estadoIdRel,
-          codigo: p.estadoCodigo || "",
-          nombre: p.estadoNombre || "",
-          color: p.estadoColor || "",
-
-        }
-        : null,
-    }));
-
-    return { data, total: Number(count) };
+    );
   }
+
+  if (filter?.hasResponsable !== undefined) {
+    if (filter.hasResponsable) {
+      conditions.push(sql`EXISTS (
+        SELECT 1 FROM proceso_responsables pr
+        WHERE pr.proceso_id = ${procesos.id} AND pr.activo = 1
+      )`);
+    } else {
+      conditions.push(sql`NOT EXISTS (
+        SELECT 1 FROM proceso_responsables pr
+        WHERE pr.proceso_id = ${procesos.id} AND pr.activo = 1
+      )`);
+    }
+  }
+
+  // 4. Condición join responsable
+  const joinConditions = and(
+    eq(responsableJoin.procesoId, procesos.id),
+    eq(responsableJoin.activo, true)
+  );
+
+  // 5. Joins reutilizables
+  const baseJoins = (qb: any) => qb
+    .leftJoin(clientes,           eq(procesos.clienteId,              clientes.id))
+    .leftJoin(clientesNatural,    eq(clientes.id,                     clientesNatural.clienteId))
+    .leftJoin(personasCliente,    eq(clientesNatural.personaId,       personasCliente.id))
+    .leftJoin(deptosCliente,      eq(personasCliente.departamentoId,  deptosCliente.id))
+    .leftJoin(municipiosCliente,  eq(personasCliente.municipioId,     municipiosCliente.id))
+    .leftJoin(clientesEmpresa,    eq(clientes.id,                     clientesEmpresa.clienteId))
+    .leftJoin(repLegal,           eq(clientesEmpresa.representanteLegalId, repLegal.id))
+    .leftJoin(personasRepLegal,   eq(repLegal.personaId,              personasRepLegal.id))
+    .leftJoin(estadosProceso,     eq(procesos.estadoId,               estadosProceso.id))
+    .leftJoin(tiposProceso,       eq(procesos.tipoProcesoId,          tiposProceso.id))
+    .leftJoin(responsableJoin,    joinConditions)
+    .leftJoin(responsableLawyer,  eq(responsableJoin.lawyerId,        responsableLawyer.id))
+    .leftJoin(personasResponsable,eq(responsableLawyer.personaId,     personasResponsable.id));
+
+  // 6. Count total
+  const [{ count }] = await baseJoins(
+    this.db.select({ count: sql<number>`COUNT(*)` }).from(procesos)
+  ).where(and(...conditions));
+
+  // 7. Resultados paginados
+  const results = await baseJoins(
+    this.db.select({
+      id: procesos.id,
+      state: procesos.state,
+      fechaCreacion: procesos.fechaCreacion,
+      clienteId: procesos.clienteId,
+      tipoProcesoId: procesos.tipoProcesoId,
+      radicado: procesos.radicado,
+      juzgado: procesos.juzgado,
+      estadoId: procesos.estadoId,
+      descripcionEstado: procesos.descripcionEstado,
+      clienteNombre: sql<string>`COALESCE(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`,
+      clienteUserId: clientes.userId,
+      tipoCliente: clientes.tipo,
+      clienteDocumento: personasCliente.documento,
+      clienteTelefono: personasCliente.telefono,
+      clienteDepartamentoId: deptosCliente.id,
+      clienteDepartamentoNombre: deptosCliente.nombre,
+      clienteMunicipioId: municipiosCliente.id,
+      clienteMunicipioNombre: municipiosCliente.nombre,
+      repLegalId: repLegal.id,
+      repLegalCargo: repLegal.cargo,
+      repLegalEmail: repLegal.email,
+      repLegalNombre: personasRepLegal.nombre,
+      repLegalApellido: personasRepLegal.apellido,
+      repLegalDocumento: personasRepLegal.documento,
+      repLegalTelefono: personasRepLegal.telefono,
+      tipoProcesoNombre: tiposProceso.nombre,
+      estadoIdRel: estadosProceso.id,
+      estadoCodigo: estadosProceso.codigo,
+      estadoNombre: estadosProceso.nombre,
+      estadoColor: estadosProceso.color,
+      responsableLawyerData: responsableLawyer,
+      responsablePersonaId: personasResponsable.id,
+      responsablePersonaNombre: personasResponsable.nombre,
+      responsablePersonaApellido: personasResponsable.apellido,
+      responsablePersonaTelefono: personasResponsable.telefono,
+      responsablePersonaDocumento: personasResponsable.documento,
+      responsablePersonaDireccion: personasResponsable.direccion,
+      responsablePersonaTipoDocumentoId: personasResponsable.tipoDocumentoId,
+      responsablePersonaDepartamentoId: personasResponsable.departamentoId,
+      responsablePersonaMunicipioId: personasResponsable.municipioId,
+      responsableFechaInicio: responsableJoin.fechaInicio,
+      responsableRazon: responsableJoin.razon,
+      responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre,
+    }).from(procesos)
+  ).where(and(...conditions))
+    .orderBy(desc(procesos.fechaCreacion))
+    .limit(limit)
+    .offset(offset);
+
+  // 8. Mapear — idéntico a getProcesosByFirma
+  const data = results.map((p:any) => ({
+    id: p.id,
+    state: p.state,
+    fechaCreacion: p.fechaCreacion,
+    clienteId: p.clienteId,
+    tipoProcesoId: p.tipoProcesoId,
+    radicado: p.radicado,
+    juzgado: p.juzgado,
+    estadoId: p.estadoId,
+    descripcionEstado: p.descripcionEstado,
+    clienteNombre: p.clienteNombre || "Sin cliente",
+    clienteUserId: p.clienteUserId || undefined,
+    tipoCliente: p.tipoCliente ?? null,
+    clienteDocumento: p.clienteDocumento ?? null,
+    clienteTelefono: p.clienteTelefono ?? null,
+    clienteDepartamento: p.clienteDepartamentoId ? {
+      id: p.clienteDepartamentoId,
+      nombre: p.clienteDepartamentoNombre ?? '',
+    } : null,
+    clienteMunicipio: p.clienteMunicipioId ? {
+      id: p.clienteMunicipioId,
+      nombre: p.clienteMunicipioNombre ?? '',
+    } : null,
+    representanteLegal: p.repLegalId ? {
+      id: p.repLegalId,
+      cargo: p.repLegalCargo ?? '',
+      email: p.repLegalEmail ?? '',
+      nombre: p.repLegalNombre ?? '',
+      apellido: p.repLegalApellido ?? '',
+      documento: p.repLegalDocumento ?? null,
+      telefono: p.repLegalTelefono ?? null,
+    } : null,
+    estado: p.estadoIdRel ? {
+      id: p.estadoIdRel,
+      codigo: p.estadoCodigo || "",
+      nombre: p.estadoNombre || "",
+      color: p.estadoColor || "",
+    } : null,
+    responsable: p.responsableLawyerData ? {
+      id: p.responsableLawyerData.id,
+      fechaAsignacion: p.responsableFechaInicio ?? null,
+      razon: p.responsableRazon ?? null,
+      asignadoPorNombre: p.responsableAsignadoPorNombre ?? null,
+      lawyer: {
+        ...p.responsableLawyerData,
+        persona: p.responsablePersonaId ? {
+          id: p.responsablePersonaId,
+          nombre: p.responsablePersonaNombre ?? '',
+          apellido: p.responsablePersonaApellido ?? '',
+          telefono: p.responsablePersonaTelefono ?? null,
+          documento: p.responsablePersonaDocumento ?? null,
+          direccion: p.responsablePersonaDireccion ?? null,
+          tipoDocumentoId: p.responsablePersonaTipoDocumentoId ?? 0,
+          departamentoId: p.responsablePersonaDepartamentoId ?? null,
+          municipioId: p.responsablePersonaMunicipioId ?? null,
+        } : null,
+      },
+    } : null,
+  })) as ProcesoDTO[];
+
+  return { data, total: Number(count) };
+}
 
   async getProcesosCount(lawyerId: string, filter?: ProcesoFilter): Promise<number> {
     const lawyerProcesoIds = await this.db
@@ -171,6 +314,7 @@ export class ProcesoStorage {
       return 0;
     }
 
+    const personasCliente = alias(personas, 'personasCliente');
     const conditions: any[] = [inArray(procesos.id, procesoIds)];
 
     if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
@@ -183,7 +327,8 @@ export class ProcesoStorage {
         sql`(
         LOWER(${procesos.radicado}) LIKE LOWER(${search}) OR
         LOWER(${procesos.juzgado}) LIKE LOWER(${search}) OR
-        LOWER(${clientes.nombre}) LIKE LOWER(${search}) OR
+        LOWER(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido})) LIKE LOWER(${search}) OR
+        LOWER(${clientesEmpresa.razonSocial}) LIKE LOWER(${search}) OR
         LOWER(${tiposProceso.nombre}) LIKE LOWER(${search})
       )`
       );
@@ -193,6 +338,9 @@ export class ProcesoStorage {
       .select({ count: sql<number>`count(*)` })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .where(and(...conditions));
@@ -285,7 +433,7 @@ export class ProcesoStorage {
     const rawProceso = await this.db.query.procesos.findFirst({
       where: eq(procesos.id, id),
       with: {
-        cliente: true,
+        cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
         estado: true,
         tipoProceso: true,
       },
@@ -305,11 +453,14 @@ export class ProcesoStorage {
       juzgado: rawProceso.juzgado,
       estadoId: rawProceso.estadoId,
       descripcionEstado: rawProceso.descripcionEstado,
-      responsable: responsableMeta?.lawyer ?? null,
-      responsableFechaAsignacion: responsableMeta?.fechaInicio ?? null,
-      responsableRazon: responsableMeta?.razon ?? null,
-      responsableAsignadoPorNombre: responsableMeta?.asignadoPorNombre ?? null,
-      clienteNombre: rawProceso.cliente?.nombre || 'Sin cliente',
+      responsable: responsableMeta ? {
+        id: responsableMeta.lawyer?.id ?? null,
+        fechaAsignacion: responsableMeta.fechaInicio ?? null,
+        razon: responsableMeta.razon ?? null,
+        asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
+        lawyer: responsableMeta.lawyer ?? null,
+      } : null,
+      clienteNombre: this.getClienteNombre(rawProceso.cliente),
       estado: rawProceso.estado ? {
         id: rawProceso.estado.id,
         codigo: rawProceso.estado.codigo,
@@ -461,6 +612,8 @@ export class ProcesoStorage {
       return { data: [], total: 0 };
     }
 
+    const personasCliente = alias(personas, 'personasCliente');
+
     const conditions: any[] = [
       inArray(procesos.id, procesoIds),
       eq(procesos.clienteId, clienteId),
@@ -476,6 +629,8 @@ export class ProcesoStorage {
         sql`(
         LOWER(${procesos.radicado}) LIKE LOWER(${search}) OR
         LOWER(${procesos.juzgado}) LIKE LOWER(${search}) OR
+        LOWER(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido})) LIKE LOWER(${search}) OR
+        LOWER(${clientesEmpresa.razonSocial}) LIKE LOWER(${search}) OR
         LOWER(${tiposProceso.nombre}) LIKE LOWER(${search})
       )`
       );
@@ -486,6 +641,9 @@ export class ProcesoStorage {
       .select({ count: sql<number>`COUNT(*)` })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .where(and(...conditions));
@@ -502,7 +660,7 @@ export class ProcesoStorage {
         juzgado: procesos.juzgado,
         estadoId: procesos.estadoId,
         descripcionEstado: procesos.descripcionEstado,
-        clienteNombre: clientes.nombre,
+        clienteNombre: sql<string>`COALESCE(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`,
         tipoProcesoNombre: tiposProceso.nombre,
         estadoIdRel: estadosProceso.id,
         estadoCodigo: estadosProceso.codigo,
@@ -511,6 +669,9 @@ export class ProcesoStorage {
       })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .where(and(...conditions))
@@ -571,12 +732,21 @@ export class ProcesoStorage {
     const rawProceso = await this.db.query.procesos.findFirst({
       where: eq(procesos.id, procesoId),
       with: {
-        cliente: true,
+        cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
         tipoProceso: true,
         estado: true,
         lawyers: {
           with: {
-            lawyer: true,
+            lawyer: {
+              with: {
+                persona: {
+                  columns: {
+                    nombre: true,
+                    apellido: true
+                  }
+                }
+              },
+            },
             tipoAsignacion: true,
             asignadoPorUser: {
               columns: {
@@ -600,11 +770,14 @@ export class ProcesoStorage {
       juzgado: rawProceso.juzgado,
       estadoId: rawProceso.estadoId,
       descripcionEstado: rawProceso.descripcionEstado,
-      responsable: responsableMeta?.lawyer ?? null,
-      responsableFechaAsignacion: responsableMeta?.fechaInicio ?? null,
-      responsableRazon: responsableMeta?.razon ?? null,
-      responsableAsignadoPorNombre: responsableMeta?.asignadoPorNombre ?? null,
-      clienteNombre: rawProceso.cliente?.nombre || "Sin cliente",
+      responsable: responsableMeta ? {
+        id: responsableMeta.lawyer?.id ?? null,
+        fechaAsignacion: responsableMeta.fechaInicio ?? null,
+        razon: responsableMeta.razon ?? null,
+        asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
+        lawyer: responsableMeta.lawyer ?? null,
+      } : null,
+      clienteNombre: this.getClienteNombre(rawProceso.cliente),
       cliente: rawProceso.cliente,
       tipoProceso: rawProceso.tipoProceso ?? null,
       estado: rawProceso.estado ?? null,
@@ -625,6 +798,15 @@ export class ProcesoStorage {
       })) as ProcesoLawyerWithLawyer[],
     };
   }
+  private getClienteNombre(cliente: any): string {
+    if (!cliente) return 'Sin cliente';
+    if (cliente.natural?.persona) {
+      return `${cliente.natural.persona.nombre} ${cliente.natural.persona.apellido}`.trim();
+    }
+    if (cliente.empresa?.razonSocial) return cliente.empresa.razonSocial;
+    return 'Sin cliente';
+  }
+
   // Helper privado reutilizable
   private async getResponsablesMap(procesoIds: string[]): Promise<Map<string, {
     lawyer: typeof lawyerProfiles.$inferSelect;
@@ -686,10 +868,20 @@ export class ProcesoStorage {
         nombre: p.estadoNombre || "",
         color: p.estadoColor || "",
       } : null,
-      responsable: responsableMeta?.lawyer ?? null,
-      responsableFechaAsignacion: responsableMeta?.fechaInicio ?? null,
-      responsableRazon: responsableMeta?.razon ?? null,
-      responsableAsignadoPorNombre: responsableMeta?.asignadoPorNombre ?? null,
+      responsable: responsableMeta ? {
+        id: responsableMeta.lawyer?.id ?? null,
+        fechaAsignacion: responsableMeta.fechaInicio ?? null,
+        razon: responsableMeta.razon ?? null,
+        asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
+        lawyer: responsableMeta.lawyer ? {
+          id: responsableMeta.lawyer.id,
+          persona: responsableMeta.lawyer.persona ? {
+            id: (responsableMeta.lawyer.persona as any).id ?? null,
+            nombre: responsableMeta.lawyer.persona.nombre,
+            apellido: responsableMeta.lawyer.persona.apellido,
+          } : null,
+        } : null,
+      } : null,
     };
   }
 
@@ -720,6 +912,12 @@ export class ProcesoStorage {
     // 3. Alias para joins del responsable — declarar ANTES de conditions
     const responsableLawyer = alias(lawyerProfiles, 'responsableLawyer');
     const responsableJoin = alias(procesoResponsables, 'responsableJoin');
+    const personasResponsable = alias(personas, 'personasResponsable');
+    const personasCliente = alias(personas, 'personasCliente');
+    const deptosCliente = alias(departamentos, 'deptosCliente');
+    const municipiosCliente = alias(municipios, 'municipiosCliente');
+    const repLegal = alias(representantesLegales, 'repLegal');
+    const personasRepLegal = alias(personas, 'personasRepLegal');
 
     // 4. Condiciones de filtro
     const conditions: any[] = [inArray(procesos.id, procesoIds)];
@@ -734,9 +932,10 @@ export class ProcesoStorage {
         sql`(
         LOWER(${procesos.radicado}) LIKE LOWER(${search}) OR
         LOWER(${procesos.juzgado}) LIKE LOWER(${search}) OR
-        LOWER(${clientes.nombre}) LIKE LOWER(${search}) OR
+        LOWER(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido})) LIKE LOWER(${search}) OR
+        LOWER(${clientesEmpresa.razonSocial}) LIKE LOWER(${search}) OR
         LOWER(${tiposProceso.nombre}) LIKE LOWER(${search}) OR
-        LOWER(CONCAT(${responsableLawyer.firstName}, ' ', ${responsableLawyer.lastName})) LIKE LOWER(${search})
+        LOWER(CONCAT(${personasResponsable.nombre}, ' ', ${personasResponsable.apellido})) LIKE LOWER(${search})
       )`
       );
     }
@@ -766,10 +965,18 @@ export class ProcesoStorage {
       .select({ count: sql<number>`COUNT(*)` })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(deptosCliente, eq(personasCliente.departamentoId, deptosCliente.id))
+      .leftJoin(municipiosCliente, eq(personasCliente.municipioId, municipiosCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
+      .leftJoin(repLegal, eq(clientesEmpresa.representanteLegalId, repLegal.id))
+      .leftJoin(personasRepLegal, eq(repLegal.personaId, personasRepLegal.id))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .leftJoin(responsableJoin, joinConditions)
       .leftJoin(responsableLawyer, eq(responsableJoin.lawyerId, responsableLawyer.id))
+      .leftJoin(personasResponsable, eq(responsableLawyer.personaId, personasResponsable.id))
       .where(and(...conditions));
 
     // 7. Resultados paginados
@@ -784,26 +991,55 @@ export class ProcesoStorage {
         juzgado: procesos.juzgado,
         estadoId: procesos.estadoId,
         descripcionEstado: procesos.descripcionEstado,
-        clienteNombre: clientes.nombre,
+        clienteNombre: sql<string>`COALESCE(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`,
         clienteUserId: clientes.userId,
+        tipoCliente: clientes.tipo,
+        clienteDocumento: personasCliente.documento,
+        clienteTelefono: personasCliente.telefono,
+        clienteDepartamentoId: deptosCliente.id,
+        clienteDepartamentoNombre: deptosCliente.nombre,
+        clienteMunicipioId: municipiosCliente.id,
+        clienteMunicipioNombre: municipiosCliente.nombre,
+        repLegalId: repLegal.id,
+        repLegalCargo: repLegal.cargo,
+        repLegalEmail: repLegal.email,
+        repLegalNombre: personasRepLegal.nombre,
+        repLegalApellido: personasRepLegal.apellido,
+        repLegalDocumento: personasRepLegal.documento,
+        repLegalTelefono: personasRepLegal.telefono,
+        tipoProcesoNombre: tiposProceso.nombre,
         estadoIdRel: estadosProceso.id,
         estadoCodigo: estadosProceso.codigo,
         estadoNombre: estadosProceso.nombre,
         estadoColor: estadosProceso.color,
-        responsableId: responsableLawyer.id,
-        responsableFirstName: responsableLawyer.firstName,
-        responsableLastName: responsableLawyer.lastName,
-        responsableNombre: sql<string>`CONCAT(${responsableLawyer.firstName}, ' ', ${responsableLawyer.lastName})`,
+        responsableLawyerData: responsableLawyer,
+        responsablePersonaId: personasResponsable.id,
+        responsablePersonaNombre: personasResponsable.nombre,
+        responsablePersonaApellido: personasResponsable.apellido,
+        responsablePersonaTelefono: personasResponsable.telefono,
+        responsablePersonaDocumento: personasResponsable.documento,
+        responsablePersonaDireccion: personasResponsable.direccion,
+        responsablePersonaTipoDocumentoId: personasResponsable.tipoDocumentoId,
+        responsablePersonaDepartamentoId: personasResponsable.departamentoId,
+        responsablePersonaMunicipioId: personasResponsable.municipioId,
         responsableFechaInicio: responsableJoin.fechaInicio,
         responsableRazon: responsableJoin.razon,
         responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre,
       })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(deptosCliente, eq(personasCliente.departamentoId, deptosCliente.id))
+      .leftJoin(municipiosCliente, eq(personasCliente.municipioId, municipiosCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
+      .leftJoin(repLegal, eq(clientesEmpresa.representanteLegalId, repLegal.id))
+      .leftJoin(personasRepLegal, eq(repLegal.personaId, personasRepLegal.id))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .leftJoin(responsableJoin, joinConditions)
       .leftJoin(responsableLawyer, eq(responsableJoin.lawyerId, responsableLawyer.id))
+      .leftJoin(personasResponsable, eq(responsableLawyer.personaId, personasResponsable.id))
       .where(and(...conditions))
       .orderBy(desc(procesos.fechaCreacion))
       .limit(limit)
@@ -822,21 +1058,52 @@ export class ProcesoStorage {
       descripcionEstado: p.descripcionEstado,
       clienteNombre: p.clienteNombre || "Sin cliente",
       clienteUserId: p.clienteUserId || undefined,
+      tipoCliente: p.tipoCliente ?? null,
+      clienteDocumento: p.clienteDocumento ?? null,
+      clienteTelefono: p.clienteTelefono ?? null,
+      clienteDepartamento: p.clienteDepartamentoId ? {
+        id: p.clienteDepartamentoId,
+        nombre: p.clienteDepartamentoNombre ?? '',
+      } : null,
+      clienteMunicipio: p.clienteMunicipioId ? {
+        id: p.clienteMunicipioId,
+        nombre: p.clienteMunicipioNombre ?? '',
+      } : null,
+      representanteLegal: p.repLegalId ? {
+        id: p.repLegalId,
+        cargo: p.repLegalCargo ?? '',
+        email: p.repLegalEmail ?? '',
+        nombre: p.repLegalNombre ?? '',
+        apellido: p.repLegalApellido ?? '',
+        documento: p.repLegalDocumento ?? null,
+        telefono: p.repLegalTelefono ?? null,
+      } : null,
       estado: p.estadoIdRel ? {
         id: p.estadoIdRel,
         codigo: p.estadoCodigo || "",
         nombre: p.estadoNombre || "",
         color: p.estadoColor || "",
       } : null,
-      responsable: p.responsableId ? {
-        id: p.responsableId,
-        firstName: p.responsableFirstName ?? '',
-        lastName: p.responsableLastName ?? '',
-        nombre: p.responsableNombre?.trim() ?? '',
+      responsable: p.responsableLawyerData ? {
+        id: p.responsableLawyerData.id,
+        fechaAsignacion: p.responsableFechaInicio ?? null,
+        razon: p.responsableRazon ?? null,
+        asignadoPorNombre: p.responsableAsignadoPorNombre ?? null,
+        lawyer: {
+          ...p.responsableLawyerData,
+          persona: p.responsablePersonaId ? {
+            id: p.responsablePersonaId,
+            nombre: p.responsablePersonaNombre ?? '',
+            apellido: p.responsablePersonaApellido ?? '',
+            telefono: p.responsablePersonaTelefono ?? null,
+            documento: p.responsablePersonaDocumento ?? null,
+            direccion: p.responsablePersonaDireccion ?? null,
+            tipoDocumentoId: p.responsablePersonaTipoDocumentoId ?? 0,
+            departamentoId: p.responsablePersonaDepartamentoId ?? null,
+            municipioId: p.responsablePersonaMunicipioId ?? null,
+          } : null,
+        },
       } : null,
-      responsableFechaAsignacion: p.responsableFechaInicio ?? null,
-      responsableRazon: p.responsableRazon ?? null,
-      responsableAsignadoPorNombre: p.responsableAsignadoPorNombre ?? null,
     })) as ProcesoDTO[];
 
     return { data, total: Number(count) };
@@ -888,11 +1155,16 @@ export class ProcesoStorage {
       );
     }
 
+    const personasCliente = alias(personas, 'personasCliente');
+
     // 4. Count total
     const [{ count }] = await this.db
       .select({ count: sql<number>`COUNT(*)` })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .where(and(...conditions));
@@ -909,7 +1181,7 @@ export class ProcesoStorage {
         juzgado: procesos.juzgado,
         estadoId: procesos.estadoId,
         descripcionEstado: procesos.descripcionEstado,
-        clienteNombre: clientes.nombre,
+        clienteNombre: sql<string>`COALESCE(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`,
         clienteUserId: clientes.userId,
         estadoIdRel: estadosProceso.id,
         estadoCodigo: estadosProceso.codigo,
@@ -918,6 +1190,9 @@ export class ProcesoStorage {
       })
       .from(procesos)
       .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(clientesNatural, eq(clientes.id, clientesNatural.clienteId))
+      .leftJoin(personasCliente, eq(clientesNatural.personaId, personasCliente.id))
+      .leftJoin(clientesEmpresa, eq(clientes.id, clientesEmpresa.clienteId))
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
       .where(and(...conditions))
@@ -965,7 +1240,7 @@ export class ProcesoStorage {
     const rawProceso = await this.db.query.procesos.findFirst({
       where: eq(procesos.id, procesoId),
       with: {
-        cliente: true,
+        cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
         tipoProceso: true,
         estado: true,
         lawyers: {
@@ -987,7 +1262,6 @@ export class ProcesoStorage {
     if (!rawProceso) return undefined;
 
     const responsableMeta = await this.getActiveResponsable(procesoId);
-
     return {
       id: rawProceso.id,
       state: rawProceso.state,
@@ -998,11 +1272,15 @@ export class ProcesoStorage {
       juzgado: rawProceso.juzgado,
       estadoId: rawProceso.estadoId,
       descripcionEstado: rawProceso.descripcionEstado,
-      responsable: responsableMeta?.lawyer ?? null,
-      responsableFechaAsignacion: responsableMeta?.fechaInicio ?? null,
-      responsableRazon: responsableMeta?.razon ?? null,
-      responsableAsignadoPorNombre: responsableMeta?.asignadoPorNombre ?? null,
-      clienteNombre: rawProceso.cliente?.nombre || "Sin cliente",
+      responsable: responsableMeta ? {
+        id: responsableMeta.lawyer?.id ?? null,
+        fechaAsignacion: responsableMeta.fechaInicio ?? null,
+        razon: responsableMeta.razon ?? null,
+        asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
+        lawyer: responsableMeta.lawyer,
+      } : null,
+    
+      clienteNombre: this.getClienteNombre(rawProceso.cliente),
       cliente: rawProceso.cliente,
       tipoProceso: rawProceso.tipoProceso ?? null,
       estado: rawProceso.estado ?? null,
@@ -1046,12 +1324,22 @@ export class ProcesoStorage {
     const rawProceso = await this.db.query.procesos.findFirst({
       where: eq(procesos.id, procesoId),
       with: {
-        cliente: true,
+        cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
         tipoProceso: true,
         estado: true,
         lawyers: {
           with: {
-            lawyer: true,
+            lawyer: {
+              with: {
+                persona: {
+                  columns: {
+                    nombre: true,
+                    apellido: true,
+                    telefono: true,
+                  }
+                }
+              },
+            },
             tipoAsignacion: true,
             asignadoPorUser: {
               columns: {
@@ -1078,7 +1366,7 @@ export class ProcesoStorage {
       juzgado: rawProceso.juzgado,
       estadoId: rawProceso.estadoId,
       descripcionEstado: rawProceso.descripcionEstado,
-      clienteNombre: rawProceso.cliente?.nombre || "Sin cliente",
+      clienteNombre: this.getClienteNombre(rawProceso.cliente),
 
       cliente: rawProceso.cliente ?? null,
       tipoProceso: rawProceso.tipoProceso ?? null,
@@ -1093,10 +1381,13 @@ export class ProcesoStorage {
         lawyer: l.lawyer,
       })) as ProcesoLawyerWithLawyer[],
 
-      responsable: responsableMeta?.lawyer ?? null,
-      responsableFechaAsignacion: responsableMeta?.fechaInicio ?? null,
-      responsableRazon: responsableMeta?.razon ?? null,
-      responsableAsignadoPorNombre: responsableMeta?.asignadoPorNombre ?? null,
+      responsable: responsableMeta ? {
+        id: responsableMeta.lawyer?.id ?? null,
+        fechaAsignacion: responsableMeta.fechaInicio ?? null,
+        razon: responsableMeta.razon ?? null,
+        asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
+        lawyer: responsableMeta.lawyer ?? null,
+      } : null,
     };
   }
 

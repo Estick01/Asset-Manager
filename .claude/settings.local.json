@@ -8,7 +8,13 @@
       "Bash(grep -l \"tamano\\\\|uri\\\\|url\" c:/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/migrations/*.sql)",
       "Bash(xargs grep -l \"documentos\\\\|tamano\\\\|uri\")",
       "Bash(grep -r \"tamano\\\\|rename.*uri\\\\|url\" c:/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/migrations/*.sql)",
-      "Bash(grep -l \"documentos\" c:/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/migrations/*.sql)"
+      "Bash(grep -l \"documentos\" c:/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/migrations/*.sql)",
+      "Bash(find /c/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/migrations -name *cliente* -o -name *clientes*)",
+      "Bash(find /c/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/components -type f \\\\\\(-name *cliente* -o -name *client* \\\\\\))",
+      "Bash(find ./server -type f \\\\\\(-name *ws* -o -name *socket* -o -name *websocket* \\\\\\))",
+      "Bash(xargs grep:*)",
+      "Bash(find ./migrations -name *chat* -o -name *conversation*)",
+      "Bash(ls -la \"/c/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/app/\\(auth\\)/\")"
     ]
   }
 }

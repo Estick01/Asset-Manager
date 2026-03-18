@@ -1,5 +1,4 @@
 import { eq, and, desc, sql, inArray, gt } from "drizzle-orm";
-import { randomUUID } from "crypto";
 import {
   conversations,
   conversationParticipants,
@@ -24,13 +23,12 @@ export class ChatStorage {
   // ----------------------------------------------------------------
 
   async createConversation(data: InsertConversation): Promise<Conversation> {
-    // Explicitly set timestamps to ensure correct timezone (UTC)
     const conversationData = {
       ...data,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    
+
     await this.db.insert(conversations).values(conversationData);
     const result = await this.db.query.conversations.findFirst({
       where: eq(conversations.id, data.id),
@@ -50,7 +48,6 @@ export class ChatStorage {
     limit = 20,
     offset = 0
   ): Promise<ConversationDTO[]> {
-    // 1. Get conversation IDs this user is part of
     const participations = await this.db
       .select({ conversationId: conversationParticipants.conversationId })
       .from(conversationParticipants)
@@ -60,7 +57,6 @@ export class ChatStorage {
 
     const convIds = participations.map((p) => p.conversationId);
 
-    // 2. Fetch conversations with pagination
     const convs = await this.db
       .select()
       .from(conversations)
@@ -69,7 +65,6 @@ export class ChatStorage {
       .limit(limit)
       .offset(offset);
 
-    // 3. For each conversation, fetch participants (with user info) + last message
     const dtos: ConversationDTO[] = await Promise.all(
       convs.map(async (conv) => {
         const parts = await this.db
@@ -84,7 +79,19 @@ export class ChatStorage {
           .where(eq(conversationParticipants.conversationId, conv.id));
 
         const lastMsg = await this.db
-          .select()
+          .select({
+            id: messages.id,
+            conversationId: messages.conversationId,
+            senderId: messages.senderId,
+            content: messages.content,
+            type: messages.type,
+            isDeleted: messages.isDeleted,
+            createdAt: messages.createdAt,
+            fileName: messages.fileName,
+            fileSize: messages.fileSize,
+            fileMime: messages.fileMime,
+            fileHash: messages.fileHash,
+          })
           .from(messages)
           .where(
             and(
@@ -95,7 +102,6 @@ export class ChatStorage {
           .orderBy(desc(messages.createdAt))
           .limit(1);
 
-        // Unread count: messages after lastReadAt for this user
         const myParticipation = parts.find((p) => p.userId === userId);
         let unreadCount = 0;
         if (myParticipation) {
@@ -114,6 +120,23 @@ export class ChatStorage {
           unreadCount = Number(unreadResult[0]?.count ?? 0);
         }
 
+        const rawLast = lastMsg[0];
+        const lastMessage: Message | null = rawLast
+          ? {
+              id: rawLast.id,
+              conversationId: rawLast.conversationId,
+              senderId: rawLast.senderId,
+              content: rawLast.content ?? null,
+              type: rawLast.type,
+              isDeleted: rawLast.isDeleted,
+              createdAt: rawLast.createdAt,
+              fileName: rawLast.fileName ?? null,
+              fileSize: rawLast.fileSize ?? null,
+              fileMime: rawLast.fileMime ?? null,
+              fileHash: rawLast.fileHash ?? null,
+            }
+          : null;
+
         return {
           ...conv,
           participants: parts.map((p) => ({
@@ -122,7 +145,7 @@ export class ChatStorage {
             email: p.email ?? "",
             lastReadAt: p.lastReadAt,
           })),
-          lastMessage: lastMsg[0] ?? null,
+          lastMessage,
           unreadCount,
         };
       })
@@ -131,7 +154,6 @@ export class ChatStorage {
     return dtos;
   }
 
-  /** Get total count of conversations for a user */
   async getConversationsCount(userId: string): Promise<number> {
     const participations = await this.db
       .select({ count: sql<number>`count(*)` })
@@ -140,12 +162,10 @@ export class ChatStorage {
     return Number(participations[0]?.count ?? 0);
   }
 
-  /** Find existing 1-to-1 conversation between two users */
   async findDirectConversation(
     userIdA: string,
     userIdB: string
   ): Promise<Conversation | undefined> {
-    // Conversations where both users are participants
     const result = await this.db
       .select({ conversationId: conversationParticipants.conversationId })
       .from(conversationParticipants)
@@ -164,7 +184,6 @@ export class ChatStorage {
         .limit(1);
 
       if (other.length > 0) {
-        // Verify it's a direct (2-participant) conversation
         const total = await this.db
           .select({ count: sql<number>`count(*)` })
           .from(conversationParticipants)
@@ -231,16 +250,14 @@ export class ChatStorage {
   // ----------------------------------------------------------------
 
   async createMessage(data: InsertMessage): Promise<MessageDTO> {
-    // Explicitly set createdAt to ensure correct timezone (UTC)
     const messageData = {
       ...data,
       type: data.type ?? "text",
       createdAt: new Date(),
     };
-    
+
     await this.db.insert(messages).values(messageData);
 
-    // Update conversation.updatedAt
     await this.db
       .update(conversations)
       .set({ updatedAt: new Date() })
@@ -259,6 +276,10 @@ export class ChatStorage {
         type: messages.type,
         isDeleted: messages.isDeleted,
         createdAt: messages.createdAt,
+        fileName: messages.fileName,
+        fileSize: messages.fileSize,
+        fileMime: messages.fileMime,
+        fileHash: messages.fileHash,
         senderName: users.name,
         senderEmail: users.email,
       })
@@ -272,15 +293,63 @@ export class ChatStorage {
       id: row.id,
       conversationId: row.conversationId,
       senderId: row.senderId,
-      content: row.content,
+      content: row.content ?? null,
       type: row.type,
       isDeleted: row.isDeleted,
       createdAt: row.createdAt,
+      fileName: row.fileName ?? null,
+      fileSize: row.fileSize ?? null,
+      fileMime: row.fileMime ?? null,
+      fileHash: row.fileHash ?? null,
       sender: {
         id: row.senderId,
         name: row.senderName ?? "",
         email: row.senderEmail ?? "",
       },
+    };
+  }
+
+  /**
+   * Returns the raw message row including fileKey — for internal use only
+   * (download endpoint). Never expose this to the frontend directly.
+   */
+  async getRawMessage(
+    messageId: string
+  ): Promise<(Message & { fileKey: string | null }) | undefined> {
+    const rows = await this.db
+      .select({
+        id: messages.id,
+        conversationId: messages.conversationId,
+        senderId: messages.senderId,
+        content: messages.content,
+        type: messages.type,
+        isDeleted: messages.isDeleted,
+        createdAt: messages.createdAt,
+        fileKey: messages.fileKey,
+        fileName: messages.fileName,
+        fileSize: messages.fileSize,
+        fileMime: messages.fileMime,
+        fileHash: messages.fileHash,
+      })
+      .from(messages)
+      .where(eq(messages.id, messageId))
+      .limit(1);
+
+    if (!rows[0]) return undefined;
+    const r = rows[0];
+    return {
+      id: r.id,
+      conversationId: r.conversationId,
+      senderId: r.senderId,
+      content: r.content ?? null,
+      type: r.type,
+      isDeleted: r.isDeleted,
+      createdAt: r.createdAt,
+      fileKey: r.fileKey ?? null,
+      fileName: r.fileName ?? null,
+      fileSize: r.fileSize ?? null,
+      fileMime: r.fileMime ?? null,
+      fileHash: r.fileHash ?? null,
     };
   }
 
@@ -298,6 +367,10 @@ export class ChatStorage {
         type: messages.type,
         isDeleted: messages.isDeleted,
         createdAt: messages.createdAt,
+        fileName: messages.fileName,
+        fileSize: messages.fileSize,
+        fileMime: messages.fileMime,
+        fileHash: messages.fileHash,
         senderName: users.name,
         senderEmail: users.email,
       })
@@ -317,10 +390,14 @@ export class ChatStorage {
       id: row.id,
       conversationId: row.conversationId,
       senderId: row.senderId,
-      content: row.content,
+      content: row.content ?? null,
       type: row.type,
       isDeleted: row.isDeleted,
       createdAt: row.createdAt,
+      fileName: row.fileName ?? null,
+      fileSize: row.fileSize ?? null,
+      fileMime: row.fileMime ?? null,
+      fileHash: row.fileHash ?? null,
       sender: {
         id: row.senderId,
         name: row.senderName ?? "",

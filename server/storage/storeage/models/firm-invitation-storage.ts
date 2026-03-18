@@ -1,9 +1,8 @@
 // storage/firm-invitation.storage.ts
 import { and, desc, eq, isNull, ne, or, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { firmInvitations, LawyerProfile, lawyerProfiles } from "@/shared/schema";
+import { firmInvitations, lawyerProfiles, personas, users, FirmInvitation, FirmInvitationWithDetails, InsertFirmInvitation } from "@/shared/schema";
 import { Database } from "../database-storage";
-import { FirmInvitation, FirmInvitationWithDetails, InsertFirmInvitation } from "@/shared/schema";
 
 export class FirmInvitationStorage {
     constructor(private db: Database) { }
@@ -57,13 +56,27 @@ export class FirmInvitationStorage {
         return this.db.query.firmInvitations.findMany({
             where: eq(firmInvitations.firmId, firmId),
             with: {
-                lawyer: true,
+                lawyer: {
+                    with: {
+                        persona: {
+                            with: {
+                                departamento: { columns: { id: true, nombre: true, codigo: true } },
+                                municipio: { columns: { id: true, nombre: true, codigo: true } },
+                            },
+                            columns: {
+                                id: true, nombre: true, apellido: true,
+                                direccion: true, departamentoId: true, municipioId: true,
+                                telefono: true, documento: true,
+                            },
+                        },
+                    },
+                },
                 invitadoPorUser: {
                     columns: { id: true, email: true, name: true },
                 },
             },
             orderBy: desc(firmInvitations.createdAt),
-        });
+        }) as any;
     }
 
     // Verificar si ya existe invitación pendiente
@@ -114,23 +127,38 @@ export class FirmInvitationStorage {
             );
         return Number(result[0]?.count ?? 0);
     }
-    async searchAvailableLawyers(search: string, firmId: string): Promise<LawyerProfile[]> {
+    async searchAvailableLawyers(search: string, firmId: string): Promise<any[]> {
         const searchTerm = `%${search}%`;
 
         return this.db
-            .select()
+            .select({
+                id: lawyerProfiles.id,
+                userId: lawyerProfiles.userId,
+                firmId: lawyerProfiles.firmId,
+                personaId: lawyerProfiles.personaId,
+                licenseNumber: lawyerProfiles.licenseNumber,
+                specialization: lawyerProfiles.specialization,
+                isIndependent: lawyerProfiles.isIndependent,
+                createdAt: lawyerProfiles.createdAt,
+                updatedAt: lawyerProfiles.updatedAt,
+                persona:personas,
+                email: users.email,
+            })
             .from(lawyerProfiles)
+            .leftJoin(personas, eq(lawyerProfiles.personaId, personas.id))
+            .leftJoin(users, eq(lawyerProfiles.userId, users.id))
             .where(
                 and(
                     or(
-                        isNull(lawyerProfiles.firmId), // no pertenece a ningún bufete
-                        ne(lawyerProfiles.firmId, firmId) // pertenece a otro bufete
+                        isNull(lawyerProfiles.firmId),
+                        ne(lawyerProfiles.firmId, firmId)
                     ),
                     or(
-                        sql`LOWER(${lawyerProfiles.firstName}) LIKE LOWER(${searchTerm})`,
-                        sql`LOWER(${lawyerProfiles.lastName}) LIKE LOWER(${searchTerm})`,
+                        sql`LOWER(${personas.nombre}) LIKE LOWER(${searchTerm})`,
+                        sql`LOWER(${personas.apellido}) LIKE LOWER(${searchTerm})`,
                         sql`LOWER(${lawyerProfiles.licenseNumber}) LIKE LOWER(${searchTerm})`,
-                        sql`LOWER(${lawyerProfiles.specialization}) LIKE LOWER(${searchTerm})`
+                        sql`LOWER(${lawyerProfiles.specialization}) LIKE LOWER(${searchTerm})`,
+                        sql`LOWER(${users.email}) LIKE LOWER(${searchTerm})`
                     )
                 )
             )

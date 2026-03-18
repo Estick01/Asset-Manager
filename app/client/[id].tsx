@@ -24,9 +24,86 @@ const ESTADO_LABELS: Record<string, string> = {
   archivado: "Archivado",
 };
 
-// Helper to get estado key from EstadoProceso object (accepts partial object with codigo property)
-const getEstadoKey = (estado?: { codigo?: string } | null): string => estado?.codigo || "archivado";
+const getEstadoKey = (estado?: { codigo?: string } | null): string =>
+  estado?.codigo || "archivado";
 
+// ─── Design tokens ─────────────────────────────────────────────────────────
+const TEAL  = "#2196A6";
+const AMBER = "#F5A623";
+
+// ─── Helpers para normalizar cliente natural o empresa ──────────────────────
+function getDisplayName(cliente: Cliente): { nombre: string; apellido: string } {
+  if (cliente.tipo === "natural" && cliente.natural?.persona) {
+    return {
+      nombre:   cliente.natural.persona.nombre   ?? "",
+      apellido: cliente.natural.persona.apellido ?? "",
+    };
+  }
+  if (cliente.tipo === "empresa" && cliente.empresa) {
+    return { nombre: cliente.empresa.razonSocial ?? "", apellido: "" };
+  }
+  return { nombre: "Sin nombre", apellido: "" };
+}
+
+function getInitial(cliente: Cliente): string {
+  const { nombre } = getDisplayName(cliente);
+  return nombre.charAt(0).toUpperCase();
+}
+
+type InfoRow = { icon: React.ComponentProps<typeof Ionicons>["name"]; label: string; value: string };
+type InfoSection = { title?: string; rows: InfoRow[] };
+
+function buildInfoSections(cliente: Cliente): InfoSection[] {
+  if (cliente.tipo === "empresa" && cliente.empresa) {
+    const emp = cliente.empresa;
+    const rep = (emp as any).representanteLegal;
+    const repPersona = rep?.persona;
+
+    const empresaSection: InfoSection = {
+      title: "Datos de la Empresa",
+      rows: [
+        { icon: "card-outline",      label: "NIT",        value: emp.nit || "Sin NIT" },
+        { icon: "briefcase-outline", label: "Sector",     value: emp.sector || "No registrado" },
+        { icon: "mail-outline",      label: "Correo",     value: cliente.user?.email || "No registrado" },
+        { icon: "calendar-outline",  label: "Registrado", value: new Date(cliente.fechaCreacion).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" }) },
+      ],
+    };
+
+    if (!rep) return [empresaSection];
+
+    const repSection: InfoSection = {
+      title: "Representante Legal",
+      rows: [
+        { icon: "person-outline",    label: "Nombre",       value: repPersona ? `${repPersona.nombre} ${repPersona.apellido}` : "No registrado" },
+        { icon: "briefcase-outline", label: "Cargo",        value: rep.cargo || "No registrado" },
+        { icon: "mail-outline",      label: "Correo",       value: rep.email || "No registrado" },
+        { icon: "card-outline",      label: repPersona?.tipoDocumento?.nombre ?? "Documento", value: repPersona?.documento || "No registrado" },
+        { icon: "call-outline",      label: "Teléfono",     value: repPersona?.telefono || "No registrado" },
+        { icon: "location-outline",  label: "Dirección",    value: repPersona?.direccion || "No registrado" },
+        { icon: "globe-outline",     label: "Departamento", value: repPersona?.departamento?.nombre || "No registrado" },
+        { icon: "location-outline",  label: "Municipio",    value: repPersona?.municipio?.nombre || "No registrado" },
+      ],
+    };
+
+    return [empresaSection, repSection];
+  }
+
+  // Natural
+  const persona = cliente.natural?.persona;
+  return [{
+    rows: [
+      { icon: "card-outline",      label: persona?.tipoDocumento?.nombre ?? "Documento", value: persona?.documento || "Sin documento" },
+      { icon: "mail-outline",      label: "Correo",       value: cliente.user?.email || "No registrado" },
+      { icon: "call-outline",      label: "Teléfono",     value: persona?.telefono || "No registrado" },
+      { icon: "location-outline",  label: "Dirección",    value: persona?.direccion || "No registrado" },
+      { icon: "globe-outline",     label: "Departamento", value: persona?.departamento?.nombre || "No registrado" },
+      { icon: "location-outline",  label: "Municipio",    value: persona?.municipio?.nombre || "No registrado" },
+      { icon: "calendar-outline",  label: "Registrado",   value: new Date(cliente.fechaCreacion).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" }) },
+    ],
+  }];
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────
 export default function ClientDetailScreen() {
   const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const navigation = useNavigation();
@@ -36,15 +113,10 @@ export default function ClientDetailScreen() {
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const handleGoBack = () => {
-      router.replace("/clients");
-  };
+  const handleGoBack = () => router.replace("/clients");
 
-  // Check if we should be in edit mode
   React.useEffect(() => {
-    if (edit === "true") {
-      setIsEditing(true);
-    }
+    if (edit === "true") setIsEditing(true);
   }, [edit]);
 
   useFocusEffect(
@@ -52,10 +124,8 @@ export default function ClientDetailScreen() {
       (async () => {
         if (!id) return;
         const c = await getCliente(id);
-        if(c){
-          setCliente(c);
-        }
         if (c) {
+          setCliente(c);
           const p = await getProcesosByCliente(c.id);
           setProcesos(p.data);
         }
@@ -65,18 +135,23 @@ export default function ClientDetailScreen() {
 
   const handleDelete = () => {
     if (!cliente) return;
-    Alert.alert("Eliminar Cliente", `Estas seguro de eliminar a ${cliente.nombre}?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          await deleteCliente(cliente.id);
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          handleGoBack();
+    const { nombre, apellido } = getDisplayName(cliente);
+    Alert.alert(
+      "Eliminar Cliente",
+      `¿Estás seguro de eliminar a ${nombre}${apellido ? ` ${apellido}` : ""}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            await deleteCliente(cliente.id);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            handleGoBack();
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleSave = async (formData: any) => {
@@ -87,10 +162,8 @@ export default function ClientDetailScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setIsEditing(false);
       const c = await getCliente(cliente.id);
-      if(c){
-        setCliente(c);
-      }
-    } catch (error) {
+      if (c) setCliente(c);
+    } catch {
       Alert.alert("Error", "No se pudo guardar el cliente");
     } finally {
       setSaving(false);
@@ -106,7 +179,7 @@ export default function ClientDetailScreen() {
     );
   }
 
-  // If editing, show the form
+  // ── Edit mode ──
   if (isEditing) {
     return (
       <View style={styles.screen}>
@@ -130,15 +203,10 @@ export default function ClientDetailScreen() {
     );
   }
 
-  const infoRows = [
-    { icon: "card-outline" as const, label:cliente.tipoDocumento?.nombre, value: cliente.documento || "Sin documento" },
-    { icon: "mail-outline" as const, label: "Correo", value: cliente.user?.email || "No registrado" },
-    { icon: "location-outline" as const, label: "Direccion", value: cliente.direccion || "No registrado" },
-    { icon: "call-outline" as const, label: "Telefono", value: cliente.telefono || "No registrado" },
-    { icon: "globe-outline" as const, label: "Departamento", value: cliente.departamento?.nombre || "No registrado" },
-    { icon: "location-outline" as const, label: "Municipio", value: cliente.municipio?.nombre || "No registrado" },
-    { icon: "calendar-outline" as const, label: "Registrado", value: new Date(cliente.fechaCreacion).toLocaleDateString("es-CO", { year: "numeric", month: "long", day: "numeric" }) },
-  ];
+  // ── Detail mode ──
+  const { nombre, apellido } = getDisplayName(cliente);
+  const isEmpresa = cliente.tipo === "empresa";
+  const infoSections = buildInfoSections(cliente);
 
   return (
     <View style={styles.screen}>
@@ -148,7 +216,10 @@ export default function ClientDetailScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Cliente</Text>
         <View style={styles.headerActions}>
-          <Pressable onPress={() => router.push({ pathname: "/client/[id]", params: { id, edit: "true" } })} hitSlop={8}>
+          <Pressable
+            onPress={() => router.push({ pathname: "/client/[id]", params: { id, edit: "true" } })}
+            hitSlop={8}
+          >
             <Ionicons name="create-outline" size={22} color={Colors.primary} />
           </Pressable>
           <Pressable onPress={handleDelete} hitSlop={8}>
@@ -158,25 +229,66 @@ export default function ClientDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+
+        {/* ── Perfil ── */}
         <View style={styles.profileSection}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{cliente.nombre.charAt(0).toUpperCase()}</Text>
+          <View style={[styles.avatar, { backgroundColor: isEmpresa ? AMBER + "33" : Colors.primary }]}>
+            {isEmpresa ? (
+              <Ionicons name="business-outline" size={32} color={AMBER} />
+            ) : (
+              <Text style={styles.avatarText}>{getInitial(cliente)}</Text>
+            )}
           </View>
-          <Text style={styles.clientName}>{cliente.nombre +" "+ cliente.apellido}</Text>
+
+          <Text style={styles.clientName}>
+            {nombre}{apellido ? ` ${apellido}` : ""}
+          </Text>
+
+          {/* Badge tipo */}
+          <View style={[styles.tipoBadge, isEmpresa ? styles.tipoBadgeEmpresa : styles.tipoBadgeNatural]}>
+            <Ionicons
+              name={isEmpresa ? "business-outline" : "person-outline"}
+              size={12}
+              color={isEmpresa ? AMBER : TEAL}
+            />
+            <Text style={[styles.tipoBadgeText, { color: isEmpresa ? AMBER : TEAL }]}>
+              {isEmpresa ? "Empresa" : "Persona Natural"}
+            </Text>
+          </View>
+
+          {/* Estado activo/inactivo */}
+          <View style={[styles.estadoActivoBadge, { backgroundColor: cliente.activo ? Colors.success + "18" : Colors.textTertiary + "22" }]}>
+            <View style={[styles.estadoActivoDot, { backgroundColor: cliente.activo ? Colors.success : Colors.textTertiary }]} />
+            <Text style={[styles.estadoActivoText, { color: cliente.activo ? Colors.success : Colors.textTertiary }]}>
+              {cliente.activo ? "Activo" : "Inactivo"}
+            </Text>
+          </View>
         </View>
 
-        <View style={styles.infoCard}>
-          {infoRows.map((row, idx) => (
-            <View key={row.label} style={[styles.infoRow, idx < infoRows.length - 1 && styles.infoRowBorder]}>
-              <Ionicons name={row.icon} size={20} color={Colors.textSecondary} />
-              <View style={styles.infoContent}>
-                <Text style={styles.infoLabel}>{row.label}</Text>
-                <Text style={styles.infoValue}>{row.value}</Text>
-              </View>
+        {/* ── Info cards (one per section) ── */}
+        {infoSections.map((section, sIdx) => (
+          <View key={sIdx} style={styles.infoCardWrapper}>
+            {section.title && (
+              <Text style={styles.infoCardTitle}>{section.title}</Text>
+            )}
+            <View style={styles.infoCard}>
+              {section.rows.map((row: InfoRow, idx: number) => (
+                <View
+                  key={`${row.label}-${idx}`}
+                  style={[styles.infoRow, idx < section.rows.length - 1 && styles.infoRowBorder]}
+                >
+                  <Ionicons name={row.icon} size={20} color={Colors.textSecondary} />
+                  <View style={styles.infoContent}>
+                    <Text style={styles.infoLabel}>{row.label}</Text>
+                    <Text style={styles.infoValue}>{row.value}</Text>
+                  </View>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+          </View>
+        ))}
 
+        {/* ── Procesos ── */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Procesos ({procesos.length})</Text>
           <Pressable onPress={() => router.push({ pathname: "/case/new", params: { clienteId: cliente.id } })}>
@@ -202,7 +314,9 @@ export default function ClientDetailScreen() {
                 <Text style={styles.procesoTipo}>{p.tipoProceso?.nombre}</Text>
               </View>
               <View style={[styles.estadoBadge, { backgroundColor: (ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary) + "15" }]}>
-                <Text style={[styles.estadoText, { color: ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary }]}>{ESTADO_LABELS[getEstadoKey(p.estado)]}</Text>
+                <Text style={[styles.estadoText, { color: ESTADO_COLORS[getEstadoKey(p.estado)] || Colors.textTertiary }]}>
+                  {ESTADO_LABELS[getEstadoKey(p.estado)]}
+                </Text>
               </View>
             </Pressable>
           ))
@@ -213,139 +327,78 @@ export default function ClientDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
+  screen:   { flex: 1, backgroundColor: Colors.background },
   centered: { alignItems: "center", justifyContent: "center" },
   loadingText: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 12,
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: 20, paddingBottom: 12,
     backgroundColor: Colors.white,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  headerTitle: {
-    fontSize: 17,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  profileSection: {
-    alignItems: "center",
-    marginBottom: 24,
-  },
+  headerTitle:   { fontSize: 17, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
+
+  content: { padding: 20, paddingBottom: 40 },
+
+  profileSection: { alignItems: "center", marginBottom: 24, gap: 8 },
   avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 22,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
+    width: 72, height: 72, borderRadius: 22,
+    alignItems: "center", justifyContent: "center", marginBottom: 4,
   },
-  avatarText: {
-    fontSize: 28,
-    fontFamily: "Inter_700Bold",
-    color: Colors.white,
+  avatarText: { fontSize: 28, fontFamily: "Inter_700Bold", color: Colors.white },
+  clientName: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.text, textAlign: "center" },
+
+  tipoBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
   },
-  clientName: {
-    fontSize: 22,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
+  tipoBadgeNatural: { backgroundColor: TEAL + "18" },
+  tipoBadgeEmpresa: { backgroundColor: AMBER + "22" },
+  tipoBadgeText:    { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  estadoActivoBadge: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    borderRadius: 20, paddingHorizontal: 12, paddingVertical: 5,
+  },
+  estadoActivoDot:  { width: 7, height: 7, borderRadius: 4 },
+  estadoActivoText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+
+  infoCardWrapper: { marginBottom: 24 },
+  infoCardTitle: {
+    fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary,
+    marginBottom: 8, marginLeft: 4,
   },
   infoCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    marginBottom: 24,
+    backgroundColor: Colors.white, borderRadius: 16,
     overflow: "hidden",
   },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    gap: 14,
-  },
-  infoRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
+  infoRow: { flexDirection: "row", alignItems: "center", padding: 16, gap: 14 },
+  infoRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   infoContent: { flex: 1 },
-  infoLabel: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textTertiary,
-  },
-  infoValue: {
-    fontSize: 15,
-    fontFamily: "Inter_500Medium",
-    color: Colors.text,
-    marginTop: 2,
-  },
+  infoLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textTertiary },
+  infoValue: { fontSize: 15, fontFamily: "Inter_500Medium", color: Colors.text, marginTop: 2 },
+
   sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    flexDirection: "row", justifyContent: "space-between",
+    alignItems: "center", marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-  },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 32,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
-  },
+  sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
+
+  emptyState: { alignItems: "center", paddingVertical: 32, gap: 8 },
+  emptyText:  { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
+
   procesoCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
-    gap: 12,
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: Colors.white, borderRadius: 14,
+    padding: 16, marginBottom: 10, gap: 12,
   },
   procesoCardPressed: { opacity: 0.9 },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  procesoInfo: { flex: 1 },
-  procesoRadicado: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.text,
-  },
-  procesoTipo: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  estadoBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  estadoText: {
-    fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
-  },
+  statusDot:    { width: 10, height: 10, borderRadius: 5 },
+  procesoInfo:  { flex: 1 },
+  procesoRadicado: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  procesoTipo: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
+  estadoBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 },
+  estadoText:  { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 });

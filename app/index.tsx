@@ -19,7 +19,7 @@ export default function LandingScreen() {
 
   const handleProfessionalAccess = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push("/(auth)/login");
+    router.push("/login");
   };
 
   return (

@@ -1,28 +1,20 @@
-
 /**
  * Cliente Schema
- * Database table definition for clientes (clients)
+ * Base table for all clients — natural persons and companies
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, text, varchar, boolean, timestamp, int } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, boolean, timestamp, mysqlEnum } from "drizzle-orm/mysql-core";
 import { users } from "./user.schema";
-import { tiposDocumento } from "./tipos-documento.schema";
 import { procesos } from "./proceso.schema";
-import { departamentos, municipios } from "./ubicacion.schema";
 import { lawyerClients } from "./lawyer-clients.schema";
+import { clientesNatural } from "./cliente-natural.schema";
+import { clientesEmpresa } from "./cliente-empresa.schema";
 
 export const clientes = mysqlTable("clientes", {
   id: varchar("id", { length: 36 }).primaryKey(),
   userId: varchar("user_id", { length: 36 }).notNull().unique(),
-  nombre: varchar("nombre", { length: 100 }).notNull(),
-  apellido: varchar("apellido", { length: 100 }).notNull(),
-  telefono: varchar("telefono", { length: 50 }).notNull(),
-  documento: varchar("documento", { length: 50 }).notNull(),
-  tipoDocumentoId: int("tipo_documento_id").notNull(),
-  direccion: text("direccion"),
-  departamentoId: varchar("departamento_id", { length: 36 }),
-  municipioId: varchar("municipio_id", { length: 36 }),
+  tipo: mysqlEnum("tipo", ["natural", "empresa"]).notNull().default("natural"),
   fechaCreacion: timestamp("fecha_creacion").notNull().default(new Date()),
   activo: boolean("activo").notNull().default(true),
 });
@@ -32,17 +24,13 @@ export const clientesRelations = relations(clientes, ({ one, many }) => ({
     fields: [clientes.userId],
     references: [users.id],
   }),
-  tipoDocumento: one(tiposDocumento, {
-    fields: [clientes.tipoDocumentoId],
-    references: [tiposDocumento.id],
+  natural: one(clientesNatural, {
+    fields: [clientes.id],
+    references: [clientesNatural.clienteId],
   }),
-  departamento: one(departamentos, {
-    fields: [clientes.departamentoId],
-    references: [departamentos.id],
-  }),
-  municipio: one(municipios, {
-    fields: [clientes.municipioId],
-    references: [municipios.id],
+  empresa: one(clientesEmpresa, {
+    fields: [clientes.id],
+    references: [clientesEmpresa.clienteId],
   }),
   procesos: many(procesos),
   lawyerClients: many(lawyerClients),
@@ -52,63 +40,34 @@ export const clientesRelations = relations(clientes, ({ one, many }) => ({
 // Interfaces
 // ============================================
 
-/** Cliente table row type */
+export type ClienteTipo = "natural" | "empresa";
+
 export interface Cliente {
   id: string;
-  userId ?: string;
-  nombre: string;
-  apellido: string;
-  telefono: string;
-  documento: string;
-  tipoDocumentoId: number;
-  direccion: string | null;
-  departamentoId: string | null;
-  municipioId: string | null;
+  userId?: string;
+  tipo: ClienteTipo;
   activo: boolean;
   fechaCreacion: Date;
-  departamento?: { id: string; codigo: string; nombre: string } | null;
-  municipio?: { id: string; codigo: string; nombre: string } | null;
-  user?:{
+  procesosStats:any;
+  user?: {
     id: string;
     email: string;
     isActive: boolean;
     createdAt: Date;
-  }| null;
-  tipoDocumento?: {
-    id: number;
-    codigo: string;
-    nombre: string;
-  }| null;
+  } | null;
+  natural?: import("./cliente-natural.schema").ClienteNatural | null;
+  empresa?: import("./cliente-empresa.schema").ClienteEmpresa | null;
 }
 
-/** Cliente insert type */
 export interface InsertCliente {
   id: string;
   userId: string;
-  nombre: string;
-  apellido: string;
-  telefono: string;
-  documento: string;
-  tipoDocumentoId: number;
-  direccion?: string | null;
-  departamentoId?: string | null;
-  municipioId?: string | null;
+  tipo: ClienteTipo;
   activo?: boolean;
   fechaCreacion?: Date;
-  correo?: string;
-  password?: string;
-  lawyerId?: string | null;
 }
 
-/** Cliente relation types */
-export interface ClienteRelations  {
-  user: import("./user.schema").User | null;
-  tipoDocumento: import("./tipos-documento.schema").TiposDocumento | null;
-  departamento: import("./ubicacion.schema").Departamento | null;
-  municipio: import("./ubicacion.schema").Municipio | null;
+/** Legacy compat — used in some services */
+export interface ClienteRelations extends Cliente {
   procesos: import("./proceso.schema").ProcesoDTO[];
 }
-
-
-
-

@@ -639,6 +639,21 @@ export function setupWebSocketServer(httpServer: Server): WebSocketServer | null
   return wss;
 }
 
+// ============================================
+// EXPORTED BROADCAST — used by REST upload endpoint
+// ============================================
+
+/**
+ * Broadcast a WsOutgoingMessage to all sockets currently in a conversation room.
+ * Called from the file-upload REST endpoint so participants receive new_message in real-time.
+ */
+export function broadcastToRoom(
+  conversationId: string,
+  payload: WsOutgoingMessage
+): void {
+  broadcastToConversation(conversationId, payload);
+}
+
 // Cleanup on process exit
 process.on("exit", () => {
   if (cleanupInterval) {

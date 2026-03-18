@@ -1,8 +1,4 @@
 import { mysqlTable, int, varchar, text, boolean, timestamp } from "drizzle-orm/mysql-core";
-import { relations } from "drizzle-orm";
-import { modulos } from "./modulo.schema";
-import { rolesPermisos } from "./rolesPermisos.schema";
-
 
 export const permisos = mysqlTable("permisos", {
   id: int("id").autoincrement().primaryKey(),
@@ -15,11 +11,6 @@ export const permisos = mysqlTable("permisos", {
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
   state: boolean("state").notNull().default(true),
 });
-
-export const permisosRelations = relations(permisos, ({ one, many }) => ({
-  modulo: one(modulos, { fields: [permisos.moduloId], references: [modulos.id] }),
-  rolesPermisos: many(rolesPermisos),
-}));
 
 // ============================================
 // Interfaces

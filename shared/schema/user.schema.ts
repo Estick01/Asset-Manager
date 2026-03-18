@@ -65,13 +65,15 @@ export interface UserWithRol extends User {
   rol: UserRelations['rol']; // Rol | null
 }
 
-export enum EnumRol {
-  ADMIN = "admin",
-  ABOGADO = "abogado",
-  NUEVO = "nuevo",
-  CLIENTE = "cliente",
-  BUFETE = "bufete",
-}
+export const EnumRol = {
+  ADMIN: { id: 1, nombre: "admin" },
+  ABOGADO: { id: 2, nombre: "abogado" },
+  NUEVO: { id: 3, nombre: "nuevo" },
+  CLIENTE: { id: 4, nombre: "cliente" },
+  BUFETE: { id: 5, nombre: "bufete" },
+} as const;
+
+export type EnumRolType = typeof EnumRol[keyof typeof EnumRol]["nombre"];
 
 // Aliases for backward compatibility
 export type UserDTO = User;

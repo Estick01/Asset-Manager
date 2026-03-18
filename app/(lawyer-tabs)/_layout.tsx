@@ -66,7 +66,6 @@ function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
   const { pendingCount } = useInvitations();
   const { unreadCount: unreadChatCount } = useChatNotifications();
-  const { unreadCount: unreadNotifCount } = useNotifications();
 
   return (
     <Tabs
@@ -131,23 +130,15 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="notifications"
-        options={{
-          title: "Alertas",
-          tabBarIcon: ({ color, size }) => (
-            <BadgeIcon name="notifications" size={size} color={color} count={unreadNotifCount} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="settings"
         options={{
           title: "Ajustes",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
+            <BadgeIcon name="settings" size={size} color={color} />
           ),
         }}
       />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="invitations" options={{ href: null }} />
     </Tabs>
   );

@@ -1,3 +1,4 @@
+import { Rol } from './../../shared/schema/rol.schema';
 import { profile } from 'node:console';
 import { storage } from './../storage/storeage/database-storage';
 
@@ -16,6 +17,7 @@ import { JWTPayload } from "@/shared/model.schema.js";
 import { validate } from "../middleware/validation.js";
 import { loginRateLimiter } from "../middleware/rate-limit.js";
 import { Profile } from '@/lib/auth';
+import { EnumRol } from '@/shared/schema/user.schema';
 
 // Validation schemas for registration
 const lawyerRegisterSchema = z.object({
@@ -23,21 +25,37 @@ const lawyerRegisterSchema = z.object({
   password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
   firstName: z.string().min(1, "El nombre es requerido"),
   lastName: z.string().min(1, "El apellido es requerido"),
+  phone: z.string().min(1, "El teléfono es requerido"),
+  documento: z.string().min(1, "El documento de identidad es requerido"),
+  tipoDocumentoId: z.number().int().positive("El tipo de documento es requerido"),
+  direccion: z.string().optional(),
+  departamentoId: z.string().optional(),
+  municipioId: z.string().optional(),
   licenseNumber: z.string().min(1, "El número de licencia es requerido"),
   specialty: z.string().optional(),
-  phone: z.string().optional(),
   isIndependent: z.boolean().default(true),
   firmId: z.string().uuid().optional(),
 });
 
 const firmRegisterSchema = z.object({
   email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   name: z.string().min(1, "El nombre de la firma es requerido"),
   nit: z.string().min(1, "El NIT es requerido"),
   address: z.string().optional(),
   phone: z.string().optional(),
   planId: z.string().optional(),
+  // representante legal (opcional)
+  repNombre: z.string().optional(),
+  repApellido: z.string().optional(),
+  repDocumento: z.string().optional(),
+  repTipoDocumentoId: z.number().int().positive().optional(),
+  repCargo: z.string().optional(),
+  repEmail: z.string().email().optional().or(z.literal("")),
+  repTelefono: z.string().optional(),
+  repDireccion: z.string().optional(),
+  repDepartamentoId: z.string().optional(),
+  repMunicipioId: z.string().optional(),
 });
 
 
@@ -135,18 +153,16 @@ router.post("/register/lawyer",
       firstName,
       lastName,
       phone,
-      address,
-      specialization,
+      documento,
+      tipoDocumentoId,
+      direccion,
+      departamentoId,
+      municipioId,
+      specialty,
       licenseNumber,
       isIndependent,
       firmId,
     } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email y password son obligatorios",
-      });
-    }
 
     // Check if email already exists
     const existingUser = await storage.getUserByEmail(email);
@@ -162,27 +178,33 @@ router.post("/register/lawyer",
     // Get default plan or create user without plan
     const defaultPlan = await storage.getPlan("free-plan");
     const planId = defaultPlan ? "free-plan" : (await storage.getPlanes())[0]?.id;
-    
-    // Create lawyer with user
+
+    // Create persona + user + lawyer profile in one transaction
     const lawyer = await storage.createLawyerWithUser(
       {
         id: crypto.randomUUID(),
         email,
         passwordHash: hashedPassword,
         planId: planId || "free-plan",
-        rolId: 1,
+        rolId: EnumRol.ABOGADO.id,
         name: `${firstName} ${lastName}`,
       },
       {
         id: crypto.randomUUID(),
-        firstName,
-        lastName,
-        phone,
-        address,
-        specialization,
+        specialization: specialty ?? null,
         licenseNumber,
         isIndependent: isIndependent ?? true,
         firmId: firmId || null,
+      },
+      {
+        nombre: firstName,
+        apellido: lastName,
+        telefono: phone,
+        documento,
+        tipoDocumentoId,
+        direccion: direccion ?? null,
+        departamentoId: departamentoId ?? null,
+        municipioId: municipioId ?? null,
       }
     );
 
@@ -210,13 +232,17 @@ router.post("/register/firm",
       address,
       phone,
       planId,
+      repNombre,
+      repApellido,
+      repDocumento,
+      repTipoDocumentoId,
+      repCargo,
+      repEmail,
+      repTelefono,
+      repDireccion,
+      repDepartamentoId,
+      repMunicipioId,
     } = req.body;
-
-    if (!email || !password || !name || !nit) {
-      return res.status(400).json({
-        message: "Email, password, nombre y NIT son obligatorios",
-      });
-    }
 
     // Check if email already exists
     const existingUser = await storage.getUserByEmail(email);
@@ -233,6 +259,26 @@ router.post("/register/firm",
     const defaultPlan = await storage.getPlan(planId || "free-plan");
     const userPlanId = defaultPlan ? (planId || "free-plan") : (await storage.getPlanes())[0]?.id || "free-plan";
 
+    // Build optional rep data (only if nombre + documento provided)
+    const repData = repNombre && repDocumento
+      ? {
+          persona: {
+            nombre: repNombre,
+            apellido: repApellido || "",
+            telefono: repTelefono || "",
+            documento: repDocumento,
+            tipoDocumentoId: repTipoDocumentoId || 1,
+            direccion: repDireccion || null,
+            departamentoId: repDepartamentoId || null,
+            municipioId: repMunicipioId || null,
+          },
+          rep: {
+            cargo: repCargo || "Representante Legal",
+            email: repEmail || email,
+          },
+        }
+      : undefined;
+
     // Create firm with user
     const firm = await storage.createFirmWithUser(
       {
@@ -241,7 +287,7 @@ router.post("/register/firm",
         passwordHash: hashedPassword,
         planId: userPlanId,
         rolId: 5,
-        name: name,// firm role
+        name,
       },
       {
         id: crypto.randomUUID(),
@@ -250,7 +296,8 @@ router.post("/register/firm",
         address,
         phone,
         planId: userPlanId,
-      }
+      },
+      repData
     );
 
     return res.status(201).json({
@@ -410,6 +457,28 @@ router.post("/auth/logout", async (req: Request, res: Response, next: NextFuncti
     res.clearCookie(AUTH_COOKIE_NAME, getClearCookieOptions(isProduction));
     res.clearCookie(AUTH_REFRESH_COOKIE_NAME, getClearCookieOptions(isProduction));
     res.json({ message: "Sesión cerrada correctamente" });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/auth/change-password — authenticated user changes their own password
+router.put("/auth/change-password", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Se requieren la contraseña actual y la nueva." });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "La nueva contraseña debe tener al menos 6 caracteres." });
+    }
+    const authUser = (req as any).user;
+    const user = await storage.getUserById(authUser.id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    const valid = await verifyPassword(currentPassword, user.passwordHash || "");
+    if (!valid) return res.status(401).json({ error: "La contraseña actual es incorrecta." });
+    await storage.users.updateUser(authUser.id, { passwordHash: await hashPassword(newPassword) });
+    res.json({ message: "Contraseña actualizada correctamente." });
   } catch (err) {
     next(err);
   }

@@ -38,9 +38,13 @@ interface CallerProfile {
  * Tries lawyerProfiles first, then firmProfiles.
  */
 async function resolveCaller(userId: string): Promise<CallerProfile> {
-  const lawyer = await storage.abogados.getLawyerByUserId(userId);
-  if (lawyer) {
-    return { id: lawyer.id, nombre: `${lawyer.firstName} ${lawyer.lastName}`, type: "lawyer" };
+  const lawyerProfile = await storage.abogados.getLawyerByUserId(userId);
+  if (lawyerProfile) {
+    const lawyer = await storage.abogados.getLawyer(lawyerProfile.id);
+    const nombre = lawyer?.persona
+      ? `${lawyer.persona.nombre ?? ""} ${lawyer.persona.apellido ?? ""}`.trim()
+      : "";
+    return { id: lawyerProfile.id, nombre, type: "lawyer" };
   }
   const firm = await storage.firmProfiles.getFirmProfileByUserId(userId);
   if (firm) {
@@ -54,7 +58,11 @@ async function resolveCaller(userId: string): Promise<CallerProfile> {
  */
 async function resolveProfileName(profileId: string): Promise<string | null> {
   const lawyer = await storage.abogados.getLawyer(profileId);
-  if (lawyer) return `${lawyer.firstName} ${lawyer.lastName}`;
+  if (lawyer) {
+    return lawyer.persona
+      ? `${lawyer.persona.nombre ?? ""} ${lawyer.persona.apellido ?? ""}`.trim()
+      : null;
+  }
   const firm = await storage.firmProfiles.getFirmProfileById(profileId);
   return firm?.name ?? null;
 }
@@ -372,6 +380,12 @@ export class TareaService {
 
   async completarTarea(tareaId: string, callerUserId: string): Promise<TareaResponseDTO> {
     return this.cambiarEstado(tareaId, { estado: "completada" }, callerUserId);
+  }
+
+  // ── Count by lawyer ────────────────────────────────────────────────────────
+
+  async countByLawyer(lawyerId: string) {
+    return storage.tareas.countByLawyer(lawyerId);
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────────

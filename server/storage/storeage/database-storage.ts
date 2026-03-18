@@ -27,7 +27,9 @@ import { FirmInvitationStorage } from "./models/firm-invitation-storage";
 import { ChatStorage } from "./models/chat-storage";
 import { SessionStorage } from "./models/session-storage";
 import { TareaStorage } from "./models/tarea-storage";
-import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile } from '@/shared/schema';
+import { PersonaStorage } from "./models/persona-storage";
+import { RepresentanteLegalStorage } from "./models/representante-legal-storage";
+import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
 // Export the database type for use in storage classes
@@ -60,6 +62,8 @@ export class DatabaseStorage {
   public chat: ChatStorage;
   public sessions: SessionStorage;
   public tareas: TareaStorage;
+  public personas: PersonaStorage;
+  public representantesLegales: RepresentanteLegalStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -96,6 +100,8 @@ export class DatabaseStorage {
     this.chat = new ChatStorage(this.db);
     this.sessions = new SessionStorage(this.db);
     this.tareas = new TareaStorage(this.db);
+    this.personas = new PersonaStorage(this.db);
+    this.representantesLegales = new RepresentanteLegalStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
@@ -200,6 +206,7 @@ export class DatabaseStorage {
   }
 
   async getClientesCount(abogadoId: string) {
+    
     return this.clientes.getClientesCount(abogadoId);
   }
 
@@ -422,40 +429,20 @@ export class DatabaseStorage {
 
 
 
-  
-
-
-
-
-
-
-  async createClienteWithUser(userData: InsertUser, clienteData: Omit<InsertCliente, "userId">): Promise<Cliente> {
-    return await this.db.transaction(async (tx) => {
-      const user = await this.users.createUser(userData, tx);
-      const cliente = await this.clientes.createCliente(
-        {
-          ...clienteData,
-          userId: user.id,
-        },
-        tx
-      );
-      return cliente;
-    });
-  }
-
   // Create lawyer with user (SaaS model)
   async createLawyerWithUser(
     userData: InsertUser,
-    lawyerData: Omit<InsertLawyerProfile, "userId">
+    lawyerData: Omit<InsertLawyerProfile, "userId" | "personaId">,
+    personaData: Omit<InsertPersona, "id">
   ): Promise<LawyerProfile> {
     return await this.db.transaction(async (tx) => {
       const user = await this.users.createUser(userData, tx);
-      const lawyer = await this.abogados.createLawyer(
-        {
-          ...lawyerData,
-          userId: user.id,
-        }
-      );
+      const persona = await this.personas.createPersona(personaData, tx);
+      const lawyer = await this.abogados.createLawyer({
+        ...lawyerData,
+        userId: user.id,
+        personaId: persona.id,
+      });
       return lawyer;
     });
   }
@@ -463,32 +450,59 @@ export class DatabaseStorage {
   // Create firm with user (SaaS model)
   async createFirmWithUser(
     userData: InsertUser,
-    firmData: Omit<InsertFirmProfile, "userId">
+    firmData: Omit<InsertFirmProfile, "userId">,
+    repData?: {
+      persona: Omit<InsertPersona, "id">;
+      rep: Omit<InsertRepresentanteLegal, "id" | "personaId">;
+    }
   ): Promise<FirmProfile> {
     return await this.db.transaction(async (tx) => {
       const user = await this.users.createUser(userData, tx);
-      const firm = await this.firmProfiles.createFirmProfile(
-        {
-          ...firmData,
-          userId: user.id,
-        }
-      );
+
+      let representanteLegalId: string | null = null;
+      if (repData) {
+        const persona = await this.personas.createPersona(repData.persona, tx);
+        const rep = await this.representantesLegales.createRepresentante(
+          { ...repData.rep, personaId: persona.id },
+          tx
+        );
+        representanteLegalId = rep.id;
+      }
+
+      const firm = await this.firmProfiles.createFirmProfile({
+        ...firmData,
+        userId: user.id,
+        representanteLegalId,
+      });
       return firm;
     });
   }
 
   async getUserProfile(userId: string, rolNombre: string) {
-      switch (rolNombre) {
-        case "abogado":
-          return await this.abogados.getLawyerByUserId(userId);
-        case "cliente":
-          return await this.clientes.getClienteByUser(userId);
-        case "bufete":
-          return await this.firmProfiles.getFirmProfileByUserId(userId);
-        default:
-          return null;
+    console.log(rolNombre,'rolNombre', userId,'userId')
+    switch (rolNombre) {
+      case "abogado": {
+        // getLawyerByUserId returns bare row without persona JOIN — resolve full profile
+        const bare = await this.abogados.getLawyerByUserId(userId);
+        if (!bare) return null;
+        return this.abogados.getLawyer(bare.id);
       }
+      case "cliente":
+        // getClienteByUser delegates to getCliente which does the full JOIN
+        return this.clientes.getClienteByUser(userId);
+      case "bufete": {
+        const firm = await this.firmProfiles.getFirmProfileByUserId(userId);
+        if (!firm) return null;
+        if (firm.representanteLegalId) {
+          const representante = await this.representantesLegales.getRepresentante(firm.representanteLegalId);
+          return { ...firm, representanteLegal: representante ?? null };
+        }
+        return { ...firm, representanteLegal: null };
+      }
+      default:
+        return null;
     }
+  }
 }
 
 // Create singleton instance for backwards compatibility with routes
