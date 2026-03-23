@@ -14,59 +14,13 @@ import {
 } from "@/lib/services/communityService";
 import { Tooltip } from "@/components/Tooltip";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
+import { C, T, S, R, shadow, CASE_META, AVATAR_PALETTE, getAvatarColor, formatDate } from "@/constants/community-theme";
 
-// ─── Tokens ───────────────────────────────────────────────────────────────
-const NAVY   = "#0F2640";
-const WHITE  = "#FFFFFF";
-const BG     = "#F4F6F8";
-const TEXT   = "#1B2B3B";
-const TEXT2  = "#6B7B8D";
-const TEXT3  = "#9AAABB";
-const TEAL   = "#2196A6";
-const GREEN  = "#27AE7A";
-const AMBER  = "#F5A623";
-const ROSE   = "#E05252";
-const PURPLE = "#7C3AED";
-const ORANGE = "#EA580C";
-
-// ─── Case type visual meta ────────────────────────────────────────────────
-const CASE_META: Record<string, {
-  bg: string; text: string; border: string; icon: string; label: string; accent: string;
-}> = {
-  civil:          { bg: "#EEF2FF", text: "#4F46E5", border: "#C7D2FE", icon: "document-text-outline", label: "Civil",          accent: "#4F46E5" },
-  penal:          { bg: "#FEF2F2", text: "#DC2626", border: "#FECACA", icon: "warning-outline",        label: "Penal",          accent: "#DC2626" },
-  laboral:        { bg: "#FFFBEB", text: "#D97706", border: "#FDE68A", icon: "briefcase-outline",      label: "Laboral",        accent: "#D97706" },
-  familiar:       { bg: "#F5F3FF", text: PURPLE,   border: "#DDD6FE", icon: "people-outline",         label: "Familiar",       accent: PURPLE },
-  mercantil:      { bg: "#ECFEFF", text: "#0891B2", border: "#A5F3FC", icon: "business-outline",       label: "Mercantil",      accent: "#0891B2" },
-  administrativo: { bg: "#F0FDF4", text: "#16A34A", border: "#BBF7D0", icon: "shield-outline",         label: "Administrativo", accent: "#16A34A" },
-  tributario:     { bg: "#FFF7ED", text: ORANGE,   border: "#FED7AA", icon: "cash-outline",           label: "Tributario",     accent: ORANGE },
-  inmobiliario:   { bg: "#F0FDFA", text: "#0F766E", border: "#99F6E4", icon: "home-outline",           label: "Inmobiliario",   accent: "#0F766E" },
-  otro:           { bg: "#F9FAFB", text: "#6B7280", border: "#E5E7EB", icon: "help-circle-outline",    label: "Otro",           accent: "#6B7280" },
-};
-
-const AVATAR_PALETTE = [
-  { bg: "#E8F4FD", text: TEAL },
-  { bg: "#E8F8F2", text: GREEN },
-  { bg: "#FEF6E8", text: AMBER },
-  { bg: "#FDEAEA", text: ROSE },
-  { bg: "#EEE8FD", text: PURPLE },
-  { bg: "#FDF0E8", text: ORANGE },
-];
-
-function getAvatarColor(name: string) {
-  return AVATAR_PALETTE[(name.charCodeAt(0) || 65) % AVATAR_PALETTE.length];
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now   = new Date();
-  const diff  = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diff < 60)    return "ahora";
-  if (diff < 3600)  return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800)return `${Math.floor(diff / 86400)}d`;
-  return date.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
-}
+// Local aliases for backwards compat within this file
+const NAVY = C.NAVY, WHITE = C.WHITE, BG = C.BG, TEXT = C.TEXT;
+const TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, TEAL = C.TEAL;
+const GREEN = C.GREEN, AMBER = C.AMBER, ROSE = C.ROSE;
+const PURPLE = C.PURPLE, ORANGE = C.ORANGE;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────
 function SkeletonBlock({ w, h, r = 8, mb = 0 }: { w?: number | `${number}%`; h: number; r?: number; mb?: number }) {
@@ -157,13 +111,17 @@ function PostCard({ post, index }: { post: PostDTO; index: number }) {
       <Pressable
         style={({ pressed }) => [
           styles.card,
-          isUrgent && styles.cardUrgent,
+          isUrgent ? { backgroundColor: C.ROSE_LIGHT, ...shadow.cardUrgent } : shadow.card,
           pressed && styles.cardPressed,
         ]}
         onPress={() => router.push(`/community/${post.id}` as any)}
       >
         {/* Left accent bar — colored by case type or urgency */}
-        <View style={[styles.cardSideBar, { backgroundColor: accentColor }]} />
+        <View style={[styles.cardSideBar, {
+          backgroundColor: accentColor,
+          position: "absolute", left: 0, top: 0, bottom: 0,
+          borderTopLeftRadius: R.card, borderBottomLeftRadius: R.card,
+        }]} />
 
         <View style={styles.cardInner}>
 
@@ -300,11 +258,15 @@ function PostCard({ post, index }: { post: PostDTO; index: number }) {
             </View>
 
             <Pressable
-              style={({ pressed }) => [styles.viewBtn, pressed && { opacity: 0.85 }]}
               onPress={() => router.push(`/community/${post.id}` as any)}
+              style={{
+                backgroundColor: C.TEAL, borderRadius: R.button,
+                paddingHorizontal: 14, paddingVertical: 7,
+                flexDirection: "row" as const, alignItems: "center" as const, gap: 4,
+              }}
             >
-              <Text style={styles.viewBtnText}>Ver caso</Text>
-              <Ionicons name="arrow-forward" size={12} color={WHITE} />
+              <Ionicons name="chatbubble-outline" size={13} color={C.WHITE} />
+              <Text style={{ fontSize: 13, fontWeight: "600" as const, color: C.WHITE }}>Responder</Text>
             </Pressable>
           </View>
 
@@ -712,7 +674,42 @@ export default function CommunityFeed() {
           <FlatList
             data={posts}
             keyExtractor={item => item.id}
-            renderItem={({ item, index }) => <PostCard post={item} index={index} />}
+            renderItem={({ item, index }) => {
+              const showBanner = index > 0 && (index + 1) % 5 === 0;
+              return (
+                <>
+                  <PostCard post={item} index={index} />
+                  {showBanner && (
+                    <Pressable
+                      onPress={() => router.push("/community/new" as any)}
+                      style={{
+                        backgroundColor: C.TEAL_LIGHT,
+                        borderRadius: R.card,
+                        marginHorizontal: S.cardPad,
+                        marginBottom: S.cardGap,
+                        padding: 14,
+                        flexDirection: "row" as const,
+                        alignItems: "center" as const,
+                        gap: 10,
+                      }}
+                    >
+                      <Ionicons name="megaphone-outline" size={22} color={C.TEAL} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 13, fontWeight: "600" as const, color: C.NAVY }}>
+                          {isLawyer ? "¿Tienes experiencia que compartir?" : "¿Tienes un caso legal?"}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: C.TEXT2, marginTop: 2 }}>
+                          {isLawyer
+                            ? "Comparte tu experiencia con la comunidad →"
+                            : "Más de 200 abogados están listos para ayudarte →"}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={C.TEAL} />
+                    </Pressable>
+                  )}
+                </>
+              );
+            }}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
             style={{ flex: 1 }}
@@ -857,7 +854,7 @@ const styles = StyleSheet.create({
   },
 
   // ── List / header ──
-  list:       { paddingHorizontal: 16, gap: 10 },
+  list:       { paddingTop: 4 },
   listHeader: { paddingTop: 14, paddingBottom: 6, gap: 10 },
 
   // ── Sort row ──
@@ -951,15 +948,13 @@ const styles = StyleSheet.create({
 
   // ── Post card ──
   card: {
-    backgroundColor: WHITE,
-    borderRadius: 18,
-    flexDirection: "row",
+    backgroundColor: C.WHITE,
+    borderRadius: R.card,
+    marginHorizontal: S.cardPad,
+    marginBottom: S.cardGap,
+    padding: S.cardPad,
+    paddingLeft: S.cardPad + 3, // space for accent bar
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07,
-    shadowRadius: 8,
-    elevation: 2,
   },
   cardUrgent: {
     shadowColor: ROSE,
@@ -970,8 +965,8 @@ const styles = StyleSheet.create({
     borderColor: ROSE + "25",
   },
   cardPressed: { opacity: 0.93, transform: [{ scale: 0.985 }] },
-  cardSideBar: { width: 4 },
-  cardInner:   { flex: 1, padding: 14, gap: 8 },
+  cardSideBar: { width: 3 },
+  cardInner:   { flex: 1, gap: 8 },
 
   // ── Badge row ──
   badgeRow:     { flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "center" },
