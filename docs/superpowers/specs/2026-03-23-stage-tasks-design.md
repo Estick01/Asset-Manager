@@ -31,16 +31,14 @@ The existing `procesos` system already has legal stages (`legalStage` field + `e
 - `components/proceso/StageDetailSheet.tsx`
 
 **Modified files:**
-- `shared/schema/tarea.schema.ts` — add `legalStage`, `requerida` fields
+- `shared/schema/tarea.schema.ts` — add `legalStage` (varchar 50, nullable), `requerida` (tinyint→boolean) to Drizzle table + DTOs
 - `shared/schema/index.ts` — export new schemas
 - `server/storage/storeage/database-storage.ts` — register new storage models
-- `server/storage/storeage/models/stage-event-storage.ts` — new
-- `server/routes/tareas.ts` — accept `legalStage`, `requerida` in create/update; `?stage=` filter
-- `server/routes/documentos.ts` — accept `legalStage` in upload; `?stage=` filter
-- `server/routes/procesos.ts` — gate logic in `PATCH /:id/legal-stage`
-- `server/services/legal-stage.service.ts` — (or equivalent) materialize templates + insert events on advance
+- `server/routes/tareas.ts` — accept `legalStage`, `requerida` in create/update; `?stage=` filter; insert `tarea_completada` event in `etapa_eventos` when task status changes to `completada`
+- `server/routes/documentos.ts` — accept `legalStage` in upload; `?stage=` filter; insert `documento_subido` event in `etapa_eventos` when document is uploaded with a stage
+- `server/routes/procesos.ts` — gate + template materialization + event insertion in existing `PATCH /:id/legal-stage` handler (no new service file needed)
 - `server/index.ts` — call `seedStageTemplates`
-- `components/proceso/LegalStageStepper.tsx` — make stages tappable, show blocker badges
+- `components/proceso/LegalStageStepper.tsx` — make stages tappable (prop `onStagePress?: (etapa) => void` — optional), show blocker badges
 - `app/case/[id].tsx` — stage filter chips on Tasks tab; stage column on Documents tab
 
 ---
@@ -100,6 +98,13 @@ ALTER TABLE `tareas`
   ADD INDEX  `idx_tareas_stage` (`proceso_id`, `legal_stage`);
 ```
 
+Drizzle schema additions in `shared/schema/tarea.schema.ts`:
+```typescript
+legalStage: varchar("legal_stage", { length: 50 }),
+requerida:  tinyint("requerida").notNull().default(0),
+```
+DTOs updated: `CreateTareaDTO` and `UpdateTareaDTO` add `legalStage?: string | null` and `requerida?: boolean`. `TareaResponseDTO` exposes `legalStage: string | null` and `requerida: boolean`.
+
 ### Modified: `documentos`
 
 ```sql
@@ -121,6 +126,10 @@ POST   /api/legal-stage-templates
 PATCH  /api/legal-stage-templates/:id
 DELETE /api/legal-stage-templates/:id
 ```
+
+**Authorization:** `requireAuth` + role must be `abogado` or `bufete`. Any authenticated lawyer/firm can manage templates (they are global, not per-proceso). Future: restrict to firm admin if needed.
+
+**Event side-effects:** None — template CRUD does not write to `etapa_eventos`.
 
 Request body (POST/PATCH):
 ```json
@@ -157,19 +166,26 @@ POST body:
 
 **`PATCH /api/procesos/:id/tareas/:tareaId`**
 - Accepts `legalStage?: string` and `requerida?: boolean`
+- **Auto-event:** If `estado` changes to `completada` AND `tarea.legalStage` is not null → insert `tarea_completada` event in `etapa_eventos` with `metadatos: { tareaId, titulo }`. If `legalStage` is null, no event is inserted (global tasks don't appear in stage timeline).
 
 **`GET /api/procesos/:id/documentos?stage=FILED`**
 - Without `stage` → returns all (backward compatible)
-- With `stage=GENERAL` → returns docs without stage (`legal_stage IS NULL`)
+- With `stage=__general__` (magic sentinel) → returns docs where `legal_stage IS NULL`
+- With any valid stage code → filters by that code
+- Note: `__general__` is not a valid `LEGAL_STAGE_CODE`; the route handler has special-case logic for it. Creating a document or task with `legalStage = "__general__"` is rejected with 400.
 
 **`POST /api/procesos/:id/documentos`**
 - Accepts `legalStage?: string` in multipart body
+- **Auto-event:** If `legalStage` is provided → insert `documento_subido` event in `etapa_eventos` with `metadatos: { documentoId, nombre }`. If no `legalStage`, no event is inserted.
 
 **`PATCH /api/procesos/:id/legal-stage`** *(gate added)*
 
-Logic:
-1. Load tasks where `proceso_id = :id AND legal_stage = currentStage AND requerida = 1 AND estado IN ('pendiente','en_progreso')`
-2. If any exist → respond `422`:
+Authorization: same as current (abogado/bufete assigned to the process).
+
+Logic (all steps within a single DB transaction):
+1. Load `proceso.legalStage` (current stage). If `NULL`, skip gate (no stage set yet — allow first advance).
+2. Gate check: load tasks where `proceso_id = :id AND legal_stage = currentStage AND requerida = 1 AND estado IN ('pendiente','en_progreso')`.
+3. If any exist → **rollback + respond `422`**:
    ```json
    {
      "error": "STAGE_BLOCKED",
@@ -177,10 +193,14 @@ Logic:
      "tareasBloqueantes": [{ "id", "titulo", "estado", "prioridad" }]
    }
    ```
-3. If none → advance stage, then:
-   - Insert `etapa_completada` event for old stage
-   - Insert `etapa_iniciada` event for new stage
-   - Materialize templates: load `etapa_tareas_plantilla` matching `legal_stage_code = newStage AND (tipo_proceso_id = proceso.tipoProcesoId OR tipo_proceso_id IS NULL)`, insert them as `tareas` rows with `legal_stage = newStage`
+4. If none → within the same transaction:
+   a. Update `proceso.legalStage` + `etapaActualizadaEn`
+   b. Insert `etapa_completada` event for old stage (skip if old stage was NULL)
+   c. Insert `etapa_iniciada` event for new stage
+   d. Materialize templates: load `etapa_tareas_plantilla` where `legal_stage_code = newStage AND (tipo_proceso_id = proceso.tipoProcesoId OR tipo_proceso_id IS NULL)`. **Deduplication rule:** if both a generic (`tipo_proceso_id IS NULL`) and a type-specific template have the same `titulo`, only the type-specific one is materialized (specific overrides generic). Insert as `tareas` rows with `legal_stage = newStage`, `requerida` from template.
+   e. Commit.
+
+If any step throws, the transaction rolls back — stage is not advanced and no tasks/events are created.
 
 ---
 
