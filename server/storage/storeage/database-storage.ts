@@ -40,6 +40,8 @@ import { MatchingStorage } from "./models/matching-storage";
 import { RecommendationStorage } from "./models/recommendation-storage";
 import { LegalStageStorage } from "./models/legal-stage-storage";
 import { CalendarStorage } from "./models/calendar-storage";
+import { StageTaskTemplateStorage } from "./models/stage-task-template-storage";
+import { StageEventStorage } from "./models/stage-event-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -86,6 +88,8 @@ export class DatabaseStorage {
   public recommendations: RecommendationStorage;
   public legalStages: LegalStageStorage;
   public calendar: CalendarStorage;
+  public stageTemplates: StageTaskTemplateStorage;
+  public stageEvents:    StageEventStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -135,6 +139,8 @@ export class DatabaseStorage {
     this.recommendations = new RecommendationStorage(this.db);
     this.legalStages = new LegalStageStorage(this.db);
     this.calendar = new CalendarStorage(this.db);
+    this.stageTemplates = new StageTaskTemplateStorage(this.db);
+    this.stageEvents    = new StageEventStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
