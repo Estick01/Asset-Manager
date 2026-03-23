@@ -5,6 +5,8 @@
  */
 
 import { type Express } from "express";
+import { apiRateLimiter } from "../middleware/rate-limit.js";
+import healthRoutes from "./health.js";
 import authRoutes from "./auth.js";
 import clientesRoutes from "./clientes.js";
 import procesosRoutes from "./procesos.js";
@@ -18,14 +20,27 @@ import ubicacionRoutes from "./ubicacion.js";
 import lawyerFirmaHistoryRoutes from "./lawyer-firma-history.js";
 import dashboardRoutes from "./dashboard.js";
 import firmInvitationsRoutes from "./firm-invitations.js";
+import firmRolesRoutes from "./firm-roles.js";
 import chatRoutes from "./chat.js";
 import tareasRoutes from "./tareas.js";
+import communityRoutes from "./community.js";
+import ratingsRoutes from "./ratings.js";
+import clientRequestsRoutes from "./client-requests.js";
+import passwordResetRoutes from "./password-reset.js";
+import firmClientsRoutes from "./firm-clients.js";
+import calendarRoutes from "./calendar.js";
 
 /**
  * Register all application routes
  * Mounts all modular route handlers under /api prefix
  */
 export function registerAppRoutes(app: Express): void {
+  // Health check — no /api prefix, no rate limiting (accessible to load balancers)
+  app.use("/", healthRoutes);
+
+  // Apply global rate limiting to all API routes
+  app.use("/api", apiRateLimiter);
+
   // Mount all route modules under /api prefix
   app.use("/api", authRoutes);
   app.use("/api", clientesRoutes);
@@ -40,8 +55,15 @@ export function registerAppRoutes(app: Express): void {
   app.use("/api", lawyerFirmaHistoryRoutes);
   app.use("/api", dashboardRoutes);
   app.use("/api", firmInvitationsRoutes);
+  app.use("/api", firmRolesRoutes);
   app.use("/api", chatRoutes);
   app.use("/api", tareasRoutes);
+  app.use("/api", communityRoutes);
+  app.use("/api", ratingsRoutes);
+  app.use("/api", clientRequestsRoutes);
+  app.use("/api", passwordResetRoutes);
+  app.use("/api", firmClientsRoutes);
+  app.use("/api", calendarRoutes);
 }
 
 export default registerAppRoutes;

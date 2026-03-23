@@ -1,5 +1,6 @@
 
 import "dotenv/config";
+import "./lib/env.js"; // validate env vars at startup
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
 import multer from "multer";
@@ -10,7 +11,9 @@ import { registerRoutes } from "./routes.js";
 import * as fs from "fs";
 import * as path from "path";
 import { storage } from './storage/storeage/database-storage.js';
+import { db } from './db.js';
 import { setupWebSocketServer } from "./websocket/ws-server.js";
+import { seedLegalStages } from "./db/seeds/legal-stages.seed.js";
 
 const app = express();
 app.use(cookieParser());
@@ -23,8 +26,11 @@ declare module "http" {
 }
 
 async function seedDatabase() {
-  // A simple seeding mechanism to ensure a default plan exists.
-  // In a real app, this would be a more robust migration or seeding script.
+  if (process.env.NODE_ENV === "production") {
+    log("[seed] WARNING: Running database seed on startup in production. Consider moving this to a dedicated migration/seed script.");
+  }
+
+  // Idempotent seed: always checks before inserting
   const defaultPlanId = "default-plan-id";
   const defaultPlan = await storage.getPlan(defaultPlanId);
 
@@ -47,6 +53,9 @@ async function seedDatabase() {
     await storage.createEstado({ nombre: "Finalizado", codigo: "finalizado", color: "#3b82f6" });
     await storage.createEstado({ nombre: "Archivado", codigo: "archivado", color: "#9ca3af" });
   }
+
+  // Seed etapas procesales (legal stages)
+  await seedLegalStages(db);
 }
 
 function setupCors(app: express.Application) {
@@ -93,14 +102,14 @@ function setupCors(app: express.Application) {
 function setupBodyParsing(app: express.Application) {
   app.use(
     express.json({
-      limit: "50mb", // Increase limit for file uploads
+      limit: "1mb", // JSON payloads should never be large; files go via multer/S3
       verify: (req, _res, buf) => {
         req.rawBody = buf;
       },
     }),
   );
 
-  app.use(express.urlencoded({ extended: false, limit: "50mb" }));
+  app.use(express.urlencoded({ extended: false, limit: "1mb" }));
   
   // Configure multer for multipart/form-data (file uploads)
   const upload = multer({
@@ -120,9 +129,12 @@ function setupRequestLogging(app: express.Application) {
     const path = req.path;
     let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
+    // Never capture body for auth routes (tokens, passwords, etc.)
+    const isSensitivePath = /^\/(api\/)?(login|register|refresh|logout|password)/.test(path);
+
     const originalResJson = res.json;
     res.json = function (bodyJson, ...args) {
-      capturedJsonResponse = bodyJson;
+      if (!isSensitivePath) capturedJsonResponse = bodyJson;
       return originalResJson.apply(res, [bodyJson, ...args]);
     };
 
@@ -283,8 +295,37 @@ function setupErrorHandler(app: express.Application) {
 
 (async () => {
   await seedDatabase();
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // Trust the first proxy hop (Nginx / Cloudflare) so req.ip reflects the
+  // real client IP and rate-limiting / security logs are accurate.
+  if (isProduction) app.set("trust proxy", 1);
+
   app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }, // needed for Expo assets
+    // Prevent clickjacking
+    frameguard: { action: "deny" },
+    // Hide X-Powered-By: Express
+    hidePoweredBy: true,
+    // Force HTTPS in production
+    hsts: isProduction ? { maxAge: 31536000, includeSubDomains: true } : false,
+    // Prevent MIME sniffing
+    noSniff: true,
+    // Block XSS in older browsers
+    xssFilter: true,
+    // CSP: restrictive but compatible with React Native Web / Expo
+    contentSecurityPolicy: isProduction ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"], // RN Web requires inline scripts
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "wss:", "https:"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    } : false,
   }));
   setupCors(app);
   setupBodyParsing(app);
@@ -296,6 +337,25 @@ function setupErrorHandler(app: express.Application) {
 
   // Setup WebSocket server for real-time chat
   setupWebSocketServer(server);
+
+  // Cron: recordatorios de calendario (cada hora)
+  setInterval(async () => {
+    try {
+      const pendientes = await storage.calendar.getPendingReminders();
+      for (const evento of pendientes) {
+        await storage.appNotifications.createNotification(
+          evento.lawyerId,
+          "calendar_reminder",
+          `Recordatorio: ${evento.titulo}`,
+          `Tienes un evento programado para hoy: ${evento.titulo}`,
+          { eventoId: evento.id, tipo: evento.tipo },
+        );
+        await storage.calendar.markNotificado(evento.id);
+      }
+    } catch (err) {
+      console.error("[cron:calendar] Error al procesar recordatorios:", err);
+    }
+  }, 60 * 60 * 1000); // cada hora
 
   setupErrorHandler(app);
 
