@@ -10,8 +10,11 @@ import type {
   MisTareasDTO,
 } from "@/shared/schema";
 
-export async function getTareasByProceso(procesoId: string): Promise<TareasProgresoDTO> {
-  const res = await apiRequest("GET", `/api/procesos/${procesoId}/tareas`, undefined, SILENT);
+export async function getTareasByProceso(procesoId: string, stage?: string): Promise<TareasProgresoDTO> {
+  const url = stage
+    ? `/api/procesos/${procesoId}/tareas?stage=${encodeURIComponent(stage)}`
+    : `/api/procesos/${procesoId}/tareas`;
+  const res = await apiRequest("GET", url, undefined, SILENT);
   if (!res.ok) throw new Error("Error al obtener tareas");
   return res.json();
 }
