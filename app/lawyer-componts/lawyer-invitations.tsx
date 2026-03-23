@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import Toast from "react-native-toast-message";
+import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
 import { StyledModal } from "@/components/StyledModal";
 import { useInvitations } from "@/lib/invitations-context";
@@ -33,7 +33,7 @@ export default function LawyerInvitationsScreen() {
     setLoading(true);
     const result = await getLawyerInvitations();
     if (result.data) setInvitations(result.data);
-    if (result.error) Toast.show({ type: "error", text1: "Error", text2: result.error });
+    if (result.error) toast.error(result.error);
     setLoading(false);
   };
 
@@ -45,10 +45,10 @@ export default function LawyerInvitationsScreen() {
     const result = await acceptInvitation(acceptModal.id);
     await refreshCount();
     if (result.error) {
-      Toast.show({ type: "error", text1: "Error", text2: result.error });
+      toast.error(result.error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Toast.show({ type: "success", text1: "¡Te uniste a la firma!", text2: acceptModal.firm?.name });
+      toast.success(`¡Te uniste a ${acceptModal.firm?.name || "la firma"}!`);
       loadData();
     }
     setSubmitting(null);
@@ -66,10 +66,10 @@ export default function LawyerInvitationsScreen() {
     setRejectModal({ visible: false, invitationId: null });
     const result = await rejectInvitation(rejectModal.invitationId, motivoRechazo || undefined);
     if (result.error) {
-      Toast.show({ type: "error", text1: "Error", text2: result.error });
+      toast.error(result.error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Toast.show({ type: "success", text1: "Invitación rechazada" });
+      toast.success("Invitación rechazada");
       loadData();
     }
     setSubmitting(null);

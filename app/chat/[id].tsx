@@ -23,6 +23,7 @@ import { useChatNotifications } from "@/lib/chat-context";
 import type { MessageDTO } from "@/shared/schema";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "@/lib/keys";
+import { Tooltip } from "@/components/Tooltip";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const PAGE_SIZE = 30;
@@ -302,8 +303,8 @@ function AttachModal({ visible, onClose, onDocument, onImage }: {
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id: conversationId, name, from, procesoId } =
-    useLocalSearchParams<{ id: string; name: string; from: string; procesoId?: string }>();
+  const { id: conversationId, name, from, procesoId, userId } =
+    useLocalSearchParams<{ id: string; name: string; from: string; procesoId?: string; userId?: string }>();
 
   const { clearConversation } = useChatNotifications();
 
@@ -546,23 +547,34 @@ export default function ConversationScreen() {
           <Ionicons name="chevron-back" size={22} color={WHITE} />
         </Pressable>
 
-        <View style={[styles.headerAvatar, { backgroundColor: av.bg }]}>
-          <Text style={[styles.headerAvatarText, { color: av.text }]}>{displayInitial}</Text>
-        </View>
+        <Tooltip label="Ver perfil" style={{ flex: 1 }}>
+          <Pressable
+            style={styles.headerProfileBtn}
+            onPress={() => userId && router.push(`/community/profile/${userId}` as any)}
+            disabled={!userId}
+            hitSlop={8}
+          >
+            <View style={[styles.headerAvatar, { backgroundColor: av.bg }]}>
+              <Text style={[styles.headerAvatarText, { color: av.text }]}>{displayInitial}</Text>
+            </View>
 
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerName} numberOfLines={1}>{name ?? "Chat"}</Text>
-          <View style={styles.headerStatusRow}>
-            <View style={[styles.statusDot, { backgroundColor: isOnline ? GREEN : TEXT3 }]} />
-            <Text style={styles.headerStatus}>
-              {isOnline ? "En línea" : "Conectando..."}
-            </Text>
-          </View>
-        </View>
+            <View style={styles.headerInfo}>
+              <Text style={styles.headerName} numberOfLines={1}>{name ?? "Chat"}</Text>
+              <View style={styles.headerStatusRow}>
+                <View style={[styles.statusDot, { backgroundColor: isOnline ? GREEN : TEXT3 }]} />
+                <Text style={styles.headerStatus}>
+                  {isOnline ? "En línea" : "Conectando..."}
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+        </Tooltip>
 
-        <Pressable style={styles.headerAction} hitSlop={8}>
-          <Ionicons name="ellipsis-vertical" size={20} color="rgba(255,255,255,0.8)" />
-        </Pressable>
+        <Tooltip label="Opciones">
+          <Pressable style={styles.headerAction} hitSlop={8}>
+            <Ionicons name="ellipsis-vertical" size={20} color="rgba(255,255,255,0.8)" />
+          </Pressable>
+        </Tooltip>
       </View>
 
       {/* ── Messages ── */}
@@ -603,13 +615,15 @@ export default function ConversationScreen() {
       {/* ── Input bar ── */}
       <View style={[styles.inputBar, { paddingBottom: insets.bottom + (Platform.OS === "web" ? 12 : 8) }]}>
         {/* Attach button */}
-        <Pressable
-          onPress={() => setShowAttach(true)}
-          style={({ pressed }) => [styles.attachBtn, pressed && { opacity: 0.7 }]}
-          hitSlop={8}
-        >
-          <Ionicons name="attach" size={22} color={TEXT2} />
-        </Pressable>
+        <Tooltip label="Adjuntar archivo">
+          <Pressable
+            onPress={() => setShowAttach(true)}
+            style={({ pressed }) => [styles.attachBtn, pressed && { opacity: 0.7 }]}
+            hitSlop={8}
+          >
+            <Ionicons name="attach" size={22} color={TEXT2} />
+          </Pressable>
+        </Tooltip>
 
         <TextInput
           ref={inputRef}
@@ -622,20 +636,22 @@ export default function ConversationScreen() {
           maxLength={2000}
         />
 
-        <Pressable
-          onPress={handleSend}
-          disabled={!inputText.trim() || isSending}
-          style={({ pressed }) => [
-            styles.sendBtn,
-            (!inputText.trim() || isSending) && styles.sendBtnDisabled,
-            pressed && { opacity: 0.8 },
-          ]}
-        >
-          {isSending
-            ? <ActivityIndicator size="small" color={WHITE} />
-            : <Ionicons name="send" size={18} color={WHITE} />
-          }
-        </Pressable>
+        <Tooltip label="Enviar mensaje">
+          <Pressable
+            onPress={handleSend}
+            disabled={!inputText.trim() || isSending}
+            style={({ pressed }) => [
+              styles.sendBtn,
+              (!inputText.trim() || isSending) && styles.sendBtnDisabled,
+              pressed && { opacity: 0.8 },
+            ]}
+          >
+            {isSending
+              ? <ActivityIndicator size="small" color={WHITE} />
+              : <Ionicons name="send" size={18} color={WHITE} />
+            }
+          </Pressable>
+        </Tooltip>
       </View>
 
       {/* ── Attach picker modal ── */}
@@ -669,6 +685,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   headerAvatarText: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  headerProfileBtn: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   headerInfo: { flex: 1 },
   headerName: { fontSize: 16, fontFamily: "Inter_700Bold", color: WHITE },
   headerStatusRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 },

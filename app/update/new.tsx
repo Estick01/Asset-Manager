@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Platform } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, Platform, KeyboardAvoidingView, ScrollView, Keyboard } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -57,87 +57,103 @@ export default function NewUpdateScreen() {
         <View style={styles.placeholder} />
       </View>
 
-      <View style={styles.content}>
-        {/* Info Card */}
-        <View style={styles.infoCard}>
-          <View style={styles.infoIcon}>
-            <Ionicons name="information-circle" size={20} color={Colors.primary} />
-          </View>
-          <Text style={styles.infoText}>
-            Las actualizaciones aparecen en la línea de tiempo del proceso. 
-            Agrega información relevante sobre audiencias, resoluciones o cualquier novedad.
-          </Text>
-        </View>
-
-        {/* Error Message */}
-        {!!error && (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Form */}
-        <View style={styles.form}>
-          {/* Título Input */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Ionicons name="chatbubble-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.label}>Título <Text style={styles.required}>*</Text></Text>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          contentContainerStyle={styles.content}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Pressable onPress={Keyboard.dismiss} accessible={false}>
+            {/* Info Card */}
+            <View style={styles.infoCard}>
+              <View style={styles.infoIcon}>
+                <Ionicons name="information-circle" size={20} color={Colors.primary} />
+              </View>
+              <Text style={styles.infoText}>
+                Las actualizaciones aparecen en la línea de tiempo del proceso.
+                Agrega información relevante sobre audiencias, resoluciones o cualquier novedad.
+              </Text>
             </View>
-            <TextInput
-              style={styles.input}
-              value={titulo}
-              onChangeText={(text) => {
-                setTitulo(text);
-                if (error) setError("");
-              }}
-              placeholder="Ej: Audiencia programada para el 15 de marzo"
-              placeholderTextColor={Colors.textTertiary}
-            />
-          </View>
 
-          {/* Descripción Input */}
-          <View style={styles.inputGroup}>
-            <View style={styles.labelRow}>
-              <Ionicons name="document-text-outline" size={14} color={Colors.textSecondary} />
-              <Text style={styles.label}>Descripción</Text>
-            </View>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={descripcion}
-              onChangeText={setDescripcion}
-              placeholder="Agrega detalles sobre la actualización..."
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              numberOfLines={5}
-              textAlignVertical="top"
-            />
-          </View>
-        </View>
-
-        {/* Save Button */}
-        <View style={styles.buttonContainer}>
-          <Pressable
-            onPress={handleSave}
-            disabled={loading}
-            style={({ pressed }) => [
-              styles.saveBtn, 
-              pressed && styles.saveBtnPressed, 
-              loading && styles.saveBtnDisabled
-            ]}
-          >
-            {loading ? (
-              <ActivityIndicator color={Colors.white} />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
-                <Text style={styles.saveBtnText}>Guardar Actualización</Text>
-              </>
+            {/* Error Message */}
+            {!!error && (
+              <View style={[styles.errorBox, { marginTop: 0 }]}>
+                <Ionicons name="alert-circle" size={18} color={Colors.danger} />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
             )}
+
+            {/* Form */}
+            <View style={styles.form}>
+              {/* Título Input */}
+              <View style={styles.inputGroup}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="chatbubble-outline" size={14} color={Colors.textSecondary} />
+                  <Text style={styles.label}>Título <Text style={styles.required}>*</Text></Text>
+                </View>
+                <TextInput
+                  style={styles.input}
+                  value={titulo}
+                  onChangeText={(text) => {
+                    setTitulo(text);
+                    if (error) setError("");
+                  }}
+                  placeholder="Ej: Audiencia programada para el 15 de marzo"
+                  placeholderTextColor={Colors.textTertiary}
+                  returnKeyType="next"
+                />
+              </View>
+
+              {/* Descripción Input */}
+              <View style={styles.inputGroup}>
+                <View style={styles.labelRow}>
+                  <Ionicons name="document-text-outline" size={14} color={Colors.textSecondary} />
+                  <Text style={styles.label}>Descripción</Text>
+                </View>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  value={descripcion}
+                  onChangeText={setDescripcion}
+                  placeholder="Agrega detalles sobre la actualización..."
+                  placeholderTextColor={Colors.textTertiary}
+                  multiline
+                  numberOfLines={5}
+                  textAlignVertical="top"
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  blurOnSubmit
+                />
+              </View>
+            </View>
+
+            {/* Save Button */}
+            <View style={styles.buttonContainer}>
+              <Pressable
+                onPress={handleSave}
+                disabled={loading}
+                style={({ pressed }) => [
+                  styles.saveBtn,
+                  pressed && styles.saveBtnPressed,
+                  loading && styles.saveBtnDisabled
+                ]}
+              >
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color={Colors.white} />
+                    <Text style={styles.saveBtnText}>Guardar Actualización</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
           </Pressable>
-        </View>
-      </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -166,9 +182,9 @@ const styles = StyleSheet.create({
   },
   placeholder: { width: 32 },
   content: {
-    flex: 1,
     padding: 20,
     gap: 20,
+    flexGrow: 1,
   },
   infoCard: {
     flexDirection: "row",

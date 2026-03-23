@@ -16,6 +16,51 @@ import { tareaService } from "../services/tarea.service.js";
 
 const router = Router();
 
+/**
+ * Verifica que el usuario autenticado tenga acceso al proceso.
+ * Retorna el proceso si tiene acceso, null si no existe, o responde 403 directamente.
+ */
+async function assertProcesoAccess(
+  req: Request,
+  res: Response,
+  procesoId: string,
+): Promise<any | null> {
+  const user = (req as any).user as JWTPayload;
+  const rol       = user.rol.nombre;
+  const idProfile = user.idProfile;
+
+  if (!idProfile) {
+    res.status(400).json({ error: "idProfile requerido" });
+    return null;
+  }
+
+  let proceso: any = null;
+
+  switch (rol) {
+    case "abogado":
+      proceso = await storage.getProceoByAbogadoIdAndProcesoId(idProfile, procesoId);
+      break;
+    case "bufete":
+    case "corporacion":
+      proceso = await storage.getProcesoByFirmaIdAndProcesoId(idProfile, procesoId);
+      break;
+    case "cliente":
+      proceso = await storage.getProcesoByClienteIdAndProcesoId(idProfile, procesoId);
+      if (proceso && proceso.clienteId !== idProfile) proceso = null;
+      break;
+    default:
+      res.status(403).json({ error: "Rol no autorizado" });
+      return null;
+  }
+
+  if (!proceso) {
+    res.status(404).json({ error: "Proceso no encontrado o sin acceso" });
+    return null;
+  }
+
+  return proceso;
+}
+
 /** Enriquece un resultado paginado con conteos de tareas por proceso */
 async function withTareas(result: { data: any[]; total: number }) {
   if (result.data.length === 0) return result;
@@ -201,6 +246,12 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
         return res.status(403).json({ error: "Rol no autorizado para crear procesos" });
     }
 
+    // If proceso was created from a community post, link them bidirectionally
+    const communityPostId = req.body.communityPostId as string | undefined;
+    if (communityPostId) {
+      await storage.community.setPostProceso(communityPostId, newProceso.id).catch(() => {});
+    }
+
     res.status(201).json(newProceso);
   } catch (err) {
     next(err);
@@ -211,14 +262,22 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
 router.put("/procesos/:id", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+    if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
 
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id is required" });
-    }
-    const updatedProceso = await procesosService.updateProceso(id, req.body);
-    if (!updatedProceso) {
-      return res.status(404).json({ error: "Proceso not found" });
-    }
+    const proceso = await assertProcesoAccess(req, res, id);
+    if (!proceso) return;
+
+    // Solo campos editables explícitamente (evita mass assignment)
+    const { estadoId, descripcionEstado, radicado, juzgado, tipoProcesoId } = req.body;
+    const allowed: Record<string, unknown> = {};
+    if (estadoId !== undefined)          allowed.estadoId = estadoId;
+    if (descripcionEstado !== undefined) allowed.descripcionEstado = descripcionEstado;
+    if (radicado !== undefined)          allowed.radicado = radicado;
+    if (juzgado !== undefined)           allowed.juzgado = juzgado;
+    if (tipoProcesoId !== undefined)     allowed.tipoProcesoId = tipoProcesoId;
+
+    const updatedProceso = await procesosService.updateProceso(id, allowed);
+    if (!updatedProceso) return res.status(404).json({ error: "Proceso not found" });
     res.json(updatedProceso);
   } catch (err) {
     next(err);
@@ -229,9 +288,11 @@ router.put("/procesos/:id", authenticate, requirePermission("procesos.editar"), 
 router.delete("/procesos/:id", authenticate, requirePermission("procesos.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id is required" });
-    }
+    if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
+
+    const proceso = await assertProcesoAccess(req, res, id);
+    if (!proceso) return;
+
     await procesosService.deleteProceso(id);
     res.status(204).send();
   } catch (err) {
@@ -253,10 +314,10 @@ router.put("/procesos/:id/responsable", authenticate, requirePermission("proceso
     }
 
     const { id } = req.params;
+    if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
 
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id is required" });
-    }
+    const access = await assertProcesoAccess(req, res, id);
+    if (!access) return;
 
     const proceso = await storage.setResponsable(id, responsableId, {
       asignadoPorNombre: user.UserName ?? null,
@@ -275,11 +336,11 @@ router.put("/procesos/:id/responsable", authenticate, requirePermission("proceso
 // GET /api/procesos/:id/lawyers - Get lawyers assigned to a proceso
 router.get("/procesos/:id/lawyers", authenticate, requirePermission("procesos.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const {id} = req.params;
+    const { id } = req.params;
+    if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
 
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id is required" });
-    }
+    const access = await assertProcesoAccess(req, res, id);
+    if (!access) return;
 
     const lawyers = await storage.getProcesoLawyers(id);
     res.json(lawyers);
@@ -294,15 +355,13 @@ router.post("/procesos/:id/lawyers", authenticate, requirePermission("procesos.e
     const user = (req as any).user as JWTPayload;
     const { lawyerId, rol, tipoAsignacionId, razonAsignacion } = req.body;
 
-    if (!lawyerId) {
-      return res.status(400).json({ error: "lawyerId es requerido" });
-    }
+    if (!lawyerId) return res.status(400).json({ error: "lawyerId es requerido" });
 
-    const {id} = req.params;
+    const { id } = req.params;
+    if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
 
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id is required" });
-    }
+    const access = await assertProcesoAccess(req, res, id);
+    if (!access) return;
 
     await storage.addLawyerToProceso(id, lawyerId, {
       rol: rol ?? "responsable",
@@ -320,19 +379,37 @@ router.post("/procesos/:id/lawyers", authenticate, requirePermission("procesos.e
 // DELETE /api/procesos/:id/lawyers/:lawyerId - Remove a lawyer from a proceso
 router.delete("/procesos/:id/lawyers/:lawyerId", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { id, lawyerId } = req.params;
+    if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
+    if (!lawyerId || typeof lawyerId !== "string") return res.status(400).json({ error: "lawyerId is required" });
 
-    const {id} = req.params;
-    const { lawyerId } = req.params;
-    if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id is required" });
-    }
+    const access = await assertProcesoAccess(req, res, id);
+    if (!access) return;
 
-    if (!lawyerId || typeof lawyerId !== "string") {
-      return res.status(400).json({ error: "lawyerId is required" });
-    }
-
-    await storage.removeLawyerFromProceso(id,lawyerId);
+    await storage.removeLawyerFromProceso(id, lawyerId);
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/procesos/:id/link-post - Vincular proceso existente con un post de comunidad
+router.patch("/procesos/:id/link-post", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const { postId } = req.body as { postId?: string };
+    if (!postId) return res.status(400).json({ error: "postId es requerido" });
+
+    const proceso = await storage.getProceso(id);
+    if (!proceso) return res.status(404).json({ error: "Proceso no encontrado" });
+    if (proceso.communityPostId) return res.status(409).json({ error: "El proceso ya está vinculado a un post" });
+
+    await Promise.all([
+      storage.setCommunityPostId(id, postId),
+      storage.community.setPostProceso(postId, id),
+    ]);
+
+    res.json({ success: true, procesoId: id, postId });
   } catch (err) {
     next(err);
   }
@@ -401,6 +478,8 @@ router.get("/actualizaciones", authenticate, requirePermission("actualizaciones.
     if (!procesoId || typeof procesoId !== "string") {
       return res.status(400).json({ error: "procesoId is required" });
     }
+    const proceso = await assertProcesoAccess(req, res, procesoId);
+    if (!proceso) return;
     const limitNum = Math.min(Math.max(limit ? parseInt(limit as string, 10) : 10, 1), 100);
     const offsetNum = Math.max(offset ? parseInt(offset as string, 10) : 0, 0);
     const actualizaciones = await procesosService.getActualizaciones(procesoId, limitNum, offsetNum);
@@ -413,6 +492,12 @@ router.get("/actualizaciones", authenticate, requirePermission("actualizaciones.
 // POST /api/actualizaciones - Create new update (notifica al cliente automáticamente)
 router.post("/actualizaciones", authenticate, requirePermission("actualizaciones.crear"), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { procesoId } = req.body;
+    if (!procesoId || typeof procesoId !== "string") {
+      return res.status(400).json({ error: "procesoId is required" });
+    }
+    const proceso = await assertProcesoAccess(req, res, procesoId);
+    if (!proceso) return;
     const newActualizacion = await procesosService.createActualizacion(req.body);
     res.status(201).json(newActualizacion);
   } catch (err) {
@@ -423,6 +508,10 @@ router.post("/actualizaciones", authenticate, requirePermission("actualizaciones
 // DELETE /api/actualizaciones/:id - Delete update
 router.delete("/actualizaciones/:id", authenticate, requirePermission("actualizaciones.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const actualizacion = await storage.getActualizacion(req.params.id as string);
+    if (!actualizacion) return res.status(404).json({ error: "Actualización no encontrada" });
+    const proceso = await assertProcesoAccess(req, res, actualizacion.procesoId);
+    if (!proceso) return;
     await procesosService.deleteActualizacion(req.params.id);
     res.status(204).send();
   } catch (err) {
@@ -491,6 +580,161 @@ router.get("/dashboard", authenticate, requirePermission("dashboard.ver"), async
       tareasCompletadas: tareaStats.completadas,
       procesosRecientes,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Legal Stages
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/legal-stages?tipoProceso=<id>
+ * Devuelve las etapas disponibles para un tipo de proceso + estado del proceso actual.
+ * Query params: tipoProceso (int, opcional), procesoId (string, opcional)
+ */
+router.get("/legal-stages", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const tipoProcesoId = req.query.tipoProceso
+      ? Number(req.query.tipoProceso as string)
+      : null;
+    const procesoId = typeof req.query.procesoId === "string"
+      ? req.query.procesoId
+      : undefined;
+
+    let currentStage:     string | null = null;
+    let fechaVencimiento: Date   | null = null;
+
+    if (procesoId) {
+      const proceso = await storage.getProceso(procesoId);
+      if (proceso) {
+        currentStage     = proceso.legalStage     ?? null;
+        fechaVencimiento = proceso.fechaVencimientoEtapa ?? null;
+      }
+    }
+
+    const response = await storage.legalStages.buildStagesResponse(
+      tipoProcesoId,
+      currentStage,
+      fechaVencimiento,
+    );
+
+    res.json(response);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * PATCH /api/procesos/:id/legal-stage
+ * Avanza la etapa procesal. Solo abogado o bufete con acceso al proceso.
+ * Body: { legalStage: string, fechaVencimientoEtapa?: string }
+ * Automatizaciones:
+ *  1. Entrada automática en timeline
+ *  2. Calcula fecha_vencimiento_etapa (si no se envía manualmente)
+ *  3. Si nueva etapa = HEARING → crea evento en calendario
+ *  4. Si nueva etapa = JUDGMENT → push notification al cliente
+ */
+router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user      = (req as any).user as JWTPayload;
+    const rol       = user.rol.nombre;
+    const idProfile = user.idProfile;
+    const procesoId: string = String(req.params.id);
+
+    // Solo abogado o bufete pueden cambiar etapa
+    if (rol === "cliente") {
+      res.status(403).json({ error: "Los clientes no pueden cambiar la etapa procesal" });
+      return;
+    }
+
+    const proceso = await assertProcesoAccess(req, res, procesoId);
+    if (!proceso) return;
+
+    const { legalStage, fechaVencimientoEtapa: fechaManual } = req.body as {
+      legalStage: string;
+      fechaVencimientoEtapa?: string | null;
+    };
+
+    if (!legalStage) {
+      res.status(400).json({ error: "legalStage es requerido" });
+      return;
+    }
+
+    // Validar que la transición sea hacia adelante
+    if (proceso.legalStage) {
+      const valid = await storage.legalStages.isValidTransition(
+        proceso.legalStage,
+        legalStage,
+        proceso.tipoProcesoId ?? null,
+      );
+      if (!valid) {
+        res.status(422).json({
+          error: "Transición de etapa inválida. No se puede retroceder a una etapa anterior.",
+        });
+        return;
+      }
+    }
+
+    // Calcular fecha de vencimiento
+    let fechaVencimiento: Date | null = fechaManual ? new Date(fechaManual) : null;
+
+    if (!fechaVencimiento) {
+      const etapa = await storage.legalStages.getByCodigoYTipo(
+        legalStage,
+        proceso.tipoProcesoId ?? null,
+      );
+      if (etapa && etapa.diasLegales > 0) {
+        const fecha = new Date();
+        fecha.setDate(fecha.getDate() + etapa.diasLegales);
+        fechaVencimiento = fecha;
+      }
+    }
+
+    // Persistir cambio de etapa
+    await storage.procesos.updateLegalStage(procesoId, legalStage, fechaVencimiento);
+
+    // 1. Entrada automática en timeline
+    const descripcionAct = fechaVencimiento
+      ? `Vencimiento: ${fechaVencimiento.toLocaleDateString("es-CO")}`
+      : "Sin fecha de vencimiento";
+    await procesosService.createActualizacion({
+      procesoId,
+      titulo:      `Etapa avanzada: ${legalStage}`,
+      descripcion: descripcionAct,
+      tipo:        "automatico",
+      tipoId:      1,
+      documentoId: null,
+    });
+
+    // 2. Si HEARING → crear evento en calendario del abogado responsable
+    if (legalStage === "HEARING" && rol === "abogado" && idProfile) {
+      await storage.calendar.create(idProfile, {
+        procesoId,
+        titulo:              `Audiencia — ${proceso.radicado ?? procesoId}`,
+        tipo:                "audiencia",
+        fechaInicio:         fechaVencimiento ?? new Date(),
+        recordatorioMinutos: 1440,
+      });
+    }
+
+    // 3. Si JUDGMENT → notificación push al cliente
+    if (legalStage === "JUDGMENT" && proceso.clienteId) {
+      const cliente = await storage.clientes.getCliente(proceso.clienteId);
+      if (cliente?.userId) {
+        await storage.appNotifications.createNotification(
+          cliente.userId,
+          "proceso_judgment",
+          "Sentencia en tu proceso",
+          `El proceso ${proceso.radicado ?? ""} ha llegado a la etapa de Sentencia.`,
+          { procesoId },
+        );
+      }
+    }
+
+    const updated = await storage.getProceso(procesoId);
+    res.json(updated);
   } catch (err) {
     next(err);
   }

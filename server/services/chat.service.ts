@@ -85,6 +85,26 @@ export class ChatService {
     await storage.chat.markRead(conversationId, userId);
   }
 
+  /**
+   * Get or create a community conversation between two users for a specific post.
+   * Enforces one conversation per (userA, userB, postId).
+   */
+  async getOrCreateCommunityConversation(
+    initiatorId: string,
+    authorId: string,
+    sourcePostId: string
+  ): Promise<{ id: string }> {
+    const existing = await storage.chat.findConversationByPost(initiatorId, authorId, sourcePostId);
+    if (existing) return { id: existing.id };
+
+    const convId = randomUUID();
+    await storage.chat.createConversation({ id: convId, type: "community", sourcePostId });
+    await storage.chat.addParticipant({ id: randomUUID(), conversationId: convId, userId: initiatorId });
+    await storage.chat.addParticipant({ id: randomUUID(), conversationId: convId, userId: authorId });
+
+    return { id: convId };
+  }
+
   async getParticipantUserIds(conversationId: string): Promise<string[]> {
     return storage.chat.getParticipantUserIds(conversationId);
   }

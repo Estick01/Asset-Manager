@@ -1,5 +1,6 @@
 import { storage } from "../storage/storeage/database-storage.js";
 import type { InsertNotificacion, Notificacion } from "@/shared/schema";
+import { broadcastToUser } from "../websocket/ws-server.js";
 
 export class NotificacionesService {
 
@@ -25,6 +26,11 @@ export class NotificacionesService {
         mensaje,
         tipo,
       });
+      // Push real-time via WebSocket
+      const lawyer = await storage.lawyerProfiles.getLawyer(lawyerId);
+      if (lawyer?.userId) {
+        broadcastToUser(lawyer.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
+      }
     } catch (err) {
       console.error("[notificaciones] notifyLawyer error:", err);
     }
@@ -46,6 +52,11 @@ export class NotificacionesService {
         mensaje,
         tipo,
       });
+      // Push real-time via WebSocket
+      const cliente = await storage.getCliente(clienteId);
+      if (cliente?.userId) {
+        broadcastToUser(cliente.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
+      }
     } catch (err) {
       console.error("[notificaciones] notifyCliente error:", err);
     }
@@ -67,6 +78,11 @@ export class NotificacionesService {
         mensaje,
         tipo,
       });
+      // Push real-time via WebSocket
+      const firm = await storage.firmProfiles.getFirmProfileById(firmId);
+      if (firm?.userId) {
+        broadcastToUser(firm.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
+      }
     } catch (err) {
       console.error("[notificaciones] notifyFirm error:", err);
     }

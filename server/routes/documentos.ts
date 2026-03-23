@@ -11,11 +11,95 @@ import multer from "multer";
 import { authenticate, requirePermission, extractToken, verifyToken } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
 import { notificacionesService } from "../services/notificacion.service.js";
+import type { JWTPayload } from "@/shared/model.schema.js";
+import { EnumRol } from "@/shared/schema/user.schema.js";
 
 const router = Router();
 
-// Configure multer for memory storage
-const upload = multer({ storage: multer.memoryStorage() });
+// ── File upload validation ─────────────────────────────────────────────────
+
+const ALLOWED_MIMES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
+
+const DOC_MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+
+/** Validates real file type via magic bytes — ignores the client-declared MIME. */
+function detectMimeFromBuffer(buf: Buffer): string | null {
+  if (buf.length < 4) return null;
+  // PDF: %PDF
+  if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return "application/pdf";
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return "image/jpeg";
+  // PNG: 89 50 4E 47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return "image/png";
+  // ZIP-based (DOCX/XLSX): PK 03 04
+  if (buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04) return "application/zip";
+  return null;
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: DOC_MAX_SIZE },
+  fileFilter(_req, file, cb) {
+    if (ALLOWED_MIMES.has(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("INVALID_TYPE"));
+    }
+  },
+});
+
+/**
+ * Verifica que el usuario autenticado tenga acceso al proceso al que pertenece un documento.
+ * Reutiliza la misma lógica que el endpoint de descarga.
+ */
+async function assertProcesoDocumentoAccess(
+  payload: JWTPayload,
+  procesoId: string,
+  res: Response,
+): Promise<boolean> {
+  const proceso = await storage.getProceso(procesoId);
+  if (!proceso) {
+    res.status(404).json({ error: "Proceso no encontrado" });
+    return false;
+  }
+  const rol = payload.rol?.nombre;
+  console.log(rol)
+  if (rol === EnumRol.CLIENTE.nombre) {
+    if (proceso.clienteId !== payload.idProfile) {
+      res.status(403).json({ error: "No tienes acceso a este documento" });
+      return false;
+    }
+  } else if (rol === EnumRol.ABOGADO.nombre ) {
+    const relations = await storage.lawyerClients.getClientLawyers(proceso.clienteId);
+    const hasAccess = relations.some((r: any) => r.lawyerId === payload.idProfile);
+    if (!hasAccess) {
+      res.status(403).json({ error: "No tienes acceso a este documento" });
+      return false;
+    }
+  } else if (rol === EnumRol.BUFETE.nombre) {
+    const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(payload.idProfile!);
+    const clienteInFirm = firmClientIds.includes(proceso.clienteId);
+
+    // Fallback: el bufete puede gestionar el proceso directamente (aparece en proceso_lawyers)
+    let firmManagesProceso = false;
+    if (!clienteInFirm) {
+      const procesoLawyers = await storage.getProcesoLawyers(procesoId);
+      firmManagesProceso = procesoLawyers.some((pl: any) => pl.lawyerId === payload.idProfile);
+    }
+
+    if (!clienteInFirm && !firmManagesProceso) {
+      res.status(403).json({ error: "No tienes acceso a este documento" });
+      return false;
+    }
+  }
+  return true;
+}
 
 // GET /api/documentos - Get documents for a process
 router.get("/documentos", authenticate, requirePermission("documentos.ver"), async (req: Request, res: Response, next: NextFunction) => {
@@ -24,6 +108,9 @@ router.get("/documentos", authenticate, requirePermission("documentos.ver"), asy
     if (!procesoId || typeof procesoId !== "string") {
       return res.status(400).json({ error: "procesoId is required" });
     }
+    const payload = (req as any).user as JWTPayload;
+    const allowed = await assertProcesoDocumentoAccess(payload, procesoId, res);
+    if (!allowed) return;
     const documentos = await storage.getDocumentos(procesoId);
     res.json(documentos);
   } catch (err) {
@@ -38,6 +125,11 @@ router.get("/documentos/:id", authenticate, requirePermission("documentos.ver"),
     const documento = await storage.getDocumento(id.toString());
     if (!documento) {
       return res.status(404).json({ error: "Documento not found" });
+    }
+    if (documento.procesoId) {
+      const payload = (req as any).user as JWTPayload;
+      const allowed = await assertProcesoDocumentoAccess(payload, documento.procesoId, res);
+      if (!allowed) return;
     }
     res.json(documento);
   } catch (err) {
@@ -57,11 +149,17 @@ router.get("/documentos/:id/download", async (req: Request, res: Response, next:
     
     // Verify token
     const payload = verifyToken(token);
-    
+
     if (!payload) {
       return res.status(401).json({ error: "Token inválido o expirado" });
     }
-    
+
+    // Validate session is still active (not revoked by logout or password change)
+    const sessionValid = await storage.sessions.isValid(payload.jti);
+    if (!sessionValid) {
+      return res.status(401).json({ error: "Sesión inválida o cerrada" });
+    }
+
     // Check permissions
     const userPermissions = await storage.getPermisosByRol(payload.rol.id);
     if (!userPermissions.includes("documentos.ver")) {
@@ -73,7 +171,39 @@ router.get("/documentos/:id/download", async (req: Request, res: Response, next:
     if (!documento) {
       return res.status(404).json({ error: "Documento no encontrado" });
     }
-    
+
+    // ── Verificar que el proceso del documento pertenece al usuario ──────────
+    if (documento.procesoId) {
+      const proceso = await storage.getProceso(documento.procesoId);
+      if (!proceso) return res.status(404).json({ error: "Proceso no encontrado" });
+
+      const rol = payload.rol?.nombre;
+
+      if (rol === "cliente") {
+        // El cliente solo accede a documentos de sus propios procesos
+        if (proceso.clienteId !== payload.idProfile) {
+          return res.status(403).json({ error: "No tienes acceso a este documento" });
+        }
+      } else if (rol === "abogado") {
+        const relations = await storage.lawyerClients.getClientLawyers(proceso.clienteId);
+        const hasAccess = relations.some((r: any) => r.lawyerId === payload.idProfile);
+        if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este documento" });
+      } else if (rol === "bufete") {
+        const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(payload.idProfile!);
+        const clienteInFirm = firmClientIds.includes(proceso.clienteId);
+
+        let firmManagesProceso = false;
+        if (!clienteInFirm) {
+          const procesoLawyersList = await storage.getProcesoLawyers(proceso.id);
+          firmManagesProceso = procesoLawyersList.some((pl: any) => pl.lawyerId === payload.idProfile);
+        }
+
+        if (!clienteInFirm && !firmManagesProceso) {
+          return res.status(403).json({ error: "No tienes acceso a este documento" });
+        }
+      }
+    }
+
     // Get the file URI (S3 key or local path)
     const fileUri = documento.url;
     
@@ -121,6 +251,19 @@ router.post(
 
       // If there's a file, upload to S3
       if (file) {
+        // Cross-validate declared MIME against actual file content (magic bytes).
+        // Solo rechaza si detectamos POSITIVAMENTE un tipo diferente al declarado.
+        // Si detectedMime === null (buffer vacío o tipo no reconocido), dejamos pasar
+        // porque fileFilter ya validó el MIME declarado.
+        const detectedMime = detectMimeFromBuffer(file.buffer);
+        if (detectedMime !== null) {
+          const isZipBased = file.mimetype.includes("wordprocessingml") || file.mimetype.includes("spreadsheetml");
+          const mimeOk = detectedMime === file.mimetype || (isZipBased && detectedMime === "application/zip");
+          if (!mimeOk) {
+            return res.status(400).json({ error: "El contenido del archivo no coincide con su tipo declarado" });
+          }
+        }
+
         // Get process information
         const proceso = await storage.getProceso(procesoId);
         if (!proceso) return res.status(404).json({ error: "Proceso no encontrado" });
@@ -130,9 +273,6 @@ router.post(
 
         if (!cliente) return res.status(404).json({ error: "Cliente no encontrado" });
 
-        // Get the lawyer associated with this client through lawyer_clients
-        const lawyerRelations = await storage.lawyerClients.getClientLawyers(cliente.id);
-        const bufeteId = lawyerRelations.length > 0 ? lawyerRelations[0].lawyerId : null;
         const clienteId = cliente.id;
 
         // Import S3 function dynamically

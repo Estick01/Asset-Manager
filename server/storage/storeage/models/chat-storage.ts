@@ -162,6 +162,52 @@ export class ChatStorage {
     return Number(participations[0]?.count ?? 0);
   }
 
+  /**
+   * Finds a community conversation between two users that was started
+   * from a specific post. Returns undefined if none exists.
+   * Used by start-chat to enforce the one-conversation-per-(userA,userB,post) rule.
+   */
+  async findConversationByPost(
+    userIdA: string,
+    userIdB: string,
+    sourcePostId: string
+  ): Promise<Conversation | undefined> {
+    // Get all community conversations for userA linked to this post
+    const rows = await this.db
+      .select({ conversationId: conversationParticipants.conversationId })
+      .from(conversationParticipants)
+      .innerJoin(
+        conversations,
+        eq(conversationParticipants.conversationId, conversations.id)
+      )
+      .where(
+        and(
+          eq(conversationParticipants.userId, userIdA),
+          eq(conversations.type, "community"),
+          eq(conversations.sourcePostId, sourcePostId)
+        )
+      );
+
+    for (const { conversationId } of rows) {
+      const other = await this.db
+        .select({ id: conversationParticipants.id })
+        .from(conversationParticipants)
+        .where(
+          and(
+            eq(conversationParticipants.conversationId, conversationId),
+            eq(conversationParticipants.userId, userIdB)
+          )
+        )
+        .limit(1);
+
+      if (other.length > 0) {
+        return this.getConversation(conversationId);
+      }
+    }
+
+    return undefined;
+  }
+
   async findDirectConversation(
     userIdA: string,
     userIdB: string

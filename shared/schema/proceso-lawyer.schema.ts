@@ -76,11 +76,17 @@ export interface InsertProcesoLawyer {
 
 /** ProcesoLawyer with lawyer details */
 export interface ProcesoLawyerWithLawyer extends ProcesoLawyer {
-  lawyer: import("./lawyer-profile.schema").LawyerProfile;
+  lawyer: import("./lawyer-profile.schema").LawyerProfile | null;
   tipoAsignacion?: import("./tipo-asignacion.schema").TipoAsignacion | null;
   asignadoPorUser?: {
     id: string;
     email: string;
     name: string | null;
   } | null; // User who assigned this lawyer
+  /** Populated when lawyer is null and lawyerId points to a firm profile */
+  firm?: {
+    id: string;
+    name: string | null;
+    phone?: string | null;
+  } | null;
 }

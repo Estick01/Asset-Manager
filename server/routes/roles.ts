@@ -42,15 +42,24 @@ router.get("/roles/:id", authenticate, requirePermission("configuracion.ver"), a
 // POST /api/roles - Create new role
 router.post("/roles", authenticate, requirePermission("configuracion.editar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const rolData = req.body;
+    const { z } = await import("zod");
+    const createRolSchema = z.object({
+      nombre:      z.string().min(1).max(100),
+      descripcion: z.string().max(500).optional(),
+    });
+    const parsed = createRolSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.errors[0].message });
+    }
+    const { nombre, descripcion } = parsed.data;
 
     // Check if role name already exists
-    const existing = await storage.getRolByNombre(rolData.nombre);
+    const existing = await storage.getRolByNombre(nombre);
     if (existing) {
       return res.status(400).json({ error: "Ya existe un rol con este nombre" });
     }
-    
-    const created = await storage.createRol(rolData);
+
+    const created = await storage.createRol({ nombre, descripcion });
     res.status(201).json(created);
   } catch (err: any) {
     if (err.name === "ZodError") {

@@ -12,7 +12,7 @@ import { CaseForm, type CaseFormData } from "@/components/CaseForm";
 export default function NewCaseScreen() {
   const insets = useSafeAreaInsets();
   const { user ,profile } = useAuth();
-  const params = useLocalSearchParams<{ clienteId?: string }>();
+  const params = useLocalSearchParams<{ clienteId?: string; postId?: string }>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -40,6 +40,7 @@ export default function NewCaseScreen() {
         tipoProceso,
         lawyerId: profile?.id || user.user.id,
         clienteId: params.clienteId || data.clienteId,
+        communityPostId: params.postId ?? null,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleGoBack();

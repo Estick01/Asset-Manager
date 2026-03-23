@@ -5,13 +5,13 @@
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, text, varchar, boolean, timestamp, int } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, varchar, boolean, timestamp, int, datetime } from "drizzle-orm/mysql-core";
+import type { LegalStageCode } from "./legal-stage.schema";
 import { Cliente, clientes } from "./cliente.schema";
 
 import { TiposProceso, tiposProceso } from "./tipo-proceso.schema";
 import { EstadoProceso, estadosProceso } from "./estado-proceso.schema";
 import { procesoLawyers, ProcesoLawyerWithLawyer } from "./proceso-lawyer.schema";
-import { type LawyerProfile } from "./lawyer-profile.schema";
 import { ProcesoResponsableDTO } from "./proceso-responsables.schema";
 
 export const procesos = mysqlTable("procesos", {
@@ -22,8 +22,12 @@ export const procesos = mysqlTable("procesos", {
   juzgado: text("juzgado").notNull(),
   estadoId: int("estado_id").notNull(),
   descripcionEstado: text("descripcion_estado").notNull(),
+  legalStage: varchar("legal_stage", { length: 50 }),             // etapa jurídica actual
+  fechaVencimientoEtapa: datetime("fecha_vencimiento_etapa"),     // deadline de la etapa
+  etapaActualizadaEn: timestamp("etapa_actualizada_en"),          // cuándo cambió de etapa
   fechaCreacion: timestamp("fecha_creacion").notNull().default(new Date()),
   state: boolean("state").notNull().default(true),
+  communityPostId: varchar("community_post_id", { length: 36 }), // FK to posts (origen comunidad)
 });
 
 export const procesosRelations = relations(procesos, ({ one, many }) => ({
@@ -55,8 +59,12 @@ export interface Proceso {
   juzgado: string;
   estadoId: number;
   descripcionEstado: string;
+  legalStage: LegalStageCode | string | null;
+  fechaVencimientoEtapa: Date | null;
+  etapaActualizadaEn: Date | null;
   fechaCreacion: Date;
   state: boolean;
+  communityPostId: string | null;
 }
 
 /** Proceso insert type */
@@ -68,8 +76,12 @@ export interface InsertProceso {
   juzgado: string;
   estadoId: number;
   descripcionEstado: string;
+  legalStage?: LegalStageCode | string | null;
+  fechaVencimientoEtapa?: Date | null;
+  etapaActualizadaEn?: Date | null;
   fechaCreacion?: Date;
   state?: boolean;
+  communityPostId?: string | null;
 }
 
 /** ProcesoDTO - Proceso with relations */

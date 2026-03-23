@@ -21,16 +21,16 @@ const JWT_SECRET = (() => {
   }
   return secret;
 })();
-const JWT_EXPIRES_IN = "2h";
+const JWT_EXPIRES_IN = "15m";
 
 const COOKIE_NAME = "lextrack_token";
 export const AUTH_COOKIE_NAME = COOKIE_NAME;
 
-const COOKIE_MAX_AGE = 2 * 60 * 60 * 1000;
+const COOKIE_MAX_AGE = 15 * 60 * 1000; // 15 minutes, matches JWT_EXPIRES_IN
 
 const REFRESH_COOKIE_NAME = "lextrack_refresh";
 export const AUTH_REFRESH_COOKIE_NAME = REFRESH_COOKIE_NAME;
-export const REFRESH_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+export const REFRESH_MAX_AGE = 14 * 24 * 60 * 60 * 1000; // 14 days (reduced from 30)
 
 const SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? "12", 10);
 
@@ -169,6 +169,23 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 }
 
 /* =====================================================
+   OPTIONAL AUTH MIDDLEWARE
+===================================================== */
+
+/** Sets req.user if a valid token is present, but never returns 401. */
+export async function authenticateOptional(req: Request, _res: Response, next: NextFunction) {
+  const token = extractToken(req);
+  if (token) {
+    const payload = verifyToken(token);
+    if (payload) {
+      const sessionValid = await storage.sessions.isValid(payload.jti);
+      if (sessionValid) req.user = payload;
+    }
+  }
+  next();
+}
+
+/* =====================================================
    ROLE GUARD FACTORY (REEMPLAZA authenticateAbogado/Cliente)
 ===================================================== */
 
@@ -200,11 +217,11 @@ export function requirePermission(...requiredPermissions: string[]) {
     }
 
     try {
-      
+      // Override model: if a firm-specific role is set, use it exclusively.
+      // Otherwise fall back to the user's global role.
+      const rolId = req.user.firmRolId ?? req.user.rol.id;
 
-      const userPermissions = await storage.getPermisosByRol(
-        req.user.rol.id,
-      );
+      const userPermissions = await storage.getPermisosByRol(rolId);
 
       const hasAllPermissions = requiredPermissions.every((p) =>
         userPermissions.includes(p)
@@ -233,7 +250,8 @@ export function createAuthResponse(
   user: { id: string; email: string; name: string | null },
   rol: Rol,
   res?: Response,
-  profile?: Profile
+  profile?: Profile,
+  firmRolId?: number | null
 ): { token: string; jti: string; user: JWTPayload; profile: Profile | undefined } {
   const payloadBase: Omit<JWTPayload, "jti"> = {
     id: user.id,
@@ -241,6 +259,7 @@ export function createAuthResponse(
     rol,
     idProfile: profile?.id,
     UserName: user.name,
+    ...(firmRolId != null && { firmRolId }),
   };
 
   const { token, jti } = generateToken(payloadBase);

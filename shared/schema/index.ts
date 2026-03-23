@@ -202,12 +202,114 @@ export {
 
 // Ubicación (Departamentos y Municipios)
 export {
-  departamentos, 
+  departamentos,
   departamentosRelations,
-  municipios, 
+  municipios,
   municipiosRelations,
-  type Departamento, 
+  type Departamento,
   type NewDepartamento,
-  type Municipio, 
-  type NewMunicipio 
+  type Municipio,
+  type NewMunicipio
 } from "./ubicacion.schema";
+
+// Community (Posts, Comments, Likes, Bookmarks, Tags, Reports, Views)
+export {
+  posts,
+  postsRelations,
+  comments,
+  commentsRelations,
+  postLikes,
+  postBookmarks,
+  tags,
+  postTags,
+  postTagsRelations,
+  postViews,
+  postReports,
+  type PostVisibility,
+  type Post,
+  type Comment,
+  type Tag,
+  type InsertPost,
+  type InsertComment,
+  type PostDTO,
+  type CommentDTO,
+} from "./community.schema";
+
+// Ratings
+export {
+  ratings,
+  type RatingTargetType,
+  type Rating,
+  type InsertRating,
+  type RatingDTO,
+  type RatingSummary,
+} from "./rating.schema";
+
+// Client Requests
+export {
+  clientRequests,
+  type ClientRequest,
+  type ClientRequestStatus,
+  type ClientRequestWithSender,
+} from "./client-request.schema";
+
+// App Notifications (generic, not tied to procesoId)
+export {
+  appNotifications,
+  type AppNotification,
+} from "./app-notification.schema";
+
+// Firm Clients
+export {
+  firmClients,
+  type FirmClient,
+} from "./firm-clients.schema";
+
+// Password Reset OTP
+export {
+  passwordResetOtps,
+  type PasswordResetOtp,
+} from "./otp.schema";
+
+
+// Security Audit
+export {
+  securityEvents,
+  type SecurityEvent,
+  type InsertSecurityEvent,
+  type SecurityEventType,
+} from "./security-audit.schema";
+
+// Community Post Matching
+export {
+  communityPostMatches,
+  type PostMatch,
+  type LawyerFeedDTO,
+} from "./community-match.schema";
+
+// Legal Stages (etapas procesales jurídicas)
+export {
+  etapasPorTipoProceso,
+  etapasPorTipoProcesoRelations,
+  LEGAL_STAGE_CODES,
+  type LegalStageCode,
+  type EtapaPorTipoProceso,
+  type InsertEtapaPorTipoProceso,
+  type EtapaProcesoDTO,
+  type LegalStagesResponseDTO,
+  type UpdateLegalStageDTO,
+} from "./legal-stage.schema";
+
+// Calendar Events (eventos manuales del abogado)
+export {
+  calendarEvents,
+  calendarEventsRelations,
+  REMINDER_OPTIONS,
+  type CalendarEventType,
+  type CalendarEventSource,
+  type CalendarEvent,
+  type InsertCalendarEvent,
+  type CalendarEventDTO,
+  type CreateCalendarEventDTO,
+  type UpdateCalendarEventDTO,
+} from "./calendar-event.schema";

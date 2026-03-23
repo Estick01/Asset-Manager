@@ -80,6 +80,50 @@ export class AbogadoStorage {
     return result[0];
   }
 
+  /** Same as getLawyer but filters by userId instead of profile id */
+  async getLawyerByUserIdFull(userId: string): Promise<LawyerProfileRelations | undefined> {
+    const rows = await this.db
+      .select({
+        id: lawyerProfiles.id,
+        userId: lawyerProfiles.userId,
+        firmId: lawyerProfiles.firmId,
+        personaId: lawyerProfiles.personaId,
+        specialization: lawyerProfiles.specialization,
+        licenseNumber: lawyerProfiles.licenseNumber,
+        isIndependent: lawyerProfiles.isIndependent,
+        createdAt: lawyerProfiles.createdAt,
+        updatedAt: lawyerProfiles.updatedAt,
+        user: { id: users.id, email: users.email, name: users.name },
+        firm: { id: firmProfiles.id, name: firmProfiles.name },
+        persona: {
+          id: personas.id,
+          nombre: personas.nombre,
+          apellido: personas.apellido,
+          telefono: personas.telefono,
+          documento: personas.documento,
+          tipoDocumentoId: personas.tipoDocumentoId,
+          direccion: personas.direccion,
+          departamentoId: personas.departamentoId,
+          municipioId: personas.municipioId,
+        },
+      })
+      .from(lawyerProfiles)
+      .innerJoin(users, eq(lawyerProfiles.userId, users.id))
+      .innerJoin(personas, eq(lawyerProfiles.personaId, personas.id))
+      .leftJoin(firmProfiles, eq(lawyerProfiles.firmId, firmProfiles.id))
+      .where(eq(lawyerProfiles.userId, userId))
+      .limit(1);
+
+    if (!rows[0]) return undefined;
+    const row = rows[0];
+    return {
+      ...row,
+      user: row.user?.id ? row.user : null,
+      firm: row.firm?.id ? row.firm : null,
+      persona: row.persona?.id ? row.persona : null,
+    };
+  }
+
   async getAllLawyers(
     limit: number,
     offset: number,
@@ -135,12 +179,31 @@ export class AbogadoStorage {
 
     if (personaUpdates) {
       const lawyer = await this.db
-        .select({ personaId: lawyerProfiles.personaId })
+        .select({ personaId: lawyerProfiles.personaId, userId: lawyerProfiles.userId })
         .from(lawyerProfiles)
         .where(eq(lawyerProfiles.id, id))
         .limit(1);
+
       if (lawyer[0]?.personaId) {
         await this.db.update(personas).set(personaUpdates).where(eq(personas.id, lawyer[0].personaId));
+      }
+
+      // Keep users.name in sync when first/last name changes
+      if (lawyer[0]?.userId && (personaUpdates.nombre !== undefined || personaUpdates.apellido !== undefined)) {
+        // Read current persona values to build the full name
+        const currentPersona = await this.db
+          .select({ nombre: personas.nombre, apellido: personas.apellido })
+          .from(personas)
+          .where(eq(personas.id, lawyer[0].personaId))
+          .limit(1);
+
+        if (currentPersona[0]) {
+          const fullName = [currentPersona[0].nombre, currentPersona[0].apellido]
+            .filter(Boolean).join(" ").trim();
+          if (fullName) {
+            await this.db.update(users).set({ name: fullName }).where(eq(users.id, lawyer[0].userId));
+          }
+        }
       }
     }
 

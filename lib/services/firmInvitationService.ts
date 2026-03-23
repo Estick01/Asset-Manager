@@ -3,6 +3,13 @@
 
 import { LawyerProfile } from "@/shared/schema";
 import { apiRequest } from "../query-client";
+import { extractApiErrorMessage } from "../api-error";
+
+const SILENT = { silent: true } as const;
+
+async function extractError(res: Response, fallback: string): Promise<string> {
+  return extractApiErrorMessage(res, fallback);
+}
 
 export interface FirmInvitation {
   id: string;
@@ -56,13 +63,9 @@ export async function searchAvailableLawyers(
   firmId: string
 ): Promise<ServiceResult<LawyerProfile[]>> {
   try {
-    const response = await apiRequest("GET", `/api/firm/invitations/search-lawyers?search=${search}`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al buscar abogados" };
-    }
-    const data = await response.json();
-    return { data, error: null };
+    const response = await apiRequest("GET", `/api/firm/invitations/search-lawyers?search=${search}`, undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al buscar abogados") };
+    return { data: await response.json(), error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al buscar abogados" };
   }
@@ -73,13 +76,9 @@ export async function searchAvailableLawyers(
 // ============================================
 export async function getFirmInvitations(): Promise<ServiceResult<FirmInvitation[]>> {
   try {
-    const response = await apiRequest("GET", "/api/firm/invitations");
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al obtener invitaciones" };
-    }
-    const data = await response.json();
-    return { data, error: null };
+    const response = await apiRequest("GET", "/api/firm/invitations", undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al obtener invitaciones") };
+    return { data: await response.json(), error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al obtener invitaciones" };
   }
@@ -87,16 +86,13 @@ export async function getFirmInvitations(): Promise<ServiceResult<FirmInvitation
 
 export async function sendInvitation(
   lawyerId: string,
-  mensaje?: string
+  mensaje?: string,
+  expiryDays?: number,
 ): Promise<ServiceResult<FirmInvitation>> {
   try {
-    const response = await apiRequest("POST", "/api/firm/invitations", { lawyerId, mensaje });
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al enviar invitación" };
-    }
-    const data = await response.json();
-    return { data, error: null };
+    const response = await apiRequest("POST", "/api/firm/invitations", { lawyerId, mensaje, expiryDays }, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al enviar invitación") };
+    return { data: await response.json(), error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al enviar invitación" };
   }
@@ -104,11 +100,8 @@ export async function sendInvitation(
 
 export async function cancelInvitation(id: string): Promise<ServiceResult<void>> {
   try {
-    const response = await apiRequest("POST", `/api/firm/invitations/${id}/cancel`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al cancelar invitación" };
-    }
+    const response = await apiRequest("POST", `/api/firm/invitations/${id}/cancel`, undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al cancelar invitación") };
     return { data: null, error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al cancelar invitación" };
@@ -120,13 +113,9 @@ export async function cancelInvitation(id: string): Promise<ServiceResult<void>>
 // ============================================
 export async function getLawyerInvitations(): Promise<ServiceResult<FirmInvitation[]>> {
   try {
-    const response = await apiRequest("GET", "/api/lawyer/invitations");
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al obtener invitaciones" };
-    }
-    const data = await response.json();
-    return { data, error: null };
+    const response = await apiRequest("GET", "/api/lawyer/invitations", undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al obtener invitaciones") };
+    return { data: await response.json(), error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al obtener invitaciones" };
   }
@@ -134,11 +123,8 @@ export async function getLawyerInvitations(): Promise<ServiceResult<FirmInvitati
 
 export async function acceptInvitation(id: string): Promise<ServiceResult<void>> {
   try {
-    const response = await apiRequest("POST", `/api/lawyer/invitations/${id}/accept`);
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al aceptar invitación" };
-    }
+    const response = await apiRequest("POST", `/api/lawyer/invitations/${id}/accept`, undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al aceptar invitación") };
     return { data: null, error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al aceptar invitación" };
@@ -150,11 +136,8 @@ export async function rejectInvitation(
   motivoRechazo?: string
 ): Promise<ServiceResult<void>> {
   try {
-    const response = await apiRequest("POST", `/api/lawyer/invitations/${id}/reject`, { motivoRechazo });
-    if (!response.ok) {
-      const errorText = await response.text();
-      return { data: null, error: errorText || "Error al rechazar invitación" };
-    }
+    const response = await apiRequest("POST", `/api/lawyer/invitations/${id}/reject`, { motivoRechazo }, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al rechazar invitación") };
     return { data: null, error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al rechazar invitación" };

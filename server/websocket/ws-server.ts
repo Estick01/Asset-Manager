@@ -49,7 +49,7 @@ const CONFIG = {
   PING_TIMEOUT: 10000,        // Client must respond within 10s
   
   // Rate limiting
-  RATE_LIMIT_MESSAGES: 5,     // Max messages per second
+  RATE_LIMIT_MESSAGES: 2,     // Max messages per second (reduced from 5 to prevent DoS)
   RATE_LIMIT_WINDOW: 1000,   // Window in ms
   
   // Payload limits
@@ -652,6 +652,17 @@ export function broadcastToRoom(
   payload: WsOutgoingMessage
 ): void {
   broadcastToConversation(conversationId, payload);
+}
+
+/**
+ * Push a WsOutgoingMessage to ALL active sockets of a specific user.
+ * Used for real-time notifications and invitation events.
+ */
+export function broadcastToUser(userId: string, payload: WsOutgoingMessage): void {
+  const sockets = userSockets.get(userId) ?? [];
+  for (const socket of sockets) {
+    if (socket.isAlive) send(socket, payload);
+  }
 }
 
 // Cleanup on process exit

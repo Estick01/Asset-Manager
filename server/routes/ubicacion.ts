@@ -51,6 +51,20 @@ router.get('/municipios', async (req, res) => {
   }
 });
 
+// GET /api/municipios/search - Search across all municipios (no departamentoId required)
+router.get('/municipios/search', async (req, res) => {
+  try {
+    const q      = (req.query.q      as string | undefined) ?? "";
+    const limit  = Math.min(50, Math.max(1, parseInt(req.query.limit  as string) || 20));
+    const offset = Math.max(0,              parseInt(req.query.offset as string) || 0);
+    const result = await storage.municipios.searchAll(q, limit, offset);
+    res.json(result);
+  } catch (error) {
+    console.error('Error searching municipios:', error);
+    res.status(500).json({ error: 'Error al buscar municipios' });
+  }
+});
+
 // GET /api/municipios/:id - Obtener un municipio por ID
 router.get('/municipios/:id', async (req, res) => {
   try {

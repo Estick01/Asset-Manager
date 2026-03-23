@@ -9,17 +9,18 @@ import { Cliente } from "../../shared/schema";
 export interface LawyerProfile {
   id: string;
   userId: string;
-  firstName: string;
-  lastName: string;
-  phone?: string;
-  address?: string;
-  specialization?: string;
-  licenseNumber?: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone?: string | null;
+  address?: string | null;
+  specialization?: string | null;
+  licenseNumber?: string | null;
   isIndependent: boolean;
-  firmId?: string;
+  firmId?: string | null;
+  departamentoId?: string | null;
+  municipioId?: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // Populated when fetching by ID (includes user & firm relations)
   user?: { id: string; email: string; name: string } | null;
   firm?: { id: string; name: string } | null;
 }
@@ -31,6 +32,8 @@ export interface UpdateLawyerProfile {
   address?: string;
   specialization?: string;
   licenseNumber?: string;
+  departamentoId?: string;
+  municipioId?: string;
 }
 
 // --- Lawyer Profile ---

@@ -15,7 +15,17 @@ const getLocalIp = (): string | undefined => {
 
 const LOCAL_IP = getLocalIp();
 
+// ⚠️ TUNNEL: comenta esta línea cuando no uses ngrok
+// const NGROK_URL = "https://asha-unsoaked-boundlessly.ngrok-free.dev";
+const NGROK_URL = "";
+
 const getApiUrl = (): string => {
+  if (NGROK_URL) return NGROK_URL;
+
+  if (process.env.EXPO_PUBLIC_TUNNEL_API_URL) {
+    return process.env.EXPO_PUBLIC_TUNNEL_API_URL;
+  }
+
   if (__DEV__) {
     if (Platform.OS === 'web') {
       return 'http://localhost:5000';
@@ -36,3 +46,6 @@ const getApiUrl = (): string => {
 };
 
 export const API_URL = getApiUrl();
+
+/** true cuando el tráfico pasa por ngrok — necesita header especial */
+export const IS_NGROK = !!NGROK_URL || !!process.env.EXPO_PUBLIC_TUNNEL_API_URL;

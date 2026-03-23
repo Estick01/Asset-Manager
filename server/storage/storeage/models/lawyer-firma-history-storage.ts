@@ -262,6 +262,24 @@ export class LawyerFirmaHistoryStorage {
     }
 
     // ============================
+    // Asignar rol de firma a un abogado activo
+    // ============================
+    async setFirmRol(lawyerId: string, firmaId: string, firmRolId: number | null): Promise<LawyerFirmaHistory | undefined> {
+        await this.db
+            .update(lawyerFirmaHistory)
+            .set({ firmRolId })
+            .where(
+                and(
+                    eq(lawyerFirmaHistory.lawyerId, lawyerId),
+                    eq(lawyerFirmaHistory.firmaId, firmaId),
+                    eq(lawyerFirmaHistory.estado, "activo")
+                )
+            );
+
+        return this.getActiveByLawyerId(lawyerId);
+    }
+
+    // ============================
     // Eliminar registro
     // ============================
     async delete(id: string): Promise<void> {

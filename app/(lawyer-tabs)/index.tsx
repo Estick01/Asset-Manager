@@ -90,6 +90,12 @@ export default function DashboardScreen() {
                   </View>
                 )}
               </Pressable>
+              <Pressable
+                style={styles.headerIconBtn}
+                onPress={() => router.push("/lawyer-componts/lawyer-settings" as any)}
+              >
+                <Ionicons name="settings-outline" size={22} color="#fff" />
+              </Pressable>
               <Pressable onPress={() => router.push("/profile/lawyer")} style={styles.avatarCircle}>
                 <Ionicons name="person" size={24} color={Colors.primary} />
               </Pressable>

@@ -74,6 +74,7 @@ export async function loginUnified(
   const user: UnifiedUser = {
     user: authData.user,
     profile: authData.profile,
+    permisos: authData.permisos ?? [],
   };
   await saveStoredUser(user);
   return user;
@@ -120,6 +121,7 @@ export async function verifyUnifiedSession(): Promise<VerifySessionResponse> {
       await saveStoredUser({
         user: data.user,
         profile: data.profile,
+        permisos: data.permisos ?? [],
       });
       return data;
     }

@@ -9,16 +9,17 @@ import { authenticate, requirePermission } from "../auth.js";
 import { storage } from '../storage/storeage/database-storage.js';
 import { clientesService } from '../services';
 import { validate } from "../middleware/validation.js";
+import { registerRateLimiter } from "../middleware/rate-limit.js";
 
 const registerClienteNaturalSchema = z.object({
   correo:          z.string().email("Correo inválido"),
-  password:        z.string().min(6, "Contraseña mínimo 6 caracteres"),
-  nombre:          z.string().min(1, "El nombre es requerido"),
-  apellido:        z.string().min(1, "El apellido es requerido"),
-  documento:       z.string().min(1, "El documento es requerido"),
+  password:        z.string().min(8, "Contraseña mínimo 8 caracteres"),
+  nombre:          z.string().min(1, "El nombre es requerido").max(100),
+  apellido:        z.string().min(1, "El apellido es requerido").max(100),
+  documento:       z.string().min(1, "El documento es requerido").max(50),
   tipoDocumentoId: z.number().int().positive().optional(),
-  telefono:        z.string().optional(),
-  direccion:       z.string().optional(),
+  telefono:        z.string().max(30).optional(),
+  direccion:       z.string().max(255).optional(),
   departamentoId:  z.string().optional(),
   municipioId:     z.string().optional(),
   abogadoId:       z.string().uuid().optional(),
@@ -26,19 +27,19 @@ const registerClienteNaturalSchema = z.object({
 
 const registerEmpresaSchema = z.object({
   correo:          z.string().email("Correo inválido"),
-  password:        z.string().min(6, "Contraseña mínimo 6 caracteres"),
-  razonSocial:     z.string().min(1, "La razón social es requerida"),
-  nit:             z.string().min(1, "El NIT es requerido"),
-  sector:          z.string().optional(),
+  password:        z.string().min(8, "Contraseña mínimo 8 caracteres"),
+  razonSocial:     z.string().min(1, "La razón social es requerida").max(200),
+  nit:             z.string().min(1, "El NIT es requerido").max(50),
+  sector:          z.string().max(100).optional(),
   abogadoId:       z.string().uuid().optional(),
   // representante legal
-  repNombre:          z.string().optional(),
-  repApellido:        z.string().optional(),
-  repDocumento:       z.string().optional(),
+  repNombre:          z.string().max(100).optional(),
+  repApellido:        z.string().max(100).optional(),
+  repDocumento:       z.string().max(50).optional(),
   repTipoDocumentoId: z.number().int().positive().optional(),
-  repCargo:           z.string().optional(),
+  repCargo:           z.string().max(100).optional(),
   repEmail:           z.string().email().optional().or(z.literal("")),
-  repTelefono:        z.string().optional(),
+  repTelefono:        z.string().max(30).optional(),
 });
 
 const router = Router();
@@ -74,7 +75,25 @@ router.get("/clientes", authenticate, requirePermission("clientes.ver"), async (
 // ----------------------------------------------------------------
 router.get("/clientes/:id", authenticate, requirePermission("clientes.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cliente = await clientesService.getCliente(req.params.id as string);
+    const user = (req as any).user;
+    const clienteId = req.params.id as string;
+    const rol = user?.rol?.nombre;
+    const idProfile = user?.idProfile;
+
+    // Ownership check: verify the requester has a relationship with this client
+    if (rol === "abogado") {
+      const relations = await storage.lawyerClients.getClientLawyers(clienteId);
+      const hasAccess = relations.some((r: any) => r.lawyerId === idProfile);
+      if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este cliente" });
+    } else if (rol === "bufete") {
+      const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(idProfile);
+      if (!firmClientIds.includes(clienteId)) return res.status(403).json({ error: "No tienes acceso a este cliente" });
+    } else if (rol === "cliente") {
+      const propioCliente = await storage.clientes.getClienteByUser(user.id);
+      if (!propioCliente || propioCliente.id !== clienteId) return res.status(403).json({ error: "No tienes acceso a este cliente" });
+    }
+
+    const cliente = await clientesService.getCliente(clienteId);
     if (!cliente) return res.status(404).json({ error: "Cliente not found" });
     res.json(cliente);
   } catch (err) {
@@ -95,7 +114,9 @@ router.post("/clientes", authenticate, requirePermission("clientes.crear"), asyn
       ...rest
     } = req.body;
 
-    const lawyerId = user.idProfile;
+    const isFirm   = user?.rol?.nombre === "bufete";
+    const lawyerId = isFirm ? undefined : user.idProfile;
+    const firmId   = isFirm ? user.idProfile : undefined;
 
     // For empresa: create representante legal if data was provided
     let representanteLegalId: string | undefined;
@@ -120,17 +141,19 @@ router.post("/clientes", authenticate, requirePermission("clientes.crear"), asyn
 
     const newCliente = await clientesService.createCliente(
       {
+        ...rest,
+        // Security: hardcoded fields must come AFTER ...rest so they cannot be overridden
         tipo,
         id: crypto.randomUUID(),
         userId: crypto.randomUUID(),
         activo: true,
         fechaCreacion: new Date(),
-        ...rest,
         ...(tipo === "empresa" && representanteLegalId ? { representanteLegalId } : {}),
       },
       password,
       correo ?? `${rest.documento ?? rest.nit}@temp.com`,
-      lawyerId
+      lawyerId,
+      firmId
     );
 
     res.status(201).json(newCliente);
@@ -254,16 +277,45 @@ router.put("/cliente/me", authenticate, async (req: Request, res: Response, next
 // ----------------------------------------------------------------
 router.put("/clientes/:id", authenticate, requirePermission("clientes.editar"), async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const user = (req as any).user;
     const id = req.params.id as string;
     const {
       correo, password,
       repNombre, repApellido, repDocumento, repTipoDocumentoId, repCargo, repEmail, repTelefono,
       repDireccion, repDepartamentoId, repMunicipioId,
-      ...rest
+      // Campos permitidos explícitamente (evita mass assignment)
+      nombre, apellido, telefono, direccion, departamentoId, municipioId, documento, tipoDocumentoId,
+      razonSocial, nit, sector,
     } = req.body;
+
+    // Objeto de actualización con solo campos permitidos
+    const allowedUpdates: Record<string, unknown> = {};
+    if (nombre !== undefined)          allowedUpdates.nombre = nombre;
+    if (apellido !== undefined)        allowedUpdates.apellido = apellido;
+    if (telefono !== undefined)        allowedUpdates.telefono = telefono;
+    if (direccion !== undefined)       allowedUpdates.direccion = direccion;
+    if (departamentoId !== undefined)  allowedUpdates.departamentoId = departamentoId;
+    if (municipioId !== undefined)     allowedUpdates.municipioId = municipioId;
+    if (documento !== undefined)       allowedUpdates.documento = documento;
+    if (tipoDocumentoId !== undefined) allowedUpdates.tipoDocumentoId = tipoDocumentoId;
+    if (razonSocial !== undefined)     allowedUpdates.razonSocial = razonSocial;
+    if (nit !== undefined)             allowedUpdates.nit = nit;
+    if (sector !== undefined)          allowedUpdates.sector = sector;
 
     const cliente = await storage.clientes.getCliente(id);
     if (!cliente) return res.status(404).json({ error: "Cliente no encontrado" });
+
+    // ── Verificar ownership ──────────────────────────────────────────────────
+    const idProfile = user?.idProfile;
+    const rol = user?.rol?.nombre;
+    if (rol === "abogado") {
+      const relations = await storage.lawyerClients.getClientLawyers(id);
+      const hasAccess = relations.some((r: any) => r.lawyerId === idProfile);
+      if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este cliente" });
+    } else if (rol === "bufete") {
+      const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(idProfile);
+      if (!firmClientIds.includes(id)) return res.status(403).json({ error: "No tienes acceso a este cliente" });
+    }
 
     // Update user email/password if provided
     if (correo || password) {
@@ -315,11 +367,11 @@ router.put("/clientes/:id", authenticate, requirePermission("clientes.editar"), 
           cargo: repCargo || "Representante Legal",
           email: repEmail || correo || "",
         });
-        rest.representanteLegalId = rep.id;
+        allowedUpdates.representanteLegalId = rep.id;
       }
     }
 
-    const updated = await storage.clientes.updateCliente(id, rest);
+    const updated = await storage.clientes.updateCliente(id, allowedUpdates);
     res.json(updated);
   } catch (err) {
     next(err);
@@ -329,7 +381,7 @@ router.put("/clientes/:id", authenticate, requirePermission("clientes.editar"), 
 // ----------------------------------------------------------------
 // POST /api/register/cliente — self-registration: natural person
 // ----------------------------------------------------------------
-router.post("/register/cliente", validate(registerClienteNaturalSchema), async (req: Request, res: Response, next: NextFunction) => {
+router.post("/register/cliente", registerRateLimiter, validate(registerClienteNaturalSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const {
       nombre, apellido, telefono, correo, documento,
@@ -338,7 +390,7 @@ router.post("/register/cliente", validate(registerClienteNaturalSchema), async (
     } = req.body;
 
     const existing = await storage.getUserByEmail(correo);
-    if (existing) return res.status(400).json({ message: "El correo ya está registrado" });
+    if (existing) return res.status(400).json({ message: "No fue posible completar el registro. Verifica los datos ingresados." });
 
     const cliente = await clientesService.createCliente(
       {
@@ -367,7 +419,7 @@ router.post("/register/cliente", validate(registerClienteNaturalSchema), async (
 // ----------------------------------------------------------------
 // POST /api/register/empresa — self-registration: company
 // ----------------------------------------------------------------
-router.post("/register/empresa", validate(registerEmpresaSchema), async (req: Request, res: Response, next: NextFunction) => {
+router.post("/register/empresa", registerRateLimiter, validate(registerEmpresaSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const {
       razonSocial, nit, sector, correo, password, abogadoId,
@@ -377,7 +429,7 @@ router.post("/register/empresa", validate(registerEmpresaSchema), async (req: Re
     } = req.body;
 
     const existing = await storage.getUserByEmail(correo);
-    if (existing) return res.status(400).json({ message: "El correo ya está registrado" });
+    if (existing) return res.status(400).json({ message: "No fue posible completar el registro. Verifica los datos ingresados." });
 
     // Create representante legal first if provided
     let representanteLegalId: string | undefined;
@@ -432,7 +484,9 @@ router.post("/register/client", authenticate, async (req: Request, res: Response
       return res.status(400).json({ message: "Correo y password son obligatorios" });
     }
 
-    const lawyerId = user.idProfile;
+    const isFirm   = user?.rol?.nombre === "bufete";
+    const lawyerId = isFirm ? undefined : user.idProfile;
+    const firmId   = isFirm ? user.idProfile : undefined;
 
     const cliente = await clientesService.createCliente(
       {
@@ -448,7 +502,8 @@ router.post("/register/client", authenticate, async (req: Request, res: Response
       },
       password,
       correo,
-      lawyerId
+      lawyerId,
+      firmId
     );
 
     res.status(201).json({ message: "Cliente registrado exitosamente", data: cliente });

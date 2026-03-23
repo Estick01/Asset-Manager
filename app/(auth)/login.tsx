@@ -140,6 +140,13 @@ const handleLogin = async () => {
                 <Text style={styles.loginBtnText}>Ingresar</Text>
               )}
             </Pressable>
+
+            <Pressable
+              onPress={() => router.push("/(auth)/forgot-password")}
+              style={styles.forgotBtn}
+            >
+              <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+            </Pressable>
           </View>
 
           <View style={styles.footer}>
@@ -267,6 +274,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: "Inter_600SemiBold",
     color: Colors.white,
+  },
+  forgotBtn: {
+    alignItems: "center",
+    paddingVertical: 4,
+  },
+  forgotText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: Colors.primary,
   },
   footer: {
     flexDirection: "row",

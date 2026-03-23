@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import {
   View, Text, StyleSheet, FlatList, Pressable,
   RefreshControl, TextInput, ActivityIndicator,
-  ScrollView, Animated,
+  ScrollView, Animated, Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { getClientes } from "@/lib/services/clienteService";
 import { getOrCreateConversation } from "@/lib/services/chatService";
+import { removeFirmClient } from "@/lib/services/firmClientsService";
 import { type Cliente } from "@/shared/schema";
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
@@ -87,7 +88,13 @@ function getLocation(item: Cliente): string {
 type FilterTab = "todos" | "activos" | "inactivos";
 
 // ─── Client Card ──────────────────────────────────────────────────────────
-function ClientCard({ item, index }: { item: Cliente; index: number }) {
+function ClientCard({
+  item, index, onRemove,
+}: {
+  item: Cliente;
+  index: number;
+  onRemove?: (id: string, name: string) => void;
+}) {
   const anim = useRef(new Animated.Value(0)).current;
 
   const { nombre, apellido } = getDisplayName(item);
@@ -109,11 +116,13 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
     if (!item.userId) return;
     try {
       const conv = await getOrCreateConversation(item.userId, "lawyer_client");
-      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: nombre } });
+      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: nombre, userId: item.userId } });
     } catch (e) {
       console.error("Error al iniciar chat:", e);
     }
   };
+
+  const handleRemove = () => onRemove?.(item.id, `${nombre}${apellido ? ` ${apellido}` : ""}`);
 
   return (
     <Animated.View style={{
@@ -237,9 +246,76 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
           </Pressable>
         )}
 
+        {/* Remove button (only shown when onRemove is provided) */}
+        {onRemove && (
+          <Pressable
+            style={({ pressed }) => [styles.removeBtn, pressed && { opacity: 0.7 }]}
+            onPress={handleRemove}
+            hitSlop={8}
+          >
+            <Ionicons name="person-remove-outline" size={16} color="#E05252" />
+          </Pressable>
+        )}
+
         <Ionicons name="chevron-forward" size={14} color={TEXT3} style={{ flexShrink: 0 }} />
       </Pressable>
     </Animated.View>
+  );
+}
+
+// ─── Confirm Remove Modal ─────────────────────────────────────────────────
+function ConfirmRemoveModal({
+  visible, clientName, busy, onConfirm, onCancel,
+}: {
+  visible: boolean;
+  clientName: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const DANGER = "#E05252";
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onCancel}>
+      <Pressable style={styles.modalOverlay} onPress={onCancel}>
+        <Pressable style={styles.modalSheet} onPress={() => {}}>
+          {/* Handle */}
+          <View style={styles.modalHandle} />
+
+          {/* Icon */}
+          <View style={[styles.modalIconWrap, { backgroundColor: DANGER + "12" }]}>
+            <Ionicons name="person-remove-outline" size={28} color={DANGER} />
+          </View>
+
+          <Text style={styles.modalTitle}>Quitar cliente del bufete</Text>
+          <Text style={styles.modalBody}>
+            ¿Deseas quitar a{" "}
+            <Text style={{ fontFamily: "Inter_600SemiBold", color: TEXT }}>
+              {clientName}
+            </Text>
+            {" "}del bufete?{"\n"}Sus datos no serán eliminados.
+          </Text>
+
+          <View style={styles.modalActions}>
+            <Pressable
+              style={({ pressed }) => [styles.modalBtn, styles.modalBtnCancel, pressed && { opacity: 0.8 }]}
+              onPress={onCancel}
+              disabled={busy}
+            >
+              <Text style={styles.modalBtnCancelText}>Cancelar</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.modalBtn, styles.modalBtnDanger, pressed && { opacity: 0.8 }]}
+              onPress={onConfirm}
+              disabled={busy}
+            >
+              {busy
+                ? <ActivityIndicator size="small" color={WHITE} />
+                : <Text style={styles.modalBtnDangerText}>Quitar</Text>}
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -252,6 +328,8 @@ export default function FirmClientsScreen() {
   const [search, setSearch] = useState("");
   const [filterTab, setFilterTab] = useState<FilterTab>("todos");
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<{ id: string; name: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
 
   const fetchClientes = useCallback(async (searchTerm?: string) => {
     try {
@@ -264,12 +342,32 @@ export default function FirmClientsScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchClientes(); }, []);
+  useEffect(() => { fetchClientes(); }, [fetchClientes]);
 
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchClientes(search);
     setRefreshing(false);
+  };
+
+  // Abre el modal de confirmación
+  const handleRequestRemove = useCallback((id: string, name: string) => {
+    setPendingRemove({ id, name });
+  }, []);
+
+  // Confirma y ejecuta el soft-delete
+  const handleConfirmRemove = async () => {
+    if (!pendingRemove) return;
+    setRemoving(true);
+    try {
+      await removeFirmClient(pendingRemove.id);
+      setAllClientes(prev => prev.filter(c => c.id !== pendingRemove.id));
+      setPendingRemove(null);
+    } catch (e) {
+      console.error("Error al quitar cliente:", e);
+    } finally {
+      setRemoving(false);
+    }
   };
 
   const handleSearch = (text: string) => {
@@ -412,7 +510,7 @@ export default function FirmClientsScreen() {
         <FlatList
           data={clientes}
           keyExtractor={item => item.id}
-          renderItem={({ item, index }) => <ClientCard item={item} index={index} />}
+          renderItem={({ item, index }) => <ClientCard item={item} index={index} onRemove={handleRequestRemove} />}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -442,6 +540,15 @@ export default function FirmClientsScreen() {
           }
         />
       </View>
+
+      {/* ── Modal de confirmación ── */}
+      <ConfirmRemoveModal
+        visible={!!pendingRemove}
+        clientName={pendingRemove?.name ?? ""}
+        busy={removing}
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setPendingRemove(null)}
+      />
     </View>
   );
 }
@@ -562,6 +669,12 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
     marginRight: 4,
   },
+  removeBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#E0525215",
+    alignItems: "center", justifyContent: "center",
+    marginRight: 2,
+  },
 
   tipoBadge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   tipoBadgeNatural: { backgroundColor: TEAL + "18" },
@@ -617,5 +730,59 @@ procesosPillDot: {
 procesosPillText: {
   fontSize: 11,
   fontFamily: "Inter_600SemiBold",
+},
+
+// ── Modal ──────────────────────────────────────────────────────────────
+modalOverlay: {
+  flex: 1,
+  backgroundColor: "rgba(0,0,0,0.45)",
+  justifyContent: "flex-end",
+},
+modalSheet: {
+  backgroundColor: WHITE,
+  borderTopLeftRadius: 24,
+  borderTopRightRadius: 24,
+  paddingHorizontal: 24,
+  paddingBottom: 36,
+  paddingTop: 12,
+  alignItems: "center",
+  gap: 12,
+},
+modalHandle: {
+  width: 36, height: 4, borderRadius: 2,
+  backgroundColor: "#D1D9E0",
+  marginBottom: 8,
+},
+modalIconWrap: {
+  width: 60, height: 60, borderRadius: 18,
+  alignItems: "center", justifyContent: "center",
+  marginBottom: 4,
+},
+modalTitle: {
+  fontSize: 17, fontFamily: "Inter_700Bold", color: TEXT,
+  textAlign: "center",
+},
+modalBody: {
+  fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT2,
+  textAlign: "center", lineHeight: 21,
+},
+modalActions: {
+  flexDirection: "row", gap: 12, marginTop: 8, width: "100%",
+},
+modalBtn: {
+  flex: 1, paddingVertical: 14, borderRadius: 14,
+  alignItems: "center", justifyContent: "center",
+},
+modalBtnCancel: {
+  backgroundColor: BG, borderWidth: 1, borderColor: "#E0E5EA",
+},
+modalBtnCancelText: {
+  fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT2,
+},
+modalBtnDanger: {
+  backgroundColor: "#E05252",
+},
+modalBtnDangerText: {
+  fontSize: 15, fontFamily: "Inter_600SemiBold", color: WHITE,
 },
 });

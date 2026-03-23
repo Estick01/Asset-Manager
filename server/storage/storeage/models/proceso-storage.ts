@@ -9,7 +9,7 @@
 import { ProcesoFilter } from "@/server/services";
 import { randomUUID } from "crypto";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile } from "@/shared/schema";
+import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile, firmProfiles } from "@/shared/schema";
 import { Database } from "../database-storage";
 import { alias } from 'drizzle-orm/mysql-core';
 
@@ -114,7 +114,7 @@ export class ProcesoStorage {
   const personasRepLegal     = alias(personas,               'personasRepLegal');
 
   // 3. Condiciones de filtro
-  const conditions: any[] = [inArray(procesos.id, procesoIds)];
+  const conditions: any[] = [inArray(procesos.id, procesoIds), eq(procesos.state, true)];
 
   if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
     conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
@@ -315,7 +315,7 @@ export class ProcesoStorage {
     }
 
     const personasCliente = alias(personas, 'personasCliente');
-    const conditions: any[] = [inArray(procesos.id, procesoIds)];
+    const conditions: any[] = [inArray(procesos.id, procesoIds), eq(procesos.state, true)];
 
     if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
       conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
@@ -354,7 +354,16 @@ export class ProcesoStorage {
     offset: number = 0,
     filter?: ProcesoFilter
   ): Promise<{ data: ProcesoDTO[]; total: number }> {
-    const conditions: any[] = [eq(procesos.clienteId, clienteId)];
+    const responsableLawyer   = alias(lawyerProfiles,      'responsableLawyer');
+    const responsableJoin     = alias(procesoResponsables, 'responsableJoin');
+    const personasResponsable = alias(personas,            'personasResponsable');
+
+    const joinConditions = and(
+      eq(responsableJoin.procesoId, procesos.id),
+      eq(responsableJoin.activo, true)
+    );
+
+    const conditions: any[] = [eq(procesos.clienteId, clienteId), eq(procesos.state, true)];
 
     if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
       conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
@@ -396,16 +405,26 @@ export class ProcesoStorage {
         estadoCodigo: estadosProceso.codigo,
         estadoNombre: estadosProceso.nombre,
         estadoColor: estadosProceso.color,
+        responsableLawyerData: responsableLawyer,
+        responsablePersonaId: personasResponsable.id,
+        responsablePersonaNombre: personasResponsable.nombre,
+        responsablePersonaApellido: personasResponsable.apellido,
+        responsableFechaInicio: responsableJoin.fechaInicio,
+        responsableRazon: responsableJoin.razon,
+        responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre,
       })
       .from(procesos)
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
       .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
+      .leftJoin(responsableJoin,   joinConditions)
+      .leftJoin(responsableLawyer, eq(responsableJoin.lawyerId, responsableLawyer.id))
+      .leftJoin(personasResponsable, eq(responsableLawyer.personaId, personasResponsable.id))
       .where(and(...conditions))
       .orderBy(desc(procesos.fechaCreacion))
       .limit(limit)
       .offset(offset);
 
-    const data = results.map(p => ({
+    const data = results.map((p: any) => ({
       id: p.id,
       state: p.state,
       fechaCreacion: p.fechaCreacion,
@@ -416,14 +435,27 @@ export class ProcesoStorage {
       estadoId: p.estadoId,
       descripcionEstado: p.descripcionEstado,
       clienteNombre: 'Sin cliente',
-      estado: p.estadoIdRel
-        ? {
-          id: p.estadoIdRel,
-          codigo: p.estadoCodigo || "",
-          nombre: p.estadoNombre || "",
-          color: p.estadoColor || "",
-        }
-        : null,
+      tipoProceso: p.tipoProcesoNombre ? { nombre: p.tipoProcesoNombre } : null,
+      estado: p.estadoIdRel ? {
+        id: p.estadoIdRel,
+        codigo: p.estadoCodigo || "",
+        nombre: p.estadoNombre || "",
+        color: p.estadoColor || "",
+      } : null,
+      responsable: p.responsableLawyerData ? {
+        id: p.responsableLawyerData.id,
+        fechaAsignacion: p.responsableFechaInicio ?? null,
+        razon: p.responsableRazon ?? null,
+        asignadoPorNombre: p.responsableAsignadoPorNombre ?? null,
+        lawyer: {
+          ...p.responsableLawyerData,
+          persona: p.responsablePersonaId ? {
+            id: p.responsablePersonaId,
+            nombre: p.responsablePersonaNombre ?? '',
+            apellido: p.responsablePersonaApellido ?? '',
+          } : null,
+        },
+      } : null,
     }));
 
     return { data, total: Number(count) };
@@ -431,7 +463,7 @@ export class ProcesoStorage {
 
   async getProceso(id: string): Promise<ProcesoDTO | undefined> {
     const rawProceso = await this.db.query.procesos.findFirst({
-      where: eq(procesos.id, id),
+      where: and(eq(procesos.id, id), eq(procesos.state, true)),
       with: {
         cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
         estado: true,
@@ -460,7 +492,9 @@ export class ProcesoStorage {
         asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
         lawyer: responsableMeta.lawyer ?? null,
       } : null,
-      clienteNombre: this.getClienteNombre(rawProceso.cliente),
+      clienteNombre:  this.getClienteNombre(rawProceso.cliente),
+      clienteUserId:  rawProceso.cliente?.userId ?? undefined,
+      communityPostId: rawProceso.communityPostId ?? null,
       estado: rawProceso.estado ? {
         id: rawProceso.estado.id,
         codigo: rawProceso.estado.codigo,
@@ -490,6 +524,14 @@ export class ProcesoStorage {
     };
     await this.db.insert(procesos).values(newProceso);
     return newProceso;
+  }
+
+  /** Vincula un proceso existente con un post de comunidad (bidireccional). */
+  async setCommunityPostId(procesoId: string, communityPostId: string | null): Promise<void> {
+    await this.db
+      .update(procesos)
+      .set({ communityPostId })
+      .where(eq(procesos.id, procesoId));
   }
 
   async setResponsable(
@@ -535,7 +577,7 @@ export class ProcesoStorage {
   }
 
   async deleteProceso(id: string): Promise<void> {
-    await this.db.delete(procesos).where(eq(procesos.id, id));
+    await this.db.update(procesos).set({ state: false }).where(eq(procesos.id, id));
   }
 
   // Get lawyers assigned to a proceso
@@ -617,6 +659,7 @@ export class ProcesoStorage {
     const conditions: any[] = [
       inArray(procesos.id, procesoIds),
       eq(procesos.clienteId, clienteId),
+      eq(procesos.state, true),
     ];
 
     if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
@@ -777,7 +820,9 @@ export class ProcesoStorage {
         asignadoPorNombre: responsableMeta.asignadoPorNombre ?? null,
         lawyer: responsableMeta.lawyer ?? null,
       } : null,
-      clienteNombre: this.getClienteNombre(rawProceso.cliente),
+      clienteNombre:   this.getClienteNombre(rawProceso.cliente),
+      clienteUserId:   rawProceso.cliente?.userId ?? undefined,
+      communityPostId: rawProceso.communityPostId ?? null,
       cliente: rawProceso.cliente,
       tipoProceso: rawProceso.tipoProceso ?? null,
       estado: rawProceso.estado ?? null,
@@ -809,7 +854,7 @@ export class ProcesoStorage {
 
   // Helper privado reutilizable
   private async getResponsablesMap(procesoIds: string[]): Promise<Map<string, {
-    lawyer: typeof lawyerProfiles.$inferSelect;
+    lawyer: typeof lawyerProfiles.$inferSelect & { persona: { id: string; nombre: string; apellido: string } | null };
     fechaInicio: Date;
     razon: string | null;
     asignadoPorNombre: string | null;
@@ -817,16 +862,22 @@ export class ProcesoStorage {
     const map = new Map();
     if (procesoIds.length === 0) return map;
 
+    const personasResponsable = alias(personas, 'personasResponsable');
+
     const rows = await this.db
       .select({
         procesoId: procesoResponsables.procesoId,
         lawyer: lawyerProfiles,
+        personaId: personasResponsable.id,
+        personaNombre: personasResponsable.nombre,
+        personaApellido: personasResponsable.apellido,
         fechaInicio: procesoResponsables.fechaInicio,
         razon: procesoResponsables.razon,
         asignadoPorNombre: procesoResponsables.asignadoPorNombre,
       })
       .from(procesoResponsables)
       .innerJoin(lawyerProfiles, eq(procesoResponsables.lawyerId, lawyerProfiles.id))
+      .leftJoin(personasResponsable, eq(lawyerProfiles.personaId, personasResponsable.id))
       .where(and(
         inArray(procesoResponsables.procesoId, procesoIds),
         eq(procesoResponsables.activo, true)
@@ -834,7 +885,14 @@ export class ProcesoStorage {
 
     for (const r of rows) {
       map.set(r.procesoId, {
-        lawyer: r.lawyer,
+        lawyer: {
+          ...r.lawyer,
+          persona: r.personaId ? {
+            id: r.personaId,
+            nombre: r.personaNombre ?? '',
+            apellido: r.personaApellido ?? '',
+          } : null,
+        },
         fechaInicio: r.fechaInicio,
         razon: r.razon,
         asignadoPorNombre: r.asignadoPorNombre,
@@ -920,7 +978,7 @@ export class ProcesoStorage {
     const personasRepLegal = alias(personas, 'personasRepLegal');
 
     // 4. Condiciones de filtro
-    const conditions: any[] = [inArray(procesos.id, procesoIds)];
+    const conditions: any[] = [inArray(procesos.id, procesoIds), eq(procesos.state, true)];
 
     if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
       conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
@@ -1138,6 +1196,7 @@ export class ProcesoStorage {
     const conditions: any[] = [
       inArray(procesos.id, procesoIds),
       eq(procesos.clienteId, clienteId),
+      eq(procesos.state, true),
     ];
 
     if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
@@ -1280,7 +1339,9 @@ export class ProcesoStorage {
         lawyer: responsableMeta.lawyer,
       } : null,
     
-      clienteNombre: this.getClienteNombre(rawProceso.cliente),
+      clienteNombre:   this.getClienteNombre(rawProceso.cliente),
+      clienteUserId:   rawProceso.cliente?.userId ?? undefined,
+      communityPostId: rawProceso.communityPostId ?? null,
       cliente: rawProceso.cliente,
       tipoProceso: rawProceso.tipoProceso ?? null,
       estado: rawProceso.estado ?? null,
@@ -1356,6 +1417,20 @@ export class ProcesoStorage {
 
     const responsableMeta = await this.getActiveResponsable(procesoId);
 
+    // For lawyer entries where the JOIN returned null, the lawyerId may point
+    // to a firm profile — resolve it so the frontend can show the firm name.
+    const lawyersResolved = await Promise.all(
+      rawProceso.lawyers.map(async l => {
+        if (l.lawyer !== null) return { ...l, firm: null };
+        const firm = await this.db
+          .select({ id: firmProfiles.id, name: firmProfiles.name, phone: firmProfiles.phone })
+          .from(firmProfiles)
+          .where(eq(firmProfiles.id, l.lawyerId))
+          .limit(1);
+        return { ...l, firm: firm[0] ?? null };
+      })
+    );
+
     return {
       id: rawProceso.id,
       state: rawProceso.state,
@@ -1372,13 +1447,14 @@ export class ProcesoStorage {
       tipoProceso: rawProceso.tipoProceso ?? null,
       estado: rawProceso.estado ?? null,
 
-      lawyers: rawProceso.lawyers.map(l => ({
+      lawyers: lawyersResolved.map(l => ({
         id: l.id,
         procesoId: l.procesoId,
         lawyerId: l.lawyerId,
         rol: l.rol,
         status: l.status,
         lawyer: l.lawyer,
+        firm: l.firm,
       })) as ProcesoLawyerWithLawyer[],
 
       responsable: responsableMeta ? {
@@ -1389,6 +1465,44 @@ export class ProcesoStorage {
         lawyer: responsableMeta.lawyer ?? null,
       } : null,
     };
+  }
+
+  // ── Legal Stage ────────────────────────────────────────────────────────────
+
+  /** Actualiza la etapa procesal del proceso y calcula la fecha de vencimiento */
+  async updateLegalStage(
+    procesoId: string,
+    legalStage: string,
+    fechaVencimientoEtapa: Date | null,
+  ): Promise<void> {
+    await this.db
+      .update(procesos)
+      .set({
+        legalStage,
+        fechaVencimientoEtapa,
+        etapaActualizadaEn: new Date(),
+      })
+      .where(eq(procesos.id, procesoId));
+  }
+
+  /** Procesos filtrados por etapa procesal */
+  async getProcesosByEtapa(
+    lawyerProfileId: string,
+    legalStage: string,
+  ): Promise<{ id: string; radicado: string; legalStage: string | null }[]> {
+    return this.db
+      .select({
+        id:         procesos.id,
+        radicado:   procesos.radicado,
+        legalStage: procesos.legalStage,
+      })
+      .from(procesos)
+      .where(
+        and(
+          eq(procesos.state, true),
+          eq(procesos.legalStage, legalStage),
+        ),
+      );
   }
 
 }

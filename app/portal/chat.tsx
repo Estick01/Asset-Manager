@@ -79,7 +79,7 @@ function ConversationCard({ conv, currentUserId, index }: {
         style={({ pressed }) => [styles.card, pressed && { backgroundColor: "#F5F7FA" }]}
         onPress={() => router.push({
           pathname: "/chat/[id]",
-          params: { id: conv.id, name: displayName, from: "/portal/chat" },
+          params: { id: conv.id, name: displayName, from: "/portal/chat", userId: other?.userId },
         })}
       >
         {/* Unread strip */}

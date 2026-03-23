@@ -61,6 +61,7 @@ export interface Proceso {
   descripcionEstado: string;
   fechaCreacion: string | Date;
   state?: boolean;
+  communityPostId?: string | null;
 }
 
 // Type for creating a new process (omitting generated fields)
@@ -154,6 +155,12 @@ export interface JWTPayload {
   UserName: string | null;
   /** JWT ID — used to look up / revoke the session */
   jti: string;
+  /**
+   * Rol personalizado asignado por el bufete (de lawyer_firma_history).
+   * Cuando está presente, SOBREESCRIBE los permisos del rol global del usuario.
+   * NULL = usar permisos del rol global.
+   */
+  firmRolId?: number | null;
 }
 
 export interface LawyerDTO {

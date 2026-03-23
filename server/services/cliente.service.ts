@@ -43,12 +43,20 @@ export class ClientesService {
     const lawyerIds = lawyers.map(l => l.id);
     const allIds = [...new Set([...lawyerIds, firmId])];
 
-    const relations = await db
-      .select({ clientId: lawyerClients.clientId })
-      .from(lawyerClients)
-      .where(and(inArray(lawyerClients.lawyerId, allIds), eq(lawyerClients.status, "active")));
+    const [lawyerRelations, firmClientIds] = await Promise.all([
+      db
+        .select({ clientId: lawyerClients.clientId })
+        .from(lawyerClients)
+        .where(and(inArray(lawyerClients.lawyerId, allIds), eq(lawyerClients.status, "active"))),
+      storage.firmClients.getActiveClientIdsByFirm(firmId),
+    ]);
 
-    const clientIds = [...new Set(relations.map(r => r.clientId))];
+    const clientIds = [
+      ...new Set([
+        ...lawyerRelations.map(r => r.clientId),
+        ...firmClientIds,
+      ]),
+    ];
     if (clientIds.length === 0) return [];
 
     const results: Cliente[] = [];
@@ -77,7 +85,8 @@ export class ClientesService {
     insertCliente: InsertClienteCompleto,
     password: string,
     email: string,
-    lawyerId?: string
+    lawyerId?: string,
+    firmId?: string
   ): Promise<Cliente> {
     const hashedPassword = await hashPassword(password);
 
@@ -98,7 +107,9 @@ export class ClientesService {
       return storage.clientes.createCliente({ ...insertCliente, userId: user.id }, tx);
     });
 
-    if (lawyerId) {
+    if (firmId) {
+      await storage.firmClients.createFirmClient(firmId, cliente.id);
+    } else if (lawyerId) {
       await storage.lawyerClients.createLawyerClient({
         id: randomUUID(),
         lawyerId,

@@ -82,7 +82,7 @@ export default function FirmSettingsScreen() {
       items: [
         { icon: "person-add-outline", label: "Invitar Abogado", onPress: () => router.push("/firm-components/firm-invite-lawyer" as any) },
         { icon: "mail-outline", label: "Ver Invitaciones", onPress: () => router.push("/firm-components/firm-invitations" as any) },
-        { icon: "people-outline", label: "Gestionar Permisos", onPress: () => Alert.alert("Proximamente", "Esta funcion estara disponible pronto.") },
+        { icon: "people-outline", label: "Gestionar Permisos", onPress: () => router.push("/firm-components/firm-roles" as any) },
       ],
     },
     {

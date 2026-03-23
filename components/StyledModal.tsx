@@ -8,6 +8,8 @@ import {
   useColorScheme,
   Platform,
   ScrollView,
+  Keyboard,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,49 +53,61 @@ export function StyledModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContainer, fullHeight && styles.modalContainerFullHeight]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{title}</Text>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [
-                styles.closeButton,
-                pressed && styles.closeButtonPressed,
-              ]}
-            >
-              <Ionicons name="close-outline" size={24} color={Colors.textSecondary} />
-            </Pressable>
-          </View>
-          <ScrollView style={styles.modalContent} nestedScrollEnabled={true}>
-            {children}
-          </ScrollView>
-          <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 16 }]}>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [
-                styles.button,
-                styles.cancelButton,
-                pressed && styles.buttonPressed,
-              ]}
-            >
-              <Text style={[styles.buttonText, styles.cancelButtonText]}>{cancelText}</Text>
-            </Pressable>
-            {!hideConfirm && onConfirm && (
+      {/* Tap on overlay dismisses keyboard only, does NOT close the modal */}
+      <Pressable style={styles.modalOverlay} onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={[styles.modalContainer, fullHeight && styles.modalContainerFullHeight]}
+        >
+          <Pressable accessible={false}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{title}</Text>
               <Pressable
-                onPress={onConfirm}
+                onPress={onClose}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.closeButtonPressed,
+                ]}
+              >
+                <Ionicons name="close-outline" size={24} color={Colors.textSecondary} />
+              </Pressable>
+            </View>
+            <ScrollView
+              style={styles.modalContent}
+              nestedScrollEnabled={true}
+              keyboardDismissMode="on-drag"
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+            <View style={[styles.modalFooter, { paddingBottom: insets.bottom + 16 }]}>
+              <Pressable
+                onPress={onClose}
                 style={({ pressed }) => [
                   styles.button,
-                  styles.confirmButton,
+                  styles.cancelButton,
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Text style={[styles.buttonText, styles.confirmButtonText]}>{confirmText}</Text>
+                <Text style={[styles.buttonText, styles.cancelButtonText]}>{cancelText}</Text>
               </Pressable>
-            )}
-          </View>
-        </View>
-      </View>
+              {!hideConfirm && onConfirm && (
+                <Pressable
+                  onPress={onConfirm}
+                  style={({ pressed }) => [
+                    styles.button,
+                    styles.confirmButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={[styles.buttonText, styles.confirmButtonText]}>{confirmText}</Text>
+                </Pressable>
+              )}
+            </View>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Pressable>
     </Modal>
   );
 }
@@ -111,6 +125,7 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     borderRadius: 16,
     backgroundColor: Colors.white,
+    overflow: "hidden",
     ...Platform.select({
       web: {
         boxShadow: "0 10px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)",

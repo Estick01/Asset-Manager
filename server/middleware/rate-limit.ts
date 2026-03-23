@@ -1,97 +1,107 @@
 /**
  * Rate Limiting Middleware
- * 
- * Provides rate limiting for sensitive endpoints like login.
- * Uses in-memory store (for production, use Redis).
+ *
+ * login:    checkLoginBlocked  →  use loginSecurity service in the route handler
+ * general:  apiRateLimiter     →  lightweight in-memory guard for all API routes
+ *
+ * The heavy lifting (Redis, progressive blocks, audit) lives in
+ * server/services/login-security.service.ts
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { checkLoginAllowed } from "../services/login-security.service.js";
 
-// In-memory store for rate limiting (use Redis in production)
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
-
-// Configuration
-const DEFAULT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
-const DEFAULT_MAX_REQUESTS = 5; // 5 attempts
-
-interface RateLimitOptions {
-  windowMs?: number;
-  maxRequests?: number;
-  message?: string;
-}
+// ── Login pre-check middleware ────────────────────────────────────────────────
 
 /**
- * Creates a rate limiter middleware
+ * Runs BEFORE credential validation.
+ * Rejects the request immediately if the IP+email combo or the user account
+ * is currently blocked due to too many failed attempts.
  */
-export function rateLimit(options: RateLimitOptions = {}) {
-  const {
-    windowMs = DEFAULT_WINDOW_MS,
-    maxRequests = DEFAULT_MAX_REQUESTS,
-    message = "Too many attempts, please try again later",
-  } = options;
+export async function checkLoginBlocked(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const email = (req.body?.correo ?? req.body?.email ?? "").toString().toLowerCase().trim();
+    const ip    = req.ip ?? req.socket.remoteAddress ?? "unknown";
+
+    if (!email) { next(); return; } // validation will reject it downstream
+
+    const result = await checkLoginAllowed(ip, email);
+
+    if (result.blocked) {
+      res.setHeader("Retry-After", String(result.retryAfterSec));
+      res.status(429).json({
+        error:       "Demasiados intentos fallidos. Intenta de nuevo más tarde.",
+        retryAfter:  result.retryAfterSec,
+        blockedBy:   result.reason,
+      });
+      return;
+    }
+
+    next();
+  } catch (err) {
+    // Never block a login request due to rate-limiter errors
+    console.error("[rate-limit] checkLoginBlocked error:", err);
+    next();
+  }
+}
+
+// Keep export name used in existing routes
+export const loginRateLimiter = checkLoginBlocked;
+
+// ── General API rate limiter (in-memory, lightweight) ────────────────────────
+
+const store = new Map<string, { count: number; resetAt: number }>();
+
+// Cleanup every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, rec] of store) {
+    if (now > rec.resetAt) store.delete(key);
+  }
+}, 10 * 60 * 1000);
+
+export function rateLimit(options: {
+  windowMs?:   number;
+  maxRequests?: number;
+  message?:    string;
+} = {}) {
+  const windowMs   = options.windowMs   ?? 60_000;
+  const maxReqs    = options.maxRequests ?? 100;
+  const message    = options.message    ?? "Demasiadas solicitudes. Intenta de nuevo más tarde.";
 
   return (req: Request, res: Response, next: NextFunction) => {
-    // Use IP + endpoint as key
-    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    const ip  = req.ip ?? req.socket.remoteAddress ?? "unknown";
     const key = `${ip}:${req.path}`;
     const now = Date.now();
 
-    const record = rateLimitStore.get(key);
-
-    if (!record || now > record.resetTime) {
-      // New window
-      rateLimitStore.set(key, {
-        count: 1,
-        resetTime: now + windowMs,
-      });
-      next();
+    const rec = store.get(key);
+    if (!rec || now > rec.resetAt) {
+      store.set(key, { count: 1, resetAt: now + windowMs });
+      next(); return;
+    }
+    if (rec.count >= maxReqs) {
+      const retryAfter = Math.ceil((rec.resetAt - now) / 1000);
+      res.setHeader("Retry-After", String(retryAfter));
+      res.status(429).json({ error: message, retryAfter });
       return;
     }
-
-    if (record.count >= maxRequests) {
-      // Rate limit exceeded
-      const retryAfter = Math.ceil((record.resetTime - now) / 1000);
-      res.setHeader("Retry-After", retryAfter.toString());
-      res.status(429).json({
-        error: message,
-        retryAfter,
-      });
-      return;
-    }
-
-    // Increment count
-    record.count++;
-    rateLimitStore.set(key, record);
+    rec.count++;
     next();
   };
 }
 
-/**
- * Rate limiter specifically for login attempts
- */
-export const loginRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 5, // 5 attempts
-  message: "Demasiados intentos de inicio de sesión. Intenta de nuevo en 15 minutos.",
-});
-
-/**
- * Rate limiter for general API requests
- */
 export const apiRateLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: 100, // 100 requests per minute
-  message: "Demasiadas solicitudes. Intenta de nuevo más tarde.",
+  windowMs:    60_000,
+  maxRequests: 100,
 });
 
-/**
- * Cleanup old entries periodically
- */
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, record] of rateLimitStore.entries()) {
-    if (now > record.resetTime) {
-      rateLimitStore.delete(key);
-    }
-  }
-}, 60 * 60 * 1000); // Cleanup every hour
+// Strict limiter for account registration — 3 per 15 min per IP
+export const registerRateLimiter = rateLimit({
+  windowMs:    15 * 60_000,
+  maxRequests: 3,
+  message: "Demasiadas solicitudes de registro. Intenta de nuevo en 15 minutos.",
+});

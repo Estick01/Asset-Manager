@@ -63,7 +63,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
       }
       onRefresh();
     } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Error al actualizar tarea");
+      toast.error(err instanceof Error ? err.message : "Error al actualizar tarea");
     } finally {
       setLoadingId(null);
     }
@@ -94,7 +94,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
       setLoadingId(tarea.id);
       completarTarea(tarea.id)
         .then(() => onRefresh())
-        .catch((err) => Alert.alert("Error", err instanceof Error ? err.message : "Error al completar tarea"))
+        .catch((err) => toast.error(err instanceof Error ? err.message : "Error al completar tarea"))
         .finally(() => setLoadingId(null));
     }
   }, [loadingId, onRefresh]);
@@ -108,7 +108,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
       await cambiarEstadoTarea(tareaToAdvance.id, { estado: "en_progreso" });
       onRefresh();
     } catch (err) {
-      Alert.alert("Error", err instanceof Error ? err.message : "Error al actualizar tarea");
+      toast.error(err instanceof Error ? err.message : "Error al actualizar tarea");
     } finally {
       setLoadingId(null);
     }

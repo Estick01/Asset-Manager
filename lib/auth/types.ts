@@ -12,6 +12,7 @@ export type Profile = Cliente | LawyerProfile | FirmProfile
 export interface UnifiedUser {
   user: UserWithRol;
   profile?: Profile;
+  permisos?: string[];
 }
 
 export interface UnifiedLoginParams {
@@ -46,6 +47,7 @@ export interface UnifiedAuthResponse {
   user: UserWithRol;
   token?: string;
   profile?: Profile;
+  permisos?: string[];
 }
 
 // --- Abogado Types (Legacy) ---
@@ -82,9 +84,10 @@ export interface ClienteAuthResponse {
 
 export interface VerifySessionResponse {
   authenticated: boolean;
-  user?:UserWithRol;
+  user?: UserWithRol;
   role?: Rol;
   profile?: Profile;
+  permisos?: string[];
   clienteId?: string | null;
 }
 

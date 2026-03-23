@@ -81,7 +81,7 @@ function ConversationCard({
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         onPress={() => router.push({
           pathname: "/chat/[id]",
-          params: { id: conv.id, name: displayName, from: "/(firm-tabs)/chat" },
+          params: { id: conv.id, name: displayName, from: "/(firm-tabs)/chat", userId: other?.userId },
         })}
       >
         {/* Accent strip */}

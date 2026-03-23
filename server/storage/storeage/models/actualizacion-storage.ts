@@ -84,6 +84,15 @@ export class ActualizacionStorage {
     };
   }
 
+  async getActualizacion(id: string): Promise<{ id: string; procesoId: string } | null> {
+    const rows = await this.db
+      .select({ id: actualizaciones.id, procesoId: actualizaciones.procesoId })
+      .from(actualizaciones)
+      .where(eq(actualizaciones.id, id))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async deleteActualizacion(id: string): Promise<void> {
     await this.db.delete(actualizaciones).where(eq(actualizaciones.id, id));
   }

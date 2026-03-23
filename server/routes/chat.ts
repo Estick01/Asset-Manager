@@ -35,6 +35,23 @@ const ALLOWED_MIMES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
 
+// Magic bytes signatures for real file type verification
+function detectMimeFromBuffer(buf: Buffer): string | null {
+  if (buf.length < 4) return null;
+  // PDF: %PDF
+  if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return "application/pdf";
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return "image/jpeg";
+  // PNG: 89 50 4E 47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return "image/png";
+  // ZIP (DOCX/XLSX): PK 03 04
+  if (buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04) {
+    // Both DOCX and XLSX are ZIP — trust the declared MIME for distinction
+    return "application/zip";
+  }
+  return null;
+}
+
 const IMAGE_MAX = 5 * 1024 * 1024;   // 5 MB for images
 const DOC_MAX  = 10 * 1024 * 1024;   // 10 MB for documents
 
@@ -47,8 +64,8 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).user?.id;
-      const limit  = parseInt(req.query.limit  as string) || 20;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const limit  = Math.min(Math.max(parseInt(req.query.limit  as string) || 20, 1), 100);
+      const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
       const result = await chatService.getConversations(userId, limit, offset);
       res.json(result);
     } catch (err) {
@@ -160,9 +177,14 @@ router.post(
         return res.status(403).json({ error: "NOT_PARTICIPANT" });
       }
 
-      // 2. Validate MIME
+      // 2. Validate MIME — verify real content via magic bytes, not just client header
       const mime = req.file.mimetype;
       if (!ALLOWED_MIMES.has(mime)) {
+        return res.status(400).json({ error: "INVALID_TYPE" });
+      }
+      const detectedMime = detectMimeFromBuffer(req.file.buffer);
+      const isZipBased   = mime.includes("wordprocessingml") || mime.includes("spreadsheetml");
+      if (detectedMime === null || (detectedMime !== mime && !(isZipBased && detectedMime === "application/zip"))) {
         return res.status(400).json({ error: "INVALID_TYPE" });
       }
 

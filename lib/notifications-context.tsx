@@ -1,8 +1,8 @@
 /**
  * NotificationsContext
  *
- * Provides the unread notification count for the current user (lawyer, firm or client).
- * Polls every 30 s so the tab badge stays up to date.
+ * Provee el conteo de notificaciones no leídas.
+ * Se actualiza en tiempo real via WebSocket (new_notification) en lugar de polling.
  */
 
 import React, {
@@ -14,11 +14,13 @@ import React, {
   useState,
 } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useGlobalSocket } from "@/lib/global-socket-context";
 import {
   getNotificacionesCountAbogado,
   getNotificacionesCountFirma,
   getNotificacionesCountCliente,
 } from "@/lib/services/notificacionService";
+import { getAppNotificationsUnreadCount } from "@/lib/services/clientRequestService";
 
 interface NotificationsContextValue {
   unreadCount: number;
@@ -34,6 +36,7 @@ const NotificationsContext = createContext<NotificationsContextValue>({
 
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, user, profile } = useAuth();
+  const { lastNotificationAt } = useGlobalSocket();
   const [unreadCount, setUnreadCount] = useState(0);
   const isMounted = useRef(true);
 
@@ -44,16 +47,18 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       const profileId = profile?.id;
       if (!profileId) return;
 
-      let count = 0;
+      // Fetch old (process/task) notifications + new (community/app) notifications in parallel
+      let legacyCount = 0;
       if (rolNombre === "abogado") {
-        count = await getNotificacionesCountAbogado(profileId);
+        legacyCount = await getNotificacionesCountAbogado(profileId);
       } else if (rolNombre === "bufete") {
-        count = await getNotificacionesCountFirma(profileId);
+        legacyCount = await getNotificacionesCountFirma(profileId);
       } else if (rolNombre === "cliente") {
-        count = await getNotificacionesCountCliente(profileId);
+        legacyCount = await getNotificacionesCountCliente(profileId);
       }
 
-      if (isMounted.current) setUnreadCount(count);
+      const appCount = await getAppNotificationsUnreadCount();
+      if (isMounted.current) setUnreadCount(legacyCount + appCount);
     } catch {
       // silent
     }
@@ -61,20 +66,23 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
   const resetUnread = useCallback(() => setUnreadCount(0), []);
 
+  // Carga inicial al autenticarse
   useEffect(() => {
     isMounted.current = true;
     if (isLoggedIn) {
       refreshUnread();
-      const interval = setInterval(refreshUnread, 30_000);
-      return () => {
-        isMounted.current = false;
-        clearInterval(interval);
-      };
     } else {
       setUnreadCount(0);
     }
     return () => { isMounted.current = false; };
   }, [isLoggedIn, refreshUnread]);
+
+  // Refresca cuando llega un new_notification via WebSocket
+  useEffect(() => {
+    if (lastNotificationAt > 0) {
+      refreshUnread();
+    }
+  }, [lastNotificationAt, refreshUnread]);
 
   return (
     <NotificationsContext.Provider value={{ unreadCount, refreshUnread, resetUnread }}>

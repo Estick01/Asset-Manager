@@ -15,6 +15,7 @@ import {
 } from "@expo-google-fonts/inter";
 
 import * as SplashScreen from "expo-splash-screen";
+import { GlobalSocketProvider } from "@/lib/global-socket-context";
 import { InvitationsProvider } from "@/lib/invitations-context";
 import { ChatNotificationProvider } from "@/lib/chat-context";
 import { NotificationsProvider } from "@/lib/notifications-context";
@@ -49,7 +50,7 @@ const ROLE_ROUTES: Record<string, AppRoute> = {
   cliente: "/portal",
 };
 
-const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal"];
+const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications"];
 
 const PUBLIC_GRUPS_FIRM = ["firm-components","firm-info"]
 
@@ -84,11 +85,9 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-
   if(PUBLIC_GROUPS_LAWYER.includes(currentGroup) && user?.user?.rol?.nombre === "abogado"){
     return <>{children}</>;
   }
-
 
 
   if (PUBLIC_GROUPS.includes(currentGroup)) {
@@ -129,9 +128,10 @@ export default function RootLayout() {
       <View style={styles.contentWrapper}>
         <QueryClientProvider client={queryClient}>
           <UnifiedAuthProvider>
-            <InvitationsProvider>
-              <ChatNotificationProvider>
-                <NotificationsProvider>
+            <GlobalSocketProvider>
+              <InvitationsProvider>
+                <ChatNotificationProvider>
+                  <NotificationsProvider>
                   <AuthRouteProtection>
                     <Stack screenOptions={{ headerShown: false }}>
                       <Stack.Screen name="(auth)" />
@@ -140,9 +140,10 @@ export default function RootLayout() {
                       <Stack.Screen name="portal" />
                     </Stack>
                   </AuthRouteProtection>
-                </NotificationsProvider>
-              </ChatNotificationProvider>
-            </InvitationsProvider>
+                  </NotificationsProvider>
+                </ChatNotificationProvider>
+              </InvitationsProvider>
+            </GlobalSocketProvider>
           </UnifiedAuthProvider>
         </QueryClientProvider>
         <Toaster />

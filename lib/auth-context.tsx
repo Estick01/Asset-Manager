@@ -30,6 +30,8 @@ export interface AuthContextValue {
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<UnifiedUser>) => Promise<void>;
   checkRole: (role: Rol) => boolean;
+  /** Returns true if the current user has the given permission code */
+  hasPermission: (code: string) => boolean;
 }
 
 // Legacy type exports for backward compatibility
@@ -62,8 +64,8 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
       try {
         const data = await verifyUnifiedSession();
         if (data.authenticated && data?.user && data.profile) {
-          setUser({user:data.user,profile:data.profile});
-          await saveStoredUser({user:data.user,profile:data.profile});
+          setUser({ user: data.user, profile: data.profile, permisos: data.permisos ?? [] });
+          await saveStoredUser({ user: data.user, profile: data.profile, permisos: data.permisos ?? [] });
         } else {
           setUser(null);
         }
@@ -110,11 +112,15 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     return hasRole(user, role);
   }, [user]);
 
+  const hasPermission = useCallback((code: string): boolean => {
+    return user?.permisos?.includes(code) ?? false;
+  }, [user]);
+
   const value: AuthContextValue = useMemo(() => {
     // Only compute derived values if user exists
     const profile = user?.profile;
     const userRole = user?.user?.rol?.nombre?.toLowerCase() || "";
-    
+
     return {
       user: user || null,
       profile: profile || undefined,
@@ -127,8 +133,9 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
       logout,
       updateProfile,
       checkRole,
+      hasPermission,
     };
-  }, [user, isLoading, login, logout, updateProfile, checkRole]);
+  }, [user, isLoading, login, logout, updateProfile, checkRole, hasPermission]);
 
   return (
     <AuthContext.Provider value={value}>

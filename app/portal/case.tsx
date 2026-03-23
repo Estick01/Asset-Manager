@@ -89,7 +89,6 @@ export default function ClientCaseDetailScreen() {
     const p = await getProceso(id);
     setProceso(p);
     if (p) {
-      console.log(p)
       if (p.responsable) {
         setAbogado({
           nombre: `${p.responsable.firstName} ${p.responsable.lastName}`,
@@ -97,13 +96,23 @@ export default function ClientCaseDetailScreen() {
           userId: p.responsable.userId,
         });
       } else {
-        const lawyer = p.lawyers?.find((l: any) => l.rol === "principal" && l.lawyer);
-        if (lawyer) {
+        const lawyerEntry = p.lawyers?.find((l: any) => l.rol === "principal" && l.lawyer);
+        if (lawyerEntry) {
           setAbogado({
-            nombre: `${lawyer.lawyer.persona.nombre} ${lawyer.lawyer.persona.apellido}`,
-            telefono: lawyer.lawyer.persona.telefono || undefined,
-            userId: lawyer.lawyer.userId,
+            nombre: `${lawyerEntry.lawyer.persona.nombre} ${lawyerEntry.lawyer.persona.apellido}`,
+            telefono: lawyerEntry.lawyer.persona.telefono || undefined,
+            userId: lawyerEntry.lawyer.userId,
           });
+        } else {
+          // Proceso gestionado por bufete sin abogado asignado
+          const firmEntry = p.lawyers?.find((l: any) => l.firm);
+          if (firmEntry?.firm) {
+            setAbogado({
+              nombre: firmEntry.firm.name ?? "Bufete",
+              telefono: firmEntry.firm.phone || undefined,
+              userId: undefined, // sin chat directo
+            });
+          }
         }
       }
       const acts = await getActualizaciones(p.id, LIMIT, 0);
@@ -142,7 +151,7 @@ export default function ClientCaseDetailScreen() {
       const conv = await getOrCreateConversation(abogado.userId, "lawyer_client");
       router.push({
         pathname: "/chat/[id]",
-        params: { id: conv.id, name: abogado.nombre, from: "/portal/case" },
+        params: { id: conv.id, name: abogado.nombre, from: "/portal/case", userId: abogado.userId },
       });
     } catch {
       Alert.alert("Error", "No se pudo abrir el chat. Intenta de nuevo.");

@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import Toast from "react-native-toast-message";
+import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
 import { LawyerProfile } from "@/shared/schema";
 import { searchAvailableLawyers, sendInvitation } from "@/lib/services/firmInvitationService";
@@ -23,6 +23,14 @@ export default function InviteLawyerScreen() {
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [invited, setInvited] = useState<string[]>([]);
   const [inviteModalLawyer, setInviteModalLawyer] = useState<LawyerProfile | null>(null);
+  const [expiryDays, setExpiryDays] = useState(7);
+
+  const EXPIRY_OPTIONS = [
+    { days: 3,  label: "3 días" },
+    { days: 7,  label: "7 días" },
+    { days: 15, label: "15 días" },
+    { days: 30, label: "30 días" },
+  ];
 
   const handleSearch = useCallback(async (text: string) => {
     setSearch(text);
@@ -36,20 +44,17 @@ export default function InviteLawyerScreen() {
   const handleInvite = async () => {
     if (!inviteModalLawyer) return;
     setSubmitting(inviteModalLawyer.id);
-    const result = await sendInvitation(inviteModalLawyer.id);
+    const result = await sendInvitation(inviteModalLawyer.id, undefined, expiryDays);
     if (result.error) {
-      Toast.show({ type: "error", text1: "Error", text2: result.error });
+      toast.error(result.error);
     } else {
       setInvited(prev => [...prev, inviteModalLawyer.id]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Toast.show({
-        type: "success",
-        text1: "Invitación enviada",
-        text2: `${inviteModalLawyer.persona?.nombre} ${inviteModalLawyer.persona?.apellido} recibirá tu invitación`,
-      });
+      toast.success(`Invitación enviada a ${inviteModalLawyer.persona?.nombre} ${inviteModalLawyer.persona?.apellido}`);
     }
     setSubmitting(null);
     setInviteModalLawyer(null);
+    setExpiryDays(7);
   };
 
   const renderLawyer = ({ item }: { item: LawyerProfile }) => {
@@ -248,6 +253,36 @@ export default function InviteLawyerScreen() {
           {/* Divider */}
           <View style={styles.modalDivider} />
 
+          {/* Selector de duración */}
+          <View style={styles.expirySection}>
+            <View style={styles.expirySectionHeader}>
+              <Ionicons name="time-outline" size={15} color={Colors.textSecondary} />
+              <Text style={styles.expirySectionLabel}>Vigencia de la invitación</Text>
+            </View>
+            <View style={styles.expiryOptions}>
+              {EXPIRY_OPTIONS.map(opt => (
+                <Pressable
+                  key={opt.days}
+                  onPress={() => setExpiryDays(opt.days)}
+                  style={[
+                    styles.expiryChip,
+                    expiryDays === opt.days && styles.expiryChipActive,
+                  ]}
+                >
+                  <Text style={[
+                    styles.expiryChipText,
+                    expiryDays === opt.days && styles.expiryChipTextActive,
+                  ]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.expiryHint}>
+              Expira el {new Date(Date.now() + expiryDays * 86400000).toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
+            </Text>
+          </View>
+
           {/* Mensaje */}
           <View style={styles.modalMessageBox}>
             <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
@@ -415,4 +450,26 @@ const styles = StyleSheet.create({
     flex: 1, fontSize: 13, fontFamily: "Inter_400Regular",
     color: Colors.textSecondary, lineHeight: 19,
   },
+
+  // Expiry selector
+  expirySection: { width: "100%", gap: 8 },
+  expirySectionHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+  expirySectionLabel: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
+  expiryOptions: { flexDirection: "row", gap: 8 },
+  expiryChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: "center",
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1.5,
+    borderColor: "transparent",
+  },
+  expiryChipActive: {
+    backgroundColor: Colors.primary + "15",
+    borderColor: Colors.primary,
+  },
+  expiryChipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  expiryChipTextActive: { color: Colors.primary, fontFamily: "Inter_700Bold" },
+  expiryHint: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary, textAlign: "center" },
 });

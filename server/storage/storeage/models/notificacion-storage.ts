@@ -116,31 +116,31 @@ export class NotificacionStorage {
   // ============================
   // Marcar como leída por cliente
   // ============================
-  async marcarComoLeidaByClienteId(id: number): Promise<void> {
+  async marcarComoLeidaByClienteId(id: number, clienteId: string): Promise<void> {
     await this.db
       .update(notificaciones)
       .set({ leidoCliente: true })
-      .where(eq(notificaciones.id, id));
+      .where(and(eq(notificaciones.id, id), eq(notificaciones.clienteId, clienteId)));
   }
 
   // ============================
   // Marcar como leída por abogado
   // ============================
-  async marcarComoLeidaByLawyerId(id: number): Promise<void> {
+  async marcarComoLeidaByLawyerId(id: number, lawyerId: string): Promise<void> {
     await this.db
       .update(notificaciones)
       .set({ leidoLawyer: true })
-      .where(eq(notificaciones.id, id));
+      .where(and(eq(notificaciones.id, id), eq(notificaciones.lawyerId, lawyerId)));
   }
 
   // ============================
   // Marcar como leída por firma
   // ============================
-  async marcarComoLeidaByFirmaId(id: number): Promise<void> {
+  async marcarComoLeidaByFirmaId(id: number, firmaId: string): Promise<void> {
     await this.db
       .update(notificaciones)
       .set({ leidoFirma: true })
-      .where(eq(notificaciones.id, id));
+      .where(and(eq(notificaciones.id, id), eq(notificaciones.firmId, firmaId)));
   }
 
   // ============================

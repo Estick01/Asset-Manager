@@ -22,8 +22,10 @@ export const conversations = mysqlTable("conversations", {
   id: varchar("id", { length: 36 }).primaryKey(),
   /** Human-readable name, optional (e.g. group chats in the future) */
   name: varchar("name", { length: 200 }),
-  /** Who triggered this conversation: firm_lawyer | lawyer_client */
-  type: mysqlEnum("type", ["firm_lawyer", "lawyer_client"]).notNull(),
+  /** Who triggered this conversation: firm_lawyer | lawyer_client | community */
+  type: mysqlEnum("type", ["firm_lawyer", "lawyer_client", "community"]).notNull(),
+  /** Set when type === "community" — links the conversation to its originating post */
+  sourcePostId: varchar("source_post_id", { length: 36 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow().onUpdateNow(),
 });
@@ -109,13 +111,14 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 // TypeScript interfaces
 // ============================================================
 
-export type ConversationType = "firm_lawyer" | "lawyer_client";
+export type ConversationType = "firm_lawyer" | "lawyer_client" | "community";
 export type MessageType = "text" | "file";
 
 export interface Conversation {
   id: string;
   name: string | null;
   type: ConversationType;
+  sourcePostId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -148,6 +151,7 @@ export interface InsertConversation {
   id: string;
   name?: string | null;
   type: ConversationType;
+  sourcePostId?: string | null;
 }
 
 export interface InsertConversationParticipant {
@@ -205,11 +209,46 @@ export interface WsNotificationData {
   preview: string;
 }
 
+/** Payload pushed when a new proceso/tarea/document notification is created */
+export interface WsAppNotificationData {
+  titulo: string;
+  mensaje: string;
+  tipo: string;
+}
+
+/** Payload pushed when a firm invitation is created/updated */
+export interface WsInvitationData {
+  invitationId: string;
+  firmName?: string;
+  action: "created" | "accepted" | "rejected" | "cancelled";
+}
+
+/** Payload pushed when a new case is matched to a lawyer */
+export interface WsCaseMatchData {
+  postId:   string;
+  title:    string;
+  caseType: string | null;
+  isUrgent: number;
+  city:     string | null;
+  score:    number;
+}
+
 export interface WsOutgoingMessage {
-  type: "new_message" | "read_receipt" | "error" | "pong" | "notification";
+  type:
+    | "new_message"
+    | "read_receipt"
+    | "error"
+    | "pong"
+    | "notification"
+    | "new_notification"
+    | "new_invitation"
+    | "new_case_match";
   data?:
     | (MessageDTO & { tempId?: string })
     | { conversationId: string; userId: string; readAt: string }
     | { message: string }
-    | WsNotificationData;
+    | WsNotificationData
+    | WsAppNotificationData
+    | WsInvitationData
+    | WsCaseMatchData;
 }

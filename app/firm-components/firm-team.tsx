@@ -79,7 +79,7 @@ function MemberCard({ item, index, currentUserId }: { item: TeamMember; index: n
       const conversation = await getOrCreateConversation(item.userId, "firm_lawyer");
       router.push({
         pathname: "/chat/[id]",
-        params: { id: conversation.id, name: item.nombre },
+        params: { id: conversation.id, name: item.nombre, userId: item.userId },
       });
     } catch (error) {
       Alert.alert("Error", "No se pudo iniciar la conversación");
@@ -157,6 +157,13 @@ function MemberCard({ item, index, currentUserId }: { item: TeamMember; index: n
           >
             <Ionicons name="chatbubble-ellipses-outline" size={18} color={TEAL} />
           </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.msgBtn, { backgroundColor: "#EEE8FD" }, pressed && { opacity: 0.75 }]}
+            onPress={() => router.push(`/firm-components/firm-assign-role?lawyerId=${item.id}&nombre=${encodeURIComponent(item.nombre)}` as any)}
+            hitSlop={6}
+          >
+            <Ionicons name="shield-outline" size={18} color="#7B5EA7" />
+          </Pressable>
           <Ionicons name="chevron-forward" size={14} color={TEXT3} style={{ marginTop: 6 }} />
         </View>
       </Pressable>
@@ -231,7 +238,13 @@ export default function FirmTeamScreen() {
 
       {/* ── Header navy — mismo look que el dashboard ── */}
       <View style={styles.header}>
-        <View>
+        <Pressable
+          style={({ pressed }) => [styles.headerBtn, pressed && { opacity: 0.7 }]}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="arrow-back" size={20} color={WHITE} />
+        </Pressable>
+        <View style={{ flex: 1, marginLeft: 12 }}>
           <Text style={styles.headerTitle}>Equipo</Text>
         </View>
       </View>
@@ -266,7 +279,7 @@ export default function FirmTeamScreen() {
         <View style={styles.actionsRow}>
           <Pressable
             style={styles.actionCard}
-            onPress={() => router.push("/firm-invite-lawyer")}
+            onPress={() => router.push("/firm-components/firm-invite-lawyer")}
           >
             <View style={[styles.actionIcon, { backgroundColor: "#E8F8F2" }]}>
               <Ionicons name="person-add-outline" size={20} color={GREEN} />
@@ -276,7 +289,7 @@ export default function FirmTeamScreen() {
 
           <Pressable
             style={[styles.actionCard, pendingInvitations > 0 && styles.actionCardAlert]}
-            onPress={() => router.push("/firm-invitations")}
+            onPress={() => router.push("/firm-components/firm-invitations")}
           >
             <View style={[styles.actionIcon, { backgroundColor: pendingInvitations > 0 ? "#FEF6E8" : "#F4F6F8" }]}>
               <Ionicons
@@ -325,7 +338,7 @@ export default function FirmTeamScreen() {
               <Text style={styles.emptySub}>Invita abogados a tu bufete</Text>
               <Pressable
                 style={styles.emptyBtn}
-                onPress={() => router.push("/firm-invite-lawyer")}
+                onPress={() => router.push("/firm-components/firm-invite-lawyer")}
               >
                 <Text style={styles.emptyBtnText}>Invitar Abogado</Text>
               </Pressable>

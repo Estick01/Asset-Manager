@@ -8,7 +8,9 @@ import React from "react";
 import Colors from "@/constants/colors";
 import { useInvitations } from "@/lib/invitations-context";
 import { useChatNotifications } from "@/lib/chat-context";
-import { useNotifications } from "@/lib/notifications-context";
+import { useGlobalSocket } from "@/lib/global-socket-context";
+
+import { useAuth } from "@/lib/auth-context";
 
 function BadgeIcon({ name, size, color, count }: {
   name: keyof typeof Ionicons.glyphMap;
@@ -51,9 +53,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "bell", selected: "bell.fill" }} />
         <Label>Alertas</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
-        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
-        <Label>Ajustes</Label>
+      <NativeTabs.Trigger name="community">
+        <Icon sf={{ default: "globe", selected: "globe.fill" }} />
+        <Label>Comunidad</Label>
+      </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="calendar">
+        <Icon sf={{ default: "calendar", selected: "calendar.fill" }} />
+        <Label>Calendario</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -66,6 +72,8 @@ function ClassicTabLayout() {
   const isIOS = Platform.OS === "ios";
   const { pendingCount } = useInvitations();
   const { unreadCount: unreadChatCount } = useChatNotifications();
+  const { hasPermission } = useAuth();
+  const { unseenCaseCount } = useGlobalSocket();
 
   return (
     <Tabs
@@ -106,6 +114,7 @@ function ClassicTabLayout() {
         name="cases"
         options={{
           title: "Procesos",
+          href: hasPermission("procesos.ver") ? undefined : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="document-text" size={size} color={color} />
           ),
@@ -115,6 +124,7 @@ function ClassicTabLayout() {
         name="clients"
         options={{
           title: "Clientes",
+          href: hasPermission("clientes.ver") ? undefined : null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people" size={size} color={color} />
           ),
@@ -130,14 +140,24 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="community"
         options={{
-          title: "Ajustes",
+          title: "Comunidad",
           tabBarIcon: ({ color, size }) => (
-            <BadgeIcon name="settings" size={size} color={color} />
+            <BadgeIcon name="globe-outline" size={size} color={color} count={unseenCaseCount} />
           ),
         }}
       />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: "Calendario",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="invitations" options={{ href: null }} />
     </Tabs>

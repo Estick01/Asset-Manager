@@ -2,15 +2,16 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator, Alert, Platform
+  Pressable, ActivityIndicator, Platform,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import Toast from "react-native-toast-message";
+import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
 import { FirmInvitation, getFirmInvitations, cancelInvitation } from "@/lib/services/firmInvitationService";
+import { ConfirmDialog, type ConfirmDialogConfig } from "@/components/ConfirmDialog";
 
 const STATUS_COLORS: Record<string, string> = {
   pendiente: Colors.warning,
@@ -38,14 +39,13 @@ export default function FirmInvitationsScreen() {
   const [invitations, setInvitations] = useState<FirmInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogConfig | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     const result = await getFirmInvitations();
     if (result.data) setInvitations(result.data);
-    if (result.error) {
-      Toast.show({ type: "error", text1: "Error", text2: result.error });
-    }
+    if (result.error) toast.error(result.error);
     setLoading(false);
   };
 
@@ -58,28 +58,24 @@ export default function FirmInvitationsScreen() {
   }, {} as Record<string, number>);
 
   const handleCancel = (invitation: FirmInvitation) => {
-    Alert.alert(
-      "Cancelar Invitación",
-      `¿Cancelar la invitación a ${invitation.lawyer?.persona?.nombre} ${invitation.lawyer?.persona?.apellido}?`,
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Cancelar invitación",
-          style: "destructive",
-          onPress: async () => {
-            setCancelling(invitation.id);
-            const result = await cancelInvitation(invitation.id);
-            if (result.error) {
-              Toast.show({ type: "error", text1: "Error", text2: result.error });
-            } else {
-              Toast.show({ type: "success", text1: "Invitación cancelada" });
-              loadData();
-            }
-            setCancelling(null);
-          },
-        },
-      ]
-    );
+    const nombre = `${invitation.lawyer?.persona?.nombre ?? ""} ${invitation.lawyer?.persona?.apellido ?? ""}`.trim();
+    setDialog({
+      title: "Cancelar invitación",
+      message: `¿Cancelar la invitación enviada a ${nombre}?`,
+      confirmText: "Sí, cancelar",
+      variant: "danger",
+      onConfirm: async () => {
+        setCancelling(invitation.id);
+        const result = await cancelInvitation(invitation.id);
+        setCancelling(null);
+        if (result.error) {
+          toast.error(result.error);
+        } else {
+          toast.success("Invitación cancelada");
+          loadData();
+        }
+      },
+    });
   };
 
   const renderInvitation = ({ item }: { item: FirmInvitation }) => {
@@ -156,6 +152,7 @@ export default function FirmInvitationsScreen() {
 
   return (
     <View style={styles.screen}>
+      <ConfirmDialog config={dialog} onClose={() => setDialog(null)} />
       {/* Header con gradiente */}
       <LinearGradient
         colors={[Colors.primaryDark, Colors.primary]}

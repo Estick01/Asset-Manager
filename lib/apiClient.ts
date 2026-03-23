@@ -1,7 +1,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { API_URL } from './config';
+import { API_URL, IS_NGROK } from './config';
 import { STORAGE_KEYS } from './keys';
 import { apiRequest } from './query-client';
 
@@ -78,6 +78,11 @@ export async function authenticatedFetch(
   // with the correct boundary.
   if (!isFormData) {
     headers['Content-Type'] = 'application/json';
+  }
+
+  // ngrok free tier muestra una página de advertencia sin este header
+  if (IS_NGROK) {
+    headers['ngrok-skip-browser-warning'] = '1';
   }
 
   // Apply any custom headers from the options

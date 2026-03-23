@@ -4,6 +4,7 @@ import { authenticate } from "../auth.js";
 import { tareaService } from "../services/tarea.service.js";
 import { validate } from "../middleware/validation.js";
 import type { JWTPayload } from "@/shared/model.schema.js";
+import { storage } from "../storage/storeage/database-storage.js";
 
 const router = Router();
 
@@ -55,13 +56,21 @@ router.post(
     try {
       const procesoId = req.params.procesoId;
       if (!procesoId || typeof procesoId !== "string") {
-         return res.status(400).json({ error: "procesoId is required" });
+        return res.status(400).json({ error: "procesoId is required" });
       }
-      const tarea = await tareaService.createTarea(
-        procesoId,
-        req.body,
-        userId(req),
-      );
+
+      // Verificar ownership del proceso
+      const user      = req.user as JWTPayload;
+      const rol       = user.rol.nombre;
+      const idProfile = user.idProfile;
+      if (!idProfile) return res.status(400).json({ error: "idProfile requerido" });
+
+      let proceso: any = null;
+      if (rol === "abogado")             proceso = await storage.getProceoByAbogadoIdAndProcesoId(idProfile, procesoId);
+      else if (rol === "bufete" || rol === "corporacion") proceso = await storage.getProcesoByFirmaIdAndProcesoId(idProfile, procesoId);
+      if (!proceso) return res.status(403).json({ error: "Sin acceso al proceso" });
+
+      const tarea = await tareaService.createTarea(procesoId, req.body, userId(req));
       res.status(201).json(tarea);
     } catch (err) {
       next(err);
@@ -78,14 +87,24 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const proceosId = req.params.procesoId;
-      if (!proceosId || typeof proceosId !== "string") {
+      const procesoId = req.params.procesoId;
+      if (!procesoId || typeof procesoId !== "string") {
         return res.status(400).json({ error: "procesoId is required" });
       }
-      const result = await tareaService.getTareasByProceso(
-        proceosId,
-        userId(req),
-      );
+
+      // Verificar ownership del proceso
+      const user      = req.user as JWTPayload;
+      const rol       = user.rol.nombre;
+      const idProfile = user.idProfile;
+      if (!idProfile) return res.status(400).json({ error: "idProfile requerido" });
+
+      let proceso: any = null;
+      if (rol === "abogado")                              proceso = await storage.getProceoByAbogadoIdAndProcesoId(idProfile, procesoId);
+      else if (rol === "bufete" || rol === "corporacion") proceso = await storage.getProcesoByFirmaIdAndProcesoId(idProfile, procesoId);
+      else if (rol === "cliente")                         proceso = await storage.getProcesoByClienteIdAndProcesoId(idProfile, procesoId);
+      if (!proceso) return res.status(403).json({ error: "Sin acceso al proceso" });
+
+      const result = await tareaService.getTareasByProceso(procesoId, userId(req));
       res.json(result);
     } catch (err) {
       next(err);

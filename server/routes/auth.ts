@@ -15,7 +15,13 @@ import { z } from "zod";
 import { hashPassword, verifyPassword, verifyToken, authenticate, extractToken, AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME, REFRESH_MAX_AGE, createAuthResponse, getClearCookieOptions, generateRefreshToken, getRefreshCookieOptions } from "../auth.js";
 import { JWTPayload } from "@/shared/model.schema.js";
 import { validate } from "../middleware/validation.js";
-import { loginRateLimiter } from "../middleware/rate-limit.js";
+import { loginRateLimiter, registerRateLimiter } from "../middleware/rate-limit.js";
+import {
+  recordFailure,
+  recordSuccess,
+  auditLog,
+  validateRecaptcha,
+} from "../services/login-security.service.js";
 import { Profile } from '@/lib/auth';
 import { EnumRol } from '@/shared/schema/user.schema';
 
@@ -39,7 +45,7 @@ const lawyerRegisterSchema = z.object({
 
 const firmRegisterSchema = z.object({
   email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
+  password: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
   name: z.string().min(1, "El nombre de la firma es requerido"),
   nit: z.string().min(1, "El NIT es requerido"),
   address: z.string().optional(),
@@ -70,71 +76,84 @@ const loginSchema = z.object({
 });
 
 
-// POST /api/login - Lawyer login
+// POST /api/login
 router.post("/login", loginRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  const ip        = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const userAgent = (req.headers["user-agent"] ?? null) as string | null;
+
   try {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({
-        error: parsed.error.errors[0].message,
-      });
+      return res.status(400).json({ error: parsed.error.errors[0].message });
     }
 
     const { correo, password } = parsed.data;
+    const email = correo.toLowerCase().trim();
 
-    const user = await storage.getUserByEmail(correo);
+    // ── reCAPTCHA (optional) ────────────────────────────────────────────────
+    const recaptchaToken = req.body?.recaptchaToken as string | undefined;
+    const captchaOk = await validateRecaptcha(recaptchaToken);
+    if (!captchaOk) {
+      return res.status(400).json({ error: "Verificación de seguridad fallida. Intenta de nuevo." });
+    }
 
-    if (!user) {
+    // ── Credential validation ───────────────────────────────────────────────
+    const user = await storage.getUserByEmail(email);
+    const isValidPassword = user
+      ? await verifyPassword(password, user.passwordHash || "")
+      : false;
+
+    if (!user || !isValidPassword) {
+      // Record failure + audit (fire-and-forget so response isn't delayed)
+      recordFailure(ip, email).catch(() => {});
+      auditLog({ email, ip, userAgent, eventType: "login_fail", success: false }).catch(() => {});
+
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    const isValidPassword = await verifyPassword(
-      password,
-      user?.passwordHash || ""
-    );
-
-    if (!isValidPassword) {
-      return res.status(401).json({ error: "Credenciales inválidas" });
-    }
+    // ── Success ─────────────────────────────────────────────────────────────
     const role = await storage.getRol(user.rolId ?? 0);
-    if (!role) {
-      throw new Error("El usuario no tiene rol asignado");
-    }
+    if (!role) throw new Error("El usuario no tiene rol asignado");
 
-    const rawProfile = await storage.getUserProfile(user.id,role?.nombre || "");
-    if (!rawProfile) {
-      throw new Error("El usuario no tiene perfil asignado");
-    }
+    const rawProfile = await storage.getUserProfile(user.id, role?.nombre || "");
+    if (!rawProfile) throw new Error("El usuario no tiene perfil asignado");
+
     const profile: Profile = rawProfile;
-    if (!role) {
-      return res.status(500).json({ error: "Rol no encontrado" });
+
+    let firmRolId: number | null = null;
+    if (role.nombre === "abogado" && rawProfile?.id) {
+      const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(rawProfile.id);
+      if (activeHistory?.firmRolId) firmRolId = activeHistory.firmRolId;
     }
 
     const authResponse = createAuthResponse(
       { id: user.id, email: user.email, name: user.name },
-      role,
-      res,
-      profile
+      role, res, profile, firmRolId
     );
 
-    const refreshToken = generateRefreshToken();
-    const isProduction = process.env.NODE_ENV === "production";
+    const refreshToken  = generateRefreshToken();
+    const isProduction  = process.env.NODE_ENV === "production";
 
-    // Persist session so it can be revoked on logout or compromise
     await storage.sessions.create({
-      id: authResponse.jti,
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2h — matches JWT_EXPIRES_IN
+      id:               authResponse.jti,
+      userId:           user.id,
+      expiresAt:        new Date(Date.now() + 2 * 60 * 60 * 1000),
       refreshToken,
       refreshExpiresAt: new Date(Date.now() + REFRESH_MAX_AGE),
-      ipAddress: req.ip ?? req.socket.remoteAddress ?? null,
-      userAgent: (req.headers["user-agent"] ?? null) as string | null,
+      ipAddress:        ip,
+      userAgent,
     });
 
-    // Refresh token cookie (web); also returned in body for mobile
+    // Clear combo counter on success + audit
+    recordSuccess(ip, email).catch(() => {});
+    auditLog({ email, ip, userAgent, eventType: "login_success", success: true }).catch(() => {});
+
     res.cookie(AUTH_REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(isProduction));
 
-    return res.json({ ...authResponse, refreshToken });
+    const effectiveRolId = firmRolId ?? role.id;
+    const permisos = await storage.getPermisosByRol(effectiveRolId);
+
+    return res.json({ ...authResponse, refreshToken, permisos });
   } catch (err) {
     next(err);
   }
@@ -143,7 +162,7 @@ router.post("/login", loginRateLimiter, async (req: Request, res: Response, next
 
 // POST /api/register/lawyer - Register a new lawyer with user account
 router.post("/register/lawyer",
-  loginRateLimiter,
+  registerRateLimiter,
   validate(lawyerRegisterSchema),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -164,11 +183,11 @@ router.post("/register/lawyer",
       firmId,
     } = req.body;
 
-    // Check if email already exists
+    // Check if email already exists (generic message to prevent email enumeration)
     const existingUser = await storage.getUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({
-        message: "El correo ya está registrado",
+        message: "No fue posible completar el registro. Verifica los datos ingresados.",
       });
     }
 
@@ -220,7 +239,7 @@ router.post("/register/lawyer",
 
 // POST /api/register/firm - Register a new firm with user account
 router.post("/register/firm",
-  loginRateLimiter,
+  registerRateLimiter,
   validate(firmRegisterSchema),
   async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -244,11 +263,11 @@ router.post("/register/firm",
       repMunicipioId,
     } = req.body;
 
-    // Check if email already exists
+    // Check if email already exists (generic message to prevent email enumeration)
     const existingUser = await storage.getUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({
-        message: "El correo ya está registrado",
+        message: "No fue posible completar el registro. Verifica los datos ingresados.",
       });
     }
 
@@ -373,7 +392,13 @@ router.get("/auth/token", async (req: Request, res: Response, next: NextFunction
     // Verify token is valid
     const payload = verifyToken(token);
     if (!payload) {
-      return res.status(401).json({ error: "Token inválido", authenticated: false });
+      return res.status(401).json({ error: "Token invalido", authenticated: false });
+    }
+
+    // Verify the session has not been revoked (logout, password change, etc.)
+    const sessionValid = await storage.sessions.isValid(payload.jti);
+    if (!sessionValid) {
+      return res.status(401).json({ error: "Sesion revocada", authenticated: false });
     }
 
     // Return the token for WebSocket use
@@ -414,12 +439,22 @@ router.post("/auth/refresh", async (req: Request, res: Response, next: NextFunct
 
     const rawProfile = await storage.getUserProfile(user.id, role.nombre);
 
+    // For lawyers in a firm, embed their firm-specific role (override model)
+    let firmRolId: number | null = null;
+    if (role.nombre === "abogado" && rawProfile?.id) {
+      const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(rawProfile.id);
+      if (activeHistory?.firmRolId) {
+        firmRolId = activeHistory.firmRolId;
+      }
+    }
+
     // Issue new access token (sets access cookie on web via createAuthResponse)
     const authResponse = createAuthResponse(
       { id: user.id, email: user.email, name: user.name },
       role,
       res,
-      rawProfile ?? undefined
+      rawProfile ?? undefined,
+      firmRolId
     );
 
     // Rotate: revoke old session, create new session with new JTI + new refresh token
@@ -436,7 +471,10 @@ router.post("/auth/refresh", async (req: Request, res: Response, next: NextFunct
 
     res.cookie(AUTH_REFRESH_COOKIE_NAME, newRefreshToken, getRefreshCookieOptions(isProduction));
 
-    return res.json({ ...authResponse, refreshToken: newRefreshToken });
+    const effectiveRolId = firmRolId ?? role.id;
+    const permisos = await storage.getPermisosByRol(effectiveRolId);
+
+    return res.json({ ...authResponse, refreshToken: newRefreshToken, permisos });
   } catch (err) {
     next(err);
   }
@@ -469,8 +507,8 @@ router.put("/auth/change-password", authenticate, async (req: Request, res: Resp
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: "Se requieren la contraseña actual y la nueva." });
     }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: "La nueva contraseña debe tener al menos 6 caracteres." });
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: "La nueva contraseña debe tener al menos 8 caracteres." });
     }
     const authUser = (req as any).user;
     const user = await storage.getUserById(authUser.id);
@@ -478,6 +516,8 @@ router.put("/auth/change-password", authenticate, async (req: Request, res: Resp
     const valid = await verifyPassword(currentPassword, user.passwordHash || "");
     if (!valid) return res.status(401).json({ error: "La contraseña actual es incorrecta." });
     await storage.users.updateUser(authUser.id, { passwordHash: await hashPassword(newPassword) });
+    // Revoke all active sessions — force re-login on other devices
+    await storage.sessions.revokeAllForUser(authUser.id);
     res.json({ message: "Contraseña actualizada correctamente." });
   } catch (err) {
     next(err);

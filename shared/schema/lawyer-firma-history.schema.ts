@@ -5,10 +5,11 @@
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, varchar, timestamp, text } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, timestamp, text, int } from "drizzle-orm/mysql-core";
 import { lawyerProfiles } from "./lawyer-profile.schema";
 import { firmProfiles } from "./firm-profile.schema";
 import { users } from "./user.schema";
+import { roles } from "./rol.schema";
 
 export const lawyerFirmaHistory = mysqlTable("lawyer_firma_history", {
   id: varchar("id", { length: 36 }).primaryKey(),
@@ -18,6 +19,8 @@ export const lawyerFirmaHistory = mysqlTable("lawyer_firma_history", {
   fechaSalida: timestamp("fecha_salida"), // null = firma actual
   motivoSalida: varchar("motivo_salida", { length: 255 }),
   estado: varchar("estado", { length: 20 }).notNull().default("activo"), // "activo" | "retirado" | "suspendido" | "transferido"
+  /** Rol personalizado asignado por el bufete. NULL = usa el rol global del usuario */
+  firmRolId: int("firm_rol_id"),
   createdBy: varchar("created_by", { length: 36 }),
   notas: text("notas"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -31,6 +34,10 @@ export const lawyerFirmaHistoryRelations = relations(lawyerFirmaHistory, ({ one 
   firma: one(firmProfiles, {
     fields: [lawyerFirmaHistory.firmaId],
     references: [firmProfiles.id],
+  }),
+  firmRol: one(roles, {
+    fields: [lawyerFirmaHistory.firmRolId],
+    references: [roles.id],
   }),
   creadoPor: one(users, {
     fields: [lawyerFirmaHistory.createdBy],
@@ -51,6 +58,8 @@ export interface LawyerFirmaHistory {
   fechaSalida: Date | null;
   motivoSalida: string | null;
   estado: string; // "activo" | "retirado" | "suspendido" | "transferido"
+  /** Rol personalizado del bufete. NULL = usa rol global del usuario */
+  firmRolId: number | null;
   createdBy: string | null;
   notas: string | null;
   createdAt: Date;
@@ -65,6 +74,7 @@ export interface InsertLawyerFirmaHistory {
   fechaSalida?: Date | null;
   motivoSalida?: string | null;
   estado?: string;
+  firmRolId?: number | null;
   createdBy?: string | null;
   notas?: string | null;
 }

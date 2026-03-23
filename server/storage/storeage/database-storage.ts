@@ -29,6 +29,17 @@ import { SessionStorage } from "./models/session-storage";
 import { TareaStorage } from "./models/tarea-storage";
 import { PersonaStorage } from "./models/persona-storage";
 import { RepresentanteLegalStorage } from "./models/representante-legal-storage";
+import { CommunityStorage } from "./models/community-storage";
+import { RatingStorage } from "./models/rating-storage";
+import { ClientRequestStorage } from "./models/client-request-storage";
+import { AppNotificationStorage } from "./models/app-notification-storage";
+import { FirmClientsStorage } from "./models/firm-clients-storage";
+import { OtpStorage } from "./models/otp-storage";
+import { SecurityEventsStorage } from "./models/security-events-storage";
+import { MatchingStorage } from "./models/matching-storage";
+import { RecommendationStorage } from "./models/recommendation-storage";
+import { LegalStageStorage } from "./models/legal-stage-storage";
+import { CalendarStorage } from "./models/calendar-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -64,6 +75,17 @@ export class DatabaseStorage {
   public tareas: TareaStorage;
   public personas: PersonaStorage;
   public representantesLegales: RepresentanteLegalStorage;
+  public community: CommunityStorage;
+  public ratings: RatingStorage;
+  public clientRequests: ClientRequestStorage;
+  public appNotifications: AppNotificationStorage;
+  public firmClients: FirmClientsStorage;
+  public otps: OtpStorage;
+  public securityEvents: SecurityEventsStorage;
+  public matching: MatchingStorage;
+  public recommendations: RecommendationStorage;
+  public legalStages: LegalStageStorage;
+  public calendar: CalendarStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -102,9 +124,22 @@ export class DatabaseStorage {
     this.tareas = new TareaStorage(this.db);
     this.personas = new PersonaStorage(this.db);
     this.representantesLegales = new RepresentanteLegalStorage(this.db);
+    this.community = new CommunityStorage(this.db);
+    this.ratings = new RatingStorage(this.db);
+    this.clientRequests = new ClientRequestStorage(this.db);
+    this.appNotifications = new AppNotificationStorage(this.db);
+    this.firmClients = new FirmClientsStorage(this.db);
+    this.otps = new OtpStorage(this.db);
+    this.securityEvents = new SecurityEventsStorage(this.db);
+    this.matching = new MatchingStorage(this.db);
+    this.recommendations = new RecommendationStorage(this.db);
+    this.legalStages = new LegalStageStorage(this.db);
+    this.calendar = new CalendarStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
+    // Cleanup expired OTPs every hour
+    setInterval(() => this.otps.deleteExpired(), 60 * 60 * 1000);
   }
 
   // Backwards compatibility wrapper methods for routes
@@ -248,6 +283,10 @@ export class DatabaseStorage {
     return this.procesos.getProceso(id);
   }
 
+  async setCommunityPostId(procesoId: string, communityPostId: string | null) {
+    return this.procesos.setCommunityPostId(procesoId, communityPostId);
+  }
+
   async getProcesoByFirmaIdAndProcesoId(firmaId: string, procesoId: string) {
     return this.procesos.getProcesoByFirmaIdAndProcesoId(firmaId, procesoId);
   }
@@ -324,6 +363,10 @@ export class DatabaseStorage {
     return this.actualizaciones.getActualizaciones(procesoId, limit, offset);
   }
 
+  async getActualizacion(id: string) {
+    return this.actualizaciones.getActualizacion(id);
+  }
+
   async deleteActualizacion(id: string) {
     return this.actualizaciones.deleteActualizacion(id);
   }
@@ -355,8 +398,8 @@ export class DatabaseStorage {
     return this.notificaciones.countNoLeidasByClienteId(clienteId);
   }
 
-  async markNotificacionLeidaCliente(id: number) {
-    return this.notificaciones.marcarComoLeidaByClienteId(id);
+  async markNotificacionLeidaCliente(id: number, clienteId: string) {
+    return this.notificaciones.marcarComoLeidaByClienteId(id, clienteId);
   }
 
   async markTodasLeidasCliente(clienteId: string) {
@@ -371,8 +414,8 @@ export class DatabaseStorage {
     return this.notificaciones.countNoLeidasByLawyerId(abogadoId);
   }
 
-  async markNotificacionLeidaAbogado(id: number) {
-    return this.notificaciones.marcarComoLeidaByLawyerId(id);
+  async markNotificacionLeidaAbogado(id: number, lawyerId: string) {
+    return this.notificaciones.marcarComoLeidaByLawyerId(id, lawyerId);
   }
 
   async markTodasLeidasAbogado(abogadoId: string) {
@@ -387,8 +430,8 @@ export class DatabaseStorage {
     return this.notificaciones.countNoLeidasByFirmId(firmaId);
   }
 
-  async markNotificacionLeidaFirma(id: number) {
-    return this.notificaciones.marcarComoLeidaByFirmaId(id);
+  async markNotificacionLeidaFirma(id: number, firmaId: string) {
+    return this.notificaciones.marcarComoLeidaByFirmaId(id, firmaId);
   }
 
   async markTodasLeidasFirma(firmaId: string) {

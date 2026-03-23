@@ -9,6 +9,7 @@ import { z } from "zod";
 
 import { authenticate } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
+import { broadcastToUser } from "../websocket/ws-server.js";
 
 const router = Router();
 
@@ -16,6 +17,7 @@ const router = Router();
 const createInvitationSchema = z.object({
   lawyerId: z.string().min(1, "El ID del abogado es requerido"),
   mensaje: z.string().optional(),
+  expiryDays: z.number().int().min(1).max(90).optional(),
 });
 
 // ============================================
@@ -38,10 +40,11 @@ router.get("/firm/invitations", authenticate, async (req: Request, res: Response
 
     const allInvitations = await storage.firmInvitation.getByFirmId(user.idProfile);
 
-    // Filter by status if provided
-    let invitations = allInvitations;
+    const now = new Date();
+    // Always exclude expired invitations from the list
+    let invitations = allInvitations.filter((inv: any) => !inv.expiresAt || new Date(inv.expiresAt) > now);
     if (status && typeof status === "string") {
-      invitations = allInvitations.filter((inv: any) => inv.status === status);
+      invitations = invitations.filter((inv: any) => inv.status === status);
     }
 
     res.json(invitations);
@@ -98,13 +101,28 @@ router.post("/firm/invitations", authenticate, async (req: Request, res: Respons
       });
     }
 
-    // Create invitation - note: storage generates its own id
+    // Create invitation — expiry configurable, default 7 days, max 90
+    const days = Math.min(Math.max(data.expiryDays ?? 7, 1), 90);
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
     const invitation = await storage.firmInvitation.create({
       firmId: user.idProfile,
       lawyerId: data.lawyerId,
       invitadoPor: user.id,
       mensaje: data.mensaje ?? null,
+      expiresAt,
     });
+
+    // Notify lawyer via WebSocket
+    try {
+      const lawyerProfile = await storage.lawyerProfiles.getLawyer(data.lawyerId);
+      const firm = await storage.firmProfiles.getFirmProfileById(user.idProfile);
+      if (lawyerProfile?.userId) {
+        broadcastToUser(lawyerProfile.userId, {
+          type: "new_invitation",
+          data: { invitationId: invitation.id, firmName: firm?.name ?? undefined, action: "created" },
+        });
+      }
+    } catch { /* non-critical */ }
 
     res.status(201).json(invitation);
   } catch (err) {
@@ -124,7 +142,7 @@ router.post("/firm/invitations/:id/cancel", authenticate, async (req: Request, r
     const { id } = req.params;
     const user = (req as any).user;
 
-    if (!user.firmId) {
+    if (!user.idProfile) {
       return res.status(403).json({ error: "No tienes una firma asociada" });
     }
 
@@ -139,7 +157,7 @@ router.post("/firm/invitations/:id/cancel", authenticate, async (req: Request, r
     }
 
     // Verify the invitation belongs to this firm
-    if (invitation.firmId !== user.firmId) {
+    if (invitation.firmId !== user.idProfile) {
       return res.status(403).json({ error: "No tienes permiso para cancelar esta invitación" });
     }
 
@@ -212,6 +230,11 @@ router.post("/lawyer/invitations/:id/accept", authenticate, async (req: Request,
       return res.status(400).json({ error: "Esta invitación ya ha sido procesada" });
     }
 
+    // Verificar expiración
+    if (invitation.expiresAt && new Date() > invitation.expiresAt) {
+      return res.status(400).json({ error: "Esta invitación ha expirado. Solicita una nueva." });
+    }
+
     // 1. Aceptar invitación
     await storage.firmInvitation.accept(id);
 
@@ -235,6 +258,17 @@ router.post("/lawyer/invitations/:id/accept", authenticate, async (req: Request,
 
     // 4. Actualizar firmId en lawyerProfiles
     await storage.lawyerProfiles.updateFirmId(lawyerProfile.id, invitation.firmId);
+
+    // Notify firm via WebSocket
+    try {
+      const firm = await storage.firmProfiles.getFirmProfileById(invitation.firmId);
+      if (firm?.userId) {
+        broadcastToUser(firm.userId, {
+          type: "new_invitation",
+          data: { invitationId: id, action: "accepted" },
+        });
+      }
+    } catch { /* non-critical */ }
 
     res.json({ message: "Invitación aceptada correctamente" });
   } catch (err) {
@@ -276,6 +310,17 @@ router.post("/lawyer/invitations/:id/reject", authenticate, async (req: Request,
 
     // Reject invitation
     await storage.firmInvitation.reject(id, motivoRechazo);
+
+    // Notify firm via WebSocket
+    try {
+      const firm = await storage.firmProfiles.getFirmProfileById(invitation.firmId);
+      if (firm?.userId) {
+        broadcastToUser(firm.userId, {
+          type: "new_invitation",
+          data: { invitationId: id, action: "rejected" },
+        });
+      }
+    } catch { /* non-critical */ }
 
     res.json({ message: "Invitación rechazada correctamente" });
   } catch (err) {

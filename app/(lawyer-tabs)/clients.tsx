@@ -113,7 +113,7 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
     if (!item.userId) return;
     try {
       const conv = await getOrCreateConversation(item.userId, "lawyer_client");
-      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: nombre } });
+      router.push({ pathname: "/chat/[id]", params: { id: conv.id, name: nombre, userId: item.userId } });
     } catch (e) {
       console.error("Error al iniciar chat:", e);
     }

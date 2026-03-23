@@ -10,6 +10,7 @@ import React from "react";
 import Colors from "@/constants/colors";
 import { useChatNotifications } from "@/lib/chat-context";
 
+
 function BadgeIcon({ name, size, color, count }: {
   name: keyof typeof Ionicons.glyphMap;
   size: number;
@@ -47,9 +48,9 @@ function NativeTabLayout() {
         <Icon sf={{ default: "message", selected: "message.fill" }} />
         <Label>Mensajes</Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
-        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
-        <Label>Ajustes</Label>
+      <NativeTabs.Trigger name="community">
+        <Icon sf={{ default: "globe", selected: "globe.fill" }} />
+        <Label>Comunidad</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -119,15 +120,17 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="settings"
+        name="community"
         options={{
-          title: "Ajustes",
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} />,
+          title: "Comunidad",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="globe-outline" size={size} color={color} />
+          ),
         }}
       />
 
-
       {/* Pantallas ocultas del tab bar pero accesibles por navegación */}
+      <Tabs.Screen name="settings" options={{ href: null }} />
       <Tabs.Screen name="team" options={{ href: null }} />
       <Tabs.Screen name="notifications" options={{ href: null }} />
       <Tabs.Screen name="invitations" options={{ href: null }} />

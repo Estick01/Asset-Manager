@@ -88,6 +88,15 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="community"
+        options={{
+          title: "Comunidad",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="globe-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: "Perfil",

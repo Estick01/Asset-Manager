@@ -106,6 +106,12 @@ export default function FirmDashboardScreen() {
                   </View>
                 )}
               </Pressable>
+              <Pressable
+                style={styles.headerIconBtn}
+                onPress={() => router.push("/firm-components/firm-settings" as any)}
+              >
+                <Ionicons name="settings-outline" size={22} color="#fff" />
+              </Pressable>
               <Pressable style={styles.avatarCircle}>
                 <Ionicons name="business" size={24} color={Colors.primary} />
               </Pressable>
