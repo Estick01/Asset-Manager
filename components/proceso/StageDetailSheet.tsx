@@ -24,6 +24,13 @@ interface Props {
   onUploadDoc?:   (legalStage: string) => void;
 }
 
+const PRIORITY_COLORS: Record<string, string> = {
+  baja:    "#27AE7A",
+  media:   "#F5A623",
+  alta:    "#E05252",
+  urgente: "#9B1C1C",
+};
+
 const EVENT_ICONS: Record<string, string> = {
   etapa_iniciada:    "rocket-outline",
   etapa_completada:  "flag-outline",
@@ -168,6 +175,10 @@ export function StageDetailSheet({
                       ]}>
                         <Text style={styles.estadoText}>{t.estado}</Text>
                       </View>
+                      <View style={[
+                        styles.priorityDot,
+                        { backgroundColor: PRIORITY_COLORS[t.prioridad] ?? "#9AAABB" },
+                      ]} />
                       <View style={{ flex: 1 }}>
                         <Text style={styles.tareaTitulo}>{t.titulo}</Text>
                       </View>
@@ -316,6 +327,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: "#F9FAFB", borderRadius: 10, padding: 10,
   },
+  priorityDot: { width: 8, height: 8, borderRadius: 4 },
   estadoChip:  { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   estadoText:  { fontSize: 10, fontWeight: "600", color: "#374151" },
   tareaTitulo: { fontSize: 13, color: "#1B2B3B" },
