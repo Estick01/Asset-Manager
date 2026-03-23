@@ -20,11 +20,43 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const user      = req.user as JWTPayload;
+      const rol       = user.rol.nombre;
+      const idProfile = user.idProfile;
       const procesoId = req.params.procesoId;
       const stage     = req.query.stage as string | undefined;
 
       if (!stage) {
         res.status(400).json({ error: "Parámetro stage es requerido" });
+        return;
+      }
+
+      if (!idProfile) {
+        res.status(400).json({ error: "idProfile requerido" });
+        return;
+      }
+
+      // Verify the authenticated user has access to this proceso
+      let proceso: any = null;
+      switch (rol) {
+        case "abogado":
+          proceso = await storage.getProceoByAbogadoIdAndProcesoId(idProfile, procesoId);
+          break;
+        case "bufete":
+        case "corporacion":
+          proceso = await storage.getProcesoByFirmaIdAndProcesoId(idProfile, procesoId);
+          break;
+        case "cliente":
+          proceso = await storage.getProcesoByClienteIdAndProcesoId(idProfile, procesoId);
+          if (proceso && proceso.clienteId !== idProfile) proceso = null;
+          break;
+        default:
+          res.status(403).json({ error: "Rol no autorizado" });
+          return;
+      }
+
+      if (!proceso) {
+        res.status(404).json({ error: "Proceso no encontrado o sin acceso" });
         return;
       }
 

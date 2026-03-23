@@ -23,6 +23,12 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const user = req.user as JWTPayload;
+      if (user.rol.nombre === "cliente") {
+        res.status(403).json({ error: "Sin permiso" });
+        return;
+      }
+
       const tipoProcesoId = req.query.tipoProcesoId
         ? Number(req.query.tipoProcesoId)
         : undefined;
