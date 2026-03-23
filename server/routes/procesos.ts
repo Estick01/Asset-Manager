@@ -755,10 +755,11 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
         titulo:          p.titulo,
         descripcion:     p.descripcion ?? null,
         prioridad:       p.prioridad,
+        creadoPor:       idProfile ?? procesoId,
         creadoPorNombre: "Sistema",
         orden:           p.orden,
         estado:          "pendiente",
-      } as any);
+      });
     }
 
     // 2. Si HEARING → crear evento en calendario del abogado responsable
