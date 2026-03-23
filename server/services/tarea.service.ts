@@ -153,6 +153,8 @@ export class TareaService {
       asignadoANombre,
       creadoPor: caller.id,
       creadoPorNombre: caller.nombre,
+      legalStage: dto.legalStage ?? null,
+      requerida: dto.requerida ? 1 : 0,
     });
 
     // Notify responsable/caller + firm (fire-and-forget)
@@ -186,11 +188,12 @@ export class TareaService {
   async getTareasByProceso(
     procesoId: string,
     callerUserId: string,
+    stage?: string,
   ): Promise<TareasProgresoDTO> {
     const caller = await resolveCaller(callerUserId);
     await assertProcesoAccess(procesoId, caller);
 
-    const tareas = await storage.tareas.findByProceso(procesoId);
+    const tareas = await storage.tareas.findByProceso(procesoId, stage);
 
     // Progreso: exclude cancelled from denominator
     const active = tareas.filter((t) => t.estado !== "cancelada");
@@ -340,6 +343,22 @@ export class TareaService {
         await storage.createActualizacion(actualizacion);
       } catch (err) {
         console.error("Error creating actualizacion for task completion:", err);
+      }
+
+      // Auto-event: emit tarea_completada to the stage timeline
+      if (tarea.legalStage) {
+        try {
+          await storage.stageEvents.insert({
+            procesoId: tarea.procesoId,
+            legalStageCode: tarea.legalStage,
+            tipo: "tarea_completada",
+            descripcion: `Tarea completada: ${tarea.titulo}`,
+            metadatos: { tareaId: tarea.id, titulo: tarea.titulo },
+            creadoPor: caller.id,
+          });
+        } catch (err) {
+          console.error("Error creating stage event for task completion:", err);
+        }
       }
 
       // Notify task creator + firm + client (fire-and-forget)

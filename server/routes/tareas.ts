@@ -18,6 +18,8 @@ const createTareaSchema = z.object({
   prioridad: z.enum(["baja", "media", "alta", "urgente"]).optional(),
   fechaLimite: z.string().nullable().optional(),
   asignadoA: z.string().uuid("ID de abogado inválido").nullable().optional(),
+  legalStage: z.string().max(50).nullable().optional(),
+  requerida: z.boolean().optional(),
 });
 
 const updateTareaSchema = z.object({
@@ -26,6 +28,8 @@ const updateTareaSchema = z.object({
   prioridad: z.enum(["baja", "media", "alta", "urgente"]).optional(),
   fechaLimite: z.string().nullable().optional(),
   asignadoA: z.string().uuid("ID de abogado inválido").nullable().optional(),
+  legalStage: z.string().max(50).nullable().optional(),
+  requerida: z.boolean().optional(),
 });
 
 const cambiarEstadoSchema = z.object({
@@ -104,7 +108,8 @@ router.get(
       else if (rol === "cliente")                         proceso = await storage.getProcesoByClienteIdAndProcesoId(idProfile, procesoId);
       if (!proceso) return res.status(403).json({ error: "Sin acceso al proceso" });
 
-      const result = await tareaService.getTareasByProceso(procesoId, userId(req));
+      const stage = req.query.stage as string | undefined;
+      const result = await tareaService.getTareasByProceso(procesoId, userId(req), stage);
       res.json(result);
     } catch (err) {
       next(err);

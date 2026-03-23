@@ -82,11 +82,15 @@ export class TareaStorage {
     return this.db.query.tareas.findFirst({ where: eq(tareas.id, id) });
   }
 
-  async findByProceso(procesoId: string): Promise<TareaResponseDTO[]> {
+  async findByProceso(procesoId: string, stage?: string): Promise<TareaResponseDTO[]> {
+    const conditions = [eq(tareas.procesoId, procesoId), eq(tareas.state, true)];
+    if (stage !== undefined) {
+      conditions.push(eq(tareas.legalStage, stage));
+    }
     const rows = await this.db
       .select()
       .from(tareas)
-      .where(and(eq(tareas.procesoId, procesoId), eq(tareas.state, true)))
+      .where(and(...conditions))
       .orderBy(desc(tareas.orden), desc(tareas.createdAt));
     return rows.map(toDTO);
   }
