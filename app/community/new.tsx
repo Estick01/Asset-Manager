@@ -10,19 +10,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { toast } from "sonner-native";
 import { createPost, getTags, type Tag } from "@/lib/services/communityService";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
+import { C, T, S, R, shadow, CASE_META } from "@/constants/community-theme";
 
 // ─── Design tokens ────────────────────────────────────────────────────────
-const NAVY  = "#0F2640";
-const WHITE = "#FFFFFF";
-const BG    = "#F0F3F6";
-const TEXT  = "#1B2B3B";
-const TEXT2 = "#6B7B8D";
-const TEXT3 = "#9AAABB";
-const TEAL  = "#2196A6";
-const GREEN = "#27AE7A";
-const AMBER = "#F5A623";
-const ROSE  = "#E05252";
-const CARD  = "#FFFFFF";
+const NAVY  = C.NAVY,  WHITE = C.WHITE, BG    = C.BG,   TEXT  = C.TEXT;
+const TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, TEAL  = C.TEAL;
+const GREEN = C.GREEN, AMBER = C.AMBER, ROSE  = C.ROSE;
+const CARD  = C.WHITE;
 
 // ─── Case types with icons ────────────────────────────────────────────────
 const CASE_TYPES: { key: string; label: string; icon: string }[] = [
@@ -37,23 +31,34 @@ const CASE_TYPES: { key: string; label: string; icon: string }[] = [
   { key: "otro",           label: "Otro",           icon: "ellipsis-horizontal-circle-outline" },
 ];
 
-// ─── Progress step ────────────────────────────────────────────────────────
-function ProgressDot({ done, active }: { done: boolean; active: boolean }) {
+// ─── Step progress bar ────────────────────────────────────────────────────
+function StepBar({ step, total, labels }: { step: number; total: number; labels: string[] }) {
   return (
-    <View style={[
-      pd.dot,
-      done   && pd.done,
-      active && !done && pd.active,
-    ]}>
-      {done && <Ionicons name="checkmark" size={10} color={WHITE} />}
+    <View style={{ flex: 1, paddingHorizontal: 8 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+        {Array.from({ length: total }).map((_, i) => (
+          <React.Fragment key={i}>
+            <View style={{
+              flex: 1, height: 3, borderRadius: 2,
+              backgroundColor: i < step ? C.TEAL : "rgba(255,255,255,0.25)",
+            }} />
+            {i < total - 1 && <View style={{ width: 3 }} />}
+          </React.Fragment>
+        ))}
+      </View>
+      <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 3 }}>
+        {labels.map((label, i) => (
+          <Text key={i} style={{
+            fontSize: 9, color: i < step ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.4)",
+            fontWeight: i === step - 1 ? "700" : "400",
+          }}>
+            {label}
+          </Text>
+        ))}
+      </View>
     </View>
   );
 }
-const pd = StyleSheet.create({
-  dot:    { width: 18, height: 18, borderRadius: 9, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
-  done:   { backgroundColor: GREEN },
-  active: { backgroundColor: "rgba(255,255,255,0.45)", borderWidth: 1.5, borderColor: WHITE },
-});
 
 // ─── Section header ────────────────────────────────────────────────────────
 function SectionHeader({ icon, title, subtitle, optional }: {
@@ -143,6 +148,8 @@ export default function NewPostScreen() {
   const [isUrgent, setIsUrgent]     = useState(false);
   const [city, setCity]             = useState<string | null>(null);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
+  const [succeeded, setSucceeded]   = useState(false);
+  const [createdPostId, setCreatedPostId] = useState<string | null>(null);
   const contentRef = useRef<TextInput>(null);
 
   const titleOk   = title.trim().length >= 3;
@@ -174,11 +181,58 @@ export default function NewPostScreen() {
       city:       city || null,
     });
     if (post) {
-      toast.success("Publicación creada");
-      router.replace(`/community/${post.id}` as any);
+      setCreatedPostId(post.id);
+      setSucceeded(true);
+    } else {
+      toast.error("Error al publicar. Inténtalo de nuevo.");
     }
     setSubmitting(false);
   };
+
+  if (succeeded && createdPostId) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top, alignItems: "center", justifyContent: "center" }]}>
+        <View style={{ alignItems: "center", paddingHorizontal: 32, gap: 20 }}>
+          <View style={{
+            width: 80, height: 80, borderRadius: 40,
+            backgroundColor: C.GREEN + "18", alignItems: "center", justifyContent: "center",
+          }}>
+            <Ionicons name="checkmark-circle" size={48} color={C.GREEN} />
+          </View>
+          <View style={{ alignItems: "center", gap: 8 }}>
+            <Text style={{ fontSize: 22, fontWeight: "700", color: C.NAVY, textAlign: "center" }}>
+              ¡Tu publicación está lista!
+            </Text>
+            <Text style={{ fontSize: 14, color: C.TEXT2, textAlign: "center", lineHeight: 20 }}>
+              Ya es visible para la comunidad legal.
+            </Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [{
+              backgroundColor: C.TEAL, borderRadius: R.button,
+              paddingVertical: 14, paddingHorizontal: 32, width: "100%",
+              alignItems: "center" as const,
+              opacity: pressed ? 0.85 : 1,
+            }]}
+            onPress={() => router.replace(`/community/${createdPostId}` as any)}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "600", color: C.WHITE }}>Ver mi publicación</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [{
+              borderRadius: R.button, borderWidth: 1.5, borderColor: C.NAVY,
+              paddingVertical: 12, paddingHorizontal: 32, width: "100%",
+              alignItems: "center" as const,
+              opacity: pressed ? 0.7 : 1,
+            }]}
+            onPress={() => router.replace("/community" as any)}
+          >
+            <Text style={{ fontSize: 15, fontWeight: "600", color: C.NAVY }}>Volver al feed</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -195,14 +249,8 @@ export default function NewPostScreen() {
             <Ionicons name="close" size={20} color={WHITE} />
           </Pressable>
 
-          {/* Progress dots */}
-          <View style={styles.progress}>
-            <ProgressDot done={step1} active={!step1} />
-            <View style={styles.progressLine} />
-            <ProgressDot done={step2} active={step1 && !step2} />
-            <View style={styles.progressLine} />
-            <ProgressDot done={step3} active={step1 && step2 && !step3} />
-          </View>
+          {/* Progress bar */}
+          <StepBar step={step1 ? (step2 ? 3 : 2) : 1} total={3} labels={["Contenido", "Tipo", "Opciones"]} />
 
           <Pressable
             style={({ pressed }) => [
@@ -310,6 +358,17 @@ export default function NewPostScreen() {
                   </View>
                   <Text style={[styles.charCount, charWarn && { color: AMBER }]}>
                     {content.length}/5000
+                  </Text>
+                </View>
+                {/* Tip motivacional */}
+                <View style={{
+                  flexDirection: "row", alignItems: "center", gap: 8,
+                  backgroundColor: C.TEAL + "10", borderRadius: 10,
+                  padding: 10, marginTop: 8,
+                }}>
+                  <Ionicons name="bulb-outline" size={15} color={C.TEAL} />
+                  <Text style={{ flex: 1, fontSize: 12, color: C.TEAL, lineHeight: 16 }}>
+                    Los casos con más detalle reciben 3x más respuestas
                   </Text>
                 </View>
               </View>
