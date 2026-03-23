@@ -14,6 +14,7 @@ import { storage } from './storage/storeage/database-storage.js';
 import { db } from './db.js';
 import { setupWebSocketServer } from "./websocket/ws-server.js";
 import { seedLegalStages } from "./db/seeds/legal-stages.seed.js";
+import { seedStageTemplates } from "./db/seeds/stage-templates.seed.js";
 
 const app = express();
 app.use(cookieParser());
@@ -56,6 +57,9 @@ async function seedDatabase() {
 
   // Seed etapas procesales (legal stages)
   await seedLegalStages(db);
+
+  // Seed plantillas de tareas por etapa
+  await seedStageTemplates(db);
 }
 
 function setupCors(app: express.Application) {
