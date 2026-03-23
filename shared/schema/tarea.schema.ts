@@ -8,6 +8,7 @@ import {
   date,
   timestamp,
   boolean,
+  tinyint,
 } from "drizzle-orm/mysql-core";
 import { procesos } from "./proceso.schema";
 import { lawyerProfiles } from "./lawyer-profile.schema";
@@ -26,6 +27,9 @@ export type TareaPrioridad = "baja" | "media" | "alta" | "urgente";
 export const tareas = mysqlTable("tareas", {
   id:                varchar("id",                  { length: 36 }).primaryKey(),
   procesoId:         varchar("proceso_id",          { length: 36 }).notNull(),
+
+  legalStage:        varchar("legal_stage",         { length: 50 }),
+  requerida:         tinyint("requerida").notNull().default(0),
 
   titulo:            varchar("titulo",              { length: 255 }).notNull(),
   descripcion:       text("descripcion"),
@@ -98,6 +102,8 @@ export interface CreateTareaDTO {
   prioridad?: TareaPrioridad;
   fechaLimite?: Date | string | null;
   asignadoA?: string | null;
+  legalStage?: string | null;
+  requerida?: boolean;
 }
 
 export interface UpdateTareaDTO {
@@ -106,6 +112,8 @@ export interface UpdateTareaDTO {
   prioridad?: TareaPrioridad;
   fechaLimite?: Date | string | null;
   asignadoA?: string | null;
+  legalStage?: string | null;
+  requerida?: boolean;
 }
 
 export interface CambiarEstadoDTO {
@@ -115,6 +123,8 @@ export interface CambiarEstadoDTO {
 export interface TareaResponseDTO {
   id: string;
   procesoId: string;
+  legalStage: string | null;
+  requerida: boolean;
   titulo: string;
   descripcion: string | null;
   estado: TareaEstado;

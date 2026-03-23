@@ -313,3 +313,17 @@ export {
   type CreateCalendarEventDTO,
   type UpdateCalendarEventDTO,
 } from "./calendar-event.schema";
+
+// Stage task templates
+export {
+  etapasTareasPlantilla, etapasTareasPlantillaRelations,
+  type EtapaTareaPlantilla, type InsertEtapaTareaPlantilla,
+  type CreateTemplateDTO, type UpdateTemplateDTO, type TemplateResponseDTO,
+} from "./stage-task-template.schema";
+
+// Stage events
+export {
+  etapaEventos, etapaEventosRelations,
+  type EtapaEvento, type InsertEtapaEvento,
+  type StageEventTipo, type StageEventResponseDTO,
+} from "./stage-event.schema";

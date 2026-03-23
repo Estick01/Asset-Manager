@@ -26,6 +26,8 @@ function toDTO(t: Tarea): TareaResponseDTO {
   return {
     id: t.id,
     procesoId: t.procesoId,
+    legalStage: t.legalStage ?? null,
+    requerida: t.requerida === 1,
     titulo: t.titulo,
     descripcion: t.descripcion ?? null,
     estado: t.estado as TareaEstado,
