@@ -18,31 +18,11 @@ import {
   type RecommendedLawyerDTO,
 } from "@/lib/services/recommendationService";
 import { startDirectChat, BADGE_META } from "@/lib/services/communityService";
+import { C, T, S, R, shadow, AVATAR_PALETTE, getAvatarColor } from "@/constants/community-theme";
 
-// ─── Tokens ───────────────────────────────────────────────────────────────
-const NAVY   = "#0F2640";
-const WHITE  = "#FFFFFF";
-const TEAL   = "#2196A6";
-const GREEN  = "#27AE7A";
-const AMBER  = "#F5A623";
-const ROSE   = "#E05252";
-const TEXT   = "#1B2B3B";
-const TEXT2  = "#6B7B8D";
-const TEXT3  = "#9AAABB";
-const BG     = "#F4F6F8";
-
-const AVATAR_PALETTE = [
-  { bg: "#E8F4FD", text: TEAL },
-  { bg: "#E8F8F2", text: GREEN },
-  { bg: "#FEF6E8", text: AMBER },
-  { bg: "#FDEAEA", text: ROSE },
-  { bg: "#EEE8FD", text: "#7C3AED" },
-  { bg: "#FDF0E8", text: "#EA580C" },
-];
-
-function avatarColor(name: string) {
-  return AVATAR_PALETTE[(name.charCodeAt(0) || 65) % AVATAR_PALETTE.length];
-}
+// ─── Token aliases ─────────────────────────────────────────────────────────
+const NAVY  = C.NAVY,  WHITE = C.WHITE, TEAL  = C.TEAL,  GREEN = C.GREEN;
+const AMBER = C.AMBER, ROSE  = C.ROSE,  TEXT  = C.TEXT,  TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, BG = C.BG;
 
 function Stars({ avg }: { avg: number }) {
   const full  = Math.round(avg);
@@ -66,7 +46,7 @@ function LawyerCard({ lawyer, onContact }: {
   onContact: (lawyer: RecommendedLawyerDTO) => void;
 }) {
   const [loading, setLoading] = useState(false);
-  const av      = avatarColor(lawyer.name);
+  const av      = getAvatarColor(lawyer.name);
   const initial = lawyer.name.charAt(0).toUpperCase();
 
   const handleContact = async () => {
@@ -123,6 +103,22 @@ function LawyerCard({ lawyer, onContact }: {
             ? `${lawyer.rating.avg.toFixed(1)} (${lawyer.rating.count})`
             : "Sin calif."}
         </Text>
+      </View>
+
+      {/* Match score bar */}
+      <View style={{ marginTop: 4, marginBottom: 2 }}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 3 }}>
+          <Text style={{ fontSize: 9, color: TEXT3 }}>Compatible</Text>
+          <Text style={{ fontSize: 9, fontWeight: "600", color: TEAL }}>{lawyer.finalScore}%</Text>
+        </View>
+        <View style={{ height: 4, backgroundColor: "#E8ECF0", borderRadius: 2, overflow: "hidden" }}>
+          <View style={{
+            height: "100%",
+            width: `${Math.min(lawyer.finalScore, 100)}%`,
+            backgroundColor: lawyer.isFallback ? AMBER : TEAL,
+            borderRadius: 2,
+          }} />
+        </View>
       </View>
 
       {/* Trust indicators: cases resolved + workload */}
@@ -184,16 +180,16 @@ function LawyerCard({ lawyer, onContact }: {
 
 // ─── Skeleton Card ────────────────────────────────────────────────────────
 function SkeletonCard() {
-  const S = ({ w, h, r = 6 }: { w?: number | string; h: number; r?: number }) => (
+  const Bone = ({ w, h, r = 6 }: { w?: number | string; h: number; r?: number }) => (
     <View style={{ width: w ?? "100%", height: h, borderRadius: r, backgroundColor: "#E8ECF0", opacity: 0.7 }} />
   );
   return (
     <View style={[styles.card, { gap: 8 }]}>
-      <S w={44} h={44} r={14} />
-      <S w="80%" h={12} />
-      <S w="60%" h={10} />
-      <S w="50%" h={10} />
-      <S h={34} r={10} />
+      <Bone w={48} h={48} r={15} />
+      <Bone w="80%" h={12} />
+      <Bone w="60%" h={10} />
+      <Bone w="50%" h={10} />
+      <Bone h={34} r={10} />
     </View>
   );
 }
@@ -237,7 +233,7 @@ export default function RecommendedLawyers({ postId }: Props) {
               <Ionicons name="people" size={14} color={WHITE} />
             </View>
             <View>
-              <Text style={styles.headerTitle}>Abogados disponibles</Text>
+              <Text style={styles.headerTitle}>🎯 Abogados disponibles (0)</Text>
               <Text style={styles.headerSub}>Pueden ayudarte con este caso</Text>
             </View>
           </View>
@@ -264,7 +260,9 @@ export default function RecommendedLawyers({ postId }: Props) {
           </View>
           <View>
             <Text style={styles.headerTitle}>
-              {allFallback ? "Abogados en la plataforma" : "Abogados disponibles"}
+              {allFallback
+                ? `🌐 Abogados en la plataforma (${lawyers.length})`
+                : `🎯 Abogados disponibles (${lawyers.length})`}
             </Text>
             <Text style={styles.headerSub}>
               {allFallback
@@ -391,7 +389,7 @@ const styles = StyleSheet.create({
 
   // ── Avatar ──
   avatar: {
-    width: 44, height: 44, borderRadius: 14,
+    width: 48, height: 48, borderRadius: 15,
     alignItems: "center", justifyContent: "center",
     alignSelf: "center",
   },
@@ -426,7 +424,7 @@ const styles = StyleSheet.create({
   // ── CTA button ──
   contactBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 5, backgroundColor: NAVY, borderRadius: 10,
+    gap: 5, backgroundColor: TEAL, borderRadius: 10,
     paddingVertical: 9,
   },
   contactBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: WHITE },
