@@ -209,6 +209,32 @@ export class TareaStorage {
     return map;
   }
 
+  // ── Gate: tareas requeridas pendientes en una etapa ───────────────────────
+
+  async getRequiredPendingByStage(
+    procesoId: string,
+    legalStage: string,
+  ): Promise<Tarea[]> {
+    return this.db
+      .select()
+      .from(tareas)
+      .where(
+        and(
+          eq(tareas.procesoId,  procesoId),
+          eq(tareas.legalStage, legalStage),
+          eq(tareas.requerida,  1),
+          inArray(tareas.estado, ["pendiente", "en_progreso"]),
+        ),
+      );
+  }
+
+  // ── Get raw by id ──────────────────────────────────────────────────────────
+
+  async getById(id: string): Promise<Tarea | null> {
+    const [row] = await this.db.select().from(tareas).where(eq(tareas.id, id));
+    return row ?? null;
+  }
+
   // ── Delete (soft) ──────────────────────────────────────────────────────────
 
   async softDelete(id: string): Promise<void> {

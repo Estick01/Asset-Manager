@@ -663,15 +663,35 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
     }
 
     // Validar que la transición sea hacia adelante
-    if (proceso.legalStage) {
+    const oldStage = proceso.legalStage ?? null;
+
+    if (oldStage) {
       const valid = await storage.legalStages.isValidTransition(
-        proceso.legalStage,
+        oldStage,
         legalStage,
         proceso.tipoProcesoId ?? null,
       );
       if (!valid) {
         res.status(422).json({
           error: "Transición de etapa inválida. No se puede retroceder a una etapa anterior.",
+        });
+        return;
+      }
+    }
+
+    // ── Gate: tareas requeridas pendientes ──────────────────────────────────
+    if (oldStage) {
+      const bloqueantes = await storage.tareas.getRequiredPendingByStage(procesoId, oldStage);
+      if (bloqueantes.length > 0) {
+        res.status(422).json({
+          error:             "STAGE_BLOCKED",
+          message:           "Hay tareas requeridas sin completar en esta etapa",
+          tareasBloqueantes: bloqueantes.map(t => ({
+            id:        t.id,
+            titulo:    t.titulo,
+            estado:    t.estado,
+            prioridad: t.prioridad,
+          })),
         });
         return;
       }
@@ -707,6 +727,39 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
       tipoId:      1,
       documentoId: null,
     });
+
+    // ── Eventos automáticos ──────────────────────────────────────────────────
+    if (oldStage) {
+      await storage.stageEvents.insert({
+        procesoId,
+        legalStageCode: oldStage,
+        tipo:           "etapa_completada",
+        descripcion:    `Etapa completada: ${oldStage}`,
+      });
+    }
+    await storage.stageEvents.insert({
+      procesoId,
+      legalStageCode: legalStage,
+      tipo:           "etapa_iniciada",
+      descripcion:    "Etapa iniciada",
+    });
+
+    // ── Materializar plantillas ──────────────────────────────────────────────
+    const tipoProcesoId = proceso.tipoProcesoId ?? null;
+    const plantillas = await storage.stageTemplates.getByStage(legalStage, tipoProcesoId);
+    for (const p of plantillas) {
+      await storage.tareas.create({
+        procesoId,
+        legalStage:      p.legalStageCode,
+        requerida:       p.requerida ? 1 : 0,
+        titulo:          p.titulo,
+        descripcion:     p.descripcion ?? null,
+        prioridad:       p.prioridad,
+        creadoPorNombre: "Sistema",
+        orden:           p.orden,
+        estado:          "pendiente",
+      } as any);
+    }
 
     // 2. Si HEARING → crear evento en calendario del abogado responsable
     if (legalStage === "HEARING" && rol === "abogado" && idProfile) {
