@@ -22,18 +22,12 @@ import { getProcesos } from "@/lib/services/procesoService";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
 import RecommendedLawyers from "@/components/community/RecommendedLawyers";
 import { EnumRol, users } from "@/shared/schema/user.schema";
+import { C, T, S, R, shadow, CASE_META, getAvatarColor, formatDate } from "@/constants/community-theme";
 
-// ─── Design tokens ────────────────────────────────────────────────────────
-const NAVY  = "#0F2640";
-const WHITE = "#FFFFFF";
-const BG    = "#F4F6F8";
-const TEXT  = "#1B2B3B";
-const TEXT2 = "#6B7B8D";
-const TEXT3 = "#9AAABB";
-const TEAL  = "#2196A6";
-const GREEN = "#27AE7A";
-const AMBER = "#F5A623";
-const ROSE  = "#E05252";
+// ─── Design tokens (aliases from community-theme) ──────────────────────────
+const NAVY = C.NAVY, WHITE = C.WHITE, BG = C.BG, TEXT = C.TEXT;
+const TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, TEAL = C.TEAL;
+const GREEN = C.GREEN, AMBER = C.AMBER, ROSE = C.ROSE;
 
 const CASE_TYPES = [
   { key: "civil",          label: "Civil" },
@@ -46,36 +40,6 @@ const CASE_TYPES = [
   { key: "inmobiliario",   label: "Inmobiliario" },
   { key: "otro",           label: "Otro" },
 ];
-
-const AVATAR_PALETTE = [
-  { bg: "#E8F4FD", text: TEAL },
-  { bg: "#E8F8F2", text: GREEN },
-  { bg: "#FEF6E8", text: AMBER },
-  { bg: "#FDEAEA", text: ROSE },
-  { bg: "#EEE8FD", text: "#7B5EA7" },
-  { bg: "#FDF0E8", text: "#C2651A" },
-];
-
-function getAvatarColor(name: string) {
-  return AVATAR_PALETTE[(name.charCodeAt(0) || 65) % AVATAR_PALETTE.length];
-}
-
-function formatDate(dateStr: string, full = false): string {
-  const date = new Date(dateStr);
-  if (full) {
-    return date.toLocaleDateString("es-CO", {
-      year: "numeric", month: "long", day: "numeric",
-      hour: "2-digit", minute: "2-digit",
-    });
-  }
-  const now  = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diff < 60)    return "ahora";
-  if (diff < 3600)  return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800)return `${Math.floor(diff / 86400)}d`;
-  return date.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
-}
 
 // ─── Skeleton ──────────────────────────────────────────────────────────────
 function SkeletonBlock({ w, h, r = 8, mb = 0 }: { w?: number | `${number}%`; h: number; r?: number; mb?: number }) {
@@ -692,9 +656,12 @@ export default function PostDetailScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color={WHITE} />
-            <Text style={styles.backBtnText}>Comunidad</Text>
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={24} color={WHITE} />
           </Pressable>
         </View>
         <View style={styles.bodyBg}>
@@ -725,8 +692,12 @@ export default function PostDetailScreen() {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }]}>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={20} color={WHITE} />
+          <Pressable
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+            hitSlop={12}
+          >
+            <Ionicons name="chevron-back" size={24} color={WHITE} />
           </Pressable>
         </View>
         <View style={styles.bodyBg}>
@@ -790,9 +761,9 @@ export default function PostDetailScreen() {
           <Pressable
             onPress={() => router.back()}
             style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+            hitSlop={12}
           >
-            <Ionicons name="arrow-back" size={20} color={WHITE} />
-            <Text style={styles.backBtnText}>Comunidad</Text>
+            <Ionicons name="chevron-back" size={24} color={WHITE} />
           </Pressable>
 
           <View style={styles.topBarRight}>
@@ -864,6 +835,38 @@ export default function PostDetailScreen() {
                     )}
                   </Pressable>
                 </Tooltip>
+
+                {/* ── Full-width status strip ── */}
+                <View style={{
+                  flexDirection: "row", alignItems: "center", justifyContent: "center",
+                  paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8,
+                  marginBottom: 10,
+                  backgroundColor:
+                    postStatus === "open"        ? "#E8F8F2" :
+                    postStatus === "in_progress" ? C.TEAL + "18" :
+                    "#F3F4F6",
+                }}>
+                  <View style={{
+                    width: 7, height: 7, borderRadius: 4, marginRight: 8,
+                    backgroundColor:
+                      postStatus === "open"        ? C.GREEN :
+                      postStatus === "in_progress" ? C.TEAL :
+                      C.TEXT3,
+                  }} />
+                  <Text style={{
+                    fontSize: 13, fontWeight: "600",
+                    color:
+                      postStatus === "open"        ? C.GREEN :
+                      postStatus === "in_progress" ? C.TEAL :
+                      C.TEXT3,
+                  }}>
+                    {postStatus === "open"
+                      ? "Buscando abogado"
+                      : postStatus === "in_progress"
+                      ? `En atención${takenByName ? ` · ${takenByName}` : ""}`
+                      : "Caso resuelto"}
+                  </Text>
+                </View>
 
                 {/* ── Meta strip: status · tipo · ciudad · urgencia ── */}
                 <View style={styles.metaStrip}>
@@ -1341,7 +1344,7 @@ export default function PostDetailScreen() {
               <TextInput
                 ref={inputRef}
                 style={styles.textInput}
-                placeholder="Escribe un comentario…"
+                placeholder={isLawyerUser ? "Responde como abogado..." : "Comparte más detalles..."}
                 placeholderTextColor={TEXT3}
                 value={commentText}
                 onChangeText={setCommentText}
