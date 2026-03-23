@@ -377,9 +377,8 @@ export class DatabaseStorage {
     return this.actualizaciones.deleteActualizacion(id);
   }
 
-  async getDocumentos(idProceso:string){
-    return this.documentos.getDocumentos(idProceso);
-  
+  async getDocumentos(idProceso: string, stage?: string) {
+    return this.documentos.getDocumentos(idProceso, stage);
   }
 
   async deleteDocumento(id: string) {

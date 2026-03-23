@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
 import { documentos, Documento, InsertDocumento } from "@/shared/schema";
 
@@ -8,11 +8,23 @@ import { documentos, Documento, InsertDocumento } from "@/shared/schema";
 export class DocumentoStorage {
   constructor(private db: MySql2Database<any>) {}
 
-  async getDocumentos(procesoId: string): Promise<Documento[]> {
+  async getDocumentos(procesoId: string, stage?: string): Promise<Documento[]> {
+    if (stage === undefined) {
+      return this.db
+        .select()
+        .from(documentos)
+        .where(eq(documentos.procesoId, procesoId));
+    }
+    if (stage === "__general__") {
+      return this.db
+        .select()
+        .from(documentos)
+        .where(and(eq(documentos.procesoId, procesoId), isNull(documentos.legalStage)));
+    }
     return this.db
       .select()
       .from(documentos)
-      .where(eq(documentos.procesoId, procesoId));
+      .where(and(eq(documentos.procesoId, procesoId), eq(documentos.legalStage, stage)));
   }
 
   async getDocumento(id: string): Promise<Documento | undefined> {
@@ -26,10 +38,10 @@ export class DocumentoStorage {
 
   async createDocumento(insertDocumento: InsertDocumento): Promise<Documento> {
     const id = randomUUID();
-    const fechaSubida = insertDocumento.fechaSubida 
-      ? new Date(insertDocumento.fechaSubida) 
+    const fechaSubida = insertDocumento.fechaSubida
+      ? new Date(insertDocumento.fechaSubida)
       : new Date();
-    
+
     const newDocumento: Documento = {
       ...insertDocumento,
       id,
@@ -37,6 +49,7 @@ export class DocumentoStorage {
       descripcion: insertDocumento.descripcion ?? "",
       fechaSubida,
       state: insertDocumento.state ?? true,
+      legalStage: insertDocumento.legalStage ?? null,
     };
     await this.db.insert(documentos).values(newDocumento);
     return newDocumento;

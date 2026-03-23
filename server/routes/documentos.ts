@@ -111,7 +111,8 @@ router.get("/documentos", authenticate, requirePermission("documentos.ver"), asy
     const payload = (req as any).user as JWTPayload;
     const allowed = await assertProcesoDocumentoAccess(payload, procesoId, res);
     if (!allowed) return;
-    const documentos = await storage.getDocumentos(procesoId);
+    const stage = req.query.stage as string | undefined;
+    const documentos = await storage.getDocumentos(procesoId, stage);
     res.json(documentos);
   } catch (err) {
     next(err);
@@ -241,7 +242,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const file = req.file; // uploaded file
-      const { procesoId, nombre, tipo, tamano, descripcion } = req.body;
+      const { procesoId, nombre, tipo, tamano, descripcion, legalStage } = req.body;
 
       if (!file && !nombre) {
         return res.status(400).json({ error: "No se proporcionó archivo" });
@@ -298,6 +299,7 @@ router.post(
         tipo: file?.mimetype || tipo,
         tamano: file?.size || tamano,
         descripcion: descripcion || null,
+        legalStage: legalStage && legalStage !== "__general__" ? legalStage : null,
       };
 
       // Save document in the database
@@ -315,6 +317,20 @@ router.post(
         }
       } catch {
         // non-critical
+      }
+
+      // Auto-event: emit documento_subido to the stage timeline (fire-and-forget)
+      if (legalStage && legalStage !== "__general__") {
+        storage.stageEvents.insert({
+          procesoId,
+          legalStageCode: legalStage,
+          tipo: "documento_subido",
+          descripcion: `Documento subido: ${newDocumento.nombre}`,
+          metadatos: { documentoId: newDocumento.id, nombre: newDocumento.nombre },
+          creadoPor: ((req as any).user as JWTPayload)?.idProfile ?? null,
+        }).catch((err: unknown) => {
+          console.error("Error creating stage event for document upload:", err);
+        });
       }
 
       res.status(201).json(newDocumento);
