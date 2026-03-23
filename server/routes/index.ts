@@ -29,6 +29,8 @@ import clientRequestsRoutes from "./client-requests.js";
 import passwordResetRoutes from "./password-reset.js";
 import firmClientsRoutes from "./firm-clients.js";
 import calendarRoutes from "./calendar.js";
+import stageTemplatesRoutes from "./stage-task-templates.js";
+import stageEventsRoutes from "./stage-events.js";
 
 /**
  * Register all application routes
@@ -64,6 +66,8 @@ export function registerAppRoutes(app: Express): void {
   app.use("/api", passwordResetRoutes);
   app.use("/api", firmClientsRoutes);
   app.use("/api", calendarRoutes);
+  app.use("/api", stageTemplatesRoutes);
+  app.use("/api", stageEventsRoutes);
 }
 
 export default registerAppRoutes;
