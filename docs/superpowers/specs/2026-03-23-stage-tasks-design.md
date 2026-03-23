@@ -129,6 +129,8 @@ DELETE /api/legal-stage-templates/:id
 
 **Authorization:** `requireAuth` + role must be `abogado` or `bufete`. Any authenticated lawyer/firm can manage templates (they are global, not per-proceso). Future: restrict to firm admin if needed.
 
+**Input validation:** `legalStageCode` in POST/PATCH body must be validated against `LEGAL_STAGE_CODES` array from `shared/schema/legal-stage.schema.ts`. Invalid codes return 400.
+
 **Event side-effects:** None — template CRUD does not write to `etapa_eventos`.
 
 Request body (POST/PATCH):
@@ -210,7 +212,7 @@ If any step throws, the transaction rolls back — stage is not advanced and no 
 
 - Each `Step` becomes a `Pressable` that calls `onStagePress(etapa)`
 - Stages with blocker tasks show a red badge: `⚠ 2` (count of required pending tasks)
-- `LegalStageStepper` receives new prop: `onStagePress: (etapa: EtapaProcesoDTO) => void`
+- `LegalStageStepper` receives new prop: `onStagePress?: (etapa: EtapaProcesoDTO) => void` (optional — existing usages without the prop continue to work)
 
 ### StageDetailSheet (new component)
 
