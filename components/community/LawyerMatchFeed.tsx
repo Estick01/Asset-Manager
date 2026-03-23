@@ -15,43 +15,21 @@ import { router, useFocusEffect } from "expo-router";
 import { getLawyerFeed, markPostSeen, type LawyerFeedDTO } from "@/lib/services/matchingService";
 import { toggleLike, type PostDTO } from "@/lib/services/communityService";
 import { useGlobalSocket } from "@/lib/global-socket-context";
+import { C, T, S, R, shadow, CASE_META, getAvatarColor, formatDate, BackButton } from "@/constants/community-theme";
 
-// ─── Tokens ───────────────────────────────────────────────────────────────
-const NAVY   = "#0F2640";
-const WHITE  = "#FFFFFF";
-const BG     = "#F4F6F8";
-const TEXT   = "#1B2B3B";
-const TEXT2  = "#6B7B8D";
-const TEXT3  = "#9AAABB";
-const TEAL   = "#2196A6";
-const GREEN  = "#27AE7A";
-const AMBER  = "#F5A623";
-const ROSE   = "#E05252";
-const PURPLE = "#7C3AED";
-const ORANGE = "#EA580C";
-
-// ─── Case type meta ───────────────────────────────────────────────────────
-const CASE_META: Record<string, { bg: string; text: string; border: string; icon: string }> = {
-  civil:          { bg: "#EEF2FF", text: "#4F46E5", border: "#C7D2FE", icon: "document-text-outline" },
-  penal:          { bg: "#FEF2F2", text: "#DC2626", border: "#FECACA", icon: "warning-outline" },
-  laboral:        { bg: "#FFFBEB", text: "#D97706", border: "#FDE68A", icon: "briefcase-outline" },
-  familiar:       { bg: "#F5F3FF", text: PURPLE,   border: "#DDD6FE", icon: "people-outline" },
-  mercantil:      { bg: "#ECFEFF", text: "#0891B2", border: "#A5F3FC", icon: "business-outline" },
-  administrativo: { bg: "#F0FDF4", text: "#16A34A", border: "#BBF7D0", icon: "shield-outline" },
-  tributario:     { bg: "#FFF7ED", text: ORANGE,   border: "#FED7AA", icon: "cash-outline" },
-  inmobiliario:   { bg: "#F0FDFA", text: "#0F766E", border: "#99F6E4", icon: "home-outline" },
-  otro:           { bg: "#F9FAFB", text: "#6B7280", border: "#E5E7EB", icon: "help-circle-outline" },
-};
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  const now   = new Date();
-  const diff  = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diff < 60)    return "ahora";
-  if (diff < 3600)  return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return `${Math.floor(diff / 86400)}d`;
-}
+// ─── Local aliases for compatibility ──────────────────────────────────────
+const NAVY   = C.NAVY;
+const WHITE  = C.WHITE;
+const BG     = C.BG;
+const TEXT   = C.TEXT;
+const TEXT2  = C.TEXT2;
+const TEXT3  = C.TEXT3;
+const TEAL   = C.TEAL;
+const GREEN  = C.GREEN;
+const AMBER  = C.AMBER;
+const ROSE   = C.ROSE;
+const PURPLE = C.PURPLE;
+const ORANGE = C.ORANGE;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────
 function SkeletonBlock({ w, h, r = 8 }: { w?: number | `${number}%`; h: number; r?: number }) {
@@ -87,7 +65,6 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
   const isUrgent = post.isUrgent === 1;
   const caseMeta = post.caseType ? (CASE_META[post.caseType] ?? null) : null;
   const snippet  = post.content.length > 100 ? post.content.slice(0, 100) + "…" : post.content;
-  const accentColor = isUrgent ? ROSE : (caseMeta?.text ?? TEAL);
 
   React.useEffect(() => {
     Animated.timing(anim, {
@@ -128,7 +105,11 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
         onPress={handleOpen}
       >
         {/* Accent bar */}
-        <View style={[styles.cardAccent, { backgroundColor: accentColor }]} />
+        <View style={{
+          position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
+          backgroundColor: isUrgent ? C.ROSE : (caseMeta?.accent ?? C.TEAL),
+          borderTopLeftRadius: R.card, borderBottomLeftRadius: R.card,
+        }} />
 
         <View style={styles.cardInner}>
           {/* Badges */}
@@ -207,19 +188,13 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
 }
 
 // ─── Section header ───────────────────────────────────────────────────────
-function SectionHeader({ icon, label, color, count }: {
-  icon: string; label: string; color: string; count: number;
-}) {
+function SectionHeader({ emoji, title }: { emoji: string; title: string }) {
   return (
-    <View style={styles.sectionHeader}>
-      <View style={[styles.sectionIconWrap, { backgroundColor: color + "18" }]}>
-        <Ionicons name={icon as any} size={14} color={color} />
-      </View>
-      <Text style={[styles.sectionLabel, { color }]}>{label}</Text>
-      <View style={[styles.sectionCount, { backgroundColor: color + "18" }]}>
-        <Text style={[styles.sectionCountText, { color }]}>{count}</Text>
-      </View>
-      <View style={styles.sectionLine} />
+    <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8, gap: 8 }}>
+      <View style={{ width: 2, height: 16, backgroundColor: C.TEAL, borderRadius: 1 }} />
+      <Text style={{ fontSize: 13, fontWeight: "600", color: C.TEXT2, textTransform: "uppercase", letterSpacing: 0.5 }}>
+        {emoji} {title}
+      </Text>
     </View>
   );
 }
@@ -324,7 +299,7 @@ export default function LawyerMatchFeed() {
             {/* 🔥 Urgentes */}
             {feed.urgent.length > 0 && (
               <>
-                <SectionHeader icon="flash" label="Casos urgentes" color={ROSE} count={feed.urgent.length} />
+                <SectionHeader emoji="🔥" title="Urgentes" />
                 {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
               </>
             )}
@@ -332,7 +307,7 @@ export default function LawyerMatchFeed() {
             {/* 🎯 Recomendados */}
             {feed.recommended.length > 0 && (
               <>
-                <SectionHeader icon="star" label="Recomendados para ti" color={AMBER} count={feed.recommended.length} />
+                <SectionHeader emoji="🎯" title="Para ti" />
                 {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
               </>
             )}
@@ -340,7 +315,7 @@ export default function LawyerMatchFeed() {
             {/* 🆕 Recientes */}
             {feed.recent.length > 0 && (
               <>
-                <SectionHeader icon="time-outline" label="Casos recientes" color={TEAL} count={feed.recent.length} />
+                <SectionHeader emoji="🆕" title="Recientes" />
                 {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
               </>
             )}
@@ -355,18 +330,19 @@ export default function LawyerMatchFeed() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: NAVY },
+  screen: { flex: 1, backgroundColor: C.BG },
 
   // ── Nav ──
   navBar: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
     paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14,
+    backgroundColor: C.NAVY,
   },
   navEye: {
     fontSize: 10, letterSpacing: 2,
     color: "rgba(255,255,255,0.4)", fontFamily: "Inter_500Medium", marginBottom: 2,
   },
-  navTitle: { fontSize: 26, fontFamily: "Inter_700Bold", color: WHITE, letterSpacing: -0.4 },
+  navTitle: { fontSize: 26, fontFamily: "Inter_700Bold", color: C.WHITE, letterSpacing: -0.4 },
   navRight: { flexDirection: "row", alignItems: "center", gap: 8 },
   navBtn: {
     width: 38, height: 38, borderRadius: 12,
@@ -374,78 +350,65 @@ const styles = StyleSheet.create({
   },
   navCreateBtn: {
     width: 42, height: 42, borderRadius: 14,
-    backgroundColor: TEAL, alignItems: "center", justifyContent: "center",
-    shadowColor: TEAL, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.38, shadowRadius: 8, elevation: 5,
+    backgroundColor: C.TEAL, alignItems: "center", justifyContent: "center",
+    shadowColor: C.TEAL, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.38, shadowRadius: 8, elevation: 5,
   },
   totalBadge: {
     backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 10,
     paddingVertical: 5, borderRadius: 20,
   },
-  totalBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: WHITE },
+  totalBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.WHITE },
 
   // ── Body ──
-  body: { flex: 1, backgroundColor: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  scrollContent:  { paddingHorizontal: 16, paddingTop: 18, gap: 10 },
-  skeletonList:   { paddingHorizontal: 16, paddingTop: 18, gap: 12 },
-
-  // ── Section header ──
-  sectionHeader: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    marginTop: 6, marginBottom: 4,
-  },
-  sectionIconWrap: {
-    width: 26, height: 26, borderRadius: 8,
-    alignItems: "center", justifyContent: "center",
-  },
-  sectionLabel: { fontSize: 13, fontFamily: "Inter_700Bold" },
-  sectionCount: {
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8,
-  },
-  sectionCountText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
-  sectionLine:      { flex: 1, height: 1, backgroundColor: "#E8ECF0" },
+  body: { flex: 1, backgroundColor: C.BG, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  scrollContent:  { paddingHorizontal: S.cardPad, paddingTop: 18, gap: S.cardGap },
+  skeletonList:   { paddingHorizontal: S.cardPad, paddingTop: 18, gap: 12 },
 
   // ── Card ──
   card: {
-    backgroundColor: WHITE, borderRadius: 18,
-    flexDirection: "row", overflow: "hidden",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    backgroundColor: C.WHITE,
+    borderRadius: R.card,
+    marginHorizontal: S.cardPad,
+    marginBottom: S.cardGap,
+    overflow: "hidden" as const,
+    ...shadow.card,
   },
   cardUrgent: {
-    shadowColor: ROSE, shadowOpacity: 0.18, shadowRadius: 12, elevation: 4,
-    borderWidth: 1, borderColor: ROSE + "25",
+    backgroundColor: C.ROSE_LIGHT,
+    ...shadow.cardUrgent,
+    borderWidth: 1,
+    borderColor: C.ROSE + "25",
   },
   cardPressed: { opacity: 0.93, transform: [{ scale: 0.985 }] },
-  cardAccent:  { width: 4 },
   cardInner:   { flex: 1, padding: 14, gap: 7 },
 
   // ── Badges ──
   badgeRow:   { flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "center" },
   urgentBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    backgroundColor: ROSE, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: C.ROSE, paddingHorizontal: 7, paddingVertical: 3, borderRadius: R.badge,
   },
-  urgentText:  { fontSize: 9, fontFamily: "Inter_700Bold", color: WHITE, letterSpacing: 0.8 },
+  urgentText:  { fontSize: 9, fontFamily: "Inter_700Bold", color: C.WHITE, letterSpacing: 0.8 },
   caseBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    paddingHorizontal: 7, paddingVertical: 3, borderRadius: 7, borderWidth: 1,
+    paddingHorizontal: 7, paddingVertical: 3, borderRadius: R.badge + 1, borderWidth: 1,
   },
   caseBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cityBadge: {
     flexDirection: "row", alignItems: "center", gap: 3,
-    backgroundColor: "#F0F2F4", paddingHorizontal: 6, paddingVertical: 3, borderRadius: 6,
+    backgroundColor: "#F0F2F4", paddingHorizontal: 6, paddingVertical: 3, borderRadius: R.badge,
   },
-  cityText: { fontSize: 10, fontFamily: "Inter_400Regular", color: TEXT3, maxWidth: 80 },
+  cityText: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.TEXT3, maxWidth: 80 },
 
   // ── Content ──
-  cardTitle:   { fontSize: 14, fontFamily: "Inter_700Bold", color: TEXT, lineHeight: 21, letterSpacing: -0.2 },
-  cardSnippet: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2, lineHeight: 18 },
+  cardTitle:   { fontSize: T.postTitle.fontSize, fontWeight: T.postTitle.fontWeight as any, color: C.TEXT, lineHeight: 21, letterSpacing: -0.2 },
+  cardSnippet: { fontSize: T.postContent.fontSize, color: C.TEXT2, lineHeight: 20 },
   tagsRow:     { flexDirection: "row", gap: 5, flexWrap: "wrap" },
   tagChip: {
-    backgroundColor: TEAL + "12", paddingHorizontal: 6,
-    paddingVertical: 2, borderRadius: 6,
+    backgroundColor: C.TEAL + "12", paddingHorizontal: 6,
+    paddingVertical: 2, borderRadius: R.badge,
   },
-  tagChipText: { fontSize: 10, fontFamily: "Inter_500Medium", color: TEAL },
+  tagChipText: { fontSize: 10, fontFamily: "Inter_500Medium", color: C.TEAL },
 
   // ── Footer ──
   cardFooter: {
@@ -456,16 +419,19 @@ const styles = StyleSheet.create({
   metaPill: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 7, paddingVertical: 4, borderRadius: 12,
-    backgroundColor: "#F4F6F8",
+    backgroundColor: C.BG,
   },
-  metaPillActive: { backgroundColor: TEAL + "0D" },
-  metaText:       { fontSize: 11, fontFamily: "Inter_500Medium", color: TEXT3 },
-  timeText:       { fontSize: 10, fontFamily: "Inter_400Regular", color: TEXT3 },
+  metaPillActive: { backgroundColor: C.TEAL + "0D" },
+  metaText:       { fontSize: T.meta.fontSize, fontFamily: "Inter_500Medium", color: C.TEXT3 },
+  timeText:       { fontSize: T.meta.fontSize - 1, fontFamily: "Inter_400Regular", color: C.TEXT3 },
   respondBtn: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: TEAL, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
+    backgroundColor: C.TEAL,
+    borderRadius: R.button,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
   },
-  respondBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: WHITE },
+  respondBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: C.WHITE },
 
   // ── Empty state ──
   empty: {
@@ -476,12 +442,12 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 22,
     backgroundColor: "#EEF1F4", alignItems: "center", justifyContent: "center", marginBottom: 4,
   },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_700Bold",    color: TEXT2, textAlign: "center" },
-  emptySub:   { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT3, textAlign: "center", lineHeight: 20 },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_700Bold",    color: C.TEXT2, textAlign: "center" },
+  emptySub:   { fontSize: 13, fontFamily: "Inter_400Regular", color: C.TEXT3, textAlign: "center", lineHeight: 20 },
   emptyBtn: {
     flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8,
-    backgroundColor: TEAL, paddingHorizontal: 20, paddingVertical: 13, borderRadius: 20,
-    shadowColor: TEAL, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
+    backgroundColor: C.TEAL, paddingHorizontal: 20, paddingVertical: 13, borderRadius: 20,
+    shadowColor: C.TEAL, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
-  emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: WHITE },
+  emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.WHITE },
 });
