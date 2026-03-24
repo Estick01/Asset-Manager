@@ -58,7 +58,7 @@ export function StageDetailSheet({
       const [tareasData, eventsData, docsData] = await Promise.all([
         getTareasByProceso(procesoId, etapa.codigo),
         getStageEvents(procesoId, etapa.codigo),
-        apiRequest("GET", `/api/procesos/${procesoId}/documentos?stage=${etapa.codigo}`)
+        apiRequest("GET", `/api/documentos?procesoId=${procesoId}&stage=${etapa.codigo}`)
           .then(r => r.json())
           .catch(() => []),
       ]);
