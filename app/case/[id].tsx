@@ -24,7 +24,7 @@ import {
   getDocumentoDownloadUrl,
 } from "@/lib/services/procesoService";
 import { linkProcesoToPost, getPosts, type PostDTO } from "@/lib/services/communityService";
-import { type Actualizacion, type Documento, type ProcesoDTO, type TareasProgresoDTO, type LegalStagesResponseDTO } from "@/shared/schema";
+import { type Actualizacion, type Documento, type ProcesoDTO, type TareasProgresoDTO, type LegalStagesResponseDTO, type EtapaProcesoDTO } from "@/shared/schema";
 import {
   HeaderActions,
   ClienteInfoSection,
@@ -39,6 +39,7 @@ import { getLegalStages, updateLegalStage } from "@/lib/services/legalStageServi
 import { ConfirmDialog, type ConfirmDialogConfig } from "@/components/ConfirmDialog";
 import { LegalStageStepper } from "@/components/proceso/LegalStageStepper";
 import { ChangeStageModal } from "@/components/proceso/ChangeStageModal";
+import { StageDetailSheet } from "@/components/proceso/StageDetailSheet";
 
 const ACTUALIZACIONES_LIMIT = 10;
 
@@ -67,6 +68,9 @@ export default function CaseDetailScreen() {
   const [dialog,               setDialog]              = useState<ConfirmDialogConfig | null>(null);
   const [legalStages,          setLegalStages]          = useState<LegalStagesResponseDTO | null>(null);
   const [showChangeStage,      setShowChangeStage]      = useState(false);
+  const [selectedStage,        setSelectedStage]        = useState<EtapaProcesoDTO | null>(null);
+  const [stageSheetOpen,       setStageSheetOpen]       = useState(false);
+  const [stageFilter,          setStageFilter]          = useState<string | null>(null);
 
   // Link community post modal
   const [linkPostModal,  setLinkPostModal]  = useState(false);
@@ -123,6 +127,15 @@ export default function CaseDetailScreen() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   const handleGoBack = () => router.replace("/cases");
+
+  const handleStageFilter = async (stage: string | null) => {
+    setStageFilter(stage);
+    if (!proceso) return;
+    try {
+      const td = await getTareasByProceso(proceso.id, stage ?? undefined);
+      setTareasData(td);
+    } catch { /* non-critical */ }
+  };
 
   const handleAdvanceStage = async () => {
     if (!proceso || !legalStages?.siguienteEtapa) return;
@@ -301,6 +314,10 @@ export default function CaseDetailScreen() {
             data={legalStages}
             canAdvance={rol === "abogado" || rol === "bufete"}
             onAdvance={() => setShowChangeStage(true)}
+            onStagePress={(etapa) => {
+              setSelectedStage(etapa);
+              setStageSheetOpen(true);
+            }}
           />
         )}
 
@@ -384,6 +401,35 @@ export default function CaseDetailScreen() {
           />
         )}
 
+        {activeTab === "tareas" && legalStages && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.stageChipsRow}
+          >
+            <Pressable
+              style={[styles.stageChip, stageFilter === null && styles.stageChipActive]}
+              onPress={() => handleStageFilter(null)}
+            >
+              <Text style={[styles.stageChipText, stageFilter === null && styles.stageChipTextActive]}>
+                Todas
+              </Text>
+            </Pressable>
+            {legalStages.etapas.map(etapa => (
+              <Pressable
+                key={etapa.codigo}
+                style={[styles.stageChip, stageFilter === etapa.codigo && styles.stageChipActive]}
+                onPress={() => handleStageFilter(etapa.codigo)}
+              >
+                <View style={[styles.chipDot, { backgroundColor: (etapa as any).color ?? Colors.primary }]} />
+                <Text style={[styles.stageChipText, stageFilter === etapa.codigo && styles.stageChipTextActive]}>
+                  {etapa.nombre}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
         {activeTab === "tareas" && tareasData && (
           <TareasList
             procesoId={proceso.id}
@@ -392,6 +438,7 @@ export default function CaseDetailScreen() {
             canCreate={rol !== "cliente"}
             canEdit={rol === "bufete" || rol === "abogado"}
             currentProfileId={user?.profile?.id}
+            defaultLegalStage={stageFilter}
           />
         )}
       </ScrollView>
@@ -404,6 +451,21 @@ export default function CaseDetailScreen() {
           siguienteEtapa={legalStages.siguienteEtapa}
           onConfirm={handleAdvanceStage}
           onClose={() => setShowChangeStage(false)}
+        />
+      )}
+
+      {/* ── Stage Detail Sheet ── */}
+      {selectedStage && (
+        <StageDetailSheet
+          visible={stageSheetOpen}
+          procesoId={proceso.id}
+          etapa={selectedStage}
+          isCurrentStage={selectedStage.esActual}
+          onClose={() => setStageSheetOpen(false)}
+          onAddTarea={(stage) => {
+            setStageSheetOpen(false);
+            handleStageFilter(stage);
+          }}
         />
       )}
 
@@ -602,5 +664,25 @@ const styles = StyleSheet.create({
   },
   postRowMeta: {
     fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2,
+  },
+
+  // ── Stage filter chips ──
+  stageChipsRow: {
+    flexDirection: "row", gap: 6, paddingHorizontal: 2, paddingVertical: 4,
+  },
+  stageChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+    backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border,
+  },
+  stageChipActive: {
+    backgroundColor: Colors.primary + "15", borderColor: Colors.primary,
+  },
+  chipDot: { width: 6, height: 6, borderRadius: 3 },
+  stageChipText: {
+    fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textSecondary,
+  },
+  stageChipTextActive: {
+    color: Colors.primary, fontFamily: "Inter_600SemiBold",
   },
 });

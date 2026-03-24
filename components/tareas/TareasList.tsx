@@ -31,6 +31,8 @@ interface Props {
   canEdit?: boolean;
   /** Profile ID of the current user (to show delete button only to creator) */
   currentProfileId?: string;
+  /** Pre-assigns new tasks to this legal stage */
+  defaultLegalStage?: string | null;
 }
 
 const FILTERS: { value: FilterEstado; label: string }[] = [
@@ -41,7 +43,7 @@ const FILTERS: { value: FilterEstado; label: string }[] = [
   { value: "cancelada", label: "Canceladas" },
 ];
 
-export function TareasList({ procesoId, data, onRefresh, canCreate = false, canEdit = false, currentProfileId }: Props) {
+export function TareasList({ procesoId, data, onRefresh, canCreate = false, canEdit = false, currentProfileId, defaultLegalStage }: Props) {
   const [filter, setFilter] = useState<FilterEstado>("todas");
   const [modalVisible, setModalVisible] = useState(false);
   const [editTarea, setEditTarea] = useState<TareaResponseDTO | null>(null);
@@ -203,6 +205,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
         procesoId={procesoId}
         onClose={() => setModalVisible(false)}
         onCreated={() => onRefresh()}
+        legalStage={defaultLegalStage}
       />
 
       {/* Editar modal */}

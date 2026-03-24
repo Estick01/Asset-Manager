@@ -21,6 +21,7 @@ interface Props {
   procesoId: string;
   onClose: () => void;
   onCreated: (tarea: TareaResponseDTO) => void;
+  legalStage?: string | null;
 }
 
 const PRIORIDADES: { value: TareaPrioridad; label: string; color: string }[] = [
@@ -30,7 +31,7 @@ const PRIORIDADES: { value: TareaPrioridad; label: string; color: string }[] = [
   { value: "urgente", label: "Urgente", color: "#EF4444" },
 ];
 
-export function CrearTareaModal({ visible, procesoId, onClose, onCreated }: Props) {
+export function CrearTareaModal({ visible, procesoId, onClose, onCreated, legalStage }: Props) {
   const [titulo,      setTitulo]      = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [prioridad,   setPrioridad]   = useState<TareaPrioridad>("media");
@@ -58,6 +59,7 @@ export function CrearTareaModal({ visible, procesoId, onClose, onCreated }: Prop
         descripcion: descripcion.trim() || null,
         prioridad,
         fechaLimite: fechaLimite || null,
+        legalStage:  legalStage ?? null,
       });
       onCreated(tarea);
       reset();
