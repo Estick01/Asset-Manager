@@ -34,6 +34,7 @@ import {
 } from "../../components/caso-detail";
 import { ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
 import { TareasList } from "@/components/tareas/TareasList";
+import { CrearTareaModal } from "@/components/tareas/CrearTareaModal";
 import { getTareasByProceso } from "@/lib/services/tareaService";
 import { getLegalStages, updateLegalStage } from "@/lib/services/legalStageService";
 import { ConfirmDialog, type ConfirmDialogConfig } from "@/components/ConfirmDialog";
@@ -71,6 +72,8 @@ export default function CaseDetailScreen() {
   const [selectedStage,        setSelectedStage]        = useState<EtapaProcesoDTO | null>(null);
   const [stageSheetOpen,       setStageSheetOpen]       = useState(false);
   const [stageFilter,          setStageFilter]          = useState<string | null>(null);
+  const [stageCreateTarea,     setStageCreateTarea]     = useState(false);
+  const [stageCreateLegalStage,setStageCreateLegalStage]= useState<string | null>(null);
 
   // Link community post modal
   const [linkPostModal,  setLinkPostModal]  = useState(false);
@@ -211,7 +214,7 @@ export default function CaseDetailScreen() {
     }
   };
 
-  const handlePickDocument = async () => {
+  const handlePickDocument = async (legalStage?: string | null) => {
     if (!proceso) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -226,6 +229,7 @@ export default function CaseDetailScreen() {
           tipo:      file.mimeType || "application/octet-stream",
           tamano:    file.size || 0,
           uri:       file.uri,
+          legalStage: legalStage ?? null,
         });
         await saveActualizacion({
           procesoId:   proceso.id,
@@ -464,8 +468,24 @@ export default function CaseDetailScreen() {
           onClose={() => setStageSheetOpen(false)}
           onAddTarea={(stage) => {
             setStageSheetOpen(false);
-            handleStageFilter(stage);
+            setStageCreateLegalStage(stage);
+            setStageCreateTarea(true);
           }}
+          onUploadDoc={(stage) => {
+            setStageSheetOpen(false);
+            handlePickDocument(stage);
+          }}
+        />
+      )}
+
+      {/* ── Crear tarea desde etapa procesal ── */}
+      {proceso && (
+        <CrearTareaModal
+          visible={stageCreateTarea}
+          procesoId={proceso.id}
+          legalStage={stageCreateLegalStage}
+          onClose={() => { setStageCreateTarea(false); setStageCreateLegalStage(null); }}
+          onCreated={() => { setStageCreateTarea(false); setStageCreateLegalStage(null); loadData(); }}
         />
       )}
 

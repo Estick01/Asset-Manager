@@ -238,10 +238,11 @@ export async function uploadDocument(doc: {
   tamano: number;
   uri: string;
   descripcion?: string;
+  legalStage?: string | null;
 }): Promise<Documento> {
   const formData = new FormData();
   const filename = doc.uri.split('/').pop() || doc.nombre;
-  
+
   // Fetch the file and convert to Blob for proper FormData handling
   const fileResponse = await fetch(doc.uri);
   const blob = await fileResponse.blob();
@@ -253,6 +254,9 @@ export async function uploadDocument(doc: {
   formData.append('tamano', doc.tamano.toString());
   if (doc.descripcion) {
     formData.append('descripcion', doc.descripcion);
+  }
+  if (doc.legalStage) {
+    formData.append('legalStage', doc.legalStage);
   }
 
   const response = await apiRequest("POST", '/api/documentos', formData);
