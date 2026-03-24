@@ -74,6 +74,8 @@ MySQL no soporta índices únicos parciales (WHERE). Se usa `activo_unique = 1` 
 - Al crear: `fecha_fin = NULL, activo_unique = 1`
 - Al cerrar (en la misma transacción antes de crear el nuevo): `fecha_fin = NOW(), activo_unique = NULL`
 
+> **Requerimiento de transaccionalidad:** La secuencia UPDATE (cerrar registro activo) → INSERT (nuevo activo) DEBE ejecutarse dentro de una transacción atómica para garantizar el constraint en todo momento. Una inserción sin el UPDATE previo viola el índice único.
+
 ### Tabla `proceso_sharing` (nueva)
 
 ```sql
@@ -104,6 +106,11 @@ CREATE TABLE proceso_sharing (
 ### `proceso_lawyers` — sin cambios estructurales
 
 Permanece como tabla de **asignación laboral** (quién trabaja en el proceso). No implica ownership ni acceso autónomo.
+
+### Tablas preexistentes referenciadas
+
+- **`proceso_responsables`**: tabla existente que registra el responsable activo de cada proceso con historial. Se usa en el Evento 5 (salida del bufete) para desactivar al abogado como responsable de procesos del bufete.
+- **`lawyer_firma_history`**: tabla existente para auditoría de eventos de entrada/salida de abogados en bufetes. Si no existe en el schema actual, se debe crear con migración `0065_lawyer_firma_history.sql`.
 
 ### Separación de responsabilidades
 
@@ -155,14 +162,25 @@ PASO 2 — Sharing activo
 
 PASO 3 — Assignment (solo abogado)
   Query: proceso_lawyers WHERE proceso_id=X AND lawyer_id=abogadoId AND status='activo'
-  + verificar: lawyer_profiles.firm_id = proceso_ownership.owner_id
-               (si el proceso es del bufete, el abogado debe seguir en ese bufete)
 
-  Si cumple → role='assigned', permission='editar'
+  Subcaso A — proceso owner_type='bufete':
+    Verificar: lawyer_profiles.firm_id = proceso_ownership.owner_id
+    (el abogado debe seguir perteneciendo al bufete dueño del proceso)
+    Si cumple → role='assigned', permission='editar'
+    Si no cumple (salió del bufete) → sin acceso por esta fuente
+
+  Subcaso B — proceso owner_type='abogado' (proceso de otro abogado):
+    La asignación en proceso_lawyers fue creada explícitamente por el dueño.
+    No requiere verificación de firma.
+    Si está en proceso_lawyers activo → role='assigned', permission='editar'
 
 PASO 4 — Resolver permiso final
   maxPermission = max(todos los permisos encontrados según jerarquía)
   Si ninguna fuente aplica → 403 Forbidden
+
+  Caso especial: si proceso_ownership.owner_type = 'sin_owner' (proceso huérfano post-migración):
+  → 403 para todos los roles hasta que un administrador resuelva la revisión manual.
+  → El sistema no debe exponer este proceso en ningún listado.
 ```
 
 ### Matriz de acceso
@@ -175,9 +193,11 @@ PASO 4 — Resolver permiso final
 | bufete      | Owner activo      | `owner`    | `editar`      |
 | bufete      | Sharing activo    | `shared`   | según sharing |
 | corporacion | Sharing activo    | `shared`   | según sharing |
-| cliente     | Sharing activo (`shared_with_type='cliente'`) | `shared` | `ver` (por defecto) |
+| cliente     | Sharing activo (`shared_with_type='cliente'`) | `shared` | máximo `ver` |
 
 > **Nota:** El cliente ya no usa `procesos.cliente_id` como mecanismo de acceso directo. Accede únicamente vía `proceso_sharing`, lo que permite revocar acceso y mantener auditoría.
+
+> **Techo de permiso para cliente:** `shared_with_type='cliente'` tiene un techo máximo de `ver`. El endpoint `POST /api/procesos/:id/sharing` debe rechazar con 400 cualquier intento de asignar `permission='comentar'` o `permission='editar'` a un cliente.
 
 ### Enforcement por operación
 
@@ -214,6 +234,8 @@ PASO 4 — Resolver permiso final
 5. Submit dispara `POST /api/procesos/batch-decisions` (transacción atómica)
 
 Procesos sin decisión quedan como independientes (privados) por defecto.
+
+> **Scope del wizard:** Solo se muestran procesos donde `proceso_ownership.owner_type='abogado' AND owner_id=abogadoId AND activo_unique=1`. Los procesos previamente transferidos a un bufete anterior no aparecen (ya no son del abogado).
 
 ### Evento 2: Transferir proceso al bufete
 
@@ -257,12 +279,11 @@ COMMIT
 ```sql
 UPDATE proceso_sharing
 SET fecha_fin = NOW(), activo_unique = NULL
-WHERE proceso_id = :procesoId
-  AND shared_with_id = :entityId
-  AND activo_unique = 1;
+WHERE id = :shareId
+  AND proceso_id = :procesoId;
 ```
 
-Puede ejecutarlo el owner del proceso o la entidad receptora (auto-revocarse).
+Se revoca por `id` del registro de sharing (consistente con el endpoint REST `DELETE /api/procesos/:id/sharing/:shareId`). Puede ejecutarlo el owner del proceso o la entidad receptora (auto-revocarse).
 
 ### Evento 5: Salida del bufete (abogado o bufete)
 
@@ -312,6 +333,8 @@ COMMIT
 ```
 
 **Post-salida:** Los procesos del bufete quedan sin responsable asignado. El bufete debe reasignarlos (ver pantalla de reasignación pendiente).
+
+> **Procesos transferidos previamente:** Si el abogado había transferido procesos al bufete antes de salir, esos procesos permanecen bajo `owner_type='bufete'`. La transferencia es irreversible salvo acción explícita del bufete. El historial de ownership queda intacto — los registros anteriores en `proceso_ownership` ya fueron cerrados (`fecha_fin` asignado) en el momento de la transferencia (Evento 2), por lo que este flujo de salida no los modifica.
 
 ---
 
@@ -422,7 +445,7 @@ Banner/card que aparece tras la salida de un abogado.
 |-----------|-------------|
 | `0062_proceso_ownership.sql` | Crear tabla `proceso_ownership` con índices y constraint |
 | `0063_proceso_sharing.sql`   | Crear tabla `proceso_sharing` con índices y constraint   |
-| `0064_seed_proceso_ownership.sql` | Para cada proceso existente, detectar owner por `proceso_lawyers.rol='principal'` e insertar registro en `proceso_ownership` con `owner_type='abogado'`. Todos los procesos existentes nacen como independientes. |
+| `0064_seed_proceso_ownership.sql` | Para cada proceso existente, detectar owner por `proceso_lawyers.rol='principal'` e insertar registro en `proceso_ownership` con `owner_type='abogado'`. Todos los procesos existentes nacen como independientes. **Fallback obligatorio:** si un proceso no tiene `rol='principal'` en `proceso_lawyers`, se inserta ownership con `owner_type='abogado'` usando el `lawyer_id` del registro más antiguo en `proceso_lawyers`, o `owner_type='sin_owner'` si no tiene ningún lawyer asignado. Los procesos `sin_owner` se registran en un log de revisión manual. La migración debe ejecutarse en transacción y reportar el conteo de cada caso antes de aplicar en producción. **Nota sobre acceso de clientes:** Los procesos actualmente vinculados a clientes vía `procesos.cliente_id` perderán ese acceso tras la migración (el cliente ahora accede vía `proceso_sharing`). Esta ruptura es intencional. El abogado/bufete debe recrear el acceso compartido mediante `POST /api/procesos/:id/sharing` con `shared_with_type='cliente'`. No se siembra `proceso_sharing` automáticamente para clientes existentes para evitar conceder accesos no auditados. |
 
 ---
 
