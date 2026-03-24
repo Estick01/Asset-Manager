@@ -441,11 +441,12 @@ Banner/card que aparece tras la salida de un abogado.
 
 ## Migraciones
 
+> **Decisión:** Los datos actuales son de prueba. No se requiere migración de datos existentes. Las tablas nuevas parten vacías.
+
 | Migración | Descripción |
 |-----------|-------------|
 | `0062_proceso_ownership.sql` | Crear tabla `proceso_ownership` con índices y constraint |
 | `0063_proceso_sharing.sql`   | Crear tabla `proceso_sharing` con índices y constraint   |
-| `0064_seed_proceso_ownership.sql` | Para cada proceso existente, detectar owner por `proceso_lawyers.rol='principal'` e insertar registro en `proceso_ownership` con `owner_type='abogado'`. Todos los procesos existentes nacen como independientes. **Fallback obligatorio:** si un proceso no tiene `rol='principal'` en `proceso_lawyers`, se inserta ownership con `owner_type='abogado'` usando el `lawyer_id` del registro más antiguo en `proceso_lawyers`, o `owner_type='sin_owner'` si no tiene ningún lawyer asignado. Los procesos `sin_owner` se registran en un log de revisión manual. La migración debe ejecutarse en transacción y reportar el conteo de cada caso antes de aplicar en producción. **Nota sobre acceso de clientes:** Los procesos actualmente vinculados a clientes vía `procesos.cliente_id` perderán ese acceso tras la migración (el cliente ahora accede vía `proceso_sharing`). Esta ruptura es intencional. El abogado/bufete debe recrear el acceso compartido mediante `POST /api/procesos/:id/sharing` con `shared_with_type='cliente'`. No se siembra `proceso_sharing` automáticamente para clientes existentes para evitar conceder accesos no auditados. |
 
 ---
 
