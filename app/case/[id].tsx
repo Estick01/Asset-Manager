@@ -24,7 +24,8 @@ import {
   getDocumentoDownloadUrl,
 } from "@/lib/services/procesoService";
 import { linkProcesoToPost, getPosts, type PostDTO } from "@/lib/services/communityService";
-import { type Actualizacion, type Documento, type ProcesoDTO, type TareasProgresoDTO, type LegalStagesResponseDTO, type EtapaProcesoDTO } from "@/shared/schema";
+import { type Actualizacion, type Documento, type ProcesoDTO, type TareasProgresoDTO, type LegalStagesResponseDTO, type EtapaProcesoDTO, type StageEventResponseDTO } from "@/shared/schema";
+import { getStageEvents } from "@/lib/services/stageEventService";
 import {
   HeaderActions,
   ClienteInfoSection,
@@ -72,8 +73,10 @@ export default function CaseDetailScreen() {
   const [selectedStage,        setSelectedStage]        = useState<EtapaProcesoDTO | null>(null);
   const [stageSheetOpen,       setStageSheetOpen]       = useState(false);
   const [stageFilter,          setStageFilter]          = useState<string | null>(null);
+  const [stageEvents,          setStageEvents]          = useState<StageEventResponseDTO[]>([]);
   const [stageCreateTarea,     setStageCreateTarea]     = useState(false);
   const [stageCreateLegalStage,setStageCreateLegalStage]= useState<string | null>(null);
+  const stageFilterRef = useRef<string | null>(null);
 
   // Link community post modal
   const [linkPostModal,  setLinkPostModal]  = useState(false);
@@ -93,12 +96,18 @@ export default function CaseDetailScreen() {
       setActualizaciones(acts);
       setActualizacionesOffset(acts.length);
       setHasMoreActualizaciones(acts.length === ACTUALIZACIONES_LIMIT);
-      const docs = await getDocumentos(p.id);
+      const docs = await getDocumentos(p.id, stageFilterRef.current);
       setDocumentos(docs);
       try {
-        const td = await getTareasByProceso(p.id);
+        const td = await getTareasByProceso(p.id, stageFilterRef.current ?? undefined);
         setTareasData(td);
       } catch { /* non-critical */ }
+      if (stageFilterRef.current) {
+        try {
+          const events = await getStageEvents(p.id, stageFilterRef.current);
+          setStageEvents(events);
+        } catch { /* non-critical */ }
+      }
       try {
         const stages = await getLegalStages(p.tipoProceso?.nombre, p.id);
         setLegalStages(stages);
@@ -133,11 +142,24 @@ export default function CaseDetailScreen() {
 
   const handleStageFilter = async (stage: string | null) => {
     setStageFilter(stage);
+    stageFilterRef.current = stage;
     if (!proceso) return;
     try {
-      const td = await getTareasByProceso(proceso.id, stage ?? undefined);
+      const [td, docs] = await Promise.all([
+        getTareasByProceso(proceso.id, stage ?? undefined),
+        getDocumentos(proceso.id, stage),
+      ]);
       setTareasData(td);
+      setDocumentos(docs);
     } catch { /* non-critical */ }
+    if (stage) {
+      try {
+        const events = await getStageEvents(proceso.id, stage);
+        setStageEvents(events);
+      } catch { /* non-critical */ }
+    } else {
+      setStageEvents([]);
+    }
   };
 
   const handleAdvanceStage = async () => {
@@ -384,28 +406,8 @@ export default function CaseDetailScreen() {
           })}
         </View>
 
-        {/* ── Tab Content ── */}
-        {activeTab === "timeline" && (
-          <TimelineSection
-            proceso={proceso}
-            rol={rol}
-            actualizaciones={actualizaciones}
-            actualizacionesLoading={actualizacionesLoading}
-            onDelete={handleDeleteActualizacion}
-          />
-        )}
-
-        {activeTab === "documents" && (
-          <DocumentsSection
-            rol={rol}
-            documentos={documentos}
-            onUpload={handlePickDocument}
-            onDelete={handleDeleteDocumento}
-            onDownload={handleDownloadDocumento}
-          />
-        )}
-
-        {activeTab === "tareas" && legalStages && (
+        {/* ── Stage filter chips (visible en las 3 secciones) ── */}
+        {legalStages && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -432,6 +434,50 @@ export default function CaseDetailScreen() {
               </Pressable>
             ))}
           </ScrollView>
+        )}
+
+        {/* ── Tab Content ── */}
+        {activeTab === "timeline" && (
+          stageFilter ? (
+            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+              {stageEvents.length === 0 ? (
+                <Text style={styles.emptyFilter}>Sin eventos en esta etapa</Text>
+              ) : (
+                stageEvents.map(ev => (
+                  <View key={ev.id} style={styles.eventRow}>
+                    <View style={styles.eventDot} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.eventDesc}>{ev.descripcion}</Text>
+                      <Text style={styles.eventTime}>
+                        {new Date(ev.createdAt).toLocaleDateString("es-CO", {
+                          day: "2-digit", month: "short",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </View>
+          ) : (
+            <TimelineSection
+              proceso={proceso}
+              rol={rol}
+              actualizaciones={actualizaciones}
+              actualizacionesLoading={actualizacionesLoading}
+              onDelete={handleDeleteActualizacion}
+            />
+          )
+        )}
+
+        {activeTab === "documents" && (
+          <DocumentsSection
+            rol={rol}
+            documentos={documentos}
+            onUpload={() => handlePickDocument(stageFilter)}
+            onDelete={handleDeleteDocumento}
+            onDownload={handleDownloadDocumento}
+          />
         )}
 
         {activeTab === "tareas" && tareasData && (
@@ -704,5 +750,25 @@ const styles = StyleSheet.create({
   },
   stageChipTextActive: {
     color: Colors.primary, fontFamily: "Inter_600SemiBold",
+  },
+
+  // ── Stage events inline (timeline con filtro activo) ──
+  emptyFilter: {
+    textAlign: "center", color: Colors.textTertiary,
+    fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 24,
+  },
+  eventRow: {
+    flexDirection: "row", alignItems: "flex-start", gap: 10,
+    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+  },
+  eventDot: {
+    width: 8, height: 8, borderRadius: 4,
+    backgroundColor: Colors.primary, marginTop: 5,
+  },
+  eventDesc: {
+    fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.text,
+  },
+  eventTime: {
+    fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 2,
   },
 });

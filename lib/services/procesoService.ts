@@ -215,11 +215,14 @@ export async function deleteActualizacion(id: string): Promise<void> {
 
 // --- Documentos (Documents) ---
 
-export async function getDocumentos(procesoId: string): Promise<Documento[]> {
+export async function getDocumentos(procesoId: string, stage?: string | null): Promise<Documento[]> {
   try {
+    const url = stage
+      ? `/api/documentos?procesoId=${procesoId}&stage=${encodeURIComponent(stage)}`
+      : `/api/documentos?procesoId=${procesoId}`;
     const response = await apiRequest(
       "GET",
-      `/api/documentos?procesoId=${procesoId}`
+      url
     );
     if (response.ok) {
       return await response.json();
