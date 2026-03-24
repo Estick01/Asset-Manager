@@ -25,9 +25,10 @@ import type { EtapaProcesoDTO, LegalStagesResponseDTO } from "@/shared/schema";
 interface StepProps {
   etapa: EtapaProcesoDTO;
   isLast: boolean;
+  blockerCount?: number;
 }
 
-function Step({ etapa, isLast }: StepProps) {
+function Step({ etapa, isLast, blockerCount }: StepProps) {
   const isDone    = etapa.completada;
   const isCurrent = etapa.esActual;
 
@@ -93,6 +94,13 @@ function Step({ etapa, isLast }: StepProps) {
           <Text style={[styles.badgeText, { color: urgencyColor }]}>{urgencyText}</Text>
         </View>
       )}
+
+      {/* Blocker badge */}
+      {blockerCount != null && blockerCount > 0 && (
+        <View style={styles.blockerBadge}>
+          <Text style={styles.blockerBadgeText}>⚠ {blockerCount}</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -106,9 +114,11 @@ interface Props {
   /** Muestra botón "Avanzar etapa" si se pasa el handler */
   onAdvance?: () => void;
   canAdvance?: boolean;
+  /** Abre el detalle de la etapa al presionar */
+  onStagePress?: (etapa: EtapaProcesoDTO) => void;
 }
 
-export function LegalStageStepper({ data, onAdvance, canAdvance = false }: Props) {
+export function LegalStageStepper({ data, onAdvance, canAdvance = false, onStagePress }: Props) {
   const { etapas, etapaActual, siguienteEtapa } = data;
 
   return (
@@ -131,7 +141,9 @@ export function LegalStageStepper({ data, onAdvance, canAdvance = false }: Props
         contentContainerStyle={styles.stepsRow}
       >
         {etapas.map((etapa, idx) => (
-          <Step key={etapa.codigo} etapa={etapa} isLast={idx === etapas.length - 1} />
+          <Pressable key={etapa.codigo} onPress={() => onStagePress?.(etapa)}>
+            <Step etapa={etapa} isLast={idx === etapas.length - 1} />
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -301,6 +313,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+
+  // Blocker badge
+  blockerBadge: {
+    position: "absolute", top: -4, right: -4,
+    backgroundColor: "#E05252", borderRadius: 8,
+    paddingHorizontal: 4, paddingVertical: 1,
+  },
+  blockerBadgeText: { fontSize: 8, color: "#fff", fontWeight: "700" },
 
   // Finalized row
   finalizedRow: {
