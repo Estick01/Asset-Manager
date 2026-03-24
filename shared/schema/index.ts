@@ -327,3 +327,27 @@ export {
   type EtapaEvento, type InsertEtapaEvento,
   type StageEventTipo, type StageEventResponseDTO,
 } from "./stage-event.schema";
+
+// Proceso Ownership (propiedad histórica de procesos)
+export {
+  procesoOwnership,
+  procesoOwnershipRelations,
+  type OwnerType,
+  type ProcesoOwnership,
+  type InsertProcesoOwnership,
+  type ProcesoOwnershipDTO,
+  type TransferOwnershipDTO,
+} from "./proceso-ownership.schema";
+
+// Proceso Sharing (accesos externos con historial y permisos por tipo)
+export {
+  procesoSharing,
+  procesoSharingRelations,
+  PERMISSION_CEILING,
+  type SharedWithType,
+  type SharingPermission,
+  type ProcesoSharing,
+  type InsertProcesoSharing,
+  type ProcesoSharingDTO,
+  type CreateSharingDTO,
+} from "./proceso-sharing.schema";
