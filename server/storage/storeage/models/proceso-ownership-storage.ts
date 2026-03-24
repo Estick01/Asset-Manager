@@ -1,5 +1,5 @@
 // server/storage/storeage/models/proceso-ownership-storage.ts
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   procesoOwnership,
@@ -47,27 +47,32 @@ export class ProcesoOwnershipStorage {
     dto: TransferOwnershipDTO,
     creadoPor: string,
   ): Promise<ProcesoOwnershipDTO> {
-    // 1. Cerrar ownership activo
-    await this.db
-      .update(procesoOwnership)
-      .set({ fechaFin: new Date(), activoUnique: null })
-      .where(and(
-        eq(procesoOwnership.procesoId, procesoId),
-        eq(procesoOwnership.activoUnique, 1),
-      ));
-
-    // 2. Crear nuevo ownership
     const id = randomUUID();
-    await this.db.insert(procesoOwnership).values({
-      id,
-      procesoId,
-      ownerType: dto.ownerType,
-      ownerId:   dto.ownerId ?? null,
-      activoUnique: 1,
-      creadoPor,
-      razon: dto.razon ?? null,
+
+    await this.db.transaction(async (tx) => {
+      // 1. Cerrar ownership activo
+      await tx
+        .update(procesoOwnership)
+        .set({ fechaFin: new Date(), activoUnique: null })
+        .where(and(
+          eq(procesoOwnership.procesoId, procesoId),
+          eq(procesoOwnership.activoUnique, 1),
+        ));
+
+      // 2. Crear nuevo ownership
+      await tx.insert(procesoOwnership).values({
+        id,
+        procesoId,
+        ownerType: dto.ownerType,
+        ownerId:   dto.ownerId ?? null,
+        activoUnique: 1,
+        creadoPor,
+        razon: dto.razon ?? null,
+      });
     });
 
+    // Note: fechaInicio in returned DTO uses app clock; actual DB value may differ slightly.
+    // Use getActive() if you need the authoritative timestamp.
     return {
       id,
       procesoId,
@@ -97,6 +102,8 @@ export class ProcesoOwnershipStorage {
       id, procesoId, ownerType, ownerId: ownerId ?? null,
       activoUnique: 1, creadoPor, razon: razon ?? null,
     });
+    // Note: fechaInicio in returned DTO uses app clock; actual DB value may differ slightly.
+    // Use getActive() if you need the authoritative timestamp.
     return {
       id, procesoId, ownerType, ownerId: ownerId ?? null,
       fechaInicio: new Date(), fechaFin: null,
@@ -107,13 +114,15 @@ export class ProcesoOwnershipStorage {
   /**
    * Todos los procesoIds donde owner_type + owner_id tienen ownership activo.
    */
-  async getProcesoIdsByOwner(ownerType: OwnerType, ownerId: string): Promise<string[]> {
+  async getProcesoIdsByOwner(ownerType: OwnerType, ownerId: string | null): Promise<string[]> {
     const rows = await this.db
       .select({ procesoId: procesoOwnership.procesoId })
       .from(procesoOwnership)
       .where(and(
         eq(procesoOwnership.ownerType, ownerType),
-        eq(procesoOwnership.ownerId, ownerId),
+        ownerId !== null
+          ? eq(procesoOwnership.ownerId, ownerId)
+          : isNull(procesoOwnership.ownerId),
         eq(procesoOwnership.activoUnique, 1),
       ));
     return rows.map(r => r.procesoId);
