@@ -99,6 +99,8 @@ export class ProcesoSharingStorage {
       });
     });
 
+    // Note: fechaInicio in returned DTO uses app clock; actual DB value may differ slightly.
+    // Use findActive() if you need the authoritative timestamp.
     return {
       id, procesoId,
       sharedWithType: dto.sharedWithType,
@@ -118,8 +120,9 @@ export class ProcesoSharingStorage {
       .update(procesoSharing)
       .set({ fechaFin: new Date(), activoUnique: null })
       .where(and(
-        eq(procesoSharing.id,        shareId),
-        eq(procesoSharing.procesoId, procesoId),
+        eq(procesoSharing.id,           shareId),
+        eq(procesoSharing.procesoId,    procesoId),
+        eq(procesoSharing.activoUnique, 1),
       ));
   }
 
