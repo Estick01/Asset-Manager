@@ -399,3 +399,14 @@ export {
   type InsertFirmSettings,
   type FirmSettingsDTO,
 } from "./firm-settings.schema";
+
+// Cliente Ownership (propiedad histórica de clientes)
+export {
+  clienteOwnership,
+  clienteOwnershipRelations,
+  type ClienteOwnerType,
+  type ClienteOwnership,
+  type InsertClienteOwnership,
+  type ClienteOwnershipDTO,
+  type TransferClienteOwnershipDTO,
+} from "./cliente-ownership.schema";
