@@ -270,7 +270,15 @@ router.post("/lawyer/invitations/:id/accept", authenticate, async (req: Request,
       }
     } catch { /* non-critical */ }
 
-    res.json({ message: "Invitación aceptada correctamente" });
+    // Check if the lawyer has processes that require a decision about ownership/sharing
+    const procesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("abogado", lawyerProfile.id);
+    const procesoList = await storage.getProcesosByIds(procesoIds, {});
+
+    res.json({
+      message: "Invitación aceptada correctamente",
+      requiresProcessDecision: procesoList.length > 0,
+      procesos: procesoList,
+    });
   } catch (err) {
     next(err);
   }

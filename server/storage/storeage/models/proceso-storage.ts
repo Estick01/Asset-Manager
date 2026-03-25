@@ -641,6 +641,42 @@ export class ProcesoStorage {
       ));
   }
 
+  /**
+   * Deactivate a lawyer from multiple procesos (set status = "inactivo").
+   * Used when a lawyer leaves a firm.
+   */
+  async removeAbogadoFromProcesos(lawyerId: string, procesoIds: string[]): Promise<void> {
+    if (procesoIds.length === 0) return;
+    for (const procesoId of procesoIds) {
+      await this.db
+        .update(procesoLawyers)
+        .set({ status: "inactivo", fechaFin: new Date() })
+        .where(and(
+          eq(procesoLawyers.lawyerId, lawyerId),
+          eq(procesoLawyers.procesoId, procesoId),
+          eq(procesoLawyers.status, "activo"),
+        ));
+    }
+  }
+
+  /**
+   * Deactivate a lawyer as responsable in multiple procesos.
+   * Used when a lawyer leaves a firm.
+   */
+  async desactivarResponsable(lawyerId: string, procesoIds: string[]): Promise<void> {
+    if (procesoIds.length === 0) return;
+    for (const procesoId of procesoIds) {
+      await this.db
+        .update(procesoResponsables)
+        .set({ activo: false })
+        .where(and(
+          eq(procesoResponsables.lawyerId, lawyerId),
+          eq(procesoResponsables.procesoId, procesoId),
+          eq(procesoResponsables.activo, true),
+        ));
+    }
+  }
+
   async getProcesosByClienteAndLawyer(
     lawyerId: string,
     clienteId: string,
@@ -1519,6 +1555,180 @@ export class ProcesoStorage {
           eq(procesos.legalStage, legalStage),
         ),
       );
+  }
+
+  /** Obtener procesos por array de IDs (usado en listados por rol con ownership). */
+  async getProcesosByIds(ids: string[], filter?: ProcesoFilter): Promise<any[]> {
+    if (ids.length === 0) return [];
+
+    const responsableLawyer   = alias(lawyerProfiles,        'responsableLawyer');
+    const responsableJoin     = alias(procesoResponsables,   'responsableJoin');
+    const personasResponsable = alias(personas,              'personasResponsable');
+    const personasCliente     = alias(personas,              'personasCliente');
+    const deptosCliente       = alias(departamentos,         'deptosCliente');
+    const municipiosCliente   = alias(municipios,            'municipiosCliente');
+    const repLegal            = alias(representantesLegales, 'repLegal');
+    const personasRepLegal    = alias(personas,              'personasRepLegal');
+
+    const conditions: any[] = [inArray(procesos.id, ids), eq(procesos.state, true)];
+
+    if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
+      conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
+    }
+
+    if (filter?.search) {
+      const search = `%${filter.search}%`;
+      conditions.push(
+        sql`(
+          LOWER(${procesos.radicado}) LIKE LOWER(${search}) OR
+          LOWER(${procesos.juzgado}) LIKE LOWER(${search}) OR
+          LOWER(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido})) LIKE LOWER(${search}) OR
+          LOWER(${clientesEmpresa.razonSocial}) LIKE LOWER(${search}) OR
+          LOWER(${tiposProceso.nombre}) LIKE LOWER(${search}) OR
+          LOWER(CONCAT(${personasResponsable.nombre}, ' ', ${personasResponsable.apellido})) LIKE LOWER(${search})
+        )`
+      );
+    }
+
+    const joinConditions = and(
+      eq(responsableJoin.procesoId, procesos.id),
+      eq(responsableJoin.activo, true)
+    );
+
+    const results = await this.db
+      .select({
+        id: procesos.id,
+        state: procesos.state,
+        fechaCreacion: procesos.fechaCreacion,
+        clienteId: procesos.clienteId,
+        tipoProcesoId: procesos.tipoProcesoId,
+        radicado: procesos.radicado,
+        juzgado: procesos.juzgado,
+        estadoId: procesos.estadoId,
+        descripcionEstado: procesos.descripcionEstado,
+        clienteNombre: sql<string>`COALESCE(CONCAT(${personasCliente.nombre}, ' ', ${personasCliente.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`,
+        clienteUserId: clientes.userId,
+        tipoCliente: clientes.tipo,
+        clienteDocumento: personasCliente.documento,
+        clienteTelefono: personasCliente.telefono,
+        clienteDepartamentoId: deptosCliente.id,
+        clienteDepartamentoNombre: deptosCliente.nombre,
+        clienteMunicipioId: municipiosCliente.id,
+        clienteMunicipioNombre: municipiosCliente.nombre,
+        repLegalId: repLegal.id,
+        repLegalCargo: repLegal.cargo,
+        repLegalEmail: repLegal.email,
+        repLegalNombre: personasRepLegal.nombre,
+        repLegalApellido: personasRepLegal.apellido,
+        repLegalDocumento: personasRepLegal.documento,
+        repLegalTelefono: personasRepLegal.telefono,
+        tipoProcesoNombre: tiposProceso.nombre,
+        estadoIdRel: estadosProceso.id,
+        estadoCodigo: estadosProceso.codigo,
+        estadoNombre: estadosProceso.nombre,
+        estadoColor: estadosProceso.color,
+        responsableLawyerData: responsableLawyer,
+        responsablePersonaId: personasResponsable.id,
+        responsablePersonaNombre: personasResponsable.nombre,
+        responsablePersonaApellido: personasResponsable.apellido,
+        responsablePersonaTelefono: personasResponsable.telefono,
+        responsablePersonaDocumento: personasResponsable.documento,
+        responsablePersonaDireccion: personasResponsable.direccion,
+        responsablePersonaTipoDocumentoId: personasResponsable.tipoDocumentoId,
+        responsablePersonaDepartamentoId: personasResponsable.departamentoId,
+        responsablePersonaMunicipioId: personasResponsable.municipioId,
+        responsableFechaInicio: responsableJoin.fechaInicio,
+        responsableRazon: responsableJoin.razon,
+        responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre,
+      })
+      .from(procesos)
+      .leftJoin(clientes,           eq(procesos.clienteId,              clientes.id))
+      .leftJoin(clientesNatural,    eq(clientes.id,                     clientesNatural.clienteId))
+      .leftJoin(personasCliente,    eq(clientesNatural.personaId,       personasCliente.id))
+      .leftJoin(deptosCliente,      eq(personasCliente.departamentoId,  deptosCliente.id))
+      .leftJoin(municipiosCliente,  eq(personasCliente.municipioId,     municipiosCliente.id))
+      .leftJoin(clientesEmpresa,    eq(clientes.id,                     clientesEmpresa.clienteId))
+      .leftJoin(repLegal,           eq(clientesEmpresa.representanteLegalId, repLegal.id))
+      .leftJoin(personasRepLegal,   eq(repLegal.personaId,              personasRepLegal.id))
+      .leftJoin(estadosProceso,     eq(procesos.estadoId,               estadosProceso.id))
+      .leftJoin(tiposProceso,       eq(procesos.tipoProcesoId,          tiposProceso.id))
+      .leftJoin(responsableJoin,    joinConditions)
+      .leftJoin(responsableLawyer,  eq(responsableJoin.lawyerId,        responsableLawyer.id))
+      .leftJoin(personasResponsable,eq(responsableLawyer.personaId,     personasResponsable.id))
+      .where(and(...conditions))
+      .orderBy(desc(procesos.fechaCreacion));
+
+    return results.map((p: any) => ({
+      id: p.id,
+      state: p.state,
+      fechaCreacion: p.fechaCreacion,
+      clienteId: p.clienteId,
+      tipoProcesoId: p.tipoProcesoId,
+      radicado: p.radicado,
+      juzgado: p.juzgado,
+      estadoId: p.estadoId,
+      descripcionEstado: p.descripcionEstado,
+      clienteNombre: p.clienteNombre || "Sin cliente",
+      clienteUserId: p.clienteUserId || undefined,
+      tipoCliente: p.tipoCliente ?? null,
+      clienteDocumento: p.clienteDocumento ?? null,
+      clienteTelefono: p.clienteTelefono ?? null,
+      clienteDepartamento: p.clienteDepartamentoId ? {
+        id: p.clienteDepartamentoId,
+        nombre: p.clienteDepartamentoNombre ?? '',
+      } : null,
+      clienteMunicipio: p.clienteMunicipioId ? {
+        id: p.clienteMunicipioId,
+        nombre: p.clienteMunicipioNombre ?? '',
+      } : null,
+      representanteLegal: p.repLegalId ? {
+        id: p.repLegalId,
+        cargo: p.repLegalCargo ?? '',
+        email: p.repLegalEmail ?? '',
+        nombre: p.repLegalNombre ?? '',
+        apellido: p.repLegalApellido ?? '',
+        documento: p.repLegalDocumento ?? null,
+        telefono: p.repLegalTelefono ?? null,
+      } : null,
+      estado: p.estadoIdRel ? {
+        id: p.estadoIdRel,
+        codigo: p.estadoCodigo || "",
+        nombre: p.estadoNombre || "",
+        color: p.estadoColor || "",
+      } : null,
+      responsable: p.responsableLawyerData ? {
+        id: p.responsableLawyerData.id,
+        fechaAsignacion: p.responsableFechaInicio ?? null,
+        razon: p.responsableRazon ?? null,
+        asignadoPorNombre: p.responsableAsignadoPorNombre ?? null,
+        lawyer: {
+          ...p.responsableLawyerData,
+          persona: p.responsablePersonaId ? {
+            id: p.responsablePersonaId,
+            nombre: p.responsablePersonaNombre ?? '',
+            apellido: p.responsablePersonaApellido ?? '',
+            telefono: p.responsablePersonaTelefono ?? null,
+            documento: p.responsablePersonaDocumento ?? null,
+            direccion: p.responsablePersonaDireccion ?? null,
+            tipoDocumentoId: p.responsablePersonaTipoDocumentoId ?? 0,
+            departamentoId: p.responsablePersonaDepartamentoId ?? null,
+            municipioId: p.responsablePersonaMunicipioId ?? null,
+          } : null,
+        },
+      } : null,
+    }));
+  }
+
+  /** IDs de procesos donde el abogado tiene asignación activa. */
+  async getProcesoIdsByAbogadoAssignment(lawyerId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({ procesoId: procesoLawyers.procesoId })
+      .from(procesoLawyers)
+      .where(and(
+        eq(procesoLawyers.lawyerId, lawyerId),
+        eq(procesoLawyers.status, "activo"),
+      ));
+    return rows.map(r => r.procesoId);
   }
 
 }

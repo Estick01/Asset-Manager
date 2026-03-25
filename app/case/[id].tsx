@@ -42,15 +42,17 @@ import { ConfirmDialog, type ConfirmDialogConfig } from "@/components/ConfirmDia
 import { LegalStageStepper } from "@/components/proceso/LegalStageStepper";
 import { ChangeStageModal } from "@/components/proceso/ChangeStageModal";
 import { StageDetailSheet } from "@/components/proceso/StageDetailSheet";
+import { ProcessAccessPanel } from "@/components/proceso/ProcessAccessPanel";
 
 const ACTUALIZACIONES_LIMIT = 10;
 
-type Tab = "tareas" | "timeline" | "documents";
+type Tab = "tareas" | "timeline" | "documents" | "acceso";
 
-const TABS: { key: Tab; label: string; icon: any }[] = [
+const ALL_TABS: { key: Tab; label: string; icon: any; ownerOnly?: boolean }[] = [
   { key: "tareas",    label: "Tareas",         icon: "checkmark-circle-outline" },
   { key: "timeline",  label: "Línea de tiempo", icon: "time-outline" },
   { key: "documents", label: "Documentos",      icon: "document-text-outline" },
+  { key: "acceso",    label: "Acceso",          icon: "lock-closed-outline", ownerOnly: true },
 ];
 
 export default function CaseDetailScreen() {
@@ -58,6 +60,7 @@ export default function CaseDetailScreen() {
   const { user } = useAuth();
   const insets   = useSafeAreaInsets();
   const rol      = user?.user?.rol?.nombre;
+  const TABS     = ALL_TABS.filter(t => !t.ownerOnly || rol === "abogado" || rol === "bufete");
 
   const [proceso,              setProceso]              = useState<ProcesoDTO | null>(null);
   const [actualizaciones,      setActualizaciones]      = useState<ActualizacionRelations[]>([]);
@@ -299,6 +302,7 @@ export default function CaseDetailScreen() {
     tareas:    tareasData?.progreso.total ?? null,
     timeline:  null,
     documents: documentos.length || null,
+    acceso:    null,
   };
 
   return (
@@ -494,6 +498,16 @@ export default function CaseDetailScreen() {
             canEdit={rol === "bufete" || rol === "abogado"}
             currentProfileId={user?.profile?.id}
             defaultLegalStage={stageFilter}
+          />
+        )}
+
+        {activeTab === "acceso" && (
+          <ProcessAccessPanel
+            procesoId={proceso.id}
+            // TODO: derive isOwner from ownership data when available; for now owner roles are abogado/bufete
+            isOwner={rol === "abogado" || rol === "bufete"}
+            bufeteId={undefined}
+            bufeteNombre={undefined}
           />
         )}
       </ScrollView>

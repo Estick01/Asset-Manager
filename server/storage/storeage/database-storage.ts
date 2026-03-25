@@ -43,6 +43,8 @@ import { CalendarStorage } from "./models/calendar-storage";
 import { StageTaskTemplateStorage } from "./models/stage-task-template-storage";
 import { StageEventStorage } from "./models/stage-event-storage";
 import { TareaExtensionStorage } from "./models/tarea-extension-storage";
+import { ProcesoOwnershipStorage } from "./models/proceso-ownership-storage";
+import { ProcesoSharingStorage } from "./models/proceso-sharing-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -92,6 +94,8 @@ export class DatabaseStorage {
   public stageTemplates: StageTaskTemplateStorage;
   public stageEvents:    StageEventStorage;
   public tareaExtensions: TareaExtensionStorage;
+  public procesoOwnership: ProcesoOwnershipStorage;
+  public procesoSharing:   ProcesoSharingStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -144,6 +148,8 @@ export class DatabaseStorage {
     this.stageTemplates   = new StageTaskTemplateStorage(this.db);
     this.stageEvents      = new StageEventStorage(this.db);
     this.tareaExtensions  = new TareaExtensionStorage(this.db);
+    this.procesoOwnership = new ProcesoOwnershipStorage(this.db);
+    this.procesoSharing   = new ProcesoSharingStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
@@ -155,7 +161,21 @@ export class DatabaseStorage {
   // These delegate to the individual storage classes or return mock data
   // TODO: Complete implementation to match old storage interface
 
+  async getProcesosByIds(ids: string[], filter?: any) {
+    return this.procesos.getProcesosByIds(ids, filter);
+  }
 
+  async removeAbogadoFromProcesos(lawyerId: string, procesoIds: string[]): Promise<void> {
+    return this.procesos.removeAbogadoFromProcesos(lawyerId, procesoIds);
+  }
+
+  async desactivarResponsable(lawyerId: string, procesoIds: string[]): Promise<void> {
+    return this.procesos.desactivarResponsable(lawyerId, procesoIds);
+  }
+
+  async getProcesoIdsByAbogadoAssignment(lawyerId: string) {
+    return this.procesos.getProcesoIdsByAbogadoAssignment(lawyerId);
+  }
 
   async getAbogadoByIdUser(userId: string) {
     return this.abogados.getLawyerByUserId(userId);

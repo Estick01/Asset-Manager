@@ -13,20 +13,39 @@ import { Rol } from "../storage/index.js";
 import { procesosService } from "../services/proceso.service.js";
 import { clientesService } from "../services/cliente.service.js";
 import { tareaService } from "../services/tarea.service.js";
+import type { SharedWithType } from "@/shared/schema";
+
+type AccessRole       = "owner" | "shared" | "assigned";
+type AccessPermission = "ver" | "comentar" | "editar";
+
+interface ProcesoAccess {
+  proceso:    any;
+  role:       AccessRole;
+  permission: AccessPermission;
+}
+
+const PERMISSION_RANK: Record<AccessPermission, number> = {
+  ver: 1, comentar: 2, editar: 3,
+};
+
+function maxPermission(a: AccessPermission, b: AccessPermission): AccessPermission {
+  return PERMISSION_RANK[a] >= PERMISSION_RANK[b] ? a : b;
+}
 
 const router = Router();
 
 /**
  * Verifica que el usuario autenticado tenga acceso al proceso.
- * Retorna el proceso si tiene acceso, null si no existe, o responde 403 directamente.
+ * Retorna ProcesoAccess { proceso, role, permission } si tiene acceso,
+ * null si no existe o sin acceso (responde directamente con 4xx).
  */
 async function assertProcesoAccess(
   req: Request,
   res: Response,
   procesoId: string,
-): Promise<any | null> {
+): Promise<ProcesoAccess | null> {
   const user = (req as any).user as JWTPayload;
-  const rol       = user.rol.nombre;
+  const rol = user.rol.nombre;
   const idProfile = user.idProfile;
 
   if (!idProfile) {
@@ -34,31 +53,72 @@ async function assertProcesoAccess(
     return null;
   }
 
-  let proceso: any = null;
-
-  switch (rol) {
-    case "abogado":
-      proceso = await storage.getProceoByAbogadoIdAndProcesoId(idProfile, procesoId);
-      break;
-    case "bufete":
-    case "corporacion":
-      proceso = await storage.getProcesoByFirmaIdAndProcesoId(idProfile, procesoId);
-      break;
-    case "cliente":
-      proceso = await storage.getProcesoByClienteIdAndProcesoId(idProfile, procesoId);
-      if (proceso && proceso.clienteId !== idProfile) proceso = null;
-      break;
-    default:
-      res.status(403).json({ error: "Rol no autorizado" });
-      return null;
-  }
-
+  // Fetch proceso base
+  const proceso = await storage.getProceso(procesoId);
   if (!proceso) {
-    res.status(404).json({ error: "Proceso no encontrado o sin acceso" });
+    res.status(404).json({ error: "Proceso no encontrado" });
     return null;
   }
 
-  return proceso;
+  let bestRole: AccessRole | null       = null;
+  let bestPermission: AccessPermission | null = null;
+
+  const updateBest = (role: AccessRole, permission: AccessPermission) => {
+    if (
+      bestPermission === null ||
+      PERMISSION_RANK[permission] > PERMISSION_RANK[bestPermission]
+    ) {
+      bestRole       = role;
+      bestPermission = permission;
+    }
+  };
+
+  // PASO 1 — Ownership activo
+  const ownership = await storage.procesoOwnership.getActive(procesoId);
+  if (ownership) {
+    if (ownership.ownerType === "sin_owner") {
+      res.status(403).json({ error: "Proceso pendiente de revisión administrativa" });
+      return null;
+    }
+    if (rol === "abogado" && ownership.ownerType === "abogado" && ownership.ownerId === idProfile) {
+      updateBest("owner", "editar");
+    }
+    if (rol === "bufete" && ownership.ownerType === "bufete" && ownership.ownerId === idProfile) {
+      updateBest("owner", "editar");
+    }
+  }
+
+  // PASO 2 — Sharing activo
+  if (rol === "bufete" || rol === "corporacion" || rol === "cliente") {
+    const sharedWithType = rol as SharedWithType;
+    const sharing = await storage.procesoSharing.findActive(procesoId, sharedWithType, idProfile);
+    if (sharing) {
+      updateBest("shared", sharing.permission as AccessPermission);
+    }
+  }
+
+  // PASO 3 — Assignment (solo abogado, cuando no es dueño)
+  if (rol === "abogado" && bestRole === null) {
+    const assigned = await storage.getProceoByAbogadoIdAndProcesoId(idProfile, procesoId);
+    if (assigned && ownership) {
+      if (ownership.ownerType === "bufete") {
+        const lawyer = await storage.abogados.getLawyer(idProfile);
+        if (lawyer?.firmId === ownership.ownerId) {
+          updateBest("assigned", "editar");
+        }
+      }
+      if (ownership.ownerType === "abogado" && ownership.ownerId !== idProfile) {
+        updateBest("assigned", "editar");
+      }
+    }
+  }
+
+  if (bestRole === null || bestPermission === null) {
+    res.status(403).json({ error: "Sin acceso a este proceso" });
+    return null;
+  }
+
+  return { proceso, role: bestRole, permission: bestPermission };
 }
 
 /** Enriquece un resultado paginado con conteos de tareas por proceso */
@@ -81,45 +141,61 @@ async function withTareas(result: { data: any[]; total: number }) {
 router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const user = (req as any).user;
-    const { clienteId, limit, offset, estadoCodigo, search, hasResponsable } = req.query;
-    const limitNum = Math.min(Math.max(limit ? parseInt(limit as string, 10) : 10, 1), 100);
+    const idProfile: string | undefined = user.idProfile;
+    const rol: string = user.rol.nombre;
+    const { limit, offset, estadoCodigo, search, hasResponsable } = req.query;
+    const limitNum  = Math.min(Math.max(limit  ? parseInt(limit  as string, 10) : 10, 1), 100);
     const offsetNum = Math.max(offset ? parseInt(offset as string, 10) : 0, 0);
     const filter = {
-      estadoCodigo: estadoCodigo as string,
-      search: search as string,
-      hasResponsable: hasResponsable !== undefined ? hasResponsable === 'true' : undefined
+      estadoCodigo:   estadoCodigo   as string | undefined,
+      search:         search         as string | undefined,
+      hasResponsable: hasResponsable !== undefined ? hasResponsable === 'true' : undefined,
     };
 
-    if (user.rol.nombre === "abogado") {
-      let procesos;
-      if (clienteId) {
-        procesos = await storage.getProcesosByClienteAndLawyer(user.idProfile, clienteId.toString(), limitNum, offsetNum, filter);
-      } else {
-        const lawyer = await storage.getAbogadoByIdUser(user.id);
-        if (!lawyer) {
-          return res.status(404).json({ error: "Lawyer not found" });
+    if (!idProfile) return res.status(400).json({ error: "idProfile requerido" });
+
+    let procesos: any[];
+
+    switch (rol) {
+      case "abogado": {
+        const ownedIds = await storage.procesoOwnership.getProcesoIdsByOwner("abogado", idProfile);
+        const lawyer = await storage.abogados.getLawyer(idProfile);
+        const assignedProcesoIds = await storage.getProcesoIdsByAbogadoAssignment(idProfile);
+        const validAssignedIds: string[] = [];
+        const ownershipMap = await storage.procesoOwnership.getActiveBatch(assignedProcesoIds);
+        for (const pid of assignedProcesoIds) {
+          const ow = ownershipMap.get(pid);
+          if (!ow) continue;
+          if (ow.ownerType === "abogado" && ow.ownerId !== idProfile) validAssignedIds.push(pid);
+          if (ow.ownerType === "bufete" && lawyer?.firmId === ow.ownerId) validAssignedIds.push(pid);
         }
-        procesos = await storage.getProcesoByAbogadoId(lawyer.id, limitNum, offsetNum, filter);
+        const allIds = [...new Set([...ownedIds, ...validAssignedIds])];
+        procesos = await storage.getProcesosByIds(allIds, filter);
+        break;
       }
-      return res.json(await withTareas(procesos));
-    }
-
-    if (user.rol.nombre === "cliente") {
-      const procesos = await storage.getProcesosByClienteId(user.idProfile, limitNum, offsetNum, filter);
-      return res.json(await withTareas(procesos));
-    }
-
-    if (user.rol.nombre === "bufete") {
-      let procesos;
-      if (clienteId) {
-        procesos = await storage.getProcesosByClienteAndFirma(user.idProfile, clienteId.toString(), limitNum, offsetNum, filter);
-      } else {
-        procesos = await storage.getProcesosByFirma(user.idProfile, limitNum, offsetNum, filter);
+      case "bufete": {
+        const ownedIds  = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", idProfile);
+        const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("bufete", idProfile);
+        const allIds = [...new Set([...ownedIds, ...sharedIds])];
+        procesos = await storage.getProcesosByIds(allIds, filter);
+        break;
       }
-      return res.json(await withTareas(procesos));
+      case "corporacion": {
+        const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("corporacion", idProfile);
+        procesos = await storage.getProcesosByIds(sharedIds, filter);
+        break;
+      }
+      case "cliente": {
+        const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("cliente", idProfile);
+        procesos = await storage.getProcesosByIds(sharedIds, filter);
+        break;
+      }
+      default:
+        return res.status(403).json({ error: "Rol no autorizado" });
     }
 
-    return res.status(400).json({ error: "Unable to fetch processes" });
+    const result = { data: procesos, total: procesos.length };
+    return res.json(await withTareas(result));
   } catch (err) {
     next(err);
   }
@@ -211,6 +287,17 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
       return res.status(500).json({ error: "Error al crear el proceso" });
     }
 
+    // Crear registro de ownership inicial
+    const ownerType = ((rol as Rol).nombre === "abogado") ? "abogado" : "bufete";
+    const ownerId   = idProfile;
+    await storage.procesoOwnership.create(
+      newProceso.id,
+      ownerType,
+      ownerId,
+      userId,
+      "Creado por " + ((rol as Rol).nombre === "abogado" ? "abogado" : "bufete"),
+    );
+
     switch ((rol as Rol).nombre) {
       case "abogado":
         await storage.addLawyerToProceso(newProceso.id, idProfile, {
@@ -264,8 +351,10 @@ router.put("/procesos/:id", authenticate, requirePermission("procesos.editar"), 
     const { id } = req.params;
     if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
 
-    const proceso = await assertProcesoAccess(req, res, id);
-    if (!proceso) return;
+    const access = await assertProcesoAccess(req, res, id);
+    if (!access) return;
+    const { proceso, role, permission } = access;
+    if (permission !== "editar") return res.status(403).json({ error: "Permisos insuficientes" });
 
     // Solo campos editables explícitamente (evita mass assignment)
     const { estadoId, descripcionEstado, radicado, juzgado, tipoProcesoId } = req.body;
@@ -290,8 +379,10 @@ router.delete("/procesos/:id", authenticate, requirePermission("procesos.elimina
     const { id } = req.params;
     if (!id || typeof id !== "string") return res.status(400).json({ error: "id is required" });
 
-    const proceso = await assertProcesoAccess(req, res, id);
-    if (!proceso) return;
+    const access = await assertProcesoAccess(req, res, id);
+    if (!access) return;
+    const { role } = access;
+    if (role !== "owner") return res.status(403).json({ error: "Solo el propietario puede eliminar el proceso" });
 
     await procesosService.deleteProceso(id);
     res.status(204).send();
@@ -318,6 +409,7 @@ router.put("/procesos/:id/responsable", authenticate, requirePermission("proceso
 
     const access = await assertProcesoAccess(req, res, id);
     if (!access) return;
+    if (access.role !== "owner") return res.status(403).json({ error: "Solo el propietario puede cambiar el responsable" });
 
     const proceso = await storage.setResponsable(id, responsableId, {
       asignadoPorNombre: user.UserName ?? null,
@@ -362,6 +454,7 @@ router.post("/procesos/:id/lawyers", authenticate, requirePermission("procesos.e
 
     const access = await assertProcesoAccess(req, res, id);
     if (!access) return;
+    if (access.role !== "owner") return res.status(403).json({ error: "Solo el propietario puede añadir abogados al proceso" });
 
     await storage.addLawyerToProceso(id, lawyerId, {
       rol: rol ?? "responsable",
@@ -385,6 +478,7 @@ router.delete("/procesos/:id/lawyers/:lawyerId", authenticate, requirePermission
 
     const access = await assertProcesoAccess(req, res, id);
     if (!access) return;
+    if (access.role !== "owner") return res.status(403).json({ error: "Solo el propietario puede eliminar abogados del proceso" });
 
     await storage.removeLawyerFromProceso(id, lawyerId);
     res.status(204).send();
@@ -478,8 +572,9 @@ router.get("/actualizaciones", authenticate, requirePermission("actualizaciones.
     if (!procesoId || typeof procesoId !== "string") {
       return res.status(400).json({ error: "procesoId is required" });
     }
-    const proceso = await assertProcesoAccess(req, res, procesoId);
-    if (!proceso) return;
+    const access = await assertProcesoAccess(req, res, procesoId);
+    if (!access) return;
+    const { proceso } = access;
     const limitNum = Math.min(Math.max(limit ? parseInt(limit as string, 10) : 10, 1), 100);
     const offsetNum = Math.max(offset ? parseInt(offset as string, 10) : 0, 0);
     const actualizaciones = await procesosService.getActualizaciones(procesoId, limitNum, offsetNum);
@@ -496,8 +591,8 @@ router.post("/actualizaciones", authenticate, requirePermission("actualizaciones
     if (!procesoId || typeof procesoId !== "string") {
       return res.status(400).json({ error: "procesoId is required" });
     }
-    const proceso = await assertProcesoAccess(req, res, procesoId);
-    if (!proceso) return;
+    const access = await assertProcesoAccess(req, res, procesoId);
+    if (!access) return;
     const newActualizacion = await procesosService.createActualizacion(req.body);
     res.status(201).json(newActualizacion);
   } catch (err) {
@@ -510,8 +605,8 @@ router.delete("/actualizaciones/:id", authenticate, requirePermission("actualiza
   try {
     const actualizacion = await storage.getActualizacion(req.params.id as string);
     if (!actualizacion) return res.status(404).json({ error: "Actualización no encontrada" });
-    const proceso = await assertProcesoAccess(req, res, actualizacion.procesoId);
-    if (!proceso) return;
+    const access = await assertProcesoAccess(req, res, actualizacion.procesoId);
+    if (!access) return;
     await procesosService.deleteActualizacion(req.params.id);
     res.status(204).send();
   } catch (err) {
@@ -649,8 +744,9 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
       return;
     }
 
-    const proceso = await assertProcesoAccess(req, res, procesoId);
-    if (!proceso) return;
+    const access = await assertProcesoAccess(req, res, procesoId);
+    if (!access) return;
+    const { proceso } = access;
 
     const { legalStage, fechaVencimientoEtapa: fechaManual } = req.body as {
       legalStage: string;
