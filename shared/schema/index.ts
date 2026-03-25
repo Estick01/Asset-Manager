@@ -390,3 +390,12 @@ export {
   type ProcesoSharingDTO,
   type CreateSharingDTO,
 } from "./proceso-sharing.schema";
+
+// Firm Settings (configuración de privacidad y ownership por bufete)
+export {
+  firmSettings,
+  firmSettingsRelations,
+  type FirmSettings,
+  type InsertFirmSettings,
+  type FirmSettingsDTO,
+} from "./firm-settings.schema";
