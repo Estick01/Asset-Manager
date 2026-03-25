@@ -162,6 +162,14 @@ export class DatabaseStorage {
     return this.procesos.getProcesosByIds(ids, filter);
   }
 
+  async removeAbogadoFromProcesos(lawyerId: string, procesoIds: string[]): Promise<void> {
+    return this.procesos.removeAbogadoFromProcesos(lawyerId, procesoIds);
+  }
+
+  async desactivarResponsable(lawyerId: string, procesoIds: string[]): Promise<void> {
+    return this.procesos.desactivarResponsable(lawyerId, procesoIds);
+  }
+
   async getProcesoIdsByAbogadoAssignment(lawyerId: string) {
     return this.procesos.getProcesoIdsByAbogadoAssignment(lawyerId);
   }

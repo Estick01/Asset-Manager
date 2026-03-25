@@ -216,13 +216,76 @@ router.post("/lawyer-firma-history/:id/retire", authenticate, async (req: Reques
       return res.status(400).json({ error: "El motivo de salida es requerido" });
     }
 
+    // Fetch the history record before retiring to get lawyerId and firmaId
+    const historyRecord = await storage.lawyerFirmaHistory.getById(id);
+    if (!historyRecord) {
+      return res.status(404).json({ error: "Registro no encontrado" });
+    }
+
     const record = await storage.lawyerFirmaHistory.retireLawyer(id, motivoSalida, notas);
 
     if (!record) {
       return res.status(404).json({ error: "Registro no encontrado" });
     }
 
+    // Cleanup ownership/sharing after retire
+    const lawyerId = historyRecord.lawyerId;
+    const bufeteId = historyRecord.firmaId;
+
+    // 1. Get abogado's owned processes
+    const abogadoProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("abogado", lawyerId);
+
+    // 2. Revoke sharing of those processes with the bufete
+    await storage.procesoSharing.revokeAllForEntity("bufete", bufeteId, abogadoProcesoIds);
+
+    // 3. Get bufete's processes where abogado is assigned
+    const bufeteProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", bufeteId);
+
+    // 4. Remove abogado from proceso_lawyers for bufete processes
+    await storage.removeAbogadoFromProcesos(lawyerId, bufeteProcesoIds);
+
+    // 5. Deactivate as responsable in bufete processes
+    await storage.desactivarResponsable(lawyerId, bufeteProcesoIds);
+
     res.json(record);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** DELETE /api/lawyer-firma/leave — abogado exits voluntarily */
+router.delete("/lawyer-firma/leave", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user as JWTPayload;
+    if ((user as any).rol?.nombre !== "abogado") {
+      return res.status(403).json({ error: "Solo el abogado puede usar este endpoint" });
+    }
+
+    const lawyer = await storage.abogados.getLawyer(user.idProfile!);
+    if (!lawyer?.firmId) {
+      return res.status(400).json({ error: "El abogado no pertenece a ningún bufete" });
+    }
+
+    const lawyerId = user.idProfile!;
+    const bufeteId = lawyer.firmId;
+
+    // Same cleanup as bufete-initiated retire
+    const abogadoProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("abogado", lawyerId);
+    await storage.procesoSharing.revokeAllForEntity("bufete", bufeteId, abogadoProcesoIds);
+    const bufeteProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", bufeteId);
+    await storage.removeAbogadoFromProcesos(lawyerId, bufeteProcesoIds);
+    await storage.desactivarResponsable(lawyerId, bufeteProcesoIds);
+
+    // Retire the active history record
+    const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(lawyerId);
+    if (activeHistory) {
+      await storage.lawyerFirmaHistory.retireLawyer(activeHistory.id, "Salida voluntaria del abogado");
+    }
+
+    // Clear firmId from lawyer profile
+    await storage.abogados.updateFirmId(lawyerId, null);
+
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

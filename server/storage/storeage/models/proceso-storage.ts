@@ -625,6 +625,42 @@ export class ProcesoStorage {
       ));
   }
 
+  /**
+   * Deactivate a lawyer from multiple procesos (set status = "inactivo").
+   * Used when a lawyer leaves a firm.
+   */
+  async removeAbogadoFromProcesos(lawyerId: string, procesoIds: string[]): Promise<void> {
+    if (procesoIds.length === 0) return;
+    for (const procesoId of procesoIds) {
+      await this.db
+        .update(procesoLawyers)
+        .set({ status: "inactivo", fechaFin: new Date() })
+        .where(and(
+          eq(procesoLawyers.lawyerId, lawyerId),
+          eq(procesoLawyers.procesoId, procesoId),
+          eq(procesoLawyers.status, "activo"),
+        ));
+    }
+  }
+
+  /**
+   * Deactivate a lawyer as responsable in multiple procesos.
+   * Used when a lawyer leaves a firm.
+   */
+  async desactivarResponsable(lawyerId: string, procesoIds: string[]): Promise<void> {
+    if (procesoIds.length === 0) return;
+    for (const procesoId of procesoIds) {
+      await this.db
+        .update(procesoResponsables)
+        .set({ activo: false })
+        .where(and(
+          eq(procesoResponsables.lawyerId, lawyerId),
+          eq(procesoResponsables.procesoId, procesoId),
+          eq(procesoResponsables.activo, true),
+        ));
+    }
+  }
+
   async getProcesosByClienteAndLawyer(
     lawyerId: string,
     clienteId: string,
