@@ -64,7 +64,7 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         onPress={() => router.push({ pathname: "/case/[id]", params: { id: item.id } })}
       >
-        <View style={[styles.cardAccent, { backgroundColor: estadoColor }]} />
+        <View style={[styles.cardAccent, { backgroundColor: !item.responsable ? AMBER : estadoColor }]} />
 
         <View style={styles.cardBody}>
 
@@ -87,6 +87,14 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
               </Text>
             </View>
           </View>
+
+          {/* ── Alerta sin responsable ── */}
+          {!item.responsable && (
+            <View style={styles.sinResponsableBanner}>
+              <Ionicons name="warning-outline" size={13} color={AMBER} />
+              <Text style={styles.sinResponsableText}>Sin responsable — asigna uno inmediatamente</Text>
+            </View>
+          )}
 
           <View style={styles.cardDivider} />
 
@@ -657,6 +665,16 @@ const styles = StyleSheet.create({
   },
   estadoDot: { width: 6, height: 6, borderRadius: 3 },
   estadoText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  sinResponsableBanner: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: AMBER + "18", borderRadius: 8,
+    paddingHorizontal: 10, paddingVertical: 6,
+    marginBottom: 10,
+    borderLeftWidth: 3, borderLeftColor: AMBER,
+  },
+  sinResponsableText: {
+    fontSize: 11, fontFamily: "Inter_600SemiBold", color: AMBER, flex: 1,
+  },
   cardDivider: { height: 1, backgroundColor: "#F0F2F4", marginBottom: 10 },
   cardFooter: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
   footerItem: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1, minWidth: 0 },

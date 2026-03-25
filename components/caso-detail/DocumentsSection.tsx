@@ -13,12 +13,13 @@ interface DocumentsSectionProps {
   onDownload: (doc: Documento) => void;
 }
 
-function getFileIcon(tipo: string): keyof typeof Ionicons.glyphMap {
-  if (tipo.includes("pdf")) return "document-text";
-  if (tipo.includes("image")) return "image";
-  if (tipo.includes("word") || tipo.includes("doc")) return "document";
-  if (tipo.includes("sheet") || tipo.includes("excel") || tipo.includes("csv")) return "grid";
-  return "attach";
+function getFileConfig(tipo: string): { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string } {
+  if (tipo.includes("pdf"))                                                      return { icon: "document-text", color: "#EF4444", bg: "#FEF2F2" };
+  if (tipo.includes("image"))                                                    return { icon: "image",          color: "#8B5CF6", bg: "#F5F3FF" };
+  if (tipo.includes("word") || tipo.includes("doc"))                            return { icon: "document",        color: "#3B82F6", bg: "#EFF6FF" };
+  if (tipo.includes("sheet") || tipo.includes("excel") || tipo.includes("csv")) return { icon: "grid",            color: "#10B981", bg: "#F0FDF4" };
+  if (tipo.includes("zip") || tipo.includes("rar"))                             return { icon: "archive",          color: "#F59E0B", bg: "#FFFBEB" };
+  return { icon: "attach", color: "#6B7280", bg: "#F3F4F6" };
 }
 
 function formatFileSize(bytes: number): string {
@@ -81,54 +82,65 @@ export default function DocumentsSection({
           )}
         </View>
       ) : (
-        documentos.map((doc) => (
-          <Pressable
-            key={doc.id}
-            style={({ pressed }) => [styles.docCard, pressed && styles.docCardPressed]}
-            onLongPress={() => canDelete && handleDeleteDoc(doc)}
-          >
-            <View style={[styles.docIconWrap, { backgroundColor: Colors.primary + "12" }]}>
-              <Ionicons name={getFileIcon(doc.tipo)} size={24} color={Colors.primary} />
-            </View>
-
-            <View style={styles.docInfo}>
-              <Text style={styles.docName} numberOfLines={1}>{doc.nombre}</Text>
-              <View style={styles.docMeta}>
-                <Text style={styles.docMetaText}>{formatFileSize(doc.tamano)}</Text>
-                <View style={styles.docMetaDot} />
-                <Text style={styles.docMetaText}>
-                  {new Date(doc.fechaSubida).toLocaleDateString("es-CO", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </Text>
+        documentos.map((doc) => {
+          const fileConf = getFileConfig(doc.tipo);
+          return (
+            <Pressable
+              key={doc.id}
+              style={({ pressed }) => [styles.docCard, pressed && styles.docCardPressed]}
+              onLongPress={() => canDelete && handleDeleteDoc(doc)}
+            >
+              <View style={[styles.docIconWrap, { backgroundColor: fileConf.bg }]}>
+                <Ionicons name={fileConf.icon} size={22} color={fileConf.color} />
               </View>
-              {doc.descripcion && (
-                <Text style={styles.docDescription} numberOfLines={2}>
-                  {doc.descripcion}
-                </Text>
-              )}
-            </View>
 
-            <View style={styles.docActions}>
-              {canDownload && (
-                <Pressable
-                  onPress={() => onDownload(doc)}
-                  hitSlop={8}
-                  style={styles.docActionButton}
-                >
-                  <Ionicons name="download-outline" size={20} color={Colors.primary} />
-                </Pressable>
-              )}
-              {canDelete && (
-                <Pressable onPress={() => handleDeleteDoc(doc)} hitSlop={8}>
-                  <Ionicons name="trash-outline" size={18} color={Colors.textTertiary} />
-                </Pressable>
-              )}
-            </View>
-          </Pressable>
-        ))
+              <View style={styles.docInfo}>
+                <Text style={styles.docName} numberOfLines={1}>{doc.nombre}</Text>
+                <View style={styles.docMeta}>
+                  <Text style={styles.docMetaText}>{formatFileSize(doc.tamano)}</Text>
+                  <View style={styles.docMetaDot} />
+                  <Text style={styles.docMetaText}>
+                    {new Date(doc.fechaSubida).toLocaleDateString("es-CO", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </Text>
+                  {!!(doc as any).legalStage && (
+                    <>
+                      <View style={styles.docMetaDot} />
+                      <Text style={[styles.docMetaText, { color: Colors.primary, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>
+                        {(doc as any).legalStage}
+                      </Text>
+                    </>
+                  )}
+                </View>
+                {doc.descripcion && (
+                  <Text style={styles.docDescription} numberOfLines={2}>
+                    {doc.descripcion}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.docActions}>
+                {canDownload && (
+                  <Pressable
+                    onPress={() => onDownload(doc)}
+                    hitSlop={8}
+                    style={styles.docActionButton}
+                  >
+                    <Ionicons name="download-outline" size={20} color={Colors.primary} />
+                  </Pressable>
+                )}
+                {canDelete && (
+                  <Pressable onPress={() => handleDeleteDoc(doc)} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={18} color={Colors.textTertiary} />
+                  </Pressable>
+                )}
+              </View>
+            </Pressable>
+          );
+        })
       )}
     </>
   );
@@ -142,7 +154,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
@@ -151,9 +163,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
   },
   uploadBtnText: {
     fontSize: 13,
@@ -179,7 +191,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    marginTop: 16,
+    marginTop: 12,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
@@ -196,10 +208,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 14,
+    borderRadius: 16,
+    padding: 12,
     marginBottom: 10,
     gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
@@ -208,9 +222,9 @@ const styles = StyleSheet.create({
   },
   docCardPressed: { opacity: 0.9 },
   docIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
   },

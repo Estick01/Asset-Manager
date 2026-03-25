@@ -25,6 +25,7 @@ type StyledModalProps = {
   cancelText?: string;
   hideConfirm?: boolean;
   fullHeight?: boolean;
+  confirmVariant?: "primary" | "danger";
 };
 
 export function StyledModal({
@@ -37,6 +38,7 @@ export function StyledModal({
   cancelText = "Cancelar",
   hideConfirm = false,
   fullHeight = false,
+  confirmVariant = "danger",
 }: StyledModalProps) {
   const insets = useSafeAreaInsets();
 
@@ -97,7 +99,7 @@ export function StyledModal({
                   onPress={onConfirm}
                   style={({ pressed }) => [
                     styles.button,
-                    styles.confirmButton,
+                    confirmVariant === "primary" ? styles.confirmButtonPrimary : styles.confirmButton,
                     pressed && styles.buttonPressed,
                   ]}
                 >
@@ -186,6 +188,9 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     backgroundColor: Colors.danger,
+  },
+  confirmButtonPrimary: {
+    backgroundColor: Colors.primaryLight,
   },
   buttonText: {
     fontSize: 15,

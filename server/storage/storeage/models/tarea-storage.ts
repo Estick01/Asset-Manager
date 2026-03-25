@@ -1,12 +1,16 @@
-import { eq, and, or, lt, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, inArray, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   tareas,
+  tareaSubtareas,
+  tareaObservaciones,
+  tareaArchivos,
   type Tarea,
   type InsertTarea,
   type TareaEstado,
   type TareaResponseDTO,
   type MisTareasDTO,
+  type TiempoUnidad,
 } from "@/shared/schema";
 import type { Database } from "../database-storage";
 
@@ -40,6 +44,8 @@ function toDTO(t: Tarea): TareaResponseDTO {
     creadoPor: { id: t.creadoPor, nombre: t.creadoPorNombre ?? "" },
     orden: t.orden,
     vencida,
+    tiempoEstimado: t.tiempoEstimado != null ? parseFloat(String(t.tiempoEstimado)) : null,
+    tiempoUnidad:   t.tiempoUnidad as TiempoUnidad | null,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   };
@@ -69,13 +75,53 @@ export class TareaStorage {
     return created!;
   }
 
+  // ── Enrich helpers ─────────────────────────────────────────────────────────
+
+  /** Batch-fetches subtarea/observacion/archivo counts for a list of DTOs (3 queries total). */
+  private async enrichWithCounts(dtos: TareaResponseDTO[]): Promise<TareaResponseDTO[]> {
+    if (dtos.length === 0) return dtos;
+    const ids = dtos.map(d => d.id);
+
+    const [subRows, obsRows, arcRows] = await Promise.all([
+      this.db
+        .select({ tareaId: tareaSubtareas.tareaId, total: count(), completadas: sql<number>`SUM(CASE WHEN ${tareaSubtareas.estado} = 'completada' THEN 1 ELSE 0 END)` })
+        .from(tareaSubtareas)
+        .where(inArray(tareaSubtareas.tareaId, ids))
+        .groupBy(tareaSubtareas.tareaId),
+      this.db
+        .select({ tareaId: tareaObservaciones.tareaId, total: count() })
+        .from(tareaObservaciones)
+        .where(inArray(tareaObservaciones.tareaId, ids))
+        .groupBy(tareaObservaciones.tareaId),
+      this.db
+        .select({ tareaId: tareaArchivos.tareaId, total: count() })
+        .from(tareaArchivos)
+        .where(inArray(tareaArchivos.tareaId, ids))
+        .groupBy(tareaArchivos.tareaId),
+    ]);
+
+    const subMap  = new Map(subRows.map(r => [r.tareaId, { total: Number(r.total), completadas: Number(r.completadas ?? 0) }]));
+    const obsMap  = new Map(obsRows.map(r => [r.tareaId, Number(r.total)]));
+    const arcMap  = new Map(arcRows.map(r => [r.tareaId, Number(r.total)]));
+
+    return dtos.map(d => ({
+      ...d,
+      subtareasTotal:       subMap.get(d.id)?.total ?? 0,
+      subtareasCompletadas: subMap.get(d.id)?.completadas ?? 0,
+      observacionesTotal:   obsMap.get(d.id) ?? 0,
+      archivosTotal:        arcMap.get(d.id) ?? 0,
+    }));
+  }
+
   // ── Find ───────────────────────────────────────────────────────────────────
 
   async findById(id: string): Promise<TareaResponseDTO | undefined> {
     const row = await this.db.query.tareas.findFirst({
       where: eq(tareas.id, id),
     });
-    return row ? toDTO(row) : undefined;
+    if (!row) return undefined;
+    const [enriched] = await this.enrichWithCounts([toDTO(row)]);
+    return enriched;
   }
 
   async findRawById(id: string): Promise<Tarea | undefined> {
@@ -92,13 +138,11 @@ export class TareaStorage {
       .from(tareas)
       .where(and(...conditions))
       .orderBy(desc(tareas.orden), desc(tareas.createdAt));
-    return rows.map(toDTO);
+    return this.enrichWithCounts(rows.map(toDTO));
   }
 
   /** Tareas de un abogado en todos sus procesos, agrupadas por estado */
   async findByLawyer(lawyerProfileId: string): Promise<MisTareasDTO> {
-    const now = new Date();
-
     const rows = await this.db
       .select()
       .from(tareas)
@@ -110,7 +154,7 @@ export class TareaStorage {
       )
       .orderBy(tareas.fechaLimite, desc(tareas.createdAt));
 
-    const dtos = rows.map(toDTO);
+    const dtos = await this.enrichWithCounts(rows.map(toDTO));
 
     const pendientes: TareaResponseDTO[] = [];
     const en_progreso: TareaResponseDTO[] = [];
@@ -136,7 +180,7 @@ export class TareaStorage {
 
   async update(
     id: string,
-    data: Partial<Pick<InsertTarea, "titulo" | "descripcion" | "prioridad" | "fechaLimite" | "asignadoA" | "asignadoANombre" | "orden">>,
+    data: Partial<Pick<InsertTarea, "titulo" | "descripcion" | "prioridad" | "fechaLimite" | "asignadoA" | "asignadoANombre" | "orden" | "tiempoEstimado" | "tiempoUnidad">>,
   ): Promise<TareaResponseDTO | undefined> {
     await this.db.update(tareas).set(data).where(eq(tareas.id, id));
     return this.findById(id);

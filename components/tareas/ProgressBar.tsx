@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import Colors from "@/constants/colors";
 
 interface Props {
   total: number;
@@ -9,54 +10,69 @@ interface Props {
 
 export function ProgressBar({ total, completadas, porcentaje }: Props) {
   const color =
-    porcentaje === 100 ? "#22C55E" :
-    porcentaje >= 60   ? "#3B82F6" :
-    porcentaje >= 30   ? "#F59E0B" : "#6B7280";
+    porcentaje === 100 ? Colors.success :
+    porcentaje >= 60   ? Colors.info :
+    porcentaje >= 30   ? Colors.warning : Colors.textTertiary;
+
+  const restantes = total - completadas;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.label}>Progreso del caso</Text>
-        <Text style={[styles.pct, { color }]}>{porcentaje}%</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.label}>Progreso del caso</Text>
+          <Text style={styles.sub}>
+            {completadas}/{total} completadas
+            {restantes > 0 ? ` · ${restantes} pendiente${restantes > 1 ? "s" : ""}` : ""}
+          </Text>
+        </View>
+        <View style={[styles.pctRing, { borderColor: color }]}>
+          <Text style={[styles.pct, { color }]}>{porcentaje}%</Text>
+        </View>
       </View>
       <View style={styles.track}>
         <View style={[styles.fill, { width: `${porcentaje}%` as any, backgroundColor: color }]} />
       </View>
-      <Text style={styles.sub}>
-        {completadas} de {total} tareas completadas
-      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
     padding: 16,
-    gap: 8,
+    gap: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
   },
-  label: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#1F2937" },
-  pct:   { fontSize: 15, fontFamily: "Inter_700Bold" },
+  headerLeft: { flex: 1, gap: 3 },
+  label: { fontSize: 14, fontFamily: "Inter_700Bold", color: Colors.text },
+  sub:   { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+  pctRing: {
+    width: 48, height: 48, borderRadius: 24,
+    borderWidth: 2.5,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  },
+  pct: { fontSize: 13, fontFamily: "Inter_700Bold" },
   track: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#F3F4F6",
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: Colors.borderLight,
     overflow: "hidden",
   },
   fill: {
-    height: 8,
-    borderRadius: 4,
+    height: 10,
+    borderRadius: 5,
   },
-  sub: { fontSize: 11, fontFamily: "Inter_400Regular", color: "#6B7280" },
 });

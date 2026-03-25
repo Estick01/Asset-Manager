@@ -8,6 +8,13 @@ import type {
   TareaResponseDTO,
   TareasProgresoDTO,
   MisTareasDTO,
+  TareaObservacionDTO,
+  CreateObservacionDTO,
+  SubtareaDTO,
+  CreateSubtareaDTO,
+  UpdateSubtareaDTO,
+  TareaHistorialDTO,
+  TareaArchivoDTO,
 } from "@/shared/schema";
 
 export async function getTareasByProceso(procesoId: string, stage?: string): Promise<TareasProgresoDTO> {
@@ -16,6 +23,12 @@ export async function getTareasByProceso(procesoId: string, stage?: string): Pro
     : `/api/procesos/${procesoId}/tareas`;
   const res = await apiRequest("GET", url, undefined, SILENT);
   if (!res.ok) throw new Error("Error al obtener tareas");
+  return res.json();
+}
+
+export async function getTareaById(id: string): Promise<TareaResponseDTO> {
+  const res = await apiRequest("GET", `/api/tareas/${id}`, undefined, SILENT);
+  if (!res.ok) throw new Error("Tarea no encontrada");
   return res.json();
 }
 
@@ -76,4 +89,96 @@ export async function deleteTarea(id: string): Promise<void> {
     const err = await res.json();
     throw new Error(err.error || err.message || "Error al eliminar tarea");
   }
+}
+
+// ── Observaciones ─────────────────────────────────────────────────────────────
+
+export async function getObservaciones(tareaId: string): Promise<TareaObservacionDTO[]> {
+  const res = await apiRequest("GET", `/api/tareas/${tareaId}/observaciones`, undefined, SILENT);
+  if (!res.ok) throw new Error("Error al obtener observaciones");
+  return res.json();
+}
+
+export async function addObservacion(tareaId: string, dto: CreateObservacionDTO): Promise<TareaObservacionDTO> {
+  const res = await apiRequest("POST", `/api/tareas/${tareaId}/observaciones`, dto, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al agregar observación");
+  }
+  return res.json();
+}
+
+// ── Subtareas ─────────────────────────────────────────────────────────────────
+
+export async function getSubtareas(tareaId: string): Promise<SubtareaDTO[]> {
+  const res = await apiRequest("GET", `/api/tareas/${tareaId}/subtareas`, undefined, SILENT);
+  if (!res.ok) throw new Error("Error al obtener subtareas");
+  return res.json();
+}
+
+export async function addSubtarea(tareaId: string, dto: CreateSubtareaDTO): Promise<SubtareaDTO> {
+  const res = await apiRequest("POST", `/api/tareas/${tareaId}/subtareas`, dto, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al agregar subtarea");
+  }
+  return res.json();
+}
+
+export async function updateSubtarea(tareaId: string, subtareaId: string, dto: UpdateSubtareaDTO): Promise<SubtareaDTO> {
+  const res = await apiRequest("PATCH", `/api/tareas/${tareaId}/subtareas/${subtareaId}`, dto, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al actualizar subtarea");
+  }
+  return res.json();
+}
+
+export async function deleteSubtarea(tareaId: string, subtareaId: string): Promise<void> {
+  const res = await apiRequest("DELETE", `/api/tareas/${tareaId}/subtareas/${subtareaId}`, undefined, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al eliminar subtarea");
+  }
+}
+
+// ── Historial ─────────────────────────────────────────────────────────────────
+
+export async function getTareaHistorial(tareaId: string): Promise<TareaHistorialDTO[]> {
+  const res = await apiRequest("GET", `/api/tareas/${tareaId}/historial`, undefined, SILENT);
+  if (!res.ok) throw new Error("Error al obtener historial");
+  return res.json();
+}
+
+// ── Archivos ─────────────────────────────────────────────────────────────────
+
+export async function getTareaArchivos(tareaId: string): Promise<TareaArchivoDTO[]> {
+  const res = await apiRequest("GET", `/api/tareas/${tareaId}/archivos`, undefined, SILENT);
+  if (!res.ok) throw new Error("Error al obtener archivos");
+  return res.json();
+}
+
+export async function uploadTareaArchivo(tareaId: string, uri: string, nombre: string, mimeType: string): Promise<TareaArchivoDTO> {
+  const formData = new FormData();
+  const fileResponse = await fetch(uri);
+  const blob = await fileResponse.blob();
+  formData.append("file", blob, nombre);
+  const res = await apiRequest("POST", `/api/tareas/${tareaId}/archivos`, formData, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al subir archivo");
+  }
+  return res.json();
+}
+
+export async function deleteTareaArchivo(tareaId: string, archivoId: string): Promise<void> {
+  const res = await apiRequest("DELETE", `/api/tareas/${tareaId}/archivos/${archivoId}`, undefined, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al eliminar archivo");
+  }
+}
+
+export function getTareaArchivoDownloadUrl(tareaId: string, archivoId: string): string {
+  return `/api/tareas/${tareaId}/archivos/${archivoId}/download`;
 }

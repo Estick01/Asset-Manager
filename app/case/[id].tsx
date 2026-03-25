@@ -389,7 +389,7 @@ export default function CaseDetailScreen() {
                 <Ionicons
                   name={tab.icon}
                   size={14}
-                  color={isActive ? Colors.primary : Colors.textTertiary}
+                  color={isActive ? Colors.white : Colors.textTertiary}
                 />
                 <Text style={[styles.tabText, isActive && styles.tabTextActive]}>
                   {tab.label}
@@ -427,7 +427,7 @@ export default function CaseDetailScreen() {
                 style={[styles.stageChip, stageFilter === etapa.codigo && styles.stageChipActive]}
                 onPress={() => handleStageFilter(etapa.codigo)}
               >
-                <View style={[styles.chipDot, { backgroundColor: (etapa as any).color ?? Colors.primary }]} />
+                <View style={[styles.chipDot, { backgroundColor: stageFilter === etapa.codigo ? "rgba(255,255,255,0.7)" : ((etapa as any).color ?? Colors.primary) }]} />
                 <Text style={[styles.stageChipText, stageFilter === etapa.codigo && styles.stageChipTextActive]}>
                   {etapa.nombre}
                 </Text>
@@ -439,18 +439,23 @@ export default function CaseDetailScreen() {
         {/* ── Tab Content ── */}
         {activeTab === "timeline" && (
           stageFilter ? (
-            <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+            <View style={styles.eventsContainer}>
               {stageEvents.length === 0 ? (
                 <Text style={styles.emptyFilter}>Sin eventos en esta etapa</Text>
               ) : (
-                stageEvents.map(ev => (
+                stageEvents.map((ev, idx) => (
                   <View key={ev.id} style={styles.eventRow}>
-                    <View style={styles.eventDot} />
-                    <View style={{ flex: 1 }}>
+                    <View style={styles.eventLine}>
+                      <View style={styles.eventDotWrap}>
+                        <Ionicons name="time-outline" size={10} color={Colors.white} />
+                      </View>
+                      {idx < stageEvents.length - 1 && <View style={styles.eventConnector} />}
+                    </View>
+                    <View style={styles.eventCard}>
                       <Text style={styles.eventDesc}>{ev.descripcion}</Text>
                       <Text style={styles.eventTime}>
                         {new Date(ev.createdAt).toLocaleDateString("es-CO", {
-                          day: "2-digit", month: "short",
+                          day: "numeric", month: "short",
                           hour: "2-digit", minute: "2-digit",
                         })}
                       </Text>
@@ -620,7 +625,7 @@ const styles = StyleSheet.create({
   },
 
   // ── Content ──
-  content: { padding: 16, gap: 12 },
+  content: { padding: 16, gap: 14 },
 
   // ── Tab bar ──
   tabBar: {
@@ -630,23 +635,23 @@ const styles = StyleSheet.create({
     padding: 4,
     gap: 4,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 2,
   },
   tab: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 10,
+    paddingVertical: 11,
     paddingHorizontal: 4,
     borderRadius: 12,
-    gap: 4,
+    gap: 5,
   },
   tabActive: {
-    backgroundColor: Colors.primary + "14",
+    backgroundColor: Colors.primary,
   },
   tabText: {
     fontSize: 11,
@@ -654,7 +659,7 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
   },
   tabTextActive: {
-    color: Colors.primary,
+    color: Colors.white,
     fontFamily: "Inter_600SemiBold",
   },
   tabBadge: {
@@ -664,27 +669,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   tabBadgeActive: {
-    backgroundColor: Colors.primary + "20",
+    backgroundColor: "rgba(255,255,255,0.25)",
   },
   tabBadgeText: {
     fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.textTertiary,
   },
   tabBadgeTextActive: {
-    color: Colors.primary,
+    color: Colors.white,
   },
 
   // ── Community post link ──
-  communityRow: {
-    marginHorizontal: 16, marginBottom: 8,
-  },
+  communityRow: {},
   communityBtn: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: 14, paddingVertical: 11,
-    borderRadius: 12, borderWidth: 1.5,
+    borderRadius: 14, borderWidth: 1,
   },
   communityBtnLinked: {
-    backgroundColor: Colors.primary + "0D",
-    borderColor: Colors.primary + "30",
+    backgroundColor: Colors.primary + "08",
+    borderColor: Colors.primary + "25",
   },
   communityBtnUnlinked: {
     backgroundColor: Colors.surfaceSecondary,
@@ -738,37 +741,53 @@ const styles = StyleSheet.create({
   },
   stageChip: {
     flexDirection: "row", alignItems: "center", gap: 5,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20,
     backgroundColor: Colors.surfaceSecondary, borderWidth: 1, borderColor: Colors.border,
   },
   stageChipActive: {
-    backgroundColor: Colors.primary + "15", borderColor: Colors.primary,
+    backgroundColor: Colors.primary, borderColor: Colors.primary,
   },
   chipDot: { width: 6, height: 6, borderRadius: 3 },
   stageChipText: {
     fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textSecondary,
   },
   stageChipTextActive: {
-    color: Colors.primary, fontFamily: "Inter_600SemiBold",
+    color: Colors.white, fontFamily: "Inter_600SemiBold",
   },
 
   // ── Stage events inline (timeline con filtro activo) ──
+  eventsContainer: {
+    paddingHorizontal: 16, paddingTop: 8, gap: 0,
+  },
   emptyFilter: {
     textAlign: "center", color: Colors.textTertiary,
-    fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 24,
+    fontSize: 13, fontFamily: "Inter_400Regular", marginTop: 32,
   },
   eventRow: {
     flexDirection: "row", alignItems: "flex-start", gap: 10,
-    paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  eventDot: {
-    width: 8, height: 8, borderRadius: 4,
-    backgroundColor: Colors.primary, marginTop: 5,
+  eventLine: {
+    width: 28, alignItems: "center",
+  },
+  eventDotWrap: {
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: "center", justifyContent: "center",
+    marginTop: 14,
+  },
+  eventConnector: {
+    width: 1, flex: 1, backgroundColor: Colors.borderLight, minHeight: 12,
+  },
+  eventCard: {
+    flex: 1, backgroundColor: Colors.white,
+    borderRadius: 14, padding: 12,
+    marginLeft: 0, marginBottom: 10,
+    borderWidth: 1, borderColor: Colors.borderLight,
   },
   eventDesc: {
-    fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.text,
+    fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.text,
   },
   eventTime: {
-    fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 2,
+    fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 4,
   },
 });

@@ -51,7 +51,13 @@
       "Bash(ls -la /c/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/app/\\\\\\(lawyer-tabs\\\\\\)/)",
       "Read(//c/Users/ccsb1/OneDrive/Escritorio/ui-ux-pro-max-skill-main/ui-ux-pro-max-skill-main/.claude/skills/ui-ux-pro-max/**)",
       "Read(//c/Users/ccsb1/OneDrive/Escritorio/ui-ux-pro-max-skill-main/ui-ux-pro-max-skill-main/**)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(grep:*)",
+      "Bash(git diff:*)",
+      "Bash(npm run:*)",
+      "Bash(find /c/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager -path */node_modules -prune -o -name *.test.ts -o -name *.spec.ts)",
+      "Bash(npm test:*)",
+      "Bash(\"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe\" -u root -pPelusa1589 legacy -e \"DESCRIBE proceso_ownership; SHOW INDEX FROM proceso_ownership;\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\ccsb1\\.claude\\projects\\c--Users-ccsb1-OneDrive-Escritorio-Asset-Manager-Asset-Manager\\memory"

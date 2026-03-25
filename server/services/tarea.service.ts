@@ -9,6 +9,13 @@ import type {
   TareasProgresoDTO,
   MisTareasDTO,
   TareaEstado,
+  TareaObservacionDTO,
+  CreateObservacionDTO,
+  SubtareaDTO,
+  CreateSubtareaDTO,
+  UpdateSubtareaDTO,
+  TareaHistorialDTO,
+  TareaArchivoDTO,
 } from "@/shared/schema";
 import type { InsertActualizacion } from "@/shared/schema/actualizaciones.schema.js";
 
@@ -157,6 +164,9 @@ export class TareaService {
       requerida: dto.requerida ? 1 : 0,
     });
 
+    // Historial
+    storage.tareaExtensions.addHistorial(tarea.id, caller.id, caller.nombre ?? "", "creada").catch(() => {});
+
     // Notify responsable/caller + firm (fire-and-forget)
     (async () => {
       // lawlerId: responsable del proceso si existe, si no el caller (si es abogado)
@@ -229,9 +239,17 @@ export class TareaService {
     const tarea = await storage.tareas.findRawById(tareaId);
     if (!tarea) throw HttpException.notFound("Tarea no encontrada");
 
-    // Regla: tarea cancelada no puede modificarse
+    // Regla: tarea completada o cancelada no puede modificarse
+    if (tarea.estado === "completada") {
+      throw HttpException.unprocessable("Una tarea completada no puede modificarse");
+    }
     if (tarea.estado === "cancelada") {
       throw HttpException.unprocessable("Una tarea cancelada no puede modificarse");
+    }
+
+    // Regla: si la fecha límite ya venció no se puede modificar
+    if (tarea.fechaLimite && new Date(tarea.fechaLimite) < new Date()) {
+      throw HttpException.unprocessable("La fecha límite de la tarea ya venció, no se puede modificar");
     }
 
     await assertProcesoAccess(tarea.procesoId, caller);
@@ -256,12 +274,17 @@ export class TareaService {
     }
 
     const updated = await storage.tareas.update(tareaId, {
-      ...(dto.titulo !== undefined      && { titulo:      dto.titulo }),
-      ...(dto.descripcion !== undefined && { descripcion: dto.descripcion }),
-      ...(dto.prioridad !== undefined   && { prioridad:   dto.prioridad }),
-      ...(dto.fechaLimite !== undefined && { fechaLimite: dto.fechaLimite ? new Date(dto.fechaLimite) : null }),
-      ...(dto.asignadoA !== undefined   && { asignadoA: dto.asignadoA, asignadoANombre }),
+      ...(dto.titulo !== undefined         && { titulo:         dto.titulo }),
+      ...(dto.descripcion !== undefined    && { descripcion:    dto.descripcion }),
+      ...(dto.prioridad !== undefined      && { prioridad:      dto.prioridad }),
+      ...(dto.fechaLimite !== undefined    && { fechaLimite:    dto.fechaLimite ? new Date(dto.fechaLimite) : null }),
+      ...(dto.asignadoA !== undefined      && { asignadoA: dto.asignadoA, asignadoANombre }),
+      ...(dto.tiempoEstimado !== undefined && { tiempoEstimado: dto.tiempoEstimado != null ? String(dto.tiempoEstimado) : null }),
+      ...(dto.tiempoUnidad !== undefined   && { tiempoUnidad:   dto.tiempoUnidad ?? null }),
     });
+
+    // Historial
+    storage.tareaExtensions.addHistorial(tareaId, caller.id, caller.nombre ?? "", "actualizada").catch(() => {});
 
     return updated!;
   }
@@ -281,12 +304,13 @@ export class TareaService {
     await assertProcesoAccess(tarea.procesoId, caller);
 
     // Firm → full control. Creator → full control.
-    // Responsable (but not creator) → can only mark as "completada".
+    // Assigned lawyer → full control over their own assigned task.
+    // Responsable (but not creator, not assigned) → can only mark as "completada".
     // Any other lawyer → denied.
     // Exception: any lawyer in the proceso can move a task to "en_progreso" (they auto-become assignee).
     if (caller.type === "lawyer" && tarea.creadoPor !== caller.id) {
-      if (dto.estado === "en_progreso") {
-        // Allow: moving to en_progreso auto-assigns the task to this lawyer
+      if (dto.estado === "en_progreso" || tarea.asignadoA === caller.id) {
+        // Allow: taking the task OR modifying own assigned task
       } else {
         const resp = await isResponsable(tarea.procesoId, caller.id);
         if (!resp) {
@@ -319,6 +343,12 @@ export class TareaService {
     const fechaCompletada = dto.estado === "completada" ? new Date() : null;
 
     await storage.tareas.updateEstado(tareaId, dto.estado, fechaCompletada);
+
+    // Historial
+    storage.tareaExtensions.addHistorial(
+      tareaId, caller.id, caller.nombre ?? "", "estado_cambiado",
+      `De '${current}' a '${dto.estado}'`,
+    ).catch(() => {});
 
     // Auto-assign to the lawyer who took the task
     if (dto.estado === "en_progreso") {
@@ -405,6 +435,122 @@ export class TareaService {
 
   async countByLawyer(lawyerId: string) {
     return storage.tareas.countByLawyer(lawyerId);
+  }
+
+  // ── Observaciones ──────────────────────────────────────────────────────────
+
+  async getObservaciones(tareaId: string, callerUserId: string): Promise<TareaObservacionDTO[]> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    return storage.tareaExtensions.getObservaciones(tareaId);
+  }
+
+  async addObservacion(tareaId: string, dto: CreateObservacionDTO, callerUserId: string): Promise<TareaObservacionDTO> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    if (tarea.estado !== "en_progreso") {
+      throw HttpException.unprocessable("Solo se pueden agregar observaciones a tareas en progreso");
+    }
+    const obs = await storage.tareaExtensions.addObservacion(tareaId, caller.id, caller.nombre ?? "", dto.contenido);
+    storage.tareaExtensions.addHistorial(tareaId, caller.id, caller.nombre ?? "", "observacion_agregada").catch(() => {});
+    return obs;
+  }
+
+  // ── Subtareas ──────────────────────────────────────────────────────────────
+
+  async getSubtareas(tareaId: string, callerUserId: string): Promise<SubtareaDTO[]> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    return storage.tareaExtensions.getSubtareas(tareaId);
+  }
+
+  async addSubtarea(tareaId: string, dto: CreateSubtareaDTO, callerUserId: string): Promise<SubtareaDTO> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    if (tarea.estado === "completada") throw HttpException.unprocessable("No se pueden agregar subtareas a una tarea completada");
+    if (tarea.estado === "cancelada") throw HttpException.unprocessable("No se pueden agregar subtareas a una tarea cancelada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    const sub = await storage.tareaExtensions.addSubtarea(tareaId, dto, caller.id, caller.nombre ?? "");
+    storage.tareaExtensions.addHistorial(tareaId, caller.id, caller.nombre ?? "", "subtarea_agregada", dto.titulo).catch(() => {});
+    return sub;
+  }
+
+  async updateSubtarea(tareaId: string, subtareaId: string, dto: UpdateSubtareaDTO, callerUserId: string): Promise<SubtareaDTO> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    const updated = await storage.tareaExtensions.updateSubtarea(subtareaId, dto, caller.id);
+    if (!updated) throw HttpException.notFound("Subtarea no encontrada");
+    if (dto.estado === "completada") {
+      storage.tareaExtensions.addHistorial(tareaId, caller.id, caller.nombre ?? "", "subtarea_completada", updated.titulo).catch(() => {});
+    }
+    return updated;
+  }
+
+  async deleteSubtarea(tareaId: string, subtareaId: string, callerUserId: string): Promise<void> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    await storage.tareaExtensions.deleteSubtarea(subtareaId);
+  }
+
+  // ── Historial ──────────────────────────────────────────────────────────────
+
+  async getHistorial(tareaId: string, callerUserId: string): Promise<TareaHistorialDTO[]> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    return storage.tareaExtensions.getHistorial(tareaId);
+  }
+
+  // ── Archivos ───────────────────────────────────────────────────────────────
+
+  async getArchivos(tareaId: string, callerUserId: string): Promise<TareaArchivoDTO[]> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    return storage.tareaExtensions.getArchivos(tareaId);
+  }
+
+  async addArchivo(
+    tareaId: string,
+    nombre: string,
+    url: string,
+    mimeType: string,
+    tamano: number,
+    callerUserId: string,
+  ): Promise<TareaArchivoDTO> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    if (tarea.estado === "completada") throw HttpException.unprocessable("No se pueden agregar archivos a una tarea completada");
+    if (tarea.estado === "cancelada")  throw HttpException.unprocessable("No se pueden agregar archivos a una tarea cancelada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    const archivo = await storage.tareaExtensions.addArchivo(tareaId, nombre, url, mimeType, tamano, caller.id);
+    storage.tareaExtensions.addHistorial(tareaId, caller.id, caller.nombre ?? "", "archivo_adjuntado", nombre).catch(() => {});
+    return archivo;
+  }
+
+  async deleteArchivo(tareaId: string, archivoId: string, callerUserId: string): Promise<string> {
+    const caller = await resolveCaller(callerUserId);
+    const tarea = await storage.tareas.findRawById(tareaId);
+    if (!tarea) throw HttpException.notFound("Tarea no encontrada");
+    await assertProcesoAccess(tarea.procesoId, caller);
+    const archivo = await storage.tareaExtensions.findArchivo(archivoId);
+    if (!archivo) throw HttpException.notFound("Archivo no encontrado");
+    await storage.tareaExtensions.deleteArchivo(archivoId);
+    return archivo.url; // caller can delete from S3
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────────

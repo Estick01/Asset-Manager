@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
+import multer from "multer";
 import { authenticate } from "../auth.js";
 import { tareaService } from "../services/tarea.service.js";
 import { validate } from "../middleware/validation.js";
@@ -12,6 +13,28 @@ const router = Router();
 // Validation schemas
 // ─────────────────────────────────────────────────────────────────────────────
 
+const tiempoUnidadEnum = z.enum(["minutos", "horas", "dias", "semanas"]).nullable().optional();
+
+// ── File upload (archivos adjuntos a tarea) ───────────────────────────────────
+
+const ALLOWED_MIMES = new Set([
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/webp",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+]);
+
+const tareaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter(_req, file, cb) {
+    cb(null, ALLOWED_MIMES.has(file.mimetype));
+  },
+});
+
 const createTareaSchema = z.object({
   titulo: z.string().min(1, "El título es requerido").max(255),
   descripcion: z.string().nullable().optional(),
@@ -20,6 +43,8 @@ const createTareaSchema = z.object({
   asignadoA: z.string().uuid("ID de abogado inválido").nullable().optional(),
   legalStage: z.string().max(50).nullable().optional(),
   requerida: z.boolean().optional(),
+  tiempoEstimado: z.number().nullable().optional(),
+  tiempoUnidad: tiempoUnidadEnum,
 });
 
 const updateTareaSchema = z.object({
@@ -30,6 +55,27 @@ const updateTareaSchema = z.object({
   asignadoA: z.string().uuid("ID de abogado inválido").nullable().optional(),
   legalStage: z.string().max(50).nullable().optional(),
   requerida: z.boolean().optional(),
+  tiempoEstimado: z.number().nullable().optional(),
+  tiempoUnidad: tiempoUnidadEnum,
+});
+
+const addObservacionSchema = z.object({
+  contenido: z.string().min(1, "El contenido es requerido"),
+});
+
+const createSubtareaSchema = z.object({
+  titulo: z.string().min(1).max(255),
+  descripcion: z.string().nullable().optional(),
+  tiempoEstimado: z.number().nullable().optional(),
+  tiempoUnidad: tiempoUnidadEnum,
+});
+
+const updateSubtareaSchema = z.object({
+  titulo: z.string().min(1).max(255).optional(),
+  descripcion: z.string().nullable().optional(),
+  estado: z.enum(["pendiente", "completada"]).optional(),
+  tiempoEstimado: z.number().nullable().optional(),
+  tiempoUnidad: tiempoUnidadEnum,
 });
 
 const cambiarEstadoSchema = z.object({
@@ -135,6 +181,25 @@ router.get(
 );
 
 /**
+ * GET /api/tareas/:id
+ * Get a single tarea by ID
+ */
+router.get(
+  "/tareas/:id",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const tarea = await storage.tareas.findById(tareaId);
+      if (!tarea) return res.status(404).json({ error: "Tarea no encontrada" });
+      res.json(tarea);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
  * PATCH /api/tareas/:id
  * Edit title / description / priority / deadline / assignee
  */
@@ -217,6 +282,189 @@ router.delete(
     } catch (err) {
       next(err);
     }
+  },
+);
+
+// ── Observaciones ────────────────────────────────────────────────────────────
+
+router.get(
+  "/tareas/:id/observaciones",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const result = await tareaService.getObservaciones(tareaId, userId(req));
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+router.post(
+  "/tareas/:id/observaciones",
+  authenticate,
+  validate(addObservacionSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const result = await tareaService.addObservacion(tareaId, req.body, userId(req));
+      res.status(201).json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+// ── Subtareas ─────────────────────────────────────────────────────────────────
+
+router.get(
+  "/tareas/:id/subtareas",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const result = await tareaService.getSubtareas(tareaId, userId(req));
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+router.post(
+  "/tareas/:id/subtareas",
+  authenticate,
+  validate(createSubtareaSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const result = await tareaService.addSubtarea(tareaId, req.body, userId(req));
+      res.status(201).json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+router.patch(
+  "/tareas/:id/subtareas/:subId",
+  authenticate,
+  validate(updateSubtareaSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const subId = req.params.subId as string;
+      const result = await tareaService.updateSubtarea(tareaId, subId, req.body, userId(req));
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+router.delete(
+  "/tareas/:id/subtareas/:subId",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const subId = req.params.subId as string;
+      await tareaService.deleteSubtarea(tareaId, subId, userId(req));
+      res.status(204).send();
+    } catch (err) { next(err); }
+  },
+);
+
+// ── Historial ─────────────────────────────────────────────────────────────────
+
+router.get(
+  "/tareas/:id/historial",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const result = await tareaService.getHistorial(tareaId, userId(req));
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+// ── Archivos ─────────────────────────────────────────────────────────────────
+
+router.get(
+  "/tareas/:id/archivos",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await tareaService.getArchivos(req.params.id as string, userId(req));
+      res.json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+router.post(
+  "/tareas/:id/archivos",
+  authenticate,
+  tareaUpload.single("file"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const tareaId = req.params.id as string;
+      const file = req.file;
+      if (!file) return res.status(400).json({ error: "No se proporcionó archivo" });
+
+      // Fetch tarea to get procesoId → clienteId for S3 path
+      const tarea = await storage.tareas.findRawById(tareaId);
+      if (!tarea) return res.status(404).json({ error: "Tarea no encontrada" });
+      const proceso = await storage.getProceso(tarea.procesoId);
+      if (!proceso) return res.status(404).json({ error: "Proceso no encontrado" });
+      const cliente = await storage.getCliente(proceso.clienteId);
+      if (!cliente) return res.status(404).json({ error: "Cliente no encontrado" });
+
+      const { uploadDocumentToS3 } = await import("../services/s3-storage.js");
+      const s3Key = await uploadDocumentToS3(
+        file.buffer,
+        cliente.id,
+        tarea.procesoId,
+        file.originalname,
+        file.mimetype,
+      );
+
+      const result = await tareaService.addArchivo(
+        tareaId,
+        file.originalname,
+        s3Key,
+        file.mimetype,
+        file.size,
+        userId(req),
+      );
+      res.status(201).json(result);
+    } catch (err) { next(err); }
+  },
+);
+
+router.get(
+  "/tareas/:id/archivos/:archivoId/download",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const archivos = await tareaService.getArchivos(req.params.id as string, userId(req));
+      const archivo = archivos.find(a => a.id === req.params.archivoId);
+      if (!archivo) return res.status(404).json({ error: "Archivo no encontrado" });
+
+      const { getPresignedDownloadUrl } = await import("../services/s3-storage.js");
+      const presignedUrl = await getPresignedDownloadUrl(archivo.url, archivo.nombre, 300);
+      res.redirect(presignedUrl);
+    } catch (err) { next(err); }
+  },
+);
+
+router.delete(
+  "/tareas/:id/archivos/:archivoId",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const s3Key = await tareaService.deleteArchivo(
+        req.params.id as string,
+        req.params.archivoId as string,
+        userId(req),
+      );
+      // Fire-and-forget S3 cleanup
+      import("../services/s3-storage.js")
+        .then(({ deleteDocumentFromS3 }) => deleteDocumentFromS3(s3Key))
+        .catch(() => {});
+      res.status(204).send();
+    } catch (err) { next(err); }
   },
 );
 

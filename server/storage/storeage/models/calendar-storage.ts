@@ -4,6 +4,8 @@ import {
   calendarEvents,
   tareas,
   procesos,
+  clientes,
+  users,
   type CalendarEvent,
   type InsertCalendarEvent,
   type CalendarEventDTO,
@@ -14,7 +16,7 @@ import {
 import type { Database } from "../database-storage";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: color por tipo de evento
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 const COLOR_BY_TYPE: Record<string, string> = {
@@ -26,10 +28,25 @@ const COLOR_BY_TYPE: Record<string, string> = {
   otro:             "#6B7280",
 };
 
+/** Nombre legible de una etapa procesal */
+const STAGE_LABELS: Record<string, string> = {
+  PREPROCESS:        "Etapa preprocesal",
+  FILED:             "Demanda presentada",
+  ADMITTED:          "Demanda admitida",
+  NOTIFIED:          "Demandado notificado",
+  ANSWERED:          "Contestación de demanda",
+  EVIDENCE:          "Etapa probatoria",
+  HEARING:           "Audiencias",
+  CLOSING_ARGUMENTS: "Alegatos finales",
+  JUDGMENT:          "Sentencia",
+  APPEAL:            "Apelación",
+  ENFORCEMENT:       "Ejecución de sentencia",
+};
+
 function urgencyColor(diasRestantes: number, baseColor: string): string {
-  if (diasRestantes < 0)  return "#EF4444"; // vencido — rojo
-  if (diasRestantes <= 1) return "#EF4444"; // hoy     — rojo
-  if (diasRestantes <= 3) return "#F97316"; // 3 días  — naranja
+  if (diasRestantes < 0)  return "#EF4444"; // vencido
+  if (diasRestantes <= 1) return "#EF4444"; // hoy
+  if (diasRestantes <= 3) return "#F97316"; // próximos 3 días
   return baseColor;
 }
 
@@ -48,9 +65,9 @@ export class CalendarStorage {
 
   /**
    * Devuelve todos los eventos del abogado en el rango [from, to]:
-   * 1. Eventos manuales (calendar_events)
-   * 2. Tareas con fechaLimite
-   * 3. Etapas con fecha_vencimiento_etapa (procesos asignados al abogado)
+   * 1. Eventos manuales (calendar_events) con proceso + cliente via JOIN
+   * 2. Tareas con fechaLimite — enriquecidas con radicado + cliente
+   * 3. Etapas con fecha_vencimiento_etapa — enriquecidas con radicado + cliente
    */
   async getCalendarEvents(
     lawyerProfileId: string,
@@ -60,10 +77,18 @@ export class CalendarStorage {
     const now = new Date();
     const results: CalendarEventDTO[] = [];
 
-    // 1. Eventos manuales
+    // ── 1. Eventos manuales (con JOIN a proceso → cliente → user) ──────────
+
     const manuales = await this.db
-      .select()
+      .select({
+        event:         calendarEvents,
+        radicado:      procesos.radicado,
+        clienteNombre: users.name,
+      })
       .from(calendarEvents)
+      .leftJoin(procesos, eq(calendarEvents.procesoId, procesos.id))
+      .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(users, eq(clientes.userId, users.id))
       .where(
         and(
           eq(calendarEvents.lawyerId, lawyerProfileId),
@@ -73,17 +98,10 @@ export class CalendarStorage {
         ),
       );
 
-    for (const e of manuales) {
+    for (const row of manuales) {
+      const e    = row.event;
       const dias = diffDays(now, e.fechaInicio);
       const color = urgencyColor(dias, COLOR_BY_TYPE[e.tipo] ?? COLOR_BY_TYPE.otro);
-
-      let procesoInfo = null;
-      if (e.procesoId) {
-        const p = await this.db.query.procesos.findFirst({
-          where: eq(procesos.id, e.procesoId),
-        });
-        if (p) procesoInfo = { id: p.id, radicado: p.radicado ?? "", cliente: "" };
-      }
 
       results.push({
         id:                  e.id,
@@ -95,15 +113,29 @@ export class CalendarStorage {
         fechaFin:            e.fechaFin ?? null,
         color,
         diasRestantes:       dias,
-        proceso:             procesoInfo,
+        proceso:             e.procesoId
+          ? { id: e.procesoId, radicado: row.radicado ?? "", cliente: row.clienteNombre ?? "" }
+          : null,
         recordatorioMinutos: e.recordatorioMinutos,
       });
     }
 
-    // 2. Tareas con fechaLimite en el rango
+    // ── 2. Tareas con fechaLimite (con JOIN a proceso → cliente → user) ────
+
     const tareaRows = await this.db
-      .select()
+      .select({
+        id:            tareas.id,
+        titulo:        tareas.titulo,
+        descripcion:   tareas.descripcion,
+        fechaLimite:   tareas.fechaLimite,
+        procesoId:     tareas.procesoId,
+        radicado:      procesos.radicado,
+        clienteNombre: users.name,
+      })
       .from(tareas)
+      .leftJoin(procesos, eq(tareas.procesoId, procesos.id))
+      .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(users, eq(clientes.userId, users.id))
       .where(
         and(
           eq(tareas.asignadoA, lawyerProfileId),
@@ -115,32 +147,38 @@ export class CalendarStorage {
 
     for (const t of tareaRows) {
       if (!t.fechaLimite) continue;
-      const dias = diffDays(now, t.fechaLimite);
+      const dias  = diffDays(now, t.fechaLimite);
       const color = urgencyColor(dias, COLOR_BY_TYPE.tarea);
 
       results.push({
-        id:           `tarea-${t.id}`,
-        titulo:       t.titulo,
-        descripcion:  t.descripcion ?? null,
-        tipo:         "tarea",
-        source:       "tarea",
-        fechaInicio:  t.fechaLimite,
-        fechaFin:     null,
+        id:            `tarea-${t.id}`,
+        titulo:        t.titulo,
+        descripcion:   t.descripcion ?? null,
+        tipo:          "tarea",
+        source:        "tarea",
+        fechaInicio:   t.fechaLimite,
+        fechaFin:      null,
         color,
         diasRestantes: dias,
-        proceso:      t.procesoId ? { id: t.procesoId, radicado: "", cliente: "" } : null,
+        proceso:       t.procesoId
+          ? { id: t.procesoId, radicado: t.radicado ?? "", cliente: t.clienteNombre ?? "" }
+          : null,
       });
     }
 
-    // 3. Etapas con vencimiento en el rango (procesos del abogado)
+    // ── 3. Etapas con vencimiento (con JOIN a cliente → user) ──────────────
+
     const procesoRows = await this.db
       .select({
         id:                    procesos.id,
         radicado:              procesos.radicado,
         legalStage:            procesos.legalStage,
         fechaVencimientoEtapa: procesos.fechaVencimientoEtapa,
+        clienteNombre:         users.name,
       })
       .from(procesos)
+      .leftJoin(clientes, eq(procesos.clienteId, clientes.id))
+      .leftJoin(users, eq(clientes.userId, users.id))
       .where(
         and(
           eq(procesos.state, true),
@@ -151,26 +189,29 @@ export class CalendarStorage {
 
     for (const p of procesoRows) {
       if (!p.fechaVencimientoEtapa) continue;
-      const dias = diffDays(now, p.fechaVencimientoEtapa);
+      const dias  = diffDays(now, p.fechaVencimientoEtapa);
       const color = urgencyColor(dias, COLOR_BY_TYPE.vencimiento);
+      const stageLabel = p.legalStage
+        ? (STAGE_LABELS[p.legalStage] ?? p.legalStage)
+        : "Sin especificar";
 
       results.push({
-        id:           `etapa-${p.id}`,
-        titulo:       `Vencimiento etapa: ${p.legalStage ?? ""}`,
-        descripcion:  null,
-        tipo:         "vencimiento",
-        source:       "etapa",
-        fechaInicio:  p.fechaVencimientoEtapa,
-        fechaFin:     null,
+        id:            `etapa-${p.id}`,
+        titulo:        `Vencimiento: ${stageLabel}`,
+        descripcion:   null,
+        tipo:          "vencimiento",
+        source:        "etapa",
+        fechaInicio:   p.fechaVencimientoEtapa,
+        fechaFin:      null,
         color,
         diasRestantes: dias,
-        proceso:      { id: p.id, radicado: p.radicado ?? "", cliente: "" },
+        proceso:       { id: p.id, radicado: p.radicado ?? "", cliente: p.clienteNombre ?? "" },
       });
     }
 
     // Ordenar por fecha ascendente
     return results.sort(
-      (a, b) => a.fechaInicio.getTime() - b.fechaInicio.getTime(),
+      (a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime(),
     );
   }
 
@@ -178,7 +219,6 @@ export class CalendarStorage {
 
   async getPendingReminders(): Promise<CalendarEvent[]> {
     const now = new Date();
-    // Eventos cuyo (fecha_inicio - recordatorio_minutos) ya llegó y aún no notificado
     return this.db
       .select()
       .from(calendarEvents)
@@ -187,7 +227,7 @@ export class CalendarStorage {
           eq(calendarEvents.notificado, 0),
           eq(calendarEvents.state, 1),
           sql`DATE_SUB(${calendarEvents.fechaInicio}, INTERVAL ${calendarEvents.recordatorioMinutos} MINUTE) <= ${now}`,
-          gte(calendarEvents.fechaInicio, now),    // no notificar eventos ya pasados
+          gte(calendarEvents.fechaInicio, now),
         ),
       );
   }
@@ -228,16 +268,15 @@ export class CalendarStorage {
 
   async update(id: string, data: UpdateCalendarEventDTO): Promise<CalendarEvent | undefined> {
     const updates: Partial<InsertCalendarEvent> = {};
-    if (data.titulo             !== undefined) updates.titulo             = data.titulo;
-    if (data.descripcion        !== undefined) updates.descripcion        = data.descripcion ?? null;
-    if (data.tipo               !== undefined) updates.tipo               = data.tipo;
-    if (data.fechaInicio        !== undefined) updates.fechaInicio        = new Date(data.fechaInicio);
-    if (data.fechaFin           !== undefined) updates.fechaFin           = data.fechaFin ? new Date(data.fechaFin) : null;
+    if (data.titulo              !== undefined) updates.titulo              = data.titulo;
+    if (data.descripcion         !== undefined) updates.descripcion         = data.descripcion ?? null;
+    if (data.tipo                !== undefined) updates.tipo                = data.tipo;
+    if (data.fechaInicio         !== undefined) updates.fechaInicio         = new Date(data.fechaInicio);
+    if (data.fechaFin            !== undefined) updates.fechaFin            = data.fechaFin ? new Date(data.fechaFin) : null;
     if (data.recordatorioMinutos !== undefined) {
       updates.recordatorioMinutos = data.recordatorioMinutos;
-      updates.notificado          = 0; // resetear si cambia la hora del recordatorio
+      updates.notificado          = 0; // resetear si cambia la hora
     }
-
     await this.db.update(calendarEvents).set(updates).where(eq(calendarEvents.id, id));
     return this.findById(id);
   }

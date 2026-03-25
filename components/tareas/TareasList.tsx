@@ -5,8 +5,9 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
-  Alert,
+  ScrollView,
 } from "react-native";
+import Colors from "@/constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { TareaItem } from "./TareaItem";
@@ -72,12 +73,8 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
   }, [loadingId, onRefresh]);
 
   const handlePress = useCallback((tarea: TareaResponseDTO) => {
-    if (canEdit && tarea.estado !== "cancelada") {
-      setEditTarea(tarea);
-    } else {
-      Alert.alert(tarea.titulo, tarea.descripcion ?? "Sin descripción");
-    }
-  }, [canEdit]);
+    setEditTarea(tarea);
+  }, []);
 
   const handleAdvance = useCallback((tarea: TareaResponseDTO) => {
     if (loadingId) return;
@@ -127,7 +124,9 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
 
       {/* Header row */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Tareas</Text>
+        <Text style={styles.countLabel}>
+          {data.tareas.length} tarea{data.tareas.length !== 1 ? "s" : ""}
+        </Text>
         {canCreate && (
           <Pressable style={styles.addBtn} onPress={() => setModalVisible(true)}>
             <Ionicons name="add" size={16} color="#FFFFFF" />
@@ -137,7 +136,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
       </View>
 
       {/* Filter chips */}
-      <View style={styles.filters}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersScroll}>
         {FILTERS.map((f) => {
           const count = f.value === "todas"
             ? data.tareas.length
@@ -154,7 +153,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
               </Text>
               {count > 0 && (
                 <View style={[styles.chipBadge, active && styles.chipBadgeActive]}>
-                  <Text style={[styles.chipBadgeText, active && { color: "#1B5A8C" }]}>
+                  <Text style={[styles.chipBadgeText, active && { color: "#FFFFFF" }]}>
                     {count}
                   </Text>
                 </View>
@@ -162,7 +161,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
             </Pressable>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* List */}
       {filtered.length === 0 ? (
@@ -243,35 +242,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  sectionTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: "#111827" },
+  countLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
   addBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#1B5A8C",
+    backgroundColor: Colors.primary,
     paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
   },
   addBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#FFFFFF" },
 
-  filters: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  filtersScroll: { flexDirection: "row", gap: 6, paddingBottom: 2 },
   chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
     borderRadius: 20,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: Colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: "transparent",
+    borderColor: Colors.border,
   },
-  chipActive: { backgroundColor: "#EFF6FF", borderColor: "#1B5A8C" },
-  chipText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#6B7280" },
-  chipTextActive: { color: "#1B5A8C", fontFamily: "Inter_600SemiBold" },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipText: { fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  chipTextActive: { color: "#FFFFFF", fontFamily: "Inter_600SemiBold" },
   chipBadge: {
-    backgroundColor: "#E5E7EB",
+    backgroundColor: Colors.border,
     borderRadius: 8,
     minWidth: 16,
     height: 16,
@@ -279,8 +278,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 3,
   },
-  chipBadgeActive: { backgroundColor: "#DBEAFE" },
-  chipBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: "#6B7280" },
+  chipBadgeActive: { backgroundColor: "rgba(255,255,255,0.25)" },
+  chipBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.textSecondary },
 
   list: { gap: 0 },
   itemLoader: { position: "absolute", right: 14, top: 14, zIndex: 10 },

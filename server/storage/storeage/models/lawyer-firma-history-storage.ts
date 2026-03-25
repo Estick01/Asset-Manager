@@ -148,6 +148,53 @@ export class LawyerFirmaHistoryStorage {
 }
 
     // ============================
+    // Obtener todos los miembros (cualquier estado) de una firma con detalles
+    // ============================
+    async getAllMembersByFirmaId(firmaId: string): Promise<any[]> {
+        const results = await this.db
+            .select({
+                id: lawyerFirmaHistory.id,
+                lawyerId: lawyerFirmaHistory.lawyerId,
+                firmaId: lawyerFirmaHistory.firmaId,
+                fechaIngreso: lawyerFirmaHistory.fechaIngreso,
+                fechaSalida: lawyerFirmaHistory.fechaSalida,
+                motivoSalida: lawyerFirmaHistory.motivoSalida,
+                estado: lawyerFirmaHistory.estado,
+                notas: lawyerFirmaHistory.notas,
+                createdAt: lawyerFirmaHistory.createdAt,
+                lawyerProfileId: lawyerProfiles.id,
+                persona: personas,
+                specialization: lawyerProfiles.specialization,
+                licenseNumber: lawyerProfiles.licenseNumber,
+                userId: lawyerProfiles.userId,
+                userEmail: users.email,
+            })
+            .from(lawyerFirmaHistory)
+            .innerJoin(lawyerProfiles, eq(lawyerFirmaHistory.lawyerId, lawyerProfiles.id))
+            .leftJoin(personas, eq(lawyerProfiles.personaId, personas.id))
+            .innerJoin(users, eq(lawyerProfiles.userId, users.id))
+            .where(eq(lawyerFirmaHistory.firmaId, firmaId))
+            .orderBy(desc(lawyerFirmaHistory.fechaIngreso));
+
+        return results.map((r: any) => ({
+            id: r.id,
+            lawyerId: r.lawyerId,
+            lawyerProfileId: r.lawyerProfileId,
+            firmaId: r.firmaId,
+            fechaIngreso: r.fechaIngreso,
+            fechaSalida: r.fechaSalida ?? null,
+            motivoSalida: r.motivoSalida ?? null,
+            estado: r.estado,
+            notas: r.notas ?? null,
+            createdAt: r.createdAt,
+            nombre: `${r.persona?.nombre ?? ""} ${r.persona?.apellido ?? ""}`.trim(),
+            specialization: r.specialization ?? null,
+            licenseNumber: r.licenseNumber ?? null,
+            userEmail: r.userEmail,
+        }));
+    }
+
+    // ============================
     // Crear registro de historial
     // ============================
     async create(

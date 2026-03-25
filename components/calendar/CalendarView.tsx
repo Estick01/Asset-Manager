@@ -1,8 +1,7 @@
 /**
  * CalendarView
- * Muestra los eventos del mes en una cuadrícula mensual.
- * Cada día con eventos muestra un punto de color.
- * Al tocar un día aparece la lista de eventos de ese día.
+ * Cuadrícula mensual + lista de eventos del día seleccionado.
+ * Los eventos provienen de 3 fuentes: tareas, etapas procesales y eventos manuales.
  */
 
 import React, { useMemo, useState } from "react";
@@ -15,10 +14,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import type { CalendarEventDTO } from "@/shared/schema";
+import type { CalendarEventDTO, CalendarEventSource } from "@/shared/schema";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DIAS_SEMANA = ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"];
@@ -26,6 +25,21 @@ const MESES = [
   "Enero","Febrero","Marzo","Abril","Mayo","Junio",
   "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
 ];
+
+const SOURCE_CONFIG: Record<CalendarEventSource, {
+  label: string;
+  icon: "checkmark-circle-outline" | "git-branch-outline" | "calendar-outline";
+  bg: string;
+  color: string;
+}> = {
+  tarea:  { label: "Tarea",  icon: "checkmark-circle-outline", bg: "#FEF3C7", color: "#D97706" },
+  etapa:  { label: "Etapa",  icon: "git-branch-outline",       bg: "#EDE9FE", color: "#7C3AED" },
+  manual: { label: "Evento", icon: "calendar-outline",         bg: "#EFF6FF", color: "#1D4ED8" },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 
 function isSameDay(a: Date, b: Date) {
   return (
@@ -35,16 +49,26 @@ function isSameDay(a: Date, b: Date) {
   );
 }
 
-function startOfMonth(year: number, month: number) {
-  return new Date(year, month, 1);
-}
-
 function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
+function getDaysLabel(days: number): string {
+  if (days < 0)  return `Hace ${Math.abs(days)}d`;
+  if (days === 0) return "Hoy";
+  if (days === 1) return "Mañana";
+  return `${days}d`;
+}
+
+function getDaysColor(days: number): string {
+  if (days <= 0)  return "#EF4444";
+  if (days <= 1)  return "#EF4444";
+  if (days <= 3)  return "#F97316";
+  return "#6B7280";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Event item (dentro de la lista diaria)
+// EventCard
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface EventItemProps {
@@ -52,41 +76,71 @@ interface EventItemProps {
   onPress: (event: CalendarEventDTO) => void;
 }
 
-function EventItem({ event, onPress }: EventItemProps) {
+function EventCard({ event, onPress }: EventItemProps) {
   const hora = new Date(event.fechaInicio).toLocaleTimeString("es-ES", {
     hour: "2-digit",
     minute: "2-digit",
   });
 
-  const sourceIcon =
-    event.source === "tarea"  ? "checkmark-circle-outline" :
-    event.source === "etapa"  ? "git-branch-outline"       :
-                                 "calendar-outline";
+  const src          = SOURCE_CONFIG[event.source];
+  const isNavigable  = event.source === "tarea" || event.source === "etapa";
+  const daysLabel    = getDaysLabel(event.diasRestantes);
+  const daysColor    = getDaysColor(event.diasRestantes);
+  const procesoLabel = [event.proceso?.radicado, event.proceso?.cliente]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.eventItem, pressed && { opacity: 0.75 }]}
+      style={({ pressed }) => [styles.eventCard, pressed && { opacity: 0.82 }]}
       onPress={() => onPress(event)}
+      accessibilityRole="button"
+      accessibilityLabel={`${src.label}: ${event.titulo}`}
     >
-      <View style={[styles.eventDot, { backgroundColor: event.color }]} />
-      <View style={styles.eventItemBody}>
-        <Text style={styles.eventItemTitle} numberOfLines={1}>{event.titulo}</Text>
-        {event.proceso && (
-          <Text style={styles.eventItemMeta} numberOfLines={1}>
-            {event.proceso.radicado} · {event.proceso.cliente}
-          </Text>
+      {/* Color accent */}
+      <View style={[styles.eventAccent, { backgroundColor: event.color }]} />
+
+      <View style={styles.eventCardContent}>
+        {/* Top row: source badge + time + days remaining */}
+        <View style={styles.eventCardTop}>
+          <View style={[styles.sourceBadge, { backgroundColor: src.bg }]}>
+            <Ionicons name={src.icon} size={10} color={src.color} />
+            <Text style={[styles.sourceBadgeText, { color: src.color }]}>{src.label}</Text>
+          </View>
+          <View style={styles.eventCardTopRight}>
+            <Ionicons name="time-outline" size={11} color={Colors.textTertiary} />
+            <Text style={styles.eventTime}>{hora}</Text>
+            <View style={[styles.daysBadge, { backgroundColor: daysColor + "18" }]}>
+              <Text style={[styles.daysBadgeText, { color: daysColor }]}>{daysLabel}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Title */}
+        <Text style={styles.eventTitle} numberOfLines={2}>{event.titulo}</Text>
+
+        {/* Proceso info */}
+        {!!procesoLabel && (
+          <View style={styles.eventMeta}>
+            <Ionicons name="folder-outline" size={11} color={Colors.textTertiary} />
+            <Text style={styles.eventMetaText} numberOfLines={1}>{procesoLabel}</Text>
+            {isNavigable && (
+              <Ionicons name="arrow-forward" size={11} color={Colors.primary} />
+            )}
+          </View>
         )}
-      </View>
-      <View style={styles.eventItemRight}>
-        <Text style={styles.eventItemTime}>{hora}</Text>
-        <Ionicons name={sourceIcon as any} size={13} color={Colors.textTertiary} />
+
+        {/* Description (manual events) */}
+        {!!event.descripcion && (
+          <Text style={styles.eventDesc} numberOfLines={1}>{event.descripcion}</Text>
+        )}
       </View>
     </Pressable>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Main component
+// CalendarView
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -99,11 +153,11 @@ interface Props {
 
 export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }: Props) {
   const today = new Date();
-  const [year,  setYear]  = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
+  const [year,        setYear]        = useState(today.getFullYear());
+  const [month,       setMonth]       = useState(today.getMonth());
   const [selectedDay, setSelectedDay] = useState<Date>(today);
 
-  // Build events map: "YYYY-MM-DD" -> CalendarEventDTO[]
+  // Build events map: "YYYY-M-D" → CalendarEventDTO[]
   const eventsMap = useMemo(() => {
     const map: Record<string, CalendarEventDTO[]> = {};
     for (const ev of events) {
@@ -121,13 +175,12 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
   };
 
   // Build calendar grid
-  const firstDay  = startOfMonth(year, month).getDay(); // 0 = Sunday
+  const firstDay  = new Date(year, month, 1).getDay();
   const totalDays = daysInMonth(year, month);
   const cells: (number | null)[] = [
     ...Array(firstDay).fill(null),
     ...Array.from({ length: totalDays }, (_, i) => i + 1),
   ];
-  // Pad to complete last row
   while (cells.length % 7 !== 0) cells.push(null);
 
   const prevMonth = () => {
@@ -147,25 +200,33 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
   };
 
   const selectedEvents = getEventsForDay(selectedDay).sort(
-    (a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime()
+    (a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime(),
   );
+
+  const isTodaySelected = isSameDay(selectedDay, today);
+  const selectedDateLabel = isTodaySelected
+    ? "Hoy, " + selectedDay.toLocaleDateString("es-ES", { day: "numeric", month: "long" })
+    : selectedDay.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
 
   return (
     <View style={styles.container}>
-      {/* ── Navegador de mes ── */}
+      {/* ── Month nav ── */}
       <View style={styles.monthNav}>
-        <Pressable onPress={prevMonth} hitSlop={10} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={20} color={Colors.primary} />
+        <Pressable onPress={prevMonth} hitSlop={12} style={styles.navBtn}>
+          <Ionicons name="chevron-back" size={18} color={Colors.primary} />
         </Pressable>
-        <Text style={styles.monthTitle}>
-          {MESES[month]} {year}
-        </Text>
-        <Pressable onPress={nextMonth} hitSlop={10} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+        <View style={styles.monthTitleWrap}>
+          <Text style={styles.monthTitle}>{MESES[month]} {year}</Text>
+          {events.length > 0 && (
+            <Text style={styles.monthEventCount}>{events.length} evento{events.length !== 1 ? "s" : ""}</Text>
+          )}
+        </View>
+        <Pressable onPress={nextMonth} hitSlop={12} style={styles.navBtn}>
+          <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
         </Pressable>
       </View>
 
-      {/* ── Encabezado días de la semana ── */}
+      {/* ── Week header ── */}
       <View style={styles.weekHeader}>
         {DIAS_SEMANA.map(d => (
           <Text key={d} style={styles.weekDay}>{d}</Text>
@@ -177,13 +238,11 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
         {cells.map((day, idx) => {
           if (!day) return <View key={`empty-${idx}`} style={styles.cell} />;
 
-          const cellDate = new Date(year, month, day);
-          const isToday  = isSameDay(cellDate, today);
+          const cellDate   = new Date(year, month, day);
+          const isToday    = isSameDay(cellDate, today);
           const isSelected = isSameDay(cellDate, selectedDay);
           const dayEvents  = getEventsForDay(cellDate);
-
-          // Take up to 3 dot colors
-          const dotColors = dayEvents.slice(0, 3).map(e => e.color);
+          const dotColors  = dayEvents.slice(0, 3).map(e => e.color);
 
           return (
             <Pressable
@@ -194,6 +253,8 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
                 isToday && !isSelected && styles.cellToday,
               ]}
               onPress={() => setSelectedDay(cellDate)}
+              accessibilityRole="button"
+              accessibilityLabel={`${day} de ${MESES[month]}, ${dayEvents.length} eventos`}
             >
               <Text style={[
                 styles.cellText,
@@ -205,7 +266,10 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
               {dotColors.length > 0 && (
                 <View style={styles.dotRow}>
                   {dotColors.map((c, i) => (
-                    <View key={i} style={[styles.dot, { backgroundColor: c }]} />
+                    <View
+                      key={i}
+                      style={[styles.dot, { backgroundColor: isSelected ? "rgba(255,255,255,0.75)" : c }]}
+                    />
                   ))}
                 </View>
               )}
@@ -214,33 +278,47 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
         })}
       </View>
 
-      {/* ── Lista de eventos del día seleccionado ── */}
+      {/* ── Day section ── */}
       <View style={styles.daySection}>
         <View style={styles.daySectionHeader}>
-          <Text style={styles.daySectionTitle}>
-            {selectedDay.toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })}
-          </Text>
+          <View style={styles.daySectionLeft}>
+            <Text style={styles.daySectionTitle} numberOfLines={1}>
+              {selectedDateLabel}
+            </Text>
+            {selectedEvents.length > 0 && (
+              <View style={styles.eventCountBadge}>
+                <Text style={styles.eventCountText}>{selectedEvents.length}</Text>
+              </View>
+            )}
+          </View>
           <Pressable
             style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.75 }]}
             onPress={() => onAddPress(selectedDay)}
+            accessibilityRole="button"
+            accessibilityLabel="Agregar evento"
           >
-            <Ionicons name="add" size={18} color={Colors.white} />
+            <Ionicons name="add" size={16} color={Colors.white} />
+            <Text style={styles.addBtnText}>Nuevo</Text>
           </Pressable>
         </View>
 
         {selectedEvents.length === 0 ? (
           <View style={styles.emptyDay}>
-            <Ionicons name="calendar-clear-outline" size={28} color={Colors.textTertiary} />
-            <Text style={styles.emptyDayText}>Sin eventos este día</Text>
+            <Ionicons name="calendar-clear-outline" size={32} color={Colors.textTertiary} />
+            <Text style={styles.emptyDayTitle}>Sin eventos</Text>
+            <Text style={styles.emptyDayText}>
+              {isTodaySelected ? "Toca Nuevo para agregar un evento hoy" : "Toca Nuevo para agregar un evento"}
+            </Text>
           </View>
         ) : (
           <ScrollView
             style={styles.eventList}
+            contentContainerStyle={styles.eventListContent}
             showsVerticalScrollIndicator={false}
             nestedScrollEnabled
           >
             {selectedEvents.map(ev => (
-              <EventItem key={ev.id} event={ev} onPress={onEventPress} />
+              <EventCard key={ev.id} event={ev} onPress={onEventPress} />
             ))}
           </ScrollView>
         )}
@@ -261,7 +339,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
 
-  // Month nav
+  // ── Month nav ──
   monthNav: {
     flexDirection: "row",
     alignItems: "center",
@@ -270,18 +348,30 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   navBtn: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: Colors.surfaceSecondary,
-    alignItems: "center", justifyContent: "center",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthTitleWrap: {
+    alignItems: "center",
+    gap: 2,
   },
   monthTitle: {
     fontSize: 17,
-    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
     color: Colors.text,
     textTransform: "capitalize",
   },
+  monthEventCount: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+  },
 
-  // Week header
+  // ── Week header ──
   weekHeader: {
     flexDirection: "row",
     paddingHorizontal: 8,
@@ -291,23 +381,23 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: "center",
     fontSize: 11,
-    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
     color: Colors.textTertiary,
     textTransform: "uppercase",
   },
 
-  // Grid
+  // ── Grid ──
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     paddingHorizontal: 8,
   },
   cell: {
-    width: `${100 / 7}%`,
+    width: `${100 / 7}%` as any,
     height: CELL_SIZE,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 8,
+    borderRadius: 10,
     gap: 2,
   },
   cellSelected: {
@@ -318,15 +408,16 @@ const styles = StyleSheet.create({
   },
   cellText: {
     fontSize: 14,
+    fontFamily: "Inter_500Medium",
     color: Colors.text,
   },
   cellTextSelected: {
     color: Colors.white,
-    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
   },
   cellTextToday: {
     color: Colors.primary,
-    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
   },
   dotRow: {
     flexDirection: "row",
@@ -338,11 +429,11 @@ const styles = StyleSheet.create({
     borderRadius: 2.5,
   },
 
-  // Day section
+  // ── Day section ──
   daySection: {
     flex: 1,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: Colors.borderLight,
     marginTop: 8,
   },
   daySectionHeader: {
@@ -351,70 +442,161 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    gap: 8,
+  },
+  daySectionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flex: 1,
   },
   daySectionTitle: {
     fontSize: 14,
-    fontWeight: "600",
+    fontFamily: "Inter_600SemiBold",
     color: Colors.text,
     textTransform: "capitalize",
+    flexShrink: 1,
+  },
+  eventCountBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  eventCountText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
   },
   addBtn: {
-    width: 30, height: 30, borderRadius: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
     backgroundColor: Colors.primary,
-    alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  addBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.white,
   },
 
-  // Empty
+  // ── Empty ──
   emptyDay: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 32,
-    gap: 8,
+    paddingVertical: 36,
+    gap: 6,
+  },
+  emptyDayTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
   },
   emptyDayText: {
     fontSize: 13,
+    fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
+    textAlign: "center",
+    paddingHorizontal: 24,
   },
 
-  // Event list
+  // ── Event list ──
   eventList: {
     flex: 1,
-    paddingHorizontal: 12,
   },
-  eventItem: {
+  eventListContent: {
+    padding: 12,
+    gap: 8,
+    paddingBottom: 24,
+  },
+
+  // ── Event card ──
+  eventCard: {
+    flexDirection: "row",
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  eventAccent: {
+    width: 4,
+    alignSelf: "stretch",
+  },
+  eventCardContent: {
+    flex: 1,
+    padding: 12,
+    gap: 5,
+  },
+  eventCardTop: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
+    justifyContent: "space-between",
+    gap: 8,
   },
-  eventDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    flexShrink: 0,
+  sourceBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
   },
-  eventItemBody: {
-    flex: 1,
-    gap: 2,
+  sourceBadgeText: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
   },
-  eventItemTitle: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: Colors.text,
+  eventCardTopRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  eventItemMeta: {
-    fontSize: 11,
-    color: Colors.textTertiary,
-  },
-  eventItemRight: {
-    alignItems: "flex-end",
-    gap: 2,
-  },
-  eventItemTime: {
+  eventTime: {
     fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
     color: Colors.textSecondary,
-    fontWeight: "500",
+  },
+  daysBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  daysBadgeText: {
+    fontSize: 10,
+    fontFamily: "Inter_700Bold",
+  },
+  eventTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  eventMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  eventMetaText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+    flex: 1,
+  },
+  eventDesc: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    fontStyle: "italic",
   },
 });

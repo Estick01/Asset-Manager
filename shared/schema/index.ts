@@ -327,3 +327,42 @@ export {
   type EtapaEvento, type InsertEtapaEvento,
   type StageEventTipo, type StageEventResponseDTO,
 } from "./stage-event.schema";
+
+// Tarea Extensions (observaciones, subtareas, historial)
+export {
+  tareaObservaciones,
+  tareaObservacionesRelations,
+  type TareaObservacion,
+  type InsertTareaObservacion,
+  type TareaObservacionDTO,
+  type CreateObservacionDTO,
+} from "./tarea-observacion.schema";
+
+export {
+  tareaSubtareas,
+  tareaSubtareasRelations,
+  type TareaSubtarea,
+  type InsertTareaSubtarea,
+  type SubtareaDTO,
+  type SubtareaEstado,
+  type TiempoUnidad,
+  type CreateSubtareaDTO,
+  type UpdateSubtareaDTO,
+} from "./tarea-subtarea.schema";
+
+export {
+  tareaHistorial,
+  tareaHistorialRelations,
+  type TareaHistorialEntry,
+  type InsertTareaHistorialEntry,
+  type TareaHistorialDTO,
+  type TareaAccion,
+} from "./tarea-historial.schema";
+
+export {
+  tareaArchivos,
+  tareaArchivosRelations,
+  type TareaArchivo,
+  type InsertTareaArchivo,
+  type TareaArchivoDTO,
+} from "./tarea-archivo.schema";

@@ -5,11 +5,13 @@ import {
   text,
   mysqlEnum,
   int,
+  decimal,
   date,
   timestamp,
   boolean,
   tinyint,
 } from "drizzle-orm/mysql-core";
+import type { TiempoUnidad } from "./tarea-subtarea.schema";
 import { procesos } from "./proceso.schema";
 import { lawyerProfiles } from "./lawyer-profile.schema";
 
@@ -54,6 +56,10 @@ export const tareas = mysqlTable("tareas", {
   creadoPor:         varchar("creado_por",          { length: 36 }).notNull(),
   /** Nombre desnormalizado */
   creadoPorNombre:   varchar("creado_por_nombre",   { length: 255 }),
+
+  /** Tiempo estimado para completar la tarea */
+  tiempoEstimado:    decimal("tiempo_estimado", { precision: 6, scale: 1 }),
+  tiempoUnidad:      mysqlEnum("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
 
   /** Posición para drag & drop futuro */
   orden:             int("orden").notNull().default(0),
@@ -104,6 +110,8 @@ export interface CreateTareaDTO {
   asignadoA?: string | null;
   legalStage?: string | null;
   requerida?: boolean;
+  tiempoEstimado?: number | null;
+  tiempoUnidad?: TiempoUnidad | null;
 }
 
 export interface UpdateTareaDTO {
@@ -114,6 +122,8 @@ export interface UpdateTareaDTO {
   asignadoA?: string | null;
   legalStage?: string | null;
   requerida?: boolean;
+  tiempoEstimado?: number | null;
+  tiempoUnidad?: TiempoUnidad | null;
 }
 
 export interface CambiarEstadoDTO {
@@ -135,6 +145,12 @@ export interface TareaResponseDTO {
   creadoPor: { id: string; nombre: string };
   orden: number;
   vencida: boolean;
+  tiempoEstimado: number | null;
+  tiempoUnidad: TiempoUnidad | null;
+  subtareasTotal?: number;
+  subtareasCompletadas?: number;
+  observacionesTotal?: number;
+  archivosTotal?: number;
   createdAt: Date;
   updatedAt: Date;
 }

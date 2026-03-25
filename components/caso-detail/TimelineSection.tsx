@@ -7,6 +7,15 @@ import Colors from "@/constants/colors";
 import { ProcesoDTO, Actualizacion } from "@/shared/schema";
 import { ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
 
+function getTipoConfig(tipoNombre: string): { icon: keyof typeof Ionicons.glyphMap; color: string } {
+  switch (tipoNombre) {
+    case "documento": return { icon: "document-text", color: Colors.accent };
+    case "nota":      return { icon: "create-outline",  color: Colors.info };
+    case "llamada":   return { icon: "call-outline",     color: Colors.success };
+    default:          return { icon: "ellipse",          color: Colors.primary };
+  }
+}
+
 interface TimelineSectionProps {
   proceso: ProcesoDTO | null;
   rol: string | undefined;
@@ -78,7 +87,13 @@ export default function TimelineSection({
                   styles.timelineDot,
                   idx === 0 && styles.timelineDotActive,
                   act.tipo.nombre === "documento" && styles.timelineDotDocument,
-                ]} />
+                ]}>
+                  <Ionicons
+                    name={getTipoConfig(act.tipo.nombre).icon}
+                    size={9}
+                    color={Colors.white}
+                  />
+                </View>
                 {idx < actualizaciones.length - 1 && (
                   <View style={styles.timelineConnector} />
                 )}
@@ -91,9 +106,11 @@ export default function TimelineSection({
                 <View style={styles.timelineCardHeader}>
                   <Text style={styles.timelineDate}>
                     {new Date(act.fecha).toLocaleDateString("es-CO", {
-                      year: "numeric",
-                      month: "short",
                       day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
                     })}
                   </Text>
 
@@ -147,7 +164,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
@@ -156,9 +173,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     backgroundColor: Colors.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
   },
   addBtnText: {
     fontSize: 13,
@@ -185,36 +202,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   timelineItem: { flexDirection: "row" },
-  timelineLine: { width: 24, alignItems: "center" },
+  timelineLine: { width: 28, alignItems: "center" },
   timelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.border,
-    borderWidth: 2,
-    borderColor: Colors.surfaceSecondary,
-    marginTop: 18,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.textTertiary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
   },
   timelineDotActive: {
     backgroundColor: Colors.primary,
-    borderColor: Colors.primary + "30",
   },
   timelineDotDocument: {
     backgroundColor: Colors.accent,
-    borderColor: Colors.accent + "30",
   },
   timelineConnector: {
-    width: 2,
+    width: 1,
     flex: 1,
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.borderLight,
   },
   timelineCard: {
     flex: 1,
     backgroundColor: Colors.white,
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 16,
+    padding: 14,
     marginLeft: 8,
-    marginBottom: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   timelineCardActive: {
     borderWidth: 1,

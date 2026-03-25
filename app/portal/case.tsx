@@ -11,10 +11,12 @@ import Colors from "@/constants/colors";
 import {
   getProceso, getActualizaciones, getDocumentos, getDocumentoDownloadUrl,
 } from "@/lib/services/procesoService";
-import { type ProcesoDTO, type Documento } from "@/shared/schema";
+import { getLegalStages } from "@/lib/services/legalStageService";
+import { type ProcesoDTO, type Documento, type LegalStagesResponseDTO } from "@/shared/schema";
 import { type ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import { getOrCreateConversation } from "@/lib/services/chatService";
+import { LegalStageStepper } from "@/components/proceso/LegalStageStepper";
 
 const PORTAL_BLUE      = "#1B5A8C";
 const PORTAL_BLUE_DARK = "#0D3B66";
@@ -26,11 +28,22 @@ const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
   archivado:  { color: Colors.textTertiary, label: "Archivado" },
 };
 
-function getFileIcon(tipo: string): keyof typeof Ionicons.glyphMap {
-  if (tipo.includes("pdf"))  return "document-text";
-  if (tipo.includes("image")) return "image";
-  if (tipo.includes("word") || tipo.includes("doc")) return "document";
-  return "attach";
+function getFileConfig(tipo: string): { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string } {
+  if (tipo.includes("pdf"))                                                       return { icon: "document-text",  color: "#EF4444", bg: "#FEF2F2" };
+  if (tipo.includes("image"))                                                     return { icon: "image",           color: "#8B5CF6", bg: "#F5F3FF" };
+  if (tipo.includes("word") || tipo.includes("doc"))                              return { icon: "document",        color: "#3B82F6", bg: "#EFF6FF" };
+  if (tipo.includes("sheet") || tipo.includes("excel") || tipo.includes("csv"))  return { icon: "grid",            color: "#10B981", bg: "#F0FDF4" };
+  if (tipo.includes("zip") || tipo.includes("rar"))                               return { icon: "archive",         color: "#F59E0B", bg: "#FFFBEB" };
+  return { icon: "attach", color: "#6B7280", bg: "#F3F4F6" };
+}
+
+function getTipoIcon(tipoNombre: string): keyof typeof Ionicons.glyphMap {
+  switch (tipoNombre) {
+    case "documento": return "document-text";
+    case "nota":      return "create-outline";
+    case "llamada":   return "call-outline";
+    default:          return "ellipse";
+  }
 }
 
 function formatFileSize(bytes: number): string {
@@ -69,6 +82,7 @@ export default function ClientCaseDetailScreen() {
   const { user } = useUnifiedAuth();
 
   const [proceso, setProceso] = useState<ProcesoDTO | null>(null);
+  const [legalStages, setLegalStages] = useState<LegalStagesResponseDTO | null>(null);
   const [abogado, setAbogado] = useState<{ nombre: string; telefono?: string; email?: string; userId?: string } | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [actualizaciones, setActualizaciones] = useState<ActualizacionRelations[]>([]);
@@ -122,6 +136,10 @@ export default function ClientCaseDetailScreen() {
       setIsInitialLoad(false);
       const docs = await getDocumentos(p.id);
       setDocumentos(docs);
+      try {
+        const stages = await getLegalStages(p.tipoProceso?.nombre, p.id);
+        setLegalStages(stages);
+      } catch { /* non-critical */ }
     }
   }, [id]);
 
@@ -294,6 +312,14 @@ export default function ClientCaseDetailScreen() {
             </View>
           </View>
 
+          {/* ── Etapa procesal ── */}
+          {legalStages && (
+            <LegalStageStepper
+              data={legalStages}
+              canAdvance={false}
+            />
+          )}
+
           {/* ── Descripción ── */}
           {!!proceso.descripcionEstado && (
             <View style={styles.descripcionCard}>
@@ -374,9 +400,15 @@ export default function ClientCaseDetailScreen() {
                     <View style={styles.timelineLine}>
                       <View style={[
                         styles.timelineDot,
-                        idx === 0 && { backgroundColor: PORTAL_BLUE, borderColor: PORTAL_BLUE + "30" },
-                        act.tipo?.nombre === "documento" && { backgroundColor: Colors.accent, borderColor: Colors.accent + "30" },
-                      ]} />
+                        idx === 0 && { backgroundColor: PORTAL_BLUE },
+                        act.tipo?.nombre === "documento" && { backgroundColor: Colors.accent },
+                      ]}>
+                        <Ionicons
+                          name={getTipoIcon(act.tipo?.nombre ?? "")}
+                          size={9}
+                          color={Colors.white}
+                        />
+                      </View>
                       {idx < actualizaciones.length - 1 && <View style={styles.timelineConnector} />}
                     </View>
 
@@ -387,7 +419,8 @@ export default function ClientCaseDetailScreen() {
                       <View style={styles.timelineCardHeader}>
                         <Text style={styles.timelineDate}>
                           {new Date(act.fecha).toLocaleDateString("es-CO", {
-                            year: "numeric", month: "short", day: "numeric"
+                            day: "numeric", month: "short", year: "numeric",
+                            hour: "2-digit", minute: "2-digit",
                           })}
                         </Text>
                         {act.tipo?.nombre === "documento" && (
@@ -457,34 +490,46 @@ export default function ClientCaseDetailScreen() {
                   </Text>
                 </View>
               ) : (
-                filteredDocs.map(doc => (
-                  <Pressable
-                    key={doc.id}
-                    style={({ pressed }) => [styles.docCard, pressed && styles.docCardPressed]}
-                    onPress={() => handleDownloadDoc(doc)}
-                  >
-                    <View style={[styles.cardAccent, { backgroundColor: PORTAL_BLUE }]} />
-                    <View style={[styles.docIconWrap, { backgroundColor: PORTAL_BLUE + "12" }]}>
-                      <Ionicons name={getFileIcon(doc.tipo)} size={22} color={PORTAL_BLUE} />
-                    </View>
-                    <View style={styles.docInfo}>
-                      <Text style={styles.docName} numberOfLines={1}>{doc.nombre}</Text>
-                      <View style={styles.docMeta}>
-                        <Text style={styles.docMetaText}>{formatFileSize(doc.tamano)}</Text>
-                        <View style={styles.docMetaDot} />
-                        <Text style={styles.docMetaText}>
-                          {new Date(doc.fechaSubida).toLocaleDateString("es-CO", {
-                            month: "short", day: "numeric", year: "numeric"
-                          })}
-                        </Text>
+                filteredDocs.map(doc => {
+                  const fileConf = getFileConfig(doc.tipo);
+                  return (
+                    <Pressable
+                      key={doc.id}
+                      style={({ pressed }) => [styles.docCard, pressed && styles.docCardPressed]}
+                      onPress={() => handleDownloadDoc(doc)}
+                    >
+                      <View style={[styles.docIconWrap, { backgroundColor: fileConf.bg }]}>
+                        <Ionicons name={fileConf.icon} size={22} color={fileConf.color} />
                       </View>
-                      {doc.descripcion && (
-                        <Text style={styles.docDescription} numberOfLines={1}>{doc.descripcion}</Text>
-                      )}
-                    </View>
-                    <Ionicons name="download-outline" size={20} color={PORTAL_BLUE} />
-                  </Pressable>
-                ))
+                      <View style={styles.docInfo}>
+                        <Text style={styles.docName} numberOfLines={1}>{doc.nombre}</Text>
+                        <View style={styles.docMeta}>
+                          <Text style={styles.docMetaText}>{formatFileSize(doc.tamano)}</Text>
+                          <View style={styles.docMetaDot} />
+                          <Text style={styles.docMetaText}>
+                            {new Date(doc.fechaSubida).toLocaleDateString("es-CO", {
+                              month: "short", day: "numeric", year: "numeric"
+                            })}
+                          </Text>
+                          {!!(doc as any).legalStage && (
+                            <>
+                              <View style={styles.docMetaDot} />
+                              <Text style={[styles.docMetaText, { color: PORTAL_BLUE, fontFamily: "Inter_500Medium" }]} numberOfLines={1}>
+                                {(doc as any).legalStage}
+                              </Text>
+                            </>
+                          )}
+                        </View>
+                        {doc.descripcion && (
+                          <Text style={styles.docDescription} numberOfLines={1}>{doc.descripcion}</Text>
+                        )}
+                      </View>
+                      <View style={[styles.downloadBtn, { backgroundColor: fileConf.color + "15" }]}>
+                        <Ionicons name="download-outline" size={18} color={fileConf.color} />
+                      </View>
+                    </Pressable>
+                  );
+                })
               )}
             </>
           )}
@@ -538,7 +583,7 @@ const styles = StyleSheet.create({
   },
 
   // ── Content ──────────────────────────────────────────────────
-  content: { padding: 16, gap: 12 },
+  content: { padding: 16, gap: 14 },
 
   // ── Info card ────────────────────────────────────────────────
   infoCard: {
@@ -630,26 +675,23 @@ const styles = StyleSheet.create({
   quickActionBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.white },
 
   // ── Timeline ─────────────────────────────────────────────────
-  timelineItem: { flexDirection: "row", marginBottom: 12 },
-  timelineLine: { width: 24, alignItems: "center" },
+  timelineItem: { flexDirection: "row", marginBottom: 10 },
+  timelineLine: { width: 28, alignItems: "center" },
   timelineDot: {
-    width: 12, height: 12, borderRadius: 6,
-    backgroundColor: Colors.border,
-    borderWidth: 2, borderColor: Colors.surfaceSecondary,
-    marginTop: 18,
+    width: 20, height: 20, borderRadius: 10,
+    backgroundColor: Colors.textTertiary,
+    alignItems: "center", justifyContent: "center",
+    marginTop: 14,
   },
-  timelineConnector: { width: 2, flex: 1, backgroundColor: Colors.borderLight },
+  timelineConnector: { width: 1, flex: 1, backgroundColor: Colors.borderLight },
   timelineCard: {
     flex: 1,
     backgroundColor: Colors.white,
     borderRadius: 14,
     padding: 14,
     marginLeft: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
   timelineCardHeader: {
     flexDirection: "row",
@@ -672,6 +714,11 @@ const styles = StyleSheet.create({
   loadingMore: { paddingVertical: 16, alignItems: "center" },
 
   // ── Documents ────────────────────────────────────────────────
+  downloadBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  },
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
@@ -693,22 +740,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.white,
-    borderRadius: 14,
-    overflow: "hidden",
+    borderRadius: 16,
+    padding: 12,
     gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
   },
-  docCardPressed: { opacity: 0.8 },
-  cardAccent: { width: 4, alignSelf: "stretch" },
+  docCardPressed: { opacity: 0.82 },
   docIconWrap: {
-    width: 44, height: 44, borderRadius: 12,
+    width: 44, height: 44, borderRadius: 10,
     alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
   },
-  docInfo: { flex: 1, paddingVertical: 12 },
+  docInfo: { flex: 1 },
   docName: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.text },
   docMeta: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 },
   docMetaText: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary },

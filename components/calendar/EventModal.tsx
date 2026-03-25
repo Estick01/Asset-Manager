@@ -81,7 +81,7 @@ export function EventModal({ visible, event, initialDate, onSave, onDelete, onCl
   const [descripcion,  setDescripcion]  = useState("");
   const [tipo,         setTipo]         = useState<CalendarEventType>("otro");
   const [fechaInicio,  setFechaInicio]  = useState(initialDate ?? new Date());
-  const [recordatorio, setRecordatorio] = useState(REMINDER_OPTIONS.UN_DIA);
+  const [recordatorio, setRecordatorio] = useState<number>(REMINDER_OPTIONS.UN_DIA);
   const [saving,       setSaving]       = useState(false);
   const [deleting,     setDeleting]     = useState(false);
 
@@ -131,17 +131,17 @@ export function EventModal({ visible, event, initialDate, onSave, onDelete, onCl
     }
   };
 
-  // Simple date picker — usar input nativo en web, botones +/- en mobile
+  // Date picker helpers
   const adjustDate = (field: "day" | "hour" | "minute", delta: number) => {
     const d = new Date(fechaInicio);
     if (field === "day")    d.setDate(d.getDate() + delta);
     if (field === "hour")   d.setHours(d.getHours() + delta);
-    if (field === "minute") d.setMinutes(d.getMinutes() + delta);
+    if (field === "minute") d.setMinutes(d.getMinutes() + delta * 15); // pasos de 15 min
     setFechaInicio(d);
   };
 
   const pad = (n: number) => n.toString().padStart(2, "0");
-  const fechaStr = `${pad(fechaInicio.getDate())}/${pad(fechaInicio.getMonth()+1)}/${fechaInicio.getFullYear()}`;
+  const fechaStr = fechaInicio.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
   const horaStr  = `${pad(fechaInicio.getHours())}:${pad(fechaInicio.getMinutes())}`;
 
   return (
@@ -196,7 +196,7 @@ export function EventModal({ visible, event, initialDate, onSave, onDelete, onCl
               ))}
             </View>
 
-            {/* Fecha y hora — web usa input nativo, mobile usa steppers */}
+            {/* Fecha y hora */}
             <Text style={styles.label}>Fecha y hora</Text>
             {Platform.OS === "web" ? (
               <TextInput
@@ -210,21 +210,34 @@ export function EventModal({ visible, event, initialDate, onSave, onDelete, onCl
               <View style={styles.dateRow}>
                 {/* Día */}
                 <View style={styles.dateField}>
-                  <Pressable onPress={() => adjustDate("day", 1)} hitSlop={6}>
+                  <Text style={styles.dateFieldLabel}>Día</Text>
+                  <Pressable onPress={() => adjustDate("day", 1)} hitSlop={8} style={styles.dateStepBtn}>
                     <Ionicons name="chevron-up" size={16} color={Colors.primary} />
                   </Pressable>
                   <Text style={styles.dateValue}>{fechaStr}</Text>
-                  <Pressable onPress={() => adjustDate("day", -1)} hitSlop={6}>
+                  <Pressable onPress={() => adjustDate("day", -1)} hitSlop={8} style={styles.dateStepBtn}>
                     <Ionicons name="chevron-down" size={16} color={Colors.primary} />
                   </Pressable>
                 </View>
                 {/* Hora */}
-                <View style={styles.dateField}>
-                  <Pressable onPress={() => adjustDate("hour", 1)} hitSlop={6}>
+                <View style={[styles.dateField, styles.dateFieldSmall]}>
+                  <Text style={styles.dateFieldLabel}>Hora</Text>
+                  <Pressable onPress={() => adjustDate("hour", 1)} hitSlop={8} style={styles.dateStepBtn}>
                     <Ionicons name="chevron-up" size={16} color={Colors.primary} />
                   </Pressable>
-                  <Text style={styles.dateValue}>{horaStr}</Text>
-                  <Pressable onPress={() => adjustDate("hour", -1)} hitSlop={6}>
+                  <Text style={styles.dateValue}>{`${pad(fechaInicio.getHours())}`}</Text>
+                  <Pressable onPress={() => adjustDate("hour", -1)} hitSlop={8} style={styles.dateStepBtn}>
+                    <Ionicons name="chevron-down" size={16} color={Colors.primary} />
+                  </Pressable>
+                </View>
+                {/* Minutos (pasos de 15) */}
+                <View style={[styles.dateField, styles.dateFieldSmall]}>
+                  <Text style={styles.dateFieldLabel}>Min</Text>
+                  <Pressable onPress={() => adjustDate("minute", 1)} hitSlop={8} style={styles.dateStepBtn}>
+                    <Ionicons name="chevron-up" size={16} color={Colors.primary} />
+                  </Pressable>
+                  <Text style={styles.dateValue}>{`${pad(fechaInicio.getMinutes())}`}</Text>
+                  <Pressable onPress={() => adjustDate("minute", -1)} hitSlop={8} style={styles.dateStepBtn}>
                     <Ionicons name="chevron-down" size={16} color={Colors.primary} />
                   </Pressable>
                 </View>
@@ -382,21 +395,38 @@ const styles = StyleSheet.create({
   // Date picker
   dateRow: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
   },
   dateField: {
-    flex: 1,
+    flex: 2,
     alignItems: "center",
     backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 10,
-    paddingVertical: 8,
+    borderRadius: 12,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: Colors.border,
-    gap: 4,
+    gap: 2,
+  },
+  dateFieldSmall: {
+    flex: 1,
+  },
+  dateFieldLabel: {
+    fontSize: 10,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  dateStepBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dateValue: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
 

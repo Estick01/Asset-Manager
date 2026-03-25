@@ -143,3 +143,46 @@ export async function rejectInvitation(
     return { data: null, error: error?.message || "Error al rechazar invitación" };
   }
 }
+
+// ============================================
+// Firma - Historial de abogados
+// ============================================
+export interface FirmMemberHistory {
+  id: string;
+  lawyerId: string;
+  lawyerProfileId: string;
+  firmaId: string;
+  fechaIngreso: string;
+  fechaSalida: string | null;
+  motivoSalida: string | null;
+  estado: "activo" | "retirado" | "suspendido" | "transferido";
+  notas: string | null;
+  createdAt: string;
+  nombre: string;
+  specialization: string | null;
+  licenseNumber: string | null;
+  userEmail: string;
+}
+
+export async function getFirmMemberHistory(): Promise<ServiceResult<FirmMemberHistory[]>> {
+  try {
+    const response = await apiRequest("GET", "/api/firm/members/history", undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al obtener historial") };
+    return { data: await response.json(), error: null };
+  } catch (error: any) {
+    return { data: null, error: error?.message || "Error al obtener historial" };
+  }
+}
+
+// ============================================
+// Firma - Sacar abogado del bufete
+// ============================================
+export async function removeFromFirm(lawyerId: string): Promise<ServiceResult<void>> {
+  try {
+    const response = await apiRequest("POST", `/api/firm/members/${lawyerId}/remove`, undefined, SILENT);
+    if (!response.ok) return { data: null, error: await extractError(response, "Error al retirar abogado") };
+    return { data: null, error: null };
+  } catch (error: any) {
+    return { data: null, error: error?.message || "Error al retirar abogado" };
+  }
+}

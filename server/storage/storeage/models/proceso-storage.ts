@@ -495,6 +495,8 @@ export class ProcesoStorage {
       clienteNombre:  this.getClienteNombre(rawProceso.cliente),
       clienteUserId:  rawProceso.cliente?.userId ?? undefined,
       communityPostId: rawProceso.communityPostId ?? null,
+      legalStage: rawProceso.legalStage ?? null,
+      fechaVencimientoEtapa: rawProceso.fechaVencimientoEtapa ?? null,
       estado: rawProceso.estado ? {
         id: rawProceso.estado.id,
         codigo: rawProceso.estado.codigo,
@@ -532,6 +534,20 @@ export class ProcesoStorage {
       .update(procesos)
       .set({ communityPostId })
       .where(eq(procesos.id, procesoId));
+  }
+
+  // Obtener todos los procesos donde un abogado es responsable activo
+  async getActiveProcesosByResponsable(lawyerId: string): Promise<{ id: string; radicado: string }[]> {
+    const rows = await this.db
+      .select({ id: procesos.id, radicado: procesos.radicado })
+      .from(procesoResponsables)
+      .innerJoin(procesos, eq(procesoResponsables.procesoId, procesos.id))
+      .where(and(
+        eq(procesoResponsables.lawyerId, lawyerId),
+        eq(procesoResponsables.activo, true),
+        eq(procesos.state, true),
+      ));
+    return rows;
   }
 
   async setResponsable(

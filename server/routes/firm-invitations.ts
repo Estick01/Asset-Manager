@@ -328,4 +328,105 @@ router.post("/lawyer/invitations/:id/reject", authenticate, async (req: Request,
   }
 });
 
+// GET /api/firm/members/history — Historial completo de abogados de la firma
+router.get("/firm/members/history", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user;
+
+    if (!user.idProfile) {
+      return res.status(403).json({ error: "No tienes una firma asociada" });
+    }
+    if (user.rol.nombre === "abogado" || user.rol.nombre === "cliente") {
+      return res.status(403).json({ error: "No tienes permiso para realizar esta acción" });
+    }
+
+    const history = await storage.lawyerFirmaHistory.getAllMembersByFirmaId(user.idProfile);
+    res.json(history);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/firm/members/:lawyerId/remove — Sacar abogado del bufete
+router.post("/firm/members/:lawyerId/remove", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { lawyerId } = req.params;
+    const user = (req as any).user;
+
+    if (!user.idProfile) {
+      return res.status(403).json({ error: "No tienes una firma asociada" });
+    }
+    if (user.rol.nombre === "abogado" || user.rol.nombre === "cliente") {
+      return res.status(403).json({ error: "No tienes permiso para realizar esta acción" });
+    }
+
+    // Verificar que el abogado pertenece a esta firma
+    const lawyerProfile = await storage.lawyerProfiles.getLawyer(lawyerId);
+    if (!lawyerProfile) {
+      return res.status(404).json({ error: "Abogado no encontrado" });
+    }
+    if (lawyerProfile.firmId !== user.idProfile) {
+      return res.status(403).json({ error: "Este abogado no pertenece a tu bufete" });
+    }
+
+    // Cerrar el historial activo
+    const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(lawyerId);
+    if (activeHistory) {
+      await storage.lawyerFirmaHistory.retireLawyer(activeHistory.id, "Retirado por la firma");
+    }
+
+    // Quitar firmId del perfil del abogado
+    await storage.lawyerProfiles.updateFirmId(lawyerId, null);
+
+    // Desasignar al abogado de todos los procesos donde es responsable activo
+    const procesosAfectados = await storage.procesos.getActiveProcesosByResponsable(lawyerId);
+    const firmUser = await storage.firmProfiles.getFirmProfileById(user.idProfile);
+
+    for (const proceso of procesosAfectados) {
+      // Quitar responsable del proceso
+      await storage.procesos.setResponsable(proceso.id, null, {
+        razon: "Responsable retirado del bufete",
+      });
+
+      // Notificación en sistema para la firma
+      if (firmUser?.userId) {
+        await storage.appNotifications.createNotification(
+          firmUser.userId,
+          "proceso_sin_responsable",
+          "Proceso sin responsable",
+          `El proceso ${proceso.radicado} se quedó sin responsable. El abogado fue retirado del bufete. Asigna uno inmediatamente.`,
+          { procesoId: proceso.id, radicado: proceso.radicado }
+        );
+
+        // Notificación en tiempo real
+        broadcastToUser(firmUser.userId, {
+          type: "proceso_sin_responsable",
+          data: {
+            procesoId: proceso.id,
+            radicado: proceso.radicado,
+            message: `El proceso ${proceso.radicado} se quedó sin responsable`,
+          },
+        });
+      }
+    }
+
+    // Notificar al abogado retirado
+    try {
+      if (lawyerProfile.userId) {
+        broadcastToUser(lawyerProfile.userId, {
+          type: "firm_member_removed",
+          data: { lawyerId, action: "removed" },
+        });
+      }
+    } catch { /* non-critical */ }
+
+    res.json({
+      message: "Abogado retirado del bufete correctamente",
+      procesosDesasignados: procesosAfectados.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

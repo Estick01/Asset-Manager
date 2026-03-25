@@ -9,14 +9,14 @@ import {
   RefreshControl,
   ActivityIndicator,
   Animated,
-  Alert,
 } from "react-native";
+import { StyledModal } from "@/components/StyledModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/lib/auth-context";
 import { getAbogadosByFirma } from "@/lib/services/procesoLawyerService";
-import { getFirmInvitations, type FirmInvitation } from "@/lib/services/firmInvitationService";
+import { getFirmInvitations, removeFromFirm, type FirmInvitation } from "@/lib/services/firmInvitationService";
 import { getOrCreateConversation } from "@/lib/services/chatService";
 import { type FirmProfile } from "@/shared/schema";
 import { LawyerProfileRelations } from "@/shared/schema/lawyer-profile.schema";
@@ -56,7 +56,7 @@ interface TeamMember {
   userId: string;
 }
 
-function MemberCard({ item, index, currentUserId }: { item: TeamMember; index: number; currentUserId?: string }) {
+function MemberCard({ item, index, currentUserId, onRemove, onError }: { item: TeamMember; index: number; currentUserId?: string; onRemove: (member: TeamMember) => void; onError: (msg: string) => void }) {
   const anim = useRef(new Animated.Value(0)).current;
   const av = avatarColor(item.nombre || "?");
   const showEmail = item.correo?.includes("@");
@@ -72,7 +72,7 @@ function MemberCard({ item, index, currentUserId }: { item: TeamMember; index: n
 
   const handleMessage = async () => {
     if (!currentUserId || currentUserId === item.userId) {
-      Alert.alert("Error", "No puedes enviarte mensajes a ti mismo");
+      onError("No puedes enviarte mensajes a ti mismo");
       return;
     }
     try {
@@ -81,8 +81,8 @@ function MemberCard({ item, index, currentUserId }: { item: TeamMember; index: n
         pathname: "/chat/[id]",
         params: { id: conversation.id, name: item.nombre, userId: item.userId },
       });
-    } catch (error) {
-      Alert.alert("Error", "No se pudo iniciar la conversación");
+    } catch {
+      onError("No se pudo iniciar la conversación");
     }
   };
 
@@ -164,6 +164,15 @@ function MemberCard({ item, index, currentUserId }: { item: TeamMember; index: n
           >
             <Ionicons name="shield-outline" size={18} color="#7B5EA7" />
           </Pressable>
+          {currentUserId !== item.userId && (
+            <Pressable
+              style={({ pressed }) => [styles.msgBtn, { backgroundColor: "#FDEAEA" }, pressed && { opacity: 0.75 }]}
+              onPress={() => onRemove(item)}
+              hitSlop={6}
+            >
+              <Ionicons name="person-remove-outline" size={18} color={RED_S} />
+            </Pressable>
+          )}
           <Ionicons name="chevron-forward" size={14} color={TEXT3} style={{ marginTop: 6 }} />
         </View>
       </Pressable>
@@ -179,6 +188,8 @@ export default function FirmTeamScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [pendingInvitations, setPendingInvitations] = useState(0);
+  const [removeModal, setRemoveModal] = useState<{ visible: boolean; member: TeamMember | null }>({ visible: false, member: null });
+  const [errorModal, setErrorModal] = useState<{ visible: boolean; message: string }>({ visible: false, message: "" });
 
   const firmId = (user?.profile as FirmProfile)?.id;
   const currentUserId = user?.user?.id;
@@ -221,6 +232,20 @@ export default function FirmTeamScreen() {
     setRefreshing(true);
     await fetchTeamData();
     setRefreshing(false);
+  };
+
+  const handleRemoveMember = (member: TeamMember) => {
+    setRemoveModal({ visible: true, member });
+  };
+
+  const confirmRemoveMember = async () => {
+    const member = removeModal.member;
+    if (!member) return;
+    setRemoveModal({ visible: false, member: null });
+    const result = await removeFromFirm(member.id);
+    if (!result.error) {
+      setTeamMembers((prev) => prev.filter((m) => m.id !== member.id));
+    }
   };
 
   if (loading) {
@@ -275,7 +300,7 @@ export default function FirmTeamScreen() {
       {/* ── Body blanco con border-radius superior ── */}
       <View style={styles.body}>
 
-        {/* Acciones rápidas — mismo patrón que "Nuevo Cliente / Nuevo Proceso" */}
+        {/* Acciones rápidas */}
         <View style={styles.actionsRow}>
           <Pressable
             style={styles.actionCard}
@@ -307,6 +332,30 @@ export default function FirmTeamScreen() {
           </Pressable>
         </View>
 
+        <View style={[styles.actionsRow, { marginTop: -8 }]}>
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => router.push("/firm-components/firm-broadcast")}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#E8F4FD" }]}>
+              <Ionicons name="chatbubbles-outline" size={20} color={TEAL} />
+            </View>
+            <Text style={styles.actionText}>Enviar Mensaje</Text>
+            <Ionicons name="chevron-forward" size={14} color={TEXT3} />
+          </Pressable>
+
+          <Pressable
+            style={styles.actionCard}
+            onPress={() => router.push("/firm-components/firm-member-history")}
+          >
+            <View style={[styles.actionIcon, { backgroundColor: "#EEE8FD" }]}>
+              <Ionicons name="time-outline" size={20} color="#7B5EA7" />
+            </View>
+            <Text style={styles.actionText}>Historial</Text>
+            <Ionicons name="chevron-forward" size={14} color={TEXT3} />
+          </Pressable>
+        </View>
+
         {/* Sección label con línea teal — igual al dashboard */}
         {teamMembers.length > 0 && (
           <View style={styles.sectionRow}>
@@ -318,7 +367,15 @@ export default function FirmTeamScreen() {
         <FlatList
           data={teamMembers}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => <MemberCard item={item} index={index} currentUserId={currentUserId} />}
+          renderItem={({ item, index }) => (
+              <MemberCard
+                item={item}
+                index={index}
+                currentUserId={currentUserId}
+                onRemove={handleRemoveMember}
+                onError={(msg) => setErrorModal({ visible: true, message: msg })}
+              />
+            )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -346,6 +403,36 @@ export default function FirmTeamScreen() {
           }
         />
       </View>
+
+      <StyledModal
+        visible={removeModal.visible}
+        onClose={() => setRemoveModal({ visible: false, member: null })}
+        title="Retirar del bufete"
+        confirmText="Retirar"
+        cancelText="Cancelar"
+        confirmVariant="danger"
+        onConfirm={confirmRemoveMember}
+      >
+        <Text style={{ fontSize: 14, color: "#6B7B8D", fontFamily: "Inter_400Regular", lineHeight: 22 }}>
+          ¿Estás seguro de que deseas sacar a{" "}
+          <Text style={{ fontFamily: "Inter_600SemiBold", color: "#1B2B3B" }}>
+            {removeModal.member?.nombre}
+          </Text>{" "}
+          de tu bufete? Esta acción quedará registrada en el historial.
+        </Text>
+      </StyledModal>
+
+      <StyledModal
+        visible={errorModal.visible}
+        onClose={() => setErrorModal({ visible: false, message: "" })}
+        title="Aviso"
+        hideConfirm
+        cancelText="Cerrar"
+      >
+        <Text style={{ fontSize: 14, color: "#6B7B8D", fontFamily: "Inter_400Regular", lineHeight: 22 }}>
+          {errorModal.message}
+        </Text>
+      </StyledModal>
     </View>
   );
 }

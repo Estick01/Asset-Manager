@@ -13,16 +13,19 @@ import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
 import { CalendarView } from "@/components/calendar/CalendarView";
 import { EventModal } from "@/components/calendar/EventModal";
+import { EditarTareaModal } from "@/components/tareas/EditarTareaModal";
 import {
   getCalendarEvents,
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
 } from "@/lib/services/calendarService";
+import { getTareaById } from "@/lib/services/tareaService";
 import type {
   CalendarEventDTO,
   CreateCalendarEventDTO,
   UpdateCalendarEventDTO,
+  TareaResponseDTO,
 } from "@/shared/schema";
 
 export default function CalendarScreen() {
@@ -33,10 +36,13 @@ export default function CalendarScreen() {
   const [currentYear,   setCurrentYear]   = useState(new Date().getFullYear());
   const [currentMonth,  setCurrentMonth]  = useState(new Date().getMonth());
 
-  // Modal state
+  // Modal state — eventos manuales
   const [modalVisible,   setModalVisible]   = useState(false);
   const [selectedEvent,  setSelectedEvent]  = useState<CalendarEventDTO | null>(null);
   const [modalInitDate,  setModalInitDate]  = useState<Date | undefined>(undefined);
+
+  // Modal state — tareas
+  const [tareaModal,     setTareaModal]     = useState<TareaResponseDTO | null>(null);
 
   // ── Load events ────────────────────────────────────────────────────────────
 
@@ -68,9 +74,19 @@ export default function CalendarScreen() {
 
   // ── Event handlers ─────────────────────────────────────────────────────────
 
-  const handleEventPress = (event: CalendarEventDTO) => {
-    if (event.source === "tarea" || event.source === "etapa") {
-      // Navegar al proceso
+  const handleEventPress = async (event: CalendarEventDTO) => {
+    if (event.source === "tarea") {
+      // Extraer el ID real (el evento tiene id "tarea-{uuid}")
+      const tareaId = event.id.replace(/^tarea-/, "");
+      try {
+        const tarea = await getTareaById(tareaId);
+        setTareaModal(tarea);
+      } catch {
+        toast.error("No se pudo cargar la tarea");
+      }
+      return;
+    }
+    if (event.source === "etapa") {
       if (event.proceso?.id) {
         router.push(`/case/${event.proceso.id}` as any);
       }
@@ -117,13 +133,24 @@ export default function CalendarScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // Count urgent events (≤ 3 days) to show in header
+  const urgentCount = events.filter(e => e.diasRestantes >= 0 && e.diasRestantes <= 3).length;
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 0) }]}>
       {/* Header */}
       <View style={styles.header}>
         <Ionicons name="calendar" size={22} color={Colors.white} />
         <Text style={styles.headerTitle}>Calendario</Text>
-        {loading && <ActivityIndicator size="small" color={Colors.white} style={{ marginLeft: "auto" }} />}
+        <View style={styles.headerRight}>
+          {loading && <ActivityIndicator size="small" color={Colors.white} />}
+          {!loading && urgentCount > 0 && (
+            <View style={styles.urgentBadge}>
+              <Ionicons name="alert-circle" size={12} color="#FEF3C7" />
+              <Text style={styles.urgentBadgeText}>{urgentCount} urgente{urgentCount !== 1 ? "s" : ""}</Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Calendar */}
@@ -136,7 +163,7 @@ export default function CalendarScreen() {
         />
       </View>
 
-      {/* Event Modal */}
+      {/* Event Modal — eventos manuales */}
       <EventModal
         visible={modalVisible}
         event={selectedEvent}
@@ -146,6 +173,21 @@ export default function CalendarScreen() {
         onClose={() => {
           setModalVisible(false);
           setSelectedEvent(null);
+        }}
+      />
+
+      {/* Tarea Modal */}
+      <EditarTareaModal
+        visible={tareaModal !== null}
+        tarea={tareaModal}
+        onClose={() => setTareaModal(null)}
+        onUpdated={() => {
+          loadEvents(currentYear, currentMonth);
+          setTareaModal(null);
+        }}
+        onDeleted={() => {
+          loadEvents(currentYear, currentMonth);
+          setTareaModal(null);
         }}
       />
     </View>
@@ -168,8 +210,30 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontFamily: "Inter_700Bold",
     color: Colors.white,
+  },
+  headerRight: {
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  urgentBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
+  },
+  urgentBadgeText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FEF3C7",
   },
   calendarContainer: {
     flex: 1,
