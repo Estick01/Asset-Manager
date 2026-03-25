@@ -8,3 +8,4 @@ export { ClientesService, clientesService } from "./cliente.service";
 export { ProcesosService, procesosService, type ProcesoDTO, type ProcesoFilter } from "./proceso.service";
 export { NotificacionesService, notificacionesService } from "./notificacion.service";
 export { AuthService, authService } from "./auth.service";
+export { ownershipPolicyService, type OwnershipContext, type OwnershipDecision } from "./ownership-policy.service.js";
