@@ -32,6 +32,7 @@ import calendarRoutes from "./calendar.js";
 import stageTemplatesRoutes from "./stage-task-templates.js";
 import stageEventsRoutes from "./stage-events.js";
 import procesoOwnershipRoutes from "./proceso-ownership.js";
+import firmSettingsRoutes from "./firm-settings.js";
 
 /**
  * Register all application routes
@@ -70,6 +71,7 @@ export function registerAppRoutes(app: Express): void {
   app.use("/api", stageTemplatesRoutes);
   app.use("/api", stageEventsRoutes);
   app.use("/api", procesoOwnershipRoutes);
+  app.use("/api", firmSettingsRoutes);
 }
 
 export default registerAppRoutes;
