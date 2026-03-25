@@ -1,7 +1,7 @@
 // components/proceso/LeaveConfirmModal.tsx
 import React from "react";
 import { Text, StyleSheet } from "react-native";
-import StyledModal from "@/components/StyledModal";
+import { StyledModal } from "@/components/StyledModal";
 
 interface LeaveConfirmModalProps {
   visible: boolean;

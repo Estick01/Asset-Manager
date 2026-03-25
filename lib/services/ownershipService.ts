@@ -3,6 +3,7 @@ import type {
   ProcesoOwnershipDTO,
   ProcesoSharingDTO,
   CreateSharingDTO,
+  ProcesoDTO,
 } from "@/shared/schema";
 
 const SILENT = { silent: true } as const;
@@ -66,7 +67,7 @@ export async function submitBatchDecisions(
   return res.json();
 }
 
-export async function getPendingReassignments(firmId: string): Promise<any[]> {
+export async function getPendingReassignments(firmId: string): Promise<ProcesoDTO[]> {
   const res = await apiRequest("GET", `/api/firm/${firmId}/pending-reassignments`, undefined, SILENT);
   if (!res.ok) return [];
   return res.json();

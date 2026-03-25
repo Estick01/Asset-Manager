@@ -167,6 +167,9 @@ router.get(
       if (rol !== "bufete" && rol !== "corporacion") {
         return res.status(403).json({ error: "Acceso denegado" });
       }
+      if (req.params.firmId !== user.idProfile) {
+        return res.status(403).json({ error: "Solo puedes consultar tu propio bufete" });
+      }
       const ids = await storage.procesoOwnership.getPendingReassignmentIds(req.params.firmId as string);
       const procesos = await storage.getProcesosByIds(ids, {});
       res.json(procesos);
