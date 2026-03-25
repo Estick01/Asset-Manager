@@ -48,11 +48,11 @@ const ACTUALIZACIONES_LIMIT = 10;
 
 type Tab = "tareas" | "timeline" | "documents" | "acceso";
 
-const TABS: { key: Tab; label: string; icon: any }[] = [
+const ALL_TABS: { key: Tab; label: string; icon: any; ownerOnly?: boolean }[] = [
   { key: "tareas",    label: "Tareas",         icon: "checkmark-circle-outline" },
   { key: "timeline",  label: "Línea de tiempo", icon: "time-outline" },
   { key: "documents", label: "Documentos",      icon: "document-text-outline" },
-  { key: "acceso",    label: "Acceso",          icon: "lock-closed-outline" },
+  { key: "acceso",    label: "Acceso",          icon: "lock-closed-outline", ownerOnly: true },
 ];
 
 export default function CaseDetailScreen() {
@@ -60,6 +60,7 @@ export default function CaseDetailScreen() {
   const { user } = useAuth();
   const insets   = useSafeAreaInsets();
   const rol      = user?.user?.rol?.nombre;
+  const TABS     = ALL_TABS.filter(t => !t.ownerOnly || rol === "abogado" || rol === "bufete");
 
   const [proceso,              setProceso]              = useState<ProcesoDTO | null>(null);
   const [actualizaciones,      setActualizaciones]      = useState<ActualizacionRelations[]>([]);
