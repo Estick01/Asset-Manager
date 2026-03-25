@@ -17,6 +17,8 @@ export const clientes = mysqlTable("clientes", {
   tipo: mysqlEnum("tipo", ["natural", "empresa"]).notNull().default("natural"),
   fechaCreacion: timestamp("fecha_creacion").notNull().default(new Date()),
   activo: boolean("activo").notNull().default(true),
+  esPrivado: boolean("es_privado").notNull().default(false),
+  createdBy: varchar("created_by", { length: 36 }),
 });
 
 export const clientesRelations = relations(clientes, ({ one, many }) => ({
@@ -49,6 +51,8 @@ export interface Cliente {
   activo: boolean;
   fechaCreacion: Date;
   procesosStats:any;
+  esPrivado: boolean;
+  createdBy: string | null;
   user?: {
     id: string;
     email: string;
@@ -65,6 +69,8 @@ export interface InsertCliente {
   tipo: ClienteTipo;
   activo?: boolean;
   fechaCreacion?: Date;
+  esPrivado?: boolean;
+  createdBy?: string | null;
 }
 
 /** Legacy compat — used in some services */

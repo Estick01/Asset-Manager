@@ -28,6 +28,8 @@ export const procesos = mysqlTable("procesos", {
   fechaCreacion: timestamp("fecha_creacion").notNull().default(new Date()),
   state: boolean("state").notNull().default(true),
   communityPostId: varchar("community_post_id", { length: 36 }), // FK to posts (origen comunidad)
+  esPrivado: boolean("es_privado").notNull().default(false),
+  createdBy: varchar("created_by", { length: 36 }),
 });
 
 export const procesosRelations = relations(procesos, ({ one, many }) => ({
@@ -65,6 +67,8 @@ export interface Proceso {
   fechaCreacion: Date;
   state: boolean;
   communityPostId: string | null;
+  esPrivado: boolean;
+  createdBy: string | null;
 }
 
 /** Proceso insert type */
@@ -82,6 +86,8 @@ export interface InsertProceso {
   fechaCreacion?: Date;
   state?: boolean;
   communityPostId?: string | null;
+  esPrivado?: boolean;
+  createdBy?: string | null;
 }
 
 /** ProcesoDTO - Proceso with relations */
