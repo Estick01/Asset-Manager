@@ -143,10 +143,10 @@ export class ClientesService {
     // Mantener tablas de relación para compatibilidad
     if (ownershipDecision.ownerType === "bufete") {
       await storage.firmClients.createFirmClient(ownershipDecision.ownerId, cliente.id);
-    } else if (lawyerId) {
+    } else if (ownershipDecision.ownerType === "abogado") {
       await storage.lawyerClients.createLawyerClient({
         id: randomUUID(),
-        lawyerId,
+        lawyerId: ownershipDecision.ownerId,
         clientId: cliente.id,
         status: "active",
       });
