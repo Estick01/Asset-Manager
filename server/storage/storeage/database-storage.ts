@@ -42,6 +42,8 @@ import { LegalStageStorage } from "./models/legal-stage-storage";
 import { CalendarStorage } from "./models/calendar-storage";
 import { StageTaskTemplateStorage } from "./models/stage-task-template-storage";
 import { StageEventStorage } from "./models/stage-event-storage";
+import { ProcesoOwnershipStorage } from "./models/proceso-ownership-storage";
+import { ProcesoSharingStorage } from "./models/proceso-sharing-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -90,6 +92,8 @@ export class DatabaseStorage {
   public calendar: CalendarStorage;
   public stageTemplates: StageTaskTemplateStorage;
   public stageEvents:    StageEventStorage;
+  public procesoOwnership: ProcesoOwnershipStorage;
+  public procesoSharing:   ProcesoSharingStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -141,6 +145,8 @@ export class DatabaseStorage {
     this.calendar = new CalendarStorage(this.db);
     this.stageTemplates = new StageTaskTemplateStorage(this.db);
     this.stageEvents    = new StageEventStorage(this.db);
+    this.procesoOwnership = new ProcesoOwnershipStorage(this.db);
+    this.procesoSharing   = new ProcesoSharingStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
@@ -152,7 +158,13 @@ export class DatabaseStorage {
   // These delegate to the individual storage classes or return mock data
   // TODO: Complete implementation to match old storage interface
 
+  async getProcesosByIds(ids: string[], filter?: any) {
+    return this.procesos.getProcesosByIds(ids, filter);
+  }
 
+  async getProcesoIdsByAbogadoAssignment(lawyerId: string) {
+    return this.procesos.getProcesoIdsByAbogadoAssignment(lawyerId);
+  }
 
   async getAbogadoByIdUser(userId: string) {
     return this.abogados.getLawyerByUserId(userId);
