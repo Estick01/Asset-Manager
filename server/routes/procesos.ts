@@ -290,17 +290,23 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
 
     // Determinar ownership según política del bufete
     const esPrivadoSolicitado = req.body.esPrivado === true;
-    const ownershipDecision = await ownershipPolicyService.resolveForProceso({
-      actorId: idProfile,
-      rolNombre: (rol as Rol).nombre,
-      esPrivadoSolicitado,
-    });
+    let ownershipDecision;
+    try {
+      ownershipDecision = await ownershipPolicyService.resolveForProceso({
+        actorId: idProfile,
+        rolNombre: (rol as Rol).nombre,
+        esPrivadoSolicitado,
+      });
+    } catch (policyErr: any) {
+      await storage.deleteProceso(newProceso.id).catch(() => {});
+      return res.status(403).json({ error: policyErr.message });
+    }
 
     // Validar consistencia con el cliente
     try {
       await ownershipPolicyService.validateConsistenciaClienteProceso(
         req.body.clienteId,
-        ownershipDecision.esPrivado,
+        ownershipDecision!.esPrivado,
       );
     } catch (err: any) {
       await storage.deleteProceso(newProceso.id).catch(() => {});
@@ -309,15 +315,15 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
 
     await storage.procesoOwnership.create(
       newProceso.id,
-      ownershipDecision.ownerType,
-      ownershipDecision.ownerId,
+      ownershipDecision!.ownerType,
+      ownershipDecision!.ownerId,
       userId,
-      `Creado por ${(rol as Rol).nombre}${ownershipDecision.esPrivado ? " (privado)" : ""}`,
+      `Creado por ${(rol as Rol).nombre}${ownershipDecision!.esPrivado ? " (privado)" : ""}`,
     );
 
     // Guardar esPrivado y createdBy en el proceso
     await storage.updateProceso(newProceso.id, {
-      esPrivado: ownershipDecision.esPrivado,
+      esPrivado: ownershipDecision!.esPrivado,
       createdBy: idProfile,
     });
 
