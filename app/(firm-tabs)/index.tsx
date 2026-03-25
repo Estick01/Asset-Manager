@@ -12,9 +12,11 @@ import { useAuth } from "@/lib/auth-context";
 import { UnifiedUser } from "@/lib/auth";
 import { getFirmDashboardStats, FirmDashboardStats } from "@/lib/services/firmDashboardService";
 import { getProcesos } from "@/lib/services/procesoService";
-import { ProcesoDTO, type Proceso } from "@/shared/schema";
+import { ProcesoDTO, type Proceso, type FirmProfile } from "@/shared/schema";
 import { useInvitations } from "@/lib/invitations-context";
 import { useNotifications } from "@/lib/notifications-context";
+import { getPendingReassignments } from "@/lib/services/ownershipService";
+import { PendingReassignmentBanner } from "@/components/bufete/PendingReassignmentBanner";
 
 export default function FirmDashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -24,18 +26,22 @@ export default function FirmDashboardScreen() {
   const [recentCases, setRecentCases] = useState<(ProcesoDTO & { clienteNombre?: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingReassignCount, setPendingReassignCount] = useState(0);
   const { pendingCount } = useInvitations();
   const { unreadCount: unreadNotifCount } = useNotifications();
 
   const loadData = useCallback(async () => {
     if (!user) return;
     try {
-      const [s, procesos] = await Promise.all([
+      const firmId = (user.profile as FirmProfile | undefined)?.id;
+      const [s, procesos, pendingIds] = await Promise.all([
         getFirmDashboardStats(),
         getProcesos(5, 0),
+        firmId ? getPendingReassignments(firmId) : Promise.resolve([]),
       ]);
       setStats(s);
       setRecentCases(procesos.data);
+      setPendingReassignCount(pendingIds.length);
     } catch (error) {
       console.error("Error cargando dashboard:", error);
     } finally {
@@ -141,6 +147,12 @@ export default function FirmDashboardScreen() {
             </View>
           </View>
         </LinearGradient>
+
+        {/* Banner de reasignación pendiente */}
+        <PendingReassignmentBanner
+          count={pendingReassignCount}
+          firmId={(user?.profile as FirmProfile | undefined)?.id ?? ""}
+        />
 
         <View style={styles.content}>
 
