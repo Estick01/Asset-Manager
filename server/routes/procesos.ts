@@ -13,6 +13,7 @@ import { Rol } from "../storage/index.js";
 import { procesosService } from "../services/proceso.service.js";
 import { clientesService } from "../services/cliente.service.js";
 import { tareaService } from "../services/tarea.service.js";
+import { ownershipPolicyService } from "../services/ownership-policy.service.js";
 import type { SharedWithType } from "@/shared/schema";
 
 type AccessRole       = "owner" | "shared" | "assigned";
@@ -287,16 +288,38 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
       return res.status(500).json({ error: "Error al crear el proceso" });
     }
 
-    // Crear registro de ownership inicial
-    const ownerType = ((rol as Rol).nombre === "abogado") ? "abogado" : "bufete";
-    const ownerId   = idProfile;
+    // Determinar ownership según política del bufete
+    const esPrivadoSolicitado = req.body.esPrivado === true;
+    const ownershipDecision = await ownershipPolicyService.resolveForProceso({
+      actorId: idProfile,
+      rolNombre: (rol as Rol).nombre,
+      esPrivadoSolicitado,
+    });
+
+    // Validar consistencia con el cliente
+    try {
+      await ownershipPolicyService.validateConsistenciaClienteProceso(
+        req.body.clienteId,
+        ownershipDecision.esPrivado,
+      );
+    } catch (err: any) {
+      await storage.deleteProceso(newProceso.id).catch(() => {});
+      return res.status(400).json({ error: err.message });
+    }
+
     await storage.procesoOwnership.create(
       newProceso.id,
-      ownerType,
-      ownerId,
+      ownershipDecision.ownerType,
+      ownershipDecision.ownerId,
       userId,
-      "Creado por " + ((rol as Rol).nombre === "abogado" ? "abogado" : "bufete"),
+      `Creado por ${(rol as Rol).nombre}${ownershipDecision.esPrivado ? " (privado)" : ""}`,
     );
+
+    // Guardar esPrivado y createdBy en el proceso
+    await storage.updateProceso(newProceso.id, {
+      esPrivado: ownershipDecision.esPrivado,
+      createdBy: idProfile,
+    });
 
     switch ((rol as Rol).nombre) {
       case "abogado":
