@@ -121,11 +121,19 @@ export async function getLawyerInvitations(): Promise<ServiceResult<FirmInvitati
   }
 }
 
-export async function acceptInvitation(id: string): Promise<ServiceResult<void>> {
+export interface AcceptInvitationResult {
+  requiresProcessDecision?: boolean;
+  procesos?: { id: string; radicado: string }[];
+  firmaId?: string;
+  firmaNombre?: string;
+}
+
+export async function acceptInvitation(id: string): Promise<ServiceResult<AcceptInvitationResult>> {
   try {
     const response = await apiRequest("POST", `/api/lawyer/invitations/${id}/accept`, undefined, SILENT);
     if (!response.ok) return { data: null, error: await extractError(response, "Error al aceptar invitación") };
-    return { data: null, error: null };
+    const body = await response.json().catch(() => null);
+    return { data: body ?? {}, error: null };
   } catch (error: any) {
     return { data: null, error: error?.message || "Error al aceptar invitación" };
   }

@@ -15,6 +15,7 @@ import { StyledModal } from "@/components/StyledModal";
 import { useInvitations } from "@/lib/invitations-context";
 import { FirmInvitation, FirmInvitationWithDetails } from "@/lib/services/firmInvitationService";
 import { acceptInvitation, getLawyerInvitations, rejectInvitation } from "@/lib/services/firmInvitationService";
+import { ProcessDecisionWizard } from "@/components/proceso/ProcessDecisionWizard";
 
 export default function LawyerInvitationsScreen() {
   const insets = useSafeAreaInsets();
@@ -22,6 +23,12 @@ export default function LawyerInvitationsScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [acceptModal, setAcceptModal] = useState<FirmInvitationWithDetails | null>(null);
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardData, setWizardData] = useState<{
+    procesos: { id: string; radicado: string }[];
+    bufeteId: string;
+    bufeteNombre: string;
+  } | null>(null);
   const [rejectModal, setRejectModal] = useState<{ visible: boolean; invitationId: string | null }>({
     visible: false,
     invitationId: null,
@@ -50,6 +57,14 @@ export default function LawyerInvitationsScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success(`¡Te uniste a ${acceptModal.firm?.name || "la firma"}!`);
       loadData();
+      if (result.data?.requiresProcessDecision && (result.data.procesos?.length ?? 0) > 0) {
+        setWizardData({
+          procesos: result.data.procesos!,
+          bufeteId: result.data.firmaId ?? "",
+          bufeteNombre: result.data.firmaNombre ?? acceptModal.firm?.name ?? "",
+        });
+        setShowWizard(true);
+      }
     }
     setSubmitting(null);
     setAcceptModal(null);
@@ -275,6 +290,18 @@ export default function LawyerInvitationsScreen() {
           </View>
         </View>
       </StyledModal>
+
+      {/* ProcessDecisionWizard — aparece tras aceptar invitación si el abogado tiene procesos propios */}
+      {wizardData && (
+        <ProcessDecisionWizard
+          visible={showWizard}
+          bufeteId={wizardData.bufeteId}
+          bufeteNombre={wizardData.bufeteNombre}
+          procesos={wizardData.procesos}
+          onClose={() => setShowWizard(false)}
+          onCompleted={() => setShowWizard(false)}
+        />
+      )}
 
       {/* Modal de rechazo */}
       <Modal
