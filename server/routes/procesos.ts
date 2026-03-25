@@ -287,6 +287,17 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
       return res.status(500).json({ error: "Error al crear el proceso" });
     }
 
+    // Crear registro de ownership inicial
+    const ownerType = ((rol as Rol).nombre === "abogado") ? "abogado" : "bufete";
+    const ownerId   = idProfile;
+    await storage.procesoOwnership.create(
+      newProceso.id,
+      ownerType,
+      ownerId,
+      userId,
+      "Creado por " + ((rol as Rol).nombre === "abogado" ? "abogado" : "bufete"),
+    );
+
     switch ((rol as Rol).nombre) {
       case "abogado":
         await storage.addLawyerToProceso(newProceso.id, idProfile, {
