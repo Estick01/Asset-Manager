@@ -3,6 +3,7 @@ import { eq, and, desc, isNull, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   procesoOwnership,
+  procesoLawyers,
   type OwnerType,
   type ProcesoOwnershipDTO,
   type TransferOwnershipDTO,
@@ -143,6 +144,21 @@ export class ProcesoOwnershipStorage {
         eq(procesoOwnership.activoUnique, 1),
       ));
     return rows.map(r => r.procesoId);
+  }
+
+  /** Procesos del bufete sin asignación activa (para el banner de reasignación) */
+  async getPendingReassignmentIds(bufeteId: string): Promise<string[]> {
+    const ownedIds = await this.getProcesoIdsByOwner("bufete", bufeteId);
+    if (ownedIds.length === 0) return [];
+    const assigned = await this.db
+      .selectDistinct({ procesoId: procesoLawyers.procesoId })
+      .from(procesoLawyers)
+      .where(and(
+        inArray(procesoLawyers.procesoId, ownedIds),
+        eq(procesoLawyers.status, "activo"),
+      ));
+    const assignedSet = new Set(assigned.map(r => r.procesoId));
+    return ownedIds.filter(id => !assignedSet.has(id));
   }
 
   private toDTO(row: typeof procesoOwnership.$inferSelect): ProcesoOwnershipDTO {

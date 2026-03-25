@@ -157,7 +157,6 @@ router.post(
 );
 
 // GET /api/firm/:firmId/pending-reassignments
-// TODO(Task 21): implement getPendingReassignmentIds in ProcesoOwnershipStorage
 router.get(
   "/firm/:firmId/pending-reassignments",
   authenticate,
@@ -168,8 +167,7 @@ router.get(
       if (rol !== "bufete" && rol !== "corporacion") {
         return res.status(403).json({ error: "Acceso denegado" });
       }
-      // TODO(Task 21): implement getPendingReassignmentIds and replace stub below
-      const ids: string[] = [];
+      const ids = await storage.procesoOwnership.getPendingReassignmentIds(req.params.firmId as string);
       const procesos = await storage.getProcesosByIds(ids, {});
       res.json(procesos);
     } catch (err) { next(err); }
