@@ -45,6 +45,8 @@ import { StageEventStorage } from "./models/stage-event-storage";
 import { TareaExtensionStorage } from "./models/tarea-extension-storage";
 import { ProcesoOwnershipStorage } from "./models/proceso-ownership-storage";
 import { ProcesoSharingStorage } from "./models/proceso-sharing-storage";
+import { ClienteOwnershipStorage } from "./models/cliente-ownership-storage";
+import { FirmSettingsStorage } from "./models/firm-settings-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -94,8 +96,10 @@ export class DatabaseStorage {
   public stageTemplates: StageTaskTemplateStorage;
   public stageEvents:    StageEventStorage;
   public tareaExtensions: TareaExtensionStorage;
-  public procesoOwnership: ProcesoOwnershipStorage;
-  public procesoSharing:   ProcesoSharingStorage;
+  public procesoOwnership:   ProcesoOwnershipStorage;
+  public procesoSharing:     ProcesoSharingStorage;
+  public clienteOwnership:   ClienteOwnershipStorage;
+  public firmSettings:       FirmSettingsStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -150,6 +154,8 @@ export class DatabaseStorage {
     this.tareaExtensions  = new TareaExtensionStorage(this.db);
     this.procesoOwnership = new ProcesoOwnershipStorage(this.db);
     this.procesoSharing   = new ProcesoSharingStorage(this.db);
+    this.clienteOwnership = new ClienteOwnershipStorage(this.db);
+    this.firmSettings     = new FirmSettingsStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
