@@ -95,6 +95,67 @@ router.get(
   },
 );
 
+// POST /api/procesos/batch-decisions
+const batchDecisionSchema = z.object({
+  bufeteId: z.string().uuid(),
+  decisions: z.array(z.object({
+    procesoId:  z.string().uuid(),
+    action:     z.enum(["privado", "compartir", "transferir"]),
+    permission: z.enum(["ver", "comentar", "editar"]).optional(),
+  })),
+});
+
+router.post(
+  "/procesos/batch-decisions",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const parsed = batchDecisionSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
+
+      const user = (req as any).user as JWTPayload;
+      if ((user as any).rol?.nombre !== "abogado") {
+        return res.status(403).json({ error: "Solo el abogado puede ejecutar batch-decisions" });
+      }
+
+      const { bufeteId, decisions } = parsed.data;
+      const userId = (user as any).id ?? (user as any).userId ?? "";
+      const results = { transferidos: 0, compartidos: 0, privados: 0, errores: [] as string[] };
+
+      for (const d of decisions) {
+        try {
+          const ownership = await storage.procesoOwnership.getActive(d.procesoId);
+          if (!ownership || ownership.ownerType !== "abogado" || ownership.ownerId !== user.idProfile) {
+            results.errores.push(`${d.procesoId}: sin ownership`);
+            continue;
+          }
+          if (d.action === "transferir") {
+            await storage.procesoOwnership.transfer(
+              d.procesoId,
+              { ownerType: "bufete", ownerId: bufeteId, razon: "Transferido al unirse al bufete" },
+              userId,
+            );
+            results.transferidos++;
+          } else if (d.action === "compartir") {
+            await storage.procesoSharing.upsert(
+              d.procesoId,
+              { sharedWithType: "bufete", sharedWithId: bufeteId, permission: d.permission ?? "ver", razon: "Compartido al unirse al bufete" },
+              userId,
+            );
+            results.compartidos++;
+          } else {
+            results.privados++;
+          }
+        } catch (e: any) {
+          results.errores.push(`${d.procesoId}: ${e.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (err) { next(err); }
+  },
+);
+
 // GET /api/firm/:firmId/pending-reassignments
 // TODO(Task 21): implement getPendingReassignmentIds in ProcesoOwnershipStorage
 router.get(
