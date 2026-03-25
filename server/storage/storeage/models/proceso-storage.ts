@@ -9,7 +9,7 @@
 import { ProcesoFilter } from "@/server/services";
 import { randomUUID } from "crypto";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile, firmProfiles } from "@/shared/schema";
+import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile, firmProfiles, procesoOwnership } from "@/shared/schema";
 import { Database } from "../database-storage";
 import { alias } from 'drizzle-orm/mysql-core';
 
@@ -1002,24 +1002,20 @@ export class ProcesoStorage {
     filter?: ProcesoFilter
   ): Promise<{ data: ProcesoDTO[]; total: number }> {
 
-    // 1. IDs de abogados de la firma + la firma misma
-    const firmLawyers = await this.db
-      .select({ lawyerId: lawyerProfiles.id })
-      .from(lawyerProfiles)
-      .where(eq(lawyerProfiles.firmId, firmId));
+    // 1. Fuente de verdad: procesoOwnership donde ownerType="bufete" y ownerId=firmId
+    const ownedRows = await this.db
+      .select({ procesoId: procesoOwnership.procesoId })
+      .from(procesoOwnership)
+      .where(and(
+        eq(procesoOwnership.ownerType, "bufete"),
+        eq(procesoOwnership.ownerId, firmId),
+        eq(procesoOwnership.activoUnique, 1),
+      ));
 
-    const allLawyerIds = [...new Set([...firmLawyers.map(l => l.lawyerId), firmId])];
-
-    // 2. Procesos asociados a la firma
-    const firmProcesoIds = await this.db
-      .select({ procesoId: procesoLawyers.procesoId })
-      .from(procesoLawyers)
-      .where(inArray(procesoLawyers.lawyerId, allLawyerIds));
-
-    const procesoIds = [...new Set(firmProcesoIds.map(p => p.procesoId))];
+    const procesoIds = [...new Set(ownedRows.map(r => r.procesoId))];
     if (procesoIds.length === 0) return { data: [], total: 0 };
 
-    // 3. Alias para joins del responsable — declarar ANTES de conditions
+    // 2. Alias para joins del responsable — declarar ANTES de conditions
     const responsableLawyer = alias(lawyerProfiles, 'responsableLawyer');
     const responsableJoin = alias(procesoResponsables, 'responsableJoin');
     const personasResponsable = alias(personas, 'personasResponsable');
@@ -1227,24 +1223,20 @@ export class ProcesoStorage {
     filter?: ProcesoFilter
   ): Promise<{ data: ProcesoDTO[]; total: number }> {
 
-    // 1. IDs de abogados de la firma + la firma misma
-    const firmLawyers = await this.db
-      .select({ lawyerId: lawyerProfiles.id })
-      .from(lawyerProfiles)
-      .where(eq(lawyerProfiles.firmId, firmId));
+    // 1. Fuente de verdad: procesoOwnership donde ownerType="bufete" y ownerId=firmId
+    const ownedRows = await this.db
+      .select({ procesoId: procesoOwnership.procesoId })
+      .from(procesoOwnership)
+      .where(and(
+        eq(procesoOwnership.ownerType, "bufete"),
+        eq(procesoOwnership.ownerId, firmId),
+        eq(procesoOwnership.activoUnique, 1),
+      ));
 
-    const allLawyerIds = [...new Set([...firmLawyers.map(l => l.lawyerId), firmId])];
-
-    // 2. Procesos asociados a la firma
-    const firmProcesoIds = await this.db
-      .select({ procesoId: procesoLawyers.procesoId })
-      .from(procesoLawyers)
-      .where(inArray(procesoLawyers.lawyerId, allLawyerIds));
-
-    const procesoIds = [...new Set(firmProcesoIds.map(p => p.procesoId))];
+    const procesoIds = [...new Set(ownedRows.map(r => r.procesoId))];
     if (procesoIds.length === 0) return { data: [], total: 0 };
 
-    // 3. Condiciones: firma + cliente específico
+    // 2. Condiciones: firma + cliente específico
     const conditions: any[] = [
       inArray(procesos.id, procesoIds),
       eq(procesos.clienteId, clienteId),
@@ -1325,27 +1317,19 @@ export class ProcesoStorage {
     procesoId: string
   ): Promise<ProcesoDTO | undefined> {
 
-    const firmLawyers = await this.db
-      .select({ lawyerId: lawyerProfiles.id })
-      .from(lawyerProfiles)
-      .where(eq(lawyerProfiles.firmId, firmId));
+    const ownedRow = await this.db
+      .select({ procesoId: procesoOwnership.procesoId })
+      .from(procesoOwnership)
+      .where(and(
+        eq(procesoOwnership.ownerType, "bufete"),
+        eq(procesoOwnership.ownerId, firmId),
+        eq(procesoOwnership.procesoId, procesoId),
+        eq(procesoOwnership.activoUnique, 1),
+      ))
+      .limit(1)
+      .then(r => r[0] ?? null);
 
-    const lawyerIds = firmLawyers.map(l => l.lawyerId);
-
-    const allLawyerIds = [...new Set([...lawyerIds, firmId])];
-
-    const procesoAsignado = await this.db
-      .select({ procesoId: procesoLawyers.procesoId })
-      .from(procesoLawyers)
-      .where(
-        and(
-          inArray(procesoLawyers.lawyerId, allLawyerIds),
-          eq(procesoLawyers.procesoId, procesoId)
-        )
-      )
-      .limit(1);
-
-    if (procesoAsignado.length === 0) return undefined;
+    if (!ownedRow) return undefined;
 
     // Traer proceso con todas sus relaciones
     const rawProceso = await this.db.query.procesos.findFirst({
