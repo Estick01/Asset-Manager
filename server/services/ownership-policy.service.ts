@@ -35,7 +35,7 @@ export class OwnershipPolicyService {
     }
 
     if (ctx.rolNombre !== "abogado") {
-      return { ownerType: "abogado", ownerId: ctx.actorId, esPrivado: false };
+      throw new Error(`Rol '${ctx.rolNombre}' no puede crear este recurso`);
     }
 
     // Abogado: consultar firmId
@@ -51,6 +51,7 @@ export class OwnershipPolicyService {
       return { ownerType: "bufete", ownerId: firmId, esPrivado: false };
     }
 
+    // esPrivadoSolicitado=true → privado; false → usa default del bufete (invertimos el flag "compartido")
     const esPrivado = ctx.esPrivadoSolicitado
       ? true
       : !settings.defaultProcesoEsCompartido;
@@ -70,7 +71,7 @@ export class OwnershipPolicyService {
     }
 
     if (ctx.rolNombre !== "abogado") {
-      return { ownerType: "abogado", ownerId: ctx.actorId, esPrivado: false };
+      throw new Error(`Rol '${ctx.rolNombre}' no puede crear este recurso`);
     }
 
     const firmId = await this.getFirmId(ctx.actorId);
@@ -85,6 +86,7 @@ export class OwnershipPolicyService {
       return { ownerType: "bufete", ownerId: firmId, esPrivado: false };
     }
 
+    // esPrivadoSolicitado=true → privado; false → usa default del bufete (invertimos el flag "compartido")
     const esPrivado = ctx.esPrivadoSolicitado
       ? true
       : !settings.defaultClienteEsCompartido;
