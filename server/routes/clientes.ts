@@ -153,7 +153,13 @@ router.post("/clientes", authenticate, requirePermission("clientes.crear"), asyn
       password,
       correo ?? `${rest.documento ?? rest.nit}@temp.com`,
       lawyerId,
-      firmId
+      firmId,
+      {
+        rolNombre: user?.rol?.nombre,
+        actorId:   user?.idProfile,
+        esPrivadoSolicitado: req.body.esPrivado === true,
+        userId:    user?.id,
+      }
     );
 
     res.status(201).json(newCliente);

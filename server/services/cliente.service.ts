@@ -8,6 +8,7 @@ import { InsertClienteCompleto } from "../storage/storeage/models/cliente-storag
 import { db } from "../db";
 import { hashPassword } from "@/server/auth";
 import { storage } from "../storage/storeage/database-storage";
+import { ownershipPolicyService } from "./ownership-policy.service.js";
 
 export class ClientesService {
 
@@ -86,7 +87,13 @@ export class ClientesService {
     password: string,
     email: string,
     lawyerId?: string,
-    firmId?: string
+    firmId?: string,
+    options?: {
+      rolNombre?: string;
+      actorId?: string;
+      esPrivadoSolicitado?: boolean;
+      userId?: string;
+    }
   ): Promise<Cliente> {
     const hashedPassword = await hashPassword(password);
 
@@ -107,8 +114,35 @@ export class ClientesService {
       return storage.clientes.createCliente({ ...insertCliente, userId: user.id }, tx);
     });
 
-    if (firmId) {
-      await storage.firmClients.createFirmClient(firmId, cliente.id);
+    const actorId   = options?.actorId ?? lawyerId ?? firmId ?? "";
+    const rolNombre = options?.rolNombre ?? (firmId ? "bufete" : "abogado");
+    const createdBy = options?.userId ?? actorId;
+
+    // Determinar ownership según política
+    const ownershipDecision = await ownershipPolicyService.resolveForCliente({
+      actorId,
+      rolNombre,
+      esPrivadoSolicitado: options?.esPrivadoSolicitado ?? false,
+    });
+
+    // Crear ownership en tabla dedicada
+    await storage.clienteOwnership.create(
+      cliente.id,
+      ownershipDecision.ownerType,
+      ownershipDecision.ownerId,
+      createdBy,
+      `Creado por ${rolNombre}${ownershipDecision.esPrivado ? " (privado)" : ""}`,
+    );
+
+    // Actualizar esPrivado y createdBy
+    await storage.clientes.updateCliente(cliente.id, {
+      esPrivado: ownershipDecision.esPrivado,
+      createdBy: actorId,
+    });
+
+    // Mantener tablas de relación para compatibilidad
+    if (ownershipDecision.ownerType === "bufete") {
+      await storage.firmClients.createFirmClient(ownershipDecision.ownerId, cliente.id);
     } else if (lawyerId) {
       await storage.lawyerClients.createLawyerClient({
         id: randomUUID(),
