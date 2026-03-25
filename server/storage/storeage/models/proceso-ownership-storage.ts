@@ -1,5 +1,5 @@
 // server/storage/storeage/models/proceso-ownership-storage.ts
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, desc, isNull, inArray } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   procesoOwnership,
@@ -25,6 +25,23 @@ export class ProcesoOwnershipStorage {
       .then(r => r[0] ?? null);
 
     return row ? this.toDTO(row) : null;
+  }
+
+  /** Fetch active ownership for multiple procesosIds in a single query. */
+  async getActiveBatch(procesoIds: string[]): Promise<Map<string, ProcesoOwnershipDTO>> {
+    if (procesoIds.length === 0) return new Map();
+    const rows = await this.db
+      .select()
+      .from(procesoOwnership)
+      .where(and(
+        inArray(procesoOwnership.procesoId, procesoIds),
+        eq(procesoOwnership.activoUnique, 1),
+      ));
+    const map = new Map<string, ProcesoOwnershipDTO>();
+    for (const row of rows) {
+      map.set(row.procesoId, this.toDTO(row));
+    }
+    return map;
   }
 
   /** Historial completo de ownership de un proceso (más reciente primero). */

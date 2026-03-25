@@ -162,8 +162,9 @@ router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (
         const lawyer = await storage.abogados.getLawyer(idProfile);
         const assignedProcesoIds = await storage.getProcesoIdsByAbogadoAssignment(idProfile);
         const validAssignedIds: string[] = [];
+        const ownershipMap = await storage.procesoOwnership.getActiveBatch(assignedProcesoIds);
         for (const pid of assignedProcesoIds) {
-          const ow = await storage.procesoOwnership.getActive(pid);
+          const ow = ownershipMap.get(pid);
           if (!ow) continue;
           if (ow.ownerType === "abogado" && ow.ownerId !== idProfile) validAssignedIds.push(pid);
           if (ow.ownerType === "bufete" && lawyer?.firmId === ow.ownerId) validAssignedIds.push(pid);
