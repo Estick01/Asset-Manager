@@ -2,6 +2,7 @@
  * Suscripciones Routes
  * GET  /api/planes              — lista planes públicos
  * GET  /api/suscripciones/me    — suscripción activa + uso
+ * GET  /api/pagos/:pagoId/estado  — obtiene el estado de un pago por ID
  * POST /api/suscripciones/checkout — inicia pago Wompi
  * POST /api/suscripciones/cancelar — cancela renovación automática
  */
@@ -210,8 +211,8 @@ router.get("/pagos/:pagoId/estado", authenticate, async (req: Request, res: Resp
 
     res.json({
       estado: pago.estado,
-      wompiTransactionId: pago.wompiTransactionId ?? null,
-      metodoPago: pago.metodoPago ?? null,
+      wompiTransactionId: pago.wompiTransactionId,
+      metodoPago: pago.metodoPago,
     });
   } catch (err) { next(err); }
 });
