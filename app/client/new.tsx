@@ -12,6 +12,8 @@ import { apiRequest } from "@/lib/query-client";
 import { useAuth } from "@/lib/auth-context";
 import { ClientForm } from "@/components/ClientForm";
 import type { SaveClienteData } from "@/lib/services/clienteService";
+import { PlanGate } from "@/components/subscription/PlanGate";
+import { handleApiError, LimitReachedError } from "@/lib/services/suscripcionService";
 
 export default function NewClientScreen() {
   const insets = useSafeAreaInsets();
@@ -19,6 +21,8 @@ export default function NewClientScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [allowPrivateClientes, setAllowPrivateClientes] = useState<boolean | null>(null);
+  const [planGateVisible, setPlanGateVisible] = useState(false);
+  const [limiteUso, setLimiteUso] = useState({ actual: 0, maximo: 0 });
 
   useEffect(() => {
     if (user?.user?.rol?.nombre !== "abogado") return;
@@ -37,13 +41,17 @@ export default function NewClientScreen() {
       // POST /api/clientes reads lawyerId from JWT — no need to pass it explicitly
       const response = await apiRequest("POST", "/api/clientes", data);
       if (!response.ok) {
-        const body = await response.json();
-        throw new Error(body.error || body.message || "Error al guardar cliente");
+        await handleApiError(response);
       }
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace("/clients");
-    } catch (err: any) {
-      setError(err.message || "Error al guardar");
+    } catch (err) {
+      if (err instanceof LimitReachedError) {
+        setLimiteUso({ actual: err.actual, maximo: err.maximo });
+        setPlanGateVisible(true);
+        return;
+      }
+      setError(err instanceof Error ? err.message : "Error al guardar");
     } finally {
       setLoading(false);
     }
@@ -73,6 +81,17 @@ export default function NewClientScreen() {
           }
         />
       </KeyboardAvoidingView>
+      <PlanGate
+        visible={planGateVisible}
+        onClose={() => setPlanGateVisible(false)}
+        onVerPlanes={() => {
+          setPlanGateVisible(false);
+          router.push("/planes");
+        }}
+        tipo="clientes"
+        actual={limiteUso.actual}
+        maximo={limiteUso.maximo}
+      />
     </View>
   );
 }
