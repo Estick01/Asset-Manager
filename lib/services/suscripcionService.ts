@@ -155,12 +155,12 @@ export async function getPagoEstado(pagoId: string): Promise<PagoEstado> {
 }
 
 /**
- * Lanza LimitReachedError si la respuesta es 403 con code LIMIT_REACHED.
+ * Lanza LimitReachedError si la respuesta es 402 con error LIMIT_REACHED.
  * De lo contrario lanza un Error genérico con el mensaje del servidor.
  */
 export async function handleApiError(res: Response): Promise<never> {
   const body = await res.json().catch(() => ({}));
-  if (res.status === 403 && body.code === "LIMIT_REACHED") {
+  if (res.status === 402 && body.error === "LIMIT_REACHED") {
     throw new LimitReachedError(
       body.tipo ?? "procesos",
       body.actual ?? 0,
