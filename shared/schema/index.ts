@@ -7,7 +7,7 @@
 export { users, usersRelations, type User, type InsertUser} from "./user.schema";
 
 // Planes
-export { planes, type Plan, type InsertPlan } from "./plane.schema";
+export { planes, type Plan, type InsertPlan, type PlanPublicoDTO } from "./plane.schema";
 
 // Firm Profile
 export { firmProfiles, firmProfilesRelations, type FirmProfile, type InsertFirmProfile } from "./firm-profile.schema";
@@ -410,3 +410,29 @@ export {
   type ClienteOwnershipDTO,
   type TransferClienteOwnershipDTO,
 } from "./cliente-ownership.schema";
+
+// Features y plan_features
+export {
+  features, planFeatures,
+  type Feature, type InsertFeature, type PlanFeature,
+  FEATURE_CODES, type FeatureCode,
+} from "./feature.schema";
+
+// Suscripciones
+export {
+  suscripciones,
+  type Suscripcion, type InsertSuscripcion,
+  type CicloSuscripcion, type EstadoSuscripcion, type SuscripcionConPlanDTO,
+} from "./suscripcion.schema";
+
+// Pagos
+export {
+  pagos,
+  type Pago, type InsertPago, type EstadoPago,
+} from "./pago.schema";
+
+// Usage Tracking
+export {
+  usageTracking,
+  type UsageTracking, type InsertUsageTracking, type UsageDTO,
+} from "./usage-tracking.schema";
