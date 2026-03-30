@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   Modal, TextInput, ActivityIndicator, Alert,
@@ -13,6 +13,8 @@ import { LogoutModal } from "@/components/LogoutModal";
 import { apiRequest } from "@/lib/query-client";
 import { LawyerProfile } from "@/shared/schema";
 import { toast } from "sonner-native";
+import { getMiSuscripcion, type MiSuscripcion } from "@/lib/services/suscripcionService";
+import { UsageBars } from "@/components/subscription/UsageBars";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const NAVY      = "#0F2640";
@@ -180,6 +182,11 @@ export default function LawyerSettingsScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loggingOut, setLoggingOut]           = useState(false);
   const [showPwdModal, setShowPwdModal]       = useState(false);
+  const [miSuscripcion, setMiSuscripcion]     = useState<MiSuscripcion | null>(null);
+
+  useEffect(() => {
+    getMiSuscripcion().then(setMiSuscripcion).catch(() => {});
+  }, []);
 
   const handleConfirmLogout = async () => {
     setLoggingOut(true);
@@ -270,6 +277,20 @@ export default function LawyerSettingsScreen() {
         {sections.map(s => (
           <SettingsSection key={s.title} title={s.title} items={s.items} />
         ))}
+
+        {/* ── Mi Suscripción ── */}
+        {miSuscripcion?.uso && (
+          <View style={styles.suscripcionCard}>
+            <View style={styles.suscripcionHeader}>
+              <Text style={styles.suscripcionTitle}>Mi Suscripción</Text>
+              <Pressable onPress={() => router.push("/planes")}>
+                <Text style={styles.cambiarPlanText}>Cambiar plan</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.planNombreText}>{miSuscripcion.plan?.nombre ?? "Plan activo"}</Text>
+            <UsageBars uso={miSuscripcion.uso} onUpgrade={() => router.push("/planes")} />
+          </View>
+        )}
 
         {/* ── Cerrar sesión ── */}
         <Pressable
@@ -387,6 +408,17 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowLabel:    { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
   rowSublabel: { fontSize: 12, color: TEXT3, marginTop: 1 },
+
+  // Suscripción
+  suscripcionCard: {
+    backgroundColor: "#FFFFFF", borderRadius: 16,
+    padding: 16, marginBottom: 12,
+    borderWidth: 1, borderColor: BORDER,
+  },
+  suscripcionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  suscripcionTitle:  { fontSize: 15, fontFamily: "Inter_600SemiBold", color: TEXT },
+  cambiarPlanText:   { fontSize: 13, fontFamily: "Inter_500Medium", color: NAVY_MID },
+  planNombreText:    { fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT2, marginBottom: 12 },
 
   // Logout
   logoutBtn: {
