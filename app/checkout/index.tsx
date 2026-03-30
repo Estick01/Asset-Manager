@@ -19,7 +19,7 @@ import {
 
 // ── Tipos ──────────────────────────────────────────────────────────────────────
 
-type Estado = "loading" | "error" | "activated" | "pending";
+type Estado = "loading" | "error" | "activated";
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
@@ -61,12 +61,26 @@ export default function CheckoutScreen() {
       if (result.payment_url) {
         await WebBrowser.openBrowserAsync(result.payment_url);
         // Después de cerrar el navegador, el webhook procesará el pago de forma async
-        setEstado("pending");
+        router.replace({
+          pathname: "/checkout/result",
+          params: {
+            pagoId: result.pagoId ?? "",
+            planNombre: result.planNombre ?? nombrePlan,
+            ciclo,
+          },
+        });
         return;
       }
 
       // Si no hay payment_url ni activated, asumir pendiente
-      setEstado("pending");
+      router.replace({
+        pathname: "/checkout/result",
+        params: {
+          pagoId: "",
+          planNombre: nombrePlan,
+          ciclo,
+        },
+      });
     } catch (err) {
       const mensaje =
         err instanceof Error ? err.message : "Error inesperado al procesar el pago";
@@ -113,10 +127,6 @@ export default function CheckoutScreen() {
             nombrePlan={nombrePlan}
             onGoHome={() => router.replace("/")}
           />
-        )}
-
-        {estado === "pending" && (
-          <PendingView onGoHome={() => router.replace("/")} />
         )}
       </View>
     </View>
@@ -193,27 +203,6 @@ function ActivatedView({
       </View>
       <Text style={styles.stateTitle}>¡Plan activado!</Text>
       {!!nombrePlan && <Text style={styles.stateSubtitle}>{nombrePlan}</Text>}
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: Colors.primary }]}
-        onPress={onGoHome}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.buttonText}>Ir al inicio</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function PendingView({ onGoHome }: { onGoHome: () => void }) {
-  return (
-    <View style={styles.stateContainer}>
-      <View style={[styles.iconCircle, { backgroundColor: Colors.warningLight }]}>
-        <Ionicons name="time-outline" size={48} color={Colors.warning} />
-      </View>
-      <Text style={styles.stateTitle}>Pago en proceso</Text>
-      <Text style={styles.stateBody}>
-        Tu pago está siendo verificado. Te notificaremos cuando se confirme.
-      </Text>
       <TouchableOpacity
         style={[styles.button, { backgroundColor: Colors.primary }]}
         onPress={onGoHome}
