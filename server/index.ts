@@ -15,6 +15,7 @@ import { db } from './db.js';
 import { setupWebSocketServer } from "./websocket/ws-server.js";
 import { seedLegalStages } from "./db/seeds/legal-stages.seed.js";
 import { seedStageTemplates } from "./db/seeds/stage-templates.seed.js";
+import { seedPlanes } from "./db/seeds/planes.seed.js";
 
 const app = express();
 app.use(cookieParser());
@@ -60,6 +61,9 @@ async function seedDatabase() {
 
   // Seed plantillas de tareas por etapa
   await seedStageTemplates(db);
+
+  // Seed planes y features
+  await seedPlanes(db);
 }
 
 function setupCors(app: express.Application) {
