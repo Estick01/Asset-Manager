@@ -194,4 +194,26 @@ router.post("/suscripciones/cancelar", authenticate, async (req: Request, res: R
   } catch (err) { next(err); }
 });
 
+// ── GET /api/pagos/:pagoId/estado ─────────────────────────────────────────────
+
+router.get("/pagos/:pagoId/estado", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user as JWTPayload;
+    const { pagoId } = req.params;
+
+    const pago = await storage.pagosStorage.getById(pagoId);
+
+    if (!pago || pago.userId !== user.id) {
+      res.status(404).json({ error: "Pago no encontrado" });
+      return;
+    }
+
+    res.json({
+      estado: pago.estado,
+      wompiTransactionId: pago.wompiTransactionId ?? null,
+      metodoPago: pago.metodoPago ?? null,
+    });
+  } catch (err) { next(err); }
+});
+
 export default router;
