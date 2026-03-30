@@ -15,6 +15,7 @@ import { clientesService } from "../services/cliente.service.js";
 import { tareaService } from "../services/tarea.service.js";
 import { ownershipPolicyService } from "../services/ownership-policy.service.js";
 import type { SharedWithType } from "@/shared/schema";
+import { subscriptionService } from "../services/subscription.service.js";
 
 type AccessRole       = "owner" | "shared" | "assigned";
 type AccessPermission = "ver" | "comentar" | "editar";
@@ -144,14 +145,15 @@ router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (
     const user = (req as any).user;
     const idProfile: string | undefined = user.idProfile;
     const rol: string = user.rol.nombre;
-    const { limit, offset, estadoCodigo, search, hasResponsable } = req.query;
+     const { limit, offset, estadoCodigo, search, hasResponsable, clienteId } = req.query;
     const limitNum  = Math.min(Math.max(limit  ? parseInt(limit  as string, 10) : 10, 1), 100);
     const offsetNum = Math.max(offset ? parseInt(offset as string, 10) : 0, 0);
-    const filter = {
-      estadoCodigo:   estadoCodigo   as string | undefined,
-      search:         search         as string | undefined,
-      hasResponsable: hasResponsable !== undefined ? hasResponsable === 'true' : undefined,
-    };
+     const filter = {
+       estadoCodigo:   estadoCodigo   as string | undefined,
+       search:         search         as string | undefined,
+       hasResponsable: hasResponsable !== undefined ? hasResponsable === 'true' : undefined,
+       clienteId:      clienteId      as string | undefined,
+     };
 
     if (!idProfile) return res.status(400).json({ error: "idProfile requerido" });
 
@@ -283,6 +285,18 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
     if (!rol) return res.status(400).json({ error: "rol is required" });
     if (!idProfile || typeof idProfile !== "string") return res.status(400).json({ error: "idProfile is required" });
 
+    // Verificar límite de procesos del plan
+    const limitCheck = await subscriptionService.checkLimit(userId, "procesos");
+    if (!limitCheck.permitido) {
+      return res.status(402).json({
+        error:   "LIMIT_REACHED",
+        tipo:    "procesos",
+        actual:  limitCheck.actual,
+        maximo:  limitCheck.maximo,
+        mensaje: "Has alcanzado el límite de procesos de tu plan. Actualiza para continuar.",
+      });
+    }
+
     const newProceso = await storage.createProceso(req.body);
     if (!newProceso) {
       return res.status(500).json({ error: "Error al crear el proceso" });
@@ -380,6 +394,7 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
       await storage.community.setPostProceso(communityPostId, newProceso.id).catch(() => {});
     }
 
+    await subscriptionService.incrementUsage(userId, "procesos");
     res.status(201).json(newProceso);
   } catch (err) {
     next(err);
@@ -426,6 +441,8 @@ router.delete("/procesos/:id", authenticate, requirePermission("procesos.elimina
     if (role !== "owner") return res.status(403).json({ error: "Solo el propietario puede eliminar el proceso" });
 
     await procesosService.deleteProceso(id);
+    const user = (req as any).user as JWTPayload;
+    await subscriptionService.decrementUsage(user.id, "procesos");
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -574,10 +591,10 @@ router.post("/tipos-proceso", authenticate, requirePermission("procesos.crear"),
   }
 });
 
-// PUT /api/tipos-proceso/:id - Update process type
-router.put("/tipos-proceso/:id", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = parseInt(req.params.id);
+  // PUT /api/tipos-proceso/:id - Update process type
+  router.put("/tipos-proceso/:id", authenticate, requirePermission("procesos.editar"), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? parseInt(req.params.id[0]) : parseInt(req.params.id);
     if (isNaN(id)) {
       return res.status(400).json({ error: "ID inválido" });
     }
@@ -592,10 +609,10 @@ router.put("/tipos-proceso/:id", authenticate, requirePermission("procesos.edita
   }
 });
 
-// DELETE /api/tipos-proceso/:id - Delete process type
-router.delete("/tipos-proceso/:id", authenticate, requirePermission("procesos.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const id = parseInt(req.params.id);
+  // DELETE /api/tipos-proceso/:id - Delete process type
+  router.delete("/tipos-proceso/:id", authenticate, requirePermission("procesos.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = Array.isArray(req.params.id) ? parseInt(req.params.id[0]) : parseInt(req.params.id);
     if (isNaN(id)) {
       return res.status(400).json({ error: "ID inválido" });
     }
@@ -641,14 +658,14 @@ router.post("/actualizaciones", authenticate, requirePermission("actualizaciones
   }
 });
 
-// DELETE /api/actualizaciones/:id - Delete update
-router.delete("/actualizaciones/:id", authenticate, requirePermission("actualizaciones.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const actualizacion = await storage.getActualizacion(req.params.id as string);
-    if (!actualizacion) return res.status(404).json({ error: "Actualización no encontrada" });
-    const access = await assertProcesoAccess(req, res, actualizacion.procesoId);
-    if (!access) return;
-    await procesosService.deleteActualizacion(req.params.id);
+  // DELETE /api/actualizaciones/:id - Delete update
+  router.delete("/actualizaciones/:id", authenticate, requirePermission("actualizaciones.eliminar"), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actualizacion = await storage.getActualizacion(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+      if (!actualizacion) return res.status(404).json({ error: "Actualización no encontrada" });
+      const access = await assertProcesoAccess(req, res, actualizacion.procesoId);
+      if (!access) return;
+      await procesosService.deleteActualizacion(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
     res.status(204).send();
   } catch (err) {
     next(err);

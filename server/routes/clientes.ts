@@ -10,6 +10,7 @@ import { storage } from '../storage/storeage/database-storage.js';
 import { clientesService } from '../services';
 import { validate } from "../middleware/validation.js";
 import { registerRateLimiter } from "../middleware/rate-limit.js";
+import { subscriptionService } from "../services/subscription.service.js";
 
 const registerClienteNaturalSchema = z.object({
   correo:          z.string().email("Correo inválido"),
@@ -139,6 +140,18 @@ router.post("/clientes", authenticate, requirePermission("clientes.crear"), asyn
       representanteLegalId = rep.id;
     }
 
+    // Verificar límite de clientes del plan
+    const limitCheck = await subscriptionService.checkLimit(user.id, "clientes");
+    if (!limitCheck.permitido) {
+      return res.status(402).json({
+        error:   "LIMIT_REACHED",
+        tipo:    "clientes",
+        actual:  limitCheck.actual,
+        maximo:  limitCheck.maximo,
+        mensaje: "Has alcanzado el límite de clientes de tu plan. Actualiza para continuar.",
+      });
+    }
+
     const newCliente = await clientesService.createCliente(
       {
         ...rest,
@@ -162,6 +175,7 @@ router.post("/clientes", authenticate, requirePermission("clientes.crear"), asyn
       }
     );
 
+    await subscriptionService.incrementUsage(user.id, "clientes");
     res.status(201).json(newCliente);
   } catch (err) {
     next(err);
