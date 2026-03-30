@@ -268,14 +268,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 32,
   },
-  stateBody: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-    color: Colors.textSecondary,
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 32,
-  },
   errorMessage: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
