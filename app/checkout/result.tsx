@@ -20,7 +20,7 @@ const INTERVALO_MS = 3000;
 export default function CheckoutResultScreen() {
   const insets = useSafeAreaInsets();
   const { pagoId, planNombre, ciclo } = useLocalSearchParams<{
-    pagoId: string;
+    pagoId?: string;
     planNombre?: string;
     ciclo?: string;
   }>();
