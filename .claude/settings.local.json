@@ -57,7 +57,8 @@
       "Bash(npm run:*)",
       "Bash(find /c/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager -path */node_modules -prune -o -name *.test.ts -o -name *.spec.ts)",
       "Bash(npm test:*)",
-      "Bash(\"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe\" -u root -pPelusa1589 legacy -e \"DESCRIBE proceso_ownership; SHOW INDEX FROM proceso_ownership;\")"
+      "Bash(\"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql.exe\" -u root -pPelusa1589 legacy -e \"DESCRIBE proceso_ownership; SHOW INDEX FROM proceso_ownership;\")",
+      "Bash(find C:/Users/ccsb1/OneDrive/Escritorio/Asset-Manager/Asset-Manager/server/db -maxdepth 3 -type f -name *.ts -o -name *.js)"
     ],
     "additionalDirectories": [
       "c:\\Users\\ccsb1\\.claude\\projects\\c--Users-ccsb1-OneDrive-Escritorio-Asset-Manager-Asset-Manager\\memory"

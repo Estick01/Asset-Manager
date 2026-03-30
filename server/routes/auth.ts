@@ -182,7 +182,7 @@ router.post("/register/lawyer",
       firmId,
     } = req.body;
 
-    // Check if email already exists (generic message to prevent email enumeration)
+    // Check if email already exists
     const existingUser = await storage.getUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({
@@ -256,7 +256,7 @@ router.post("/register/firm",
       repMunicipioId,
     } = req.body;
 
-    // Check if email already exists (generic message to prevent email enumeration)
+    // Check if email already exists
     const existingUser = await storage.getUserByEmail(email);
     if (existingUser) {
       return res.status(400).json({
