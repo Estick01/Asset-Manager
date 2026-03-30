@@ -72,4 +72,36 @@ router.patch(
   }
 );
 
+/**
+ * GET /api/firm/settings/my-firm
+ *
+ * Devuelve los settings de privacidad del bufete al que pertenece el abogado.
+ * Retorna null si el abogado no pertenece a ningún bufete.
+ * Solo accesible por abogados.
+ */
+router.get(
+  "/firm/settings/my-firm",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user;
+      if (user?.rol?.nombre !== "abogado") {
+        return res.status(403).json({
+          error: "Solo los abogados pueden usar este endpoint"
+        });
+      }
+
+      const lawyer = await storage.lawyerProfiles.getLawyer(user.idProfile);
+      if (!lawyer?.firmId) {
+        return res.json(null);
+      }
+
+      const settings = await storage.firmSettings.get(lawyer.firmId);
+      res.json(settings);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

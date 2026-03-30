@@ -46,29 +46,34 @@ export default function LawyerInvitationsScreen() {
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
 
-  const handleAccept = async () => {
-    if (!acceptModal) return;
-    setSubmitting(acceptModal.id);
-    const result = await acceptInvitation(acceptModal.id);
-    await refreshCount();
-    if (result.error) {
-      toast.error(result.error);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      toast.success(`¡Te uniste a ${acceptModal.firm?.name || "la firma"}!`);
-      loadData();
-      if (result.data?.requiresProcessDecision && (result.data.procesos?.length ?? 0) > 0) {
-        setWizardData({
-          procesos: result.data.procesos!,
-          bufeteId: result.data.firmaId ?? "",
-          bufeteNombre: result.data.firmaNombre ?? acceptModal.firm?.name ?? "",
-        });
-        setShowWizard(true);
-      }
-    }
-    setSubmitting(null);
-    setAcceptModal(null);
-  };
+   const handleAccept = async () => {
+     if (!acceptModal) return;
+     setSubmitting(acceptModal.id);
+     const result = await acceptInvitation(acceptModal.id);
+     await refreshCount();
+     if (result.error) {
+       toast.error(result.error);
+     } else if (!result.data) {
+       toast.error("Error inesperado");
+     } else {
+       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+       toast.success(`¡Te uniste a ${acceptModal.firm?.name || "la firma"}!`);
+       loadData();
+       const firmaId = result.data.firmaId ?? acceptModal.firm?.id;
+       if (!firmaId) {
+         toast.error("Error: falta información de la firma");
+       } else if (result.data.requiresProcessDecision && (result.data.procesos?.length ?? 0) > 0) {
+         setWizardData({
+           procesos: result.data.procesos!,
+           bufeteId: firmaId,
+           bufeteNombre: result.data.firmaNombre ?? acceptModal.firm?.name ?? "",
+         });
+         setShowWizard(true);
+       }
+     }
+     setSubmitting(null);
+     setAcceptModal(null);
+   };
 
   const handleReject = (invitationId: string) => {
     setRejectModal({ visible: true, invitationId });

@@ -46,13 +46,12 @@ import { ProcessAccessPanel } from "@/components/proceso/ProcessAccessPanel";
 
 const ACTUALIZACIONES_LIMIT = 10;
 
-type Tab = "tareas" | "timeline" | "documents" | "acceso";
+type Tab = "tareas" | "timeline" | "documents";
 
-const ALL_TABS: { key: Tab; label: string; icon: any; ownerOnly?: boolean }[] = [
+const ALL_TABS: { key: Tab; label: string; icon: any }[] = [
   { key: "tareas",    label: "Tareas",         icon: "checkmark-circle-outline" },
   { key: "timeline",  label: "Línea de tiempo", icon: "time-outline" },
   { key: "documents", label: "Documentos",      icon: "document-text-outline" },
-  { key: "acceso",    label: "Acceso",          icon: "lock-closed-outline", ownerOnly: true },
 ];
 
 export default function CaseDetailScreen() {
@@ -60,7 +59,7 @@ export default function CaseDetailScreen() {
   const { user } = useAuth();
   const insets   = useSafeAreaInsets();
   const rol      = user?.user?.rol?.nombre;
-  const TABS     = ALL_TABS.filter(t => !t.ownerOnly || rol === "abogado" || rol === "bufete");
+  const TABS     = ALL_TABS;
 
   const [proceso,              setProceso]              = useState<ProcesoDTO | null>(null);
   const [actualizaciones,      setActualizaciones]      = useState<ActualizacionRelations[]>([]);
@@ -80,6 +79,7 @@ export default function CaseDetailScreen() {
   const [stageCreateTarea,     setStageCreateTarea]     = useState(false);
   const [stageCreateLegalStage,setStageCreateLegalStage]= useState<string | null>(null);
   const stageFilterRef = useRef<string | null>(null);
+  const [ownershipExpanded, setOwnershipExpanded] = useState(false);
 
   // Link community post modal
   const [linkPostModal,  setLinkPostModal]  = useState(false);
@@ -302,7 +302,6 @@ export default function CaseDetailScreen() {
     tareas:    tareasData?.progreso.total ?? null,
     timeline:  null,
     documents: documentos.length || null,
-    acceso:    null,
   };
 
   return (
@@ -337,6 +336,35 @@ export default function CaseDetailScreen() {
           onAddAsistente={() => router.push({ pathname: "/case/add-responsable", params: { procesoId: proceso.id } })}
           onTransferirCaso={() => router.push({ pathname: "/case/transferir" as any, params: { procesoId: proceso.id } })}
         />
+
+        {/* ── Historial de propiedad (solo abogado/bufete) ── */}
+        {(rol === "abogado" || rol === "bufete") && (
+          <View style={styles.ownershipSection}>
+            <Pressable
+              style={styles.ownershipHeader}
+              onPress={() => setOwnershipExpanded(v => !v)}
+              hitSlop={8}
+            >
+              <View style={styles.ownershipHeaderLeft}>
+                <View style={styles.ownershipIconWrap}>
+                  <Ionicons name="swap-horizontal-outline" size={14} color={Colors.textSecondary} />
+                </View>
+                <Text style={styles.ownershipTitle}>Historial de propiedad</Text>
+              </View>
+              <Ionicons
+                name={ownershipExpanded ? "chevron-up" : "chevron-down"}
+                size={16}
+                color={Colors.textTertiary}
+              />
+            </Pressable>
+            {ownershipExpanded && (
+              <ProcessAccessPanel
+                procesoId={proceso.id}
+                isOwner={rol === "abogado" || rol === "bufete"}
+              />
+            )}
+          </View>
+        )}
 
         {/* ── Legal Stage Stepper ── */}
         {legalStages && (
@@ -501,15 +529,7 @@ export default function CaseDetailScreen() {
           />
         )}
 
-        {activeTab === "acceso" && (
-          <ProcessAccessPanel
-            procesoId={proceso.id}
-            // TODO: derive isOwner from ownership data when available; for now owner roles are abogado/bufete
-            isOwner={rol === "abogado" || rol === "bufete"}
-            bufeteId={undefined}
-            bufeteNombre={undefined}
-          />
-        )}
+
       </ScrollView>
 
       {/* ── Change Stage Modal ── */}
@@ -690,6 +710,39 @@ const styles = StyleSheet.create({
   },
   tabBadgeTextActive: {
     color: Colors.white,
+  },
+
+  // ── Ownership history section ──
+  ownershipSection: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  ownershipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+  },
+  ownershipHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  ownershipIconWrap: {
+    width: 28, height: 28, borderRadius: 8,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: "center", justifyContent: "center",
+  },
+  ownershipTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
   },
 
   // ── Community post link ──

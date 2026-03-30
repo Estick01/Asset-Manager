@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, FlatList } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, ActivityIndicator, ScrollView, FlatList, Switch, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
@@ -41,6 +41,7 @@ export type CaseFormData = {
   juzgado: string;
   estadoId: number;
   descripcionEstado: string;
+  esPrivado: boolean;
 };
 
 type CaseFormProps = {
@@ -48,12 +49,205 @@ type CaseFormProps = {
   onSave: (data: CaseFormData) => Promise<void>;
   isLoading: boolean;
   error: string;
+  /**
+   * undefined  = usuario no es abogado → no mostrar sección
+   * null       = abogado sin firma → no mostrar sección
+   * true       = bufete permite procesos privados → mostrar toggle
+   * false      = bufete NO permite privados → mostrar mensaje informativo
+   */
+  firmAllowsPrivateProcesos?: boolean | null;
 };
 
 const CLIENTES_LIMIT = 10;
 
+// ─── Tarjeta informativa: proceso compartido con el bufete ────────────────────
+function FirmOwnershipInfoCard() {
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+
+  return (
+    <>
+      <View style={infoStyles.card}>
+        {/* Franja izquierda */}
+        <View style={infoStyles.stripe} />
+
+        <View style={infoStyles.body}>
+          {/* Fila superior: ícono + textos + botón info */}
+          <View style={infoStyles.row}>
+            <View style={infoStyles.iconWrap}>
+              <Ionicons name="business" size={16} color={Colors.info} />
+            </View>
+
+            <View style={infoStyles.texts}>
+              <Text style={infoStyles.title}>
+                Este proceso será propiedad del bufete. Solo el bufete y el responsable asignado tendrán acceso.
+              </Text>
+              <Text style={infoStyles.subtitle}>
+                El acceso depende de tu vinculación activa con la firma.
+              </Text>
+            </View>
+
+            <Pressable
+              onPress={() => setTooltipVisible(true)}
+              hitSlop={10}
+              style={infoStyles.infoBtn}
+              accessibilityLabel="Más información sobre propiedad del proceso"
+            >
+              <Ionicons name="information-circle" size={20} color={Colors.info} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      {/* ── Tooltip modal ── */}
+      <Modal
+        visible={tooltipVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setTooltipVisible(false)}
+      >
+        <Pressable style={infoStyles.overlay} onPress={() => setTooltipVisible(false)}>
+          <Pressable style={infoStyles.tooltip} onPress={e => e.stopPropagation()}>
+            <View style={infoStyles.tooltipHeader}>
+              <View style={infoStyles.tooltipIconWrap}>
+                <Ionicons name="business" size={18} color={Colors.info} />
+              </View>
+              <Text style={infoStyles.tooltipTitle}>Propiedad del proceso</Text>
+              <Pressable onPress={() => setTooltipVisible(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={Colors.textTertiary} />
+              </Pressable>
+            </View>
+
+            <Text style={infoStyles.tooltipText}>
+              El proceso pertenece al bufete. Solo el bufete y el responsable asignado tendrán acceso.
+              Si te desvinculas de la firma, el proceso permanece en ella y perderás el acceso.
+            </Text>
+
+            <View style={infoStyles.tooltipDivider} />
+
+            <Text style={infoStyles.tooltipFooter}>
+              Esta configuración la gestiona el administrador del bufete desde los ajustes de privacidad.
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+const infoStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    backgroundColor: Colors.infoLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.info + "30",
+    overflow: "hidden",
+  },
+  stripe: {
+    width: 4,
+    backgroundColor: Colors.info,
+  },
+  body: {
+    flex: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: Colors.info + "18",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  texts: {
+    flex: 1,
+    gap: 3,
+  },
+  title: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primaryDark,
+    lineHeight: 18,
+  },
+  subtitle: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 17,
+  },
+  infoBtn: {
+    marginTop: 1,
+    flexShrink: 0,
+  },
+
+  // Tooltip
+  overlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  tooltip: {
+    backgroundColor: Colors.white,
+    borderRadius: 18,
+    padding: 20,
+    width: "100%",
+    maxWidth: 340,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  tooltipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  tooltipIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: Colors.infoLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tooltipTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  tooltipText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 21,
+  },
+  tooltipDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+  },
+  tooltipFooter: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+    lineHeight: 18,
+  },
+});
+
 // ─── Component ─────────────────────────────────────────────────────────────
-export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProps) {
+export function CaseForm({ initialData, onSave, isLoading, error, firmAllowsPrivateProcesos }: CaseFormProps) {
   const { user } = useAuth();
   const [clientes,       setClientes]       = useState<Cliente[]>([]);
   const [clientesOffset, setClientesOffset] = useState(0);
@@ -69,6 +263,7 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
     juzgado:           initialData?.juzgado            || "",
     estadoId:          initialData?.estadoId           || 0,
     descripcionEstado: initialData?.descripcionEstado  || "",
+    esPrivado:         initialData?.esPrivado          ?? false,
   });
   const [showClientes, setShowClientes] = useState(false);
   const [showTipos,    setShowTipos]    = useState(false);
@@ -328,6 +523,30 @@ export function CaseForm({ initialData, onSave, isLoading, error }: CaseFormProp
             />
           </View>
         </View>
+
+        {/* ── Proceso privado ── */}
+        {firmAllowsPrivateProcesos === true && (
+          <View style={styles.privadoRow}>
+            <View style={styles.privadoInfo}>
+              <Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.privadoLabel}>Proceso privado</Text>
+                <Text style={styles.privadoSublabel}>Solo tú podrás ver este proceso</Text>
+              </View>
+            </View>
+            <Switch
+              value={form.esPrivado}
+              onValueChange={v => setForm(prev => ({ ...prev, esPrivado: v }))}
+              trackColor={{ false: Colors.border, true: Colors.primary + "80" }}
+              thumbColor={form.esPrivado ? Colors.primary : "#ccc"}
+              ios_backgroundColor={Colors.border}
+            />
+          </View>
+        )}
+
+        {firmAllowsPrivateProcesos === false && (
+          <FirmOwnershipInfoCard />
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -414,6 +633,16 @@ const styles = StyleSheet.create({
   estadoChipActive:     { backgroundColor: Colors.primary + "15", borderColor: Colors.primary },
   estadoChipText:       { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
   estadoChipTextActive: { color: Colors.primary, fontFamily: "Inter_600SemiBold" },
+
+  privadoRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: Colors.white, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingVertical: 14, paddingHorizontal: 14,
+  },
+  privadoInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  privadoLabel: { fontSize: 15, fontFamily: "Inter_500Medium", color: Colors.text },
+  privadoSublabel: { fontSize: 12, color: Colors.textTertiary, marginTop: 2 },
 
   footer: {
     position: "absolute", bottom: 0, left: 0, right: 0,

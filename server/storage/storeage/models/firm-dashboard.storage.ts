@@ -1,10 +1,10 @@
 // storage/firm-dashboard.storage.ts
 
-import { and, count, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, count, eq, gte, inArray, or, sql } from "drizzle-orm";
 import {
   clientes, documentos, actualizaciones, procesos,
   estadosProceso, tiposProceso, lawyerFirmaHistory, procesoLawyers,
-  lawyerClients, lawyerProfiles, tareas,
+  lawyerClients, lawyerProfiles, tareas, procesoOwnership,
 } from "@/shared/schema";
 import { Database } from "../database-storage";
 
@@ -54,7 +54,7 @@ export class FirmDashboardStorage {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    // Primero obtenemos los IDs de abogados de la firma
+    // 1. IDs de abogados activos de la firma
     const firmLawyers = await this.db
       .select({ id: lawyerProfiles.id })
       .from(lawyerProfiles)
@@ -62,7 +62,34 @@ export class FirmDashboardStorage {
 
     const lawyerIds = firmLawyers.map(l => l.id);
 
-    if (lawyerIds.length === 0) {
+    // 2. IDs de procesos de la firma:
+    //    a) Propiedad directa del bufete (proceso_ownership activo)
+    //    b) Procesos donde algún abogado de la firma está asignado (procesoLawyers)
+    const [ownedRows, assignedRows] = await Promise.all([
+      this.db
+        .select({ procesoId: procesoOwnership.procesoId })
+        .from(procesoOwnership)
+        .where(and(
+          eq(procesoOwnership.ownerType, "bufete"),
+          eq(procesoOwnership.ownerId, firmId),
+          sql`${procesoOwnership.activoUnique} = 1`,
+        )),
+      lawyerIds.length > 0
+        ? this.db
+            .select({ procesoId: procesoLawyers.procesoId })
+            .from(procesoLawyers)
+            .where(inArray(procesoLawyers.lawyerId, lawyerIds))
+        : Promise.resolve([]),
+    ]);
+
+    const procesoIdSet = new Set([
+      ...ownedRows.map(r => r.procesoId),
+      ...assignedRows.map(r => r.procesoId),
+    ]);
+    const procesoIds = [...procesoIdSet];
+
+    // Si no hay abogados ni procesos propios, devolver ceros
+    if (lawyerIds.length === 0 && procesoIds.length === 0) {
       return {
         totalAbogados: 0, abogadosActivos: 0, abogadosSuspendidos: 0,
         totalClientes: 0, clientesActivos: 0,
@@ -84,7 +111,7 @@ export class FirmDashboardStorage {
       procesosPorTipo,
     ] = await Promise.all([
 
-      // Abogados de la firma
+      // Abogados de la firma (histórico + activos)
       this.db
         .select({
           total: sql<number>`COUNT(*)`,
@@ -94,134 +121,120 @@ export class FirmDashboardStorage {
         .from(lawyerFirmaHistory)
         .where(eq(lawyerFirmaHistory.firmaId, firmId)),
 
-      // Clientes de la firma via lawyerClients
-      this.db
-        .select({
-          total: sql<number>`COUNT(DISTINCT ${lawyerClients.clientId})`,
-          activos: sql<number>`COUNT(DISTINCT CASE WHEN ${clientes.activo} = 1 THEN ${lawyerClients.clientId} END)`,
-        })
-        .from(lawyerClients)
-        .innerJoin(lawyerProfiles, eq(lawyerClients.lawyerId, lawyerProfiles.id))
-        .innerJoin(clientes, eq(lawyerClients.clientId, clientes.id))
-        .where(
-          and(
-            eq(lawyerProfiles.firmId, firmId),
-            eq(lawyerClients.status, "active")
-          )
-        ),
+      // Clientes via abogados de la firma
+      lawyerIds.length > 0
+        ? this.db
+            .select({
+              total: sql<number>`COUNT(DISTINCT ${lawyerClients.clientId})`,
+              activos: sql<number>`COUNT(DISTINCT CASE WHEN ${clientes.activo} = 1 THEN ${lawyerClients.clientId} END)`,
+            })
+            .from(lawyerClients)
+            .innerJoin(lawyerProfiles, eq(lawyerClients.lawyerId, lawyerProfiles.id))
+            .innerJoin(clientes, eq(lawyerClients.clientId, clientes.id))
+            .where(and(
+              eq(lawyerProfiles.firmId, firmId),
+              eq(lawyerClients.status, "active"),
+            ))
+        : Promise.resolve([{ total: 0, activos: 0 }]),
 
-      // Procesos de la firma
-      this.db
-        .select({
-          total: sql<number>`COUNT(DISTINCT ${procesos.id})`,
-          activos: sql<number>`COUNT(DISTINCT CASE WHEN ${estadosProceso.codigo} = 'activo' THEN ${procesos.id} END)`,
-          finalizados: sql<number>`COUNT(DISTINCT CASE WHEN ${estadosProceso.codigo} = 'finalizado' THEN ${procesos.id} END)`,
-        })
-        .from(procesos)
-        .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
-        .leftJoin(procesoLawyers, eq(procesos.id, procesoLawyers.procesoId))
-        .where(inArray(procesoLawyers.lawyerId, lawyerIds)),
+      // Procesos — usar IDs ya calculados (incluye owned + assigned)
+      procesoIds.length > 0
+        ? this.db
+            .select({
+              total: sql<number>`COUNT(DISTINCT ${procesos.id})`,
+              activos: sql<number>`COUNT(DISTINCT CASE WHEN ${estadosProceso.codigo} = 'activo' THEN ${procesos.id} END)`,
+              finalizados: sql<number>`COUNT(DISTINCT CASE WHEN ${estadosProceso.codigo} = 'finalizado' THEN ${procesos.id} END)`,
+            })
+            .from(procesos)
+            .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
+            .where(and(inArray(procesos.id, procesoIds), eq(procesos.state, true)))
+        : Promise.resolve([{ total: 0, activos: 0, finalizados: 0 }]),
 
       // Procesos este mes
-      this.db
-        .select({ total: sql<number>`COUNT(DISTINCT ${procesos.id})` })
-        .from(procesos)
-        .leftJoin(procesoLawyers, eq(procesos.id, procesoLawyers.procesoId))
-        .where(
-          and(
-            inArray(procesoLawyers.lawyerId, lawyerIds),
-            gte(procesos.fechaCreacion, startOfMonth)
-          )
-        ),
+      procesoIds.length > 0
+        ? this.db
+            .select({ total: sql<number>`COUNT(DISTINCT ${procesos.id})` })
+            .from(procesos)
+            .where(and(
+              inArray(procesos.id, procesoIds),
+              eq(procesos.state, true),
+              gte(procesos.fechaCreacion, startOfMonth),
+            ))
+        : Promise.resolve([{ total: 0 }]),
 
-      // Documentos de procesos de la firma
-      this.db
-        .select({ total: sql<number>`COUNT(DISTINCT ${documentos.id})` })
-        .from(documentos)
-        .innerJoin(procesoLawyers, eq(documentos.procesoId, procesoLawyers.procesoId))
-        .where(inArray(procesoLawyers.lawyerId, lawyerIds)),
+      // Documentos de los procesos de la firma
+      procesoIds.length > 0
+        ? this.db
+            .select({ total: sql<number>`COUNT(DISTINCT ${documentos.id})` })
+            .from(documentos)
+            .where(inArray(documentos.procesoId, procesoIds))
+        : Promise.resolve([{ total: 0 }]),
 
-      // Actualizaciones este mes de procesos de la firma
-      this.db
-        .select({ total: sql<number>`COUNT(DISTINCT ${actualizaciones.id})` })
-        .from(actualizaciones)
-        .innerJoin(procesoLawyers, eq(actualizaciones.procesoId, procesoLawyers.procesoId))
-        .where(
-          and(
-            inArray(procesoLawyers.lawyerId, lawyerIds),
-            gte(actualizaciones.fecha, startOfMonth)
-          )
-        ),
+      // Actualizaciones este mes
+      procesoIds.length > 0
+        ? this.db
+            .select({ total: sql<number>`COUNT(DISTINCT ${actualizaciones.id})` })
+            .from(actualizaciones)
+            .where(and(
+              inArray(actualizaciones.procesoId, procesoIds),
+              gte(actualizaciones.fecha, startOfMonth),
+            ))
+        : Promise.resolve([{ total: 0 }]),
 
       // Procesos por estado
-      this.db
-        .select({
-          nombre: estadosProceso.nombre,
-          color: estadosProceso.color,
-          total: sql<number>`COUNT(DISTINCT ${procesos.id})`,
-        })
-        .from(procesos)
-        .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
-        .leftJoin(procesoLawyers, eq(procesos.id, procesoLawyers.procesoId))
-        .where(inArray(procesoLawyers.lawyerId, lawyerIds))
-        .groupBy(estadosProceso.id, estadosProceso.nombre, estadosProceso.color),
+      procesoIds.length > 0
+        ? this.db
+            .select({
+              nombre: estadosProceso.nombre,
+              color: estadosProceso.color,
+              total: sql<number>`COUNT(DISTINCT ${procesos.id})`,
+            })
+            .from(procesos)
+            .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
+            .where(and(inArray(procesos.id, procesoIds), eq(procesos.state, true)))
+            .groupBy(estadosProceso.id, estadosProceso.nombre, estadosProceso.color)
+        : Promise.resolve([]),
 
       // Procesos por tipo
-      this.db
-        .select({
-          nombre: tiposProceso.nombre,
-          total: sql<number>`COUNT(DISTINCT ${procesos.id})`,
-        })
-        .from(procesos)
-        .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
-        .leftJoin(procesoLawyers, eq(procesos.id, procesoLawyers.procesoId))
-        .where(inArray(procesoLawyers.lawyerId, lawyerIds))
-        .groupBy(tiposProceso.id, tiposProceso.nombre),
+      procesoIds.length > 0
+        ? this.db
+            .select({
+              nombre: tiposProceso.nombre,
+              total: sql<number>`COUNT(DISTINCT ${procesos.id})`,
+            })
+            .from(procesos)
+            .leftJoin(tiposProceso, eq(procesos.tipoProcesoId, tiposProceso.id))
+            .where(and(inArray(procesos.id, procesoIds), eq(procesos.state, true)))
+            .groupBy(tiposProceso.id, tiposProceso.nombre)
+        : Promise.resolve([]),
     ]);
 
-    // Tareas: query separada para no romper el dashboard si falla
-    // Usa COUNT(DISTINCT) para evitar duplicados del JOIN con procesoLawyers
-    // También incluye tareas asignadas o creadas por abogados de la firma
+    // Tareas — contar todas las tareas en procesos de la firma o asignadas a sus abogados
     let totalTareas = 0, tareasPendientes = 0, tareasEnProgreso = 0, tareasCompletadas = 0;
     try {
-      const [tareasViaProc, tareasViaLawyer] = await Promise.all([
-        // Tareas en procesos donde hay abogados de la firma
-        this.db
+      const conditions: any[] = [eq(tareas.state, true)];
+      const orConditions: any[] = [];
+
+      if (procesoIds.length > 0) orConditions.push(inArray(tareas.procesoId, procesoIds));
+      if (lawyerIds.length > 0)  orConditions.push(inArray(tareas.asignadoA, lawyerIds));
+
+      if (orConditions.length > 0) {
+        conditions.push(or(...orConditions));
+        const result = await this.db
           .select({
-            total: sql<number>`COUNT(DISTINCT ${tareas.id})`,
-            pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'pendiente' THEN ${tareas.id} END)`,
-            en_progreso: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'en_progreso' THEN ${tareas.id} END)`,
-            completadas: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada' THEN ${tareas.id} END)`,
+            total:      sql<number>`COUNT(DISTINCT ${tareas.id})`,
+            pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'pendiente'   THEN ${tareas.id} END)`,
+            en_progreso:sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'en_progreso' THEN ${tareas.id} END)`,
+            completadas:sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada'  THEN ${tareas.id} END)`,
           })
           .from(tareas)
-          .innerJoin(procesoLawyers, eq(tareas.procesoId, procesoLawyers.procesoId))
-          .where(and(
-            inArray(procesoLawyers.lawyerId, lawyerIds),
-            eq(tareas.state, true),
-          )),
+          .where(and(...conditions));
 
-        // Tareas asignadas a abogados de la firma pero fuera de procesoLawyers
-        this.db
-          .select({
-            total: sql<number>`COUNT(DISTINCT ${tareas.id})`,
-            pendientes: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'pendiente' THEN ${tareas.id} END)`,
-            en_progreso: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'en_progreso' THEN ${tareas.id} END)`,
-            completadas: sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada' THEN ${tareas.id} END)`,
-          })
-          .from(tareas)
-          .where(and(
-            inArray(tareas.asignadoA, lawyerIds),
-            eq(tareas.state, true),
-          )),
-      ]);
-
-      // Combinar ambas fuentes usando sets para evitar duplicados exactos
-      // (una tarea puede estar en ambas si el abogado asignado también está en procesoLawyers)
-      // Usamos el mayor valor de los dos para cada estado como aproximación
-      totalTareas = Math.max(Number(tareasViaProc[0]?.total ?? 0), Number(tareasViaLawyer[0]?.total ?? 0));
-      tareasPendientes = Math.max(Number(tareasViaProc[0]?.pendientes ?? 0), Number(tareasViaLawyer[0]?.pendientes ?? 0));
-      tareasEnProgreso = Math.max(Number(tareasViaProc[0]?.en_progreso ?? 0), Number(tareasViaLawyer[0]?.en_progreso ?? 0));
-      tareasCompletadas = Math.max(Number(tareasViaProc[0]?.completadas ?? 0), Number(tareasViaLawyer[0]?.completadas ?? 0));
+        totalTareas      = Number(result[0]?.total       ?? 0);
+        tareasPendientes = Number(result[0]?.pendientes  ?? 0);
+        tareasEnProgreso = Number(result[0]?.en_progreso ?? 0);
+        tareasCompletadas= Number(result[0]?.completadas ?? 0);
+      }
     } catch (e) {
       console.error("[firm-dashboard] Error al obtener stats de tareas:", e);
     }

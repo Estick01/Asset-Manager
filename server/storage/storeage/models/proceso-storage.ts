@@ -81,8 +81,8 @@ export class ProcesoStorage {
   filter?: ProcesoFilter
 ): Promise<{ data: ProcesoDTO[]; total: number }> {
 
-  // 1. IDs de procesos del abogado (junction + responsable activo)
-  const [lawyerProcesoIds, responsableProcesoIds] = await Promise.all([
+  // 1. IDs de procesos del abogado (junction + responsable activo + ownership directo)
+  const [lawyerProcesoIds, responsableProcesoIds, ownedProcesoIds] = await Promise.all([
     this.db
       .select({ procesoId: procesoLawyers.procesoId })
       .from(procesoLawyers)
@@ -94,11 +94,20 @@ export class ProcesoStorage {
         eq(procesoResponsables.lawyerId, lawyerId),
         eq(procesoResponsables.activo, true)
       )),
+    this.db
+      .select({ procesoId: procesoOwnership.procesoId })
+      .from(procesoOwnership)
+      .where(and(
+        eq(procesoOwnership.ownerType, "abogado"),
+        eq(procesoOwnership.ownerId, lawyerId),
+        sql`${procesoOwnership.activoUnique} = 1`,
+      )),
   ]);
 
   const procesoIds = [...new Set([
     ...lawyerProcesoIds.map(p => p.procesoId),
     ...responsableProcesoIds.map(p => p.procesoId),
+    ...ownedProcesoIds.map(p => p.procesoId),
   ])];
 
   if (procesoIds.length === 0) return { data: [], total: 0 };

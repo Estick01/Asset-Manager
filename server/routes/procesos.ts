@@ -335,6 +335,10 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
           razonAsignacion: "Abogado creador del proceso",
           asignadoPor: userId,
         });
+        await storage.setResponsable(newProceso.id, idProfile, {
+          asignadoPorNombre: UserName ?? null,
+          razon: "Responsable inicial (abogado creador)",
+        });
         break;
       case "bufete":
         if (!req.body.lawyerId) return res.status(400).json({ error: "lawyerId is required para bufete" });
@@ -344,6 +348,10 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
           razonAsignacion: `Asignado por bufete ${UserName}`,
           asignadoPor: userId,
         });
+        await storage.setResponsable(newProceso.id, req.body.lawyerId, {
+          asignadoPorNombre: UserName ?? null,
+          razon: `Responsable inicial asignado por bufete ${UserName}`,
+        });
         break;
       case "corporacion":
         if (!req.body.lawyerId) return res.status(400).json({ error: "lawyerId is required para corporacion" });
@@ -352,6 +360,10 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
           tipoAsignacionId: TIPO_ASIGNACION_IDS.SOLICITUD_CLIENTE,
           razonAsignacion: `Contratado por corporación ${UserName}`,
           asignadoPor: userId,
+        });
+        await storage.setResponsable(newProceso.id, req.body.lawyerId, {
+          asignadoPorNombre: UserName ?? null,
+          razon: `Responsable inicial asignado por corporación ${UserName}`,
         });
         break;
       case "cliente":

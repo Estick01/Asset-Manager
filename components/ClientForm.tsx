@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet,
-  ActivityIndicator, ScrollView, Modal, TouchableOpacity, FlatList
+  ActivityIndicator, ScrollView, Modal, TouchableOpacity, FlatList, Switch,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
@@ -24,11 +24,112 @@ interface ClientFormProps {
   isLoading?: boolean;
   isEditing?: boolean;
   error?: string;
+  /** true → muestra toggle privado; false → muestra tarjeta bufete; undefined/null → no muestra nada */
+  firmAllowsPrivateClientes?: boolean | null;
 }
+
+// ─── Tarjeta informativa: cliente compartido con el bufete ────────────────────
+function FirmClienteOwnershipInfoCard() {
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+
+  return (
+    <>
+      <View style={infoStyles.card}>
+        <View style={infoStyles.stripe} />
+        <View style={infoStyles.body}>
+          <View style={infoStyles.row}>
+            <View style={infoStyles.iconWrap}>
+              <Ionicons name="business" size={16} color={Colors.info} />
+            </View>
+            <View style={infoStyles.texts}>
+              <Text style={infoStyles.title}>
+                Este cliente será propiedad del bufete. Solo el bufete y el responsable asignado tendrán acceso.
+              </Text>
+              <Text style={infoStyles.subtitle}>
+                El acceso depende de tu vinculación activa con la firma.
+              </Text>
+            </View>
+            <Pressable onPress={() => setTooltipVisible(true)} hitSlop={10} style={infoStyles.infoBtn}>
+              <Ionicons name="information-circle" size={20} color={Colors.info} />
+            </Pressable>
+          </View>
+        </View>
+      </View>
+
+      <Modal visible={tooltipVisible} transparent animationType="fade" onRequestClose={() => setTooltipVisible(false)}>
+        <Pressable style={infoStyles.overlay} onPress={() => setTooltipVisible(false)}>
+          <Pressable style={infoStyles.tooltip} onPress={e => e.stopPropagation()}>
+            <View style={infoStyles.tooltipHeader}>
+              <View style={infoStyles.tooltipIconWrap}>
+                <Ionicons name="business" size={18} color={Colors.info} />
+              </View>
+              <Text style={infoStyles.tooltipTitle}>Propiedad del cliente</Text>
+              <Pressable onPress={() => setTooltipVisible(false)} hitSlop={8}>
+                <Ionicons name="close" size={20} color={Colors.textTertiary} />
+              </Pressable>
+            </View>
+            <Text style={infoStyles.tooltipText}>
+              El cliente pertenece al bufete. Solo el bufete y el responsable asignado tendrán acceso.
+              Si te desvinculas de la firma, el cliente permanece en ella y perderás el acceso.
+            </Text>
+            <View style={infoStyles.tooltipDivider} />
+            <Text style={infoStyles.tooltipFooter}>
+              Esta configuración la gestiona el administrador del bufete desde los ajustes de privacidad.
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </>
+  );
+}
+
+const infoStyles = StyleSheet.create({
+  card: {
+    flexDirection: "row",
+    backgroundColor: Colors.infoLight,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.info + "30",
+    overflow: "hidden",
+  },
+  stripe: { width: 4, backgroundColor: Colors.info },
+  body: { flex: 1, paddingVertical: 14, paddingHorizontal: 12 },
+  row: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  iconWrap: {
+    width: 30, height: 30, borderRadius: 8,
+    backgroundColor: Colors.info + "18",
+    alignItems: "center", justifyContent: "center",
+    flexShrink: 0, marginTop: 1,
+  },
+  texts: { flex: 1, gap: 3 },
+  title: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.primaryDark, lineHeight: 18 },
+  subtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 17 },
+  infoBtn: { marginTop: 1, flexShrink: 0 },
+  overlay: {
+    flex: 1, backgroundColor: Colors.overlay,
+    justifyContent: "center", alignItems: "center", padding: 24,
+  },
+  tooltip: {
+    backgroundColor: Colors.white, borderRadius: 18,
+    padding: 20, width: "100%", maxWidth: 340, gap: 12,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15, shadowRadius: 20, elevation: 10,
+  },
+  tooltipHeader: { flexDirection: "row", alignItems: "center", gap: 10 },
+  tooltipIconWrap: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: Colors.infoLight,
+    alignItems: "center", justifyContent: "center",
+  },
+  tooltipTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.text },
+  tooltipText: { fontSize: 14, fontFamily: "Inter_400Regular", color: Colors.textSecondary, lineHeight: 21 },
+  tooltipDivider: { height: 1, backgroundColor: Colors.border },
+  tooltipFooter: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary, lineHeight: 18 },
+});
 
 type ClienteTipo = "natural" | "empresa";
 
-export function ClientForm({ initialData, onSave, isLoading, isEditing, error }: ClientFormProps) {
+export function ClientForm({ initialData, onSave, isLoading, isEditing, error, firmAllowsPrivateClientes }: ClientFormProps) {
   const initialTipo: ClienteTipo = (initialData as any)?.tipo ?? "natural";
 
   // Representante legal (empresa) — declared early so state initialisers can reference repPersona
@@ -63,6 +164,7 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error }:
   // Common
   const [correo, setCorreo]     = useState(initialData?.user?.email ?? "");
   const [password, setPassword] = useState("");
+  const [esPrivado, setEsPrivado] = useState(false);
 
   // Lookup data
   const [tiposDocumento, setTiposDocumento]           = useState<TipoDocumento[]>([]);
@@ -156,6 +258,7 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error }:
         departamentoId: departamentoId || null,
         municipioId: municipioId || null,
         password,
+        esPrivado: !isEditing ? esPrivado : undefined,
       });
     } else {
       onSave({
@@ -173,6 +276,7 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error }:
         repDireccion: repDireccion || undefined,
         repDepartamentoId: departamentoId || undefined,
         repMunicipioId: municipioId || undefined,
+        esPrivado: !isEditing ? esPrivado : undefined,
       });
     }
   };
@@ -474,6 +578,29 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error }:
             </View>
           </View>
         )}
+        {/* ── Privacidad del cliente (solo al crear) ── */}
+        {!isEditing && firmAllowsPrivateClientes === true && (
+          <View style={styles.privadoRow}>
+            <View style={styles.privadoInfo}>
+              <Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.privadoLabel}>Cliente privado</Text>
+                <Text style={styles.privadoSublabel}>Solo tú podrás ver este cliente</Text>
+              </View>
+            </View>
+            <Switch
+              value={esPrivado}
+              onValueChange={setEsPrivado}
+              trackColor={{ false: Colors.border, true: Colors.primary + "80" }}
+              thumbColor={esPrivado ? Colors.primary : "#ccc"}
+              ios_backgroundColor={Colors.border}
+            />
+          </View>
+        )}
+
+        {!isEditing && firmAllowsPrivateClientes === false && (
+          <FirmClienteOwnershipInfoCard />
+        )}
       </ScrollView>
 
       {/* Footer */}
@@ -642,6 +769,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
     backgroundColor: Colors.white, borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
+  privadoRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    backgroundColor: Colors.white, borderRadius: 12,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingVertical: 12, paddingHorizontal: 14,
+  },
+  privadoInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  privadoLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
+  privadoSublabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 1 },
   saveBtn: { backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
   saveBtnPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   saveBtnDisabled: { opacity: 0.6 },

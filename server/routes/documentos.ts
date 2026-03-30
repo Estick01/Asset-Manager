@@ -56,7 +56,12 @@ const upload = multer({
 
 /**
  * Verifica que el usuario autenticado tenga acceso al proceso al que pertenece un documento.
- * Reutiliza la misma lógica que el endpoint de descarga.
+ *
+ * Reglas de acceso por rol:
+ *  - cliente   → el proceso debe pertenecer a su cliente
+ *  - abogado   → debe ser owner del proceso, estar en proceso_lawyers o ser el responsable activo
+ *  - bufete    → debe ser owner del proceso via proceso_ownership (fuente de verdad)
+ *  - otros roles autenticados → acceso denegado por defecto
  */
 async function assertProcesoDocumentoAccess(
   payload: JWTPayload,
@@ -68,37 +73,57 @@ async function assertProcesoDocumentoAccess(
     res.status(404).json({ error: "Proceso no encontrado" });
     return false;
   }
-  const rol = payload.rol?.nombre;
-  console.log(rol)
+
+  const rol        = payload.rol?.nombre;
+  const actorId    = payload.idProfile!;
+
+  // ── Cliente ───────────────────────────────────────────────────────────────
   if (rol === EnumRol.CLIENTE.nombre) {
-    if (proceso.clienteId !== payload.idProfile) {
+    if (proceso.clienteId !== actorId) {
       res.status(403).json({ error: "No tienes acceso a este documento" });
       return false;
     }
-  } else if (rol === EnumRol.ABOGADO.nombre ) {
-    const relations = await storage.lawyerClients.getClientLawyers(proceso.clienteId);
-    const hasAccess = relations.some((r: any) => r.lawyerId === payload.idProfile);
-    if (!hasAccess) {
-      res.status(403).json({ error: "No tienes acceso a este documento" });
-      return false;
-    }
-  } else if (rol === EnumRol.BUFETE.nombre) {
-    const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(payload.idProfile!);
-    const clienteInFirm = firmClientIds.includes(proceso.clienteId);
-
-    // Fallback: el bufete puede gestionar el proceso directamente (aparece en proceso_lawyers)
-    let firmManagesProceso = false;
-    if (!clienteInFirm) {
-      const procesoLawyers = await storage.getProcesoLawyers(procesoId);
-      firmManagesProceso = procesoLawyers.some((pl: any) => pl.lawyerId === payload.idProfile);
-    }
-
-    if (!clienteInFirm && !firmManagesProceso) {
-      res.status(403).json({ error: "No tienes acceso a este documento" });
-      return false;
-    }
+    return true;
   }
-  return true;
+
+  // ── Abogado ───────────────────────────────────────────────────────────────
+  if (rol === EnumRol.ABOGADO.nombre) {
+    // 1. El abogado es el owner directo del proceso (proceso privado suyo)
+    const ownership = await storage.procesoOwnership.getActive(procesoId);
+    if (ownership?.ownerType === "abogado" && ownership.ownerId === actorId) {
+      return true;
+    }
+
+    // 2. El abogado está asignado al proceso (proceso_lawyers)
+    const procesoLawyers = await storage.getProcesoLawyers(procesoId);
+    if (procesoLawyers.some((pl: any) => pl.lawyerId === actorId)) {
+      return true;
+    }
+
+    // 3. El abogado es el responsable activo
+    if (proceso.responsable?.id === actorId) {
+      return true;
+    }
+
+    res.status(403).json({ error: "No tienes acceso a este documento" });
+    return false;
+  }
+
+  // ── Bufete ────────────────────────────────────────────────────────────────
+  if (rol === EnumRol.BUFETE.nombre) {
+    // Fuente de verdad: proceso_ownership dice que el proceso pertenece a este bufete
+    const ownership = await storage.procesoOwnership.getActive(procesoId);
+    if (ownership?.ownerType === "bufete" && ownership.ownerId === actorId) {
+      return true;
+    }
+
+    res.status(403).json({ error: "No tienes acceso a este documento" });
+    return false;
+  }
+
+  // Cualquier otro rol autenticado no tiene acceso
+  res.status(403).json({ error: "No tienes acceso a este documento" });
+  return false;
 }
 
 // GET /api/documentos - Get documents for a process
@@ -173,36 +198,10 @@ router.get("/documentos/:id/download", async (req: Request, res: Response, next:
       return res.status(404).json({ error: "Documento no encontrado" });
     }
 
-    // ── Verificar que el proceso del documento pertenece al usuario ──────────
+    // ── Verificar acceso al proceso del documento ─────────────────────────
     if (documento.procesoId) {
-      const proceso = await storage.getProceso(documento.procesoId);
-      if (!proceso) return res.status(404).json({ error: "Proceso no encontrado" });
-
-      const rol = payload.rol?.nombre;
-
-      if (rol === "cliente") {
-        // El cliente solo accede a documentos de sus propios procesos
-        if (proceso.clienteId !== payload.idProfile) {
-          return res.status(403).json({ error: "No tienes acceso a este documento" });
-        }
-      } else if (rol === "abogado") {
-        const relations = await storage.lawyerClients.getClientLawyers(proceso.clienteId);
-        const hasAccess = relations.some((r: any) => r.lawyerId === payload.idProfile);
-        if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este documento" });
-      } else if (rol === "bufete") {
-        const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(payload.idProfile!);
-        const clienteInFirm = firmClientIds.includes(proceso.clienteId);
-
-        let firmManagesProceso = false;
-        if (!clienteInFirm) {
-          const procesoLawyersList = await storage.getProcesoLawyers(proceso.id);
-          firmManagesProceso = procesoLawyersList.some((pl: any) => pl.lawyerId === payload.idProfile);
-        }
-
-        if (!clienteInFirm && !firmManagesProceso) {
-          return res.status(403).json({ error: "No tienes acceso a este documento" });
-        }
-      }
+      const allowed = await assertProcesoDocumentoAccess(payload as JWTPayload, documento.procesoId, res);
+      if (!allowed) return;
     }
 
     // Get the file URI (S3 key or local path)

@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, TextInput, ActivityIndicator, Alert,
+  Modal, TextInput, ActivityIndicator, Alert, Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -166,6 +166,104 @@ function PwdModal({ visible, onClose }: { visible: boolean; onClose: () => void 
   );
 }
 
+// ─── Tipos de configuración de privacidad ─────────────────────────────────────
+interface FirmPrivacySettings {
+  allowPrivateClientes:       boolean;
+  allowPrivateProcesos:       boolean;
+  defaultClienteEsCompartido: boolean;
+  defaultProcesoEsCompartido: boolean;
+}
+
+// ─── Sección de privacidad con toggles ────────────────────────────────────────
+function PrivacySection({
+  settings,
+  saving,
+  onToggle,
+}: {
+  settings: FirmPrivacySettings;
+  saving: string | null;
+  onToggle: (field: keyof FirmPrivacySettings, value: boolean) => void;
+}) {
+  type ToggleRow = {
+    field:    keyof FirmPrivacySettings;
+    icon:     string;
+    label:    string;
+    sublabel: string;
+    enabled?: boolean; // si false, desactiva el toggle visualmente
+  };
+
+  const rows: ToggleRow[] = [
+    {
+      field:    "allowPrivateClientes",
+      icon:     "person-circle-outline",
+      label:    "Clientes privados",
+      sublabel: "Los abogados pueden tener clientes visibles solo para ellos",
+    },
+    {
+      field:    "defaultClienteEsCompartido",
+      icon:     "people-outline",
+      label:    "Clientes compartidos por defecto",
+      sublabel: "Nuevos clientes pertenecen al bufete si no se indica lo contrario",
+      enabled:  settings.allowPrivateClientes,
+    },
+    {
+      field:    "allowPrivateProcesos",
+      icon:     "document-text-outline",
+      label:    "Procesos privados",
+      sublabel: "Los abogados pueden tener procesos visibles solo para ellos",
+    },
+    {
+      field:    "defaultProcesoEsCompartido",
+      icon:     "folder-open-outline",
+      label:    "Procesos compartidos por defecto",
+      sublabel: "Nuevos procesos pertenecen al bufete si no se indica lo contrario",
+      enabled:  settings.allowPrivateProcesos,
+    },
+  ];
+
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Privacidad</Text>
+      <View style={styles.sectionCard}>
+        {rows.map((row, i) => {
+          const isDisabled = row.enabled === false;
+          const isSaving   = saving === row.field;
+          return (
+            <View
+              key={row.field}
+              style={[
+                styles.row,
+                i < rows.length - 1 && styles.rowBorder,
+                isDisabled && { opacity: 0.45 },
+              ]}
+            >
+              <View style={[styles.rowIconWrap, { backgroundColor: TEAL + "12" }]}>
+                <Ionicons name={row.icon as any} size={18} color={TEAL} />
+              </View>
+              <View style={styles.rowText}>
+                <Text style={styles.rowLabel}>{row.label}</Text>
+                <Text style={styles.rowSublabel}>{row.sublabel}</Text>
+              </View>
+              {isSaving ? (
+                <ActivityIndicator size="small" color={TEAL} style={{ marginRight: 2 }} />
+              ) : (
+                <Switch
+                  value={settings[row.field]}
+                  onValueChange={v => !isDisabled && onToggle(row.field, v)}
+                  disabled={isDisabled}
+                  trackColor={{ false: BORDER, true: TEAL + "80" }}
+                  thumbColor={settings[row.field] ? TEAL : "#ccc"}
+                  ios_backgroundColor={BORDER}
+                />
+              )}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function FirmSettingsScreen() {
   const insets = useSafeAreaInsets();
@@ -173,6 +271,49 @@ export default function FirmSettingsScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loggingOut, setLoggingOut]           = useState(false);
   const [showPwdModal, setShowPwdModal]       = useState(false);
+
+  const [privacy, setPrivacy]     = useState<FirmPrivacySettings>({
+    allowPrivateClientes:       false,
+    allowPrivateProcesos:       false,
+    defaultClienteEsCompartido: true,
+    defaultProcesoEsCompartido: true,
+  });
+  const [savingField, setSavingField] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiRequest("GET", "/api/firm/settings")
+      .then(r => r.json())
+      .then((data: FirmPrivacySettings) => setPrivacy(data))
+      .catch(() => toast.error("No se pudo cargar la configuración de privacidad."));
+  }, []);
+
+  const handlePrivacyToggle = useCallback(
+    async (field: keyof FirmPrivacySettings, value: boolean) => {
+      const prev = privacy;
+      const next = { ...privacy, [field]: value };
+
+      // Si desactivan "clientes privados", forzar compartido por defecto
+      if (field === "allowPrivateClientes" && !value) {
+        next.defaultClienteEsCompartido = true;
+      }
+      if (field === "allowPrivateProcesos" && !value) {
+        next.defaultProcesoEsCompartido = true;
+      }
+
+      setPrivacy(next);
+      setSavingField(field);
+      try {
+        await apiRequest("PATCH", "/api/firm/settings", { [field]: value });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch {
+        setPrivacy(prev);
+        toast.error("Error al guardar la configuración.");
+      } finally {
+        setSavingField(null);
+      }
+    },
+    [privacy],
+  );
 
   const handleConfirmLogout = async () => {
     setLoggingOut(true);
@@ -264,10 +405,17 @@ export default function FirmSettingsScreen() {
           </Pressable>
         </View>
 
-        {/* ── Secciones ── */}
+        {/* ── Secciones estáticas ── */}
         {sections.map(s => (
           <SettingsSection key={s.title} title={s.title} items={s.items} />
         ))}
+
+        {/* ── Privacidad ── */}
+        <PrivacySection
+          settings={privacy}
+          saving={savingField}
+          onToggle={handlePrivacyToggle}
+        />
 
         {/* ── Cerrar sesión ── */}
         <Pressable

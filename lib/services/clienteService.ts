@@ -20,6 +20,7 @@ export interface SaveClienteNaturalData {
   departamentoId?: string | null;
   municipioId?: string | null;
   password: string;
+  esPrivado?: boolean;
 }
 
 export interface SaveClienteEmpresaData {
@@ -40,6 +41,7 @@ export interface SaveClienteEmpresaData {
   repDireccion?: string;
   repDepartamentoId?: string;
   repMunicipioId?: string;
+  esPrivado?: boolean;
 }
 
 export type SaveClienteData = SaveClienteNaturalData | SaveClienteEmpresaData;
