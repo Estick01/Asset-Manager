@@ -190,7 +190,7 @@ export default function RegisterLawyerScreen() {
       const user = await loginUnified(email, password);
       if (user) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace(getRedirectPath(user.user.rol?.nombre!) as any);
+        router.replace("/planes" as any);
       } else {
         toast.error("Error al iniciar sesión después del registro.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
