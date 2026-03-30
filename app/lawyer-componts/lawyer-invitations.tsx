@@ -16,9 +16,12 @@ import { useInvitations } from "@/lib/invitations-context";
 import { FirmInvitation, FirmInvitationWithDetails } from "@/lib/services/firmInvitationService";
 import { acceptInvitation, getLawyerInvitations, rejectInvitation } from "@/lib/services/firmInvitationService";
 import { ProcessDecisionWizard } from "@/components/proceso/ProcessDecisionWizard";
+import { getMiSuscripcion, type MiSuscripcion } from "@/lib/services/suscripcionService";
+import { UsageBars } from "@/components/subscription/UsageBars";
 
 export default function LawyerInvitationsScreen() {
   const insets = useSafeAreaInsets();
+  const [miSuscripcion, setMiSuscripcion] = useState<MiSuscripcion | null>(null);
   const [invitations, setInvitations] = useState<FirmInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<string | null>(null);
@@ -42,6 +45,7 @@ export default function LawyerInvitationsScreen() {
     if (result.data) setInvitations(result.data);
     if (result.error) toast.error(result.error);
     setLoading(false);
+    getMiSuscripcion().then(setMiSuscripcion).catch(() => {});
   };
 
   useFocusEffect(useCallback(() => { loadData(); }, []));
@@ -253,15 +257,30 @@ export default function LawyerInvitationsScreen() {
           <Text style={styles.emptySubtext}>Aquí aparecerán las invitaciones de firmas de abogados</Text>
         </View>
       ) : (
-        <FlatList
-          data={invitations}
-          keyExtractor={item => item.id}
-          renderItem={renderInvitation}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-          onRefresh={loadData}
-          refreshing={loading}
-        />
+        <>
+          {/* ── Mi Suscripción ── */}
+          {miSuscripcion?.uso && (
+            <View style={styles.suscripcionCard}>
+              <View style={styles.suscripcionHeader}>
+                <Text style={styles.suscripcionTitle}>Mi Suscripción</Text>
+                <Pressable onPress={() => router.push("/planes")}>
+                  <Text style={styles.cambiarPlanText}>Cambiar plan</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.planNombreText}>{miSuscripcion.plan?.nombre ?? "Plan activo"}</Text>
+              <UsageBars uso={miSuscripcion.uso} onUpgrade={() => router.push("/planes")} />
+            </View>
+          )}
+          <FlatList
+            data={invitations}
+            keyExtractor={item => item.id}
+            renderItem={renderInvitation}
+            contentContainerStyle={styles.list}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+            onRefresh={loadData}
+            refreshing={loading}
+          />
+        </>
       )}
 
       {/* Modal de aceptación */}
@@ -461,6 +480,40 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   acceptBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.white },
+
+  // Suscripción
+  suscripcionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginHorizontal: 16,
+    marginTop: 12,
+  },
+  suscripcionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  suscripcionTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#1A1D21",
+  },
+  cambiarPlanText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#1B3A5C",
+  },
+  planNombreText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#6B7280",
+    marginBottom: 12,
+  },
 
   // Empty state
   emptyIconWrapper: {

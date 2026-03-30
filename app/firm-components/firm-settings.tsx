@@ -12,6 +12,8 @@ import { useAuth } from "@/lib/auth-context";
 import { LogoutModal } from "@/components/LogoutModal";
 import { apiRequest } from "@/lib/query-client";
 import { toast } from "sonner-native";
+import { getMiSuscripcion, type MiSuscripcion } from "@/lib/services/suscripcionService";
+import { UsageBars } from "@/components/subscription/UsageBars";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const NAVY      = "#0F2640";
@@ -272,6 +274,8 @@ export default function FirmSettingsScreen() {
   const [loggingOut, setLoggingOut]           = useState(false);
   const [showPwdModal, setShowPwdModal]       = useState(false);
 
+  const [miSuscripcion, setMiSuscripcion] = useState<MiSuscripcion | null>(null);
+
   const [privacy, setPrivacy]     = useState<FirmPrivacySettings>({
     allowPrivateClientes:       false,
     allowPrivateProcesos:       false,
@@ -285,6 +289,7 @@ export default function FirmSettingsScreen() {
       .then(r => r.json())
       .then((data: FirmPrivacySettings) => setPrivacy(data))
       .catch(() => toast.error("No se pudo cargar la configuración de privacidad."));
+    getMiSuscripcion().then(setMiSuscripcion).catch(() => {});
   }, []);
 
   const handlePrivacyToggle = useCallback(
@@ -416,6 +421,20 @@ export default function FirmSettingsScreen() {
           saving={savingField}
           onToggle={handlePrivacyToggle}
         />
+
+        {/* ── Mi Suscripción ── */}
+        {miSuscripcion?.uso && (
+          <View style={styles.suscripcionCard}>
+            <View style={styles.suscripcionHeader}>
+              <Text style={styles.suscripcionTitle}>Mi Suscripción</Text>
+              <Pressable onPress={() => router.push("/planes")}>
+                <Text style={styles.cambiarPlanText}>Cambiar plan</Text>
+              </Pressable>
+            </View>
+            <Text style={styles.planNombreText}>{miSuscripcion.plan?.nombre ?? "Plan activo"}</Text>
+            <UsageBars uso={miSuscripcion.uso} onUpgrade={() => router.push("/planes")} />
+          </View>
+        )}
 
         {/* ── Cerrar sesión ── */}
         <Pressable
@@ -578,6 +597,38 @@ const styles = StyleSheet.create({
     fontSize: 15, fontFamily: "Inter_400Regular", color: TEXT,
   },
   eyeBtn: { paddingHorizontal: 14 },
+
+  // Suscripción
+  suscripcionCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  suscripcionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  suscripcionTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: "#1A1D21",
+  },
+  cambiarPlanText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#1B3A5C",
+  },
+  planNombreText: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#6B7280",
+    marginBottom: 12,
+  },
 
   // Sheet actions
   sheetActions: { flexDirection: "row", gap: 10, marginTop: 4 },
