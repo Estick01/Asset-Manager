@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth-context";
 import { saveProceso, getTiposProceso } from '@/lib/services/procesoService';
 import { CaseForm, type CaseFormData } from "@/components/CaseForm";
 import { apiRequest } from "@/lib/query-client";
+import { PlanGate } from "@/components/subscription/PlanGate";
+import { LimitReachedError } from "@/lib/services/suscripcionService";
 
 export default function NewCaseScreen() {
   const insets = useSafeAreaInsets();
@@ -16,6 +18,8 @@ export default function NewCaseScreen() {
   const params = useLocalSearchParams<{ clienteId?: string; postId?: string }>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [planGateVisible, setPlanGateVisible] = useState(false);
+  const [limiteUso, setLimiteUso] = useState({ actual: 0, maximo: 0 });
 
   // null = sin firma / no aplica, true/false = política del bufete
   const [allowPrivateProcesos, setAllowPrivateProcesos] = useState<boolean | null>(null);
@@ -59,7 +63,12 @@ export default function NewCaseScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleGoBack();
-    } catch {
+    } catch (err) {
+      if (err instanceof LimitReachedError) {
+        setLimiteUso({ actual: err.actual, maximo: err.maximo });
+        setPlanGateVisible(true);
+        return;
+      }
       setError("Error al guardar");
     } finally {
       setLoading(false);
@@ -86,6 +95,17 @@ export default function NewCaseScreen() {
           }
         />
       </KeyboardAvoidingView>
+      <PlanGate
+        visible={planGateVisible}
+        onClose={() => setPlanGateVisible(false)}
+        onVerPlanes={() => {
+          setPlanGateVisible(false);
+          router.push("/planes");
+        }}
+        tipo="procesos"
+        actual={limiteUso.actual}
+        maximo={limiteUso.maximo}
+      />
     </View>
   );
 }

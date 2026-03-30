@@ -10,6 +10,7 @@ import {
   TiposProceso,
 } from '../../shared/schema';
 import { apiRequest } from '../query-client';
+import { handleApiError } from './suscripcionService';
 import { ProcesoDTO } from '@/server/services';
 import { ActualizacionRelations } from '@/shared/schema/actualizaciones.schema';
 
@@ -109,8 +110,7 @@ export async function saveProceso(proceso: CreateProceso): Promise<Proceso> {
   const response = await apiRequest("POST", '/api/procesos', proceso);
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Error al guardar proceso');
+    await handleApiError(response);
   }
 
   return await response.json();
