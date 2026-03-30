@@ -17,7 +17,6 @@ const updateFirmProfileSchema = z.object({
   nit: z.string().optional(),
   address: z.string().optional(),
   phone: z.string().optional(),
-  planId: z.string().optional(),
   // Representante legal
   repNombre: z.string().optional(),
   repApellido: z.string().optional(),

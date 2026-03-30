@@ -50,7 +50,6 @@ const firmRegisterSchema = z.object({
   nit: z.string().min(1, "El NIT es requerido"),
   address: z.string().optional(),
   phone: z.string().optional(),
-  planId: z.string().optional(),
   // representante legal (opcional)
   repNombre: z.string().optional(),
   repApellido: z.string().optional(),
@@ -194,17 +193,12 @@ router.post("/register/lawyer",
     // Hash password
     const hashedPassword = await hashPassword(password);
 
-    // Get default plan or create user without plan
-    const defaultPlan = await storage.getPlan("free-plan");
-    const planId = defaultPlan ? "free-plan" : (await storage.getPlanes())[0]?.id;
-
     // Create persona + user + lawyer profile in one transaction
     const lawyer = await storage.createLawyerWithUser(
       {
         id: crypto.randomUUID(),
         email,
         passwordHash: hashedPassword,
-        planId: planId || "free-plan",
         rolId: EnumRol.ABOGADO.id,
         name: `${firstName} ${lastName}`,
       },
@@ -250,7 +244,6 @@ router.post("/register/firm",
       nit,
       address,
       phone,
-      planId,
       repNombre,
       repApellido,
       repDocumento,
@@ -273,10 +266,6 @@ router.post("/register/firm",
 
     // Hash password
     const hashedPassword = await hashPassword(password);
-
-    // Get default plan
-    const defaultPlan = await storage.getPlan(planId || "free-plan");
-    const userPlanId = defaultPlan ? (planId || "free-plan") : (await storage.getPlanes())[0]?.id || "free-plan";
 
     // Build optional rep data (only if nombre + documento provided)
     const repData = repNombre && repDocumento
@@ -304,7 +293,6 @@ router.post("/register/firm",
         id: crypto.randomUUID(),
         email,
         passwordHash: hashedPassword,
-        planId: userPlanId,
         rolId: 5,
         name,
       },
@@ -314,7 +302,6 @@ router.post("/register/firm",
         nit,
         address,
         phone,
-        planId: userPlanId,
       },
       repData
     );

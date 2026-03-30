@@ -12,8 +12,6 @@ export interface Abogado {
   correo: string;
   despacho: string;
   telefono: string;
-  planId: string;
-  plan?: Plan;
   rolId: number | null;
   role?: Rol | null;
   activo: boolean;
@@ -124,7 +122,6 @@ export interface FirmProfile {
   nit: string;
   address?: string | null;
   phone?: string | null;
-  planId: string;
   createdAt: string | Date;
   updatedAt: string | Date;
 }

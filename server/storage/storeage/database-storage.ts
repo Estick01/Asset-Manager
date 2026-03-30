@@ -218,7 +218,6 @@ export class DatabaseStorage {
       correo: user.email,
       despacho: '',
       telefono: lawyer.phone || '',
-      planId: lawyer.firmId || 'free',
       rolId: 1,
       activo: user.isActive,
       fechaRegistro: lawyer.createdAt,

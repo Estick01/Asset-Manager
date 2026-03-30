@@ -91,7 +91,6 @@ export class ClientesService {
         id: randomUUID(),
         email,
         passwordHash: hashedPassword,
-        planId: "",
         rolId: 4,
         name: displayName,
       }, tx);

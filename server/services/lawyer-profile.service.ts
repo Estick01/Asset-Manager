@@ -59,7 +59,6 @@ export class LawyerProfileService {
                 id: randomUUID(),
                 email: insertCliente.correo!,
                 passwordHash: hashedPassword,
-                planId: "",
                 rolId: 4,
             },
             {

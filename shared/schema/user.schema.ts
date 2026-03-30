@@ -13,7 +13,6 @@ export const users = mysqlTable("users", {
   passwordHash: varchar("password_hash", { length: 255 }).notNull(),
   name: varchar("name", { length: 100 }),
   rolId: int("rol_id"),
-  planId: varchar("plan_id", { length: 36 }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().default(new Date()),
   updatedAt: timestamp("updated_at").notNull().default(new Date()).onUpdateNow(),
@@ -37,7 +36,6 @@ export interface User {
   email: string;
   name: string | null;
   rolId?: number | null;
-  planId?: string | null;
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -51,7 +49,6 @@ export interface InsertUser {
   passwordHash: string;
   name?: string | null;
   rolId?: number | null;
-  planId?: string | null;
   isActive?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
