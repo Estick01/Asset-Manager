@@ -16,6 +16,7 @@ import { setupWebSocketServer } from "./websocket/ws-server.js";
 import { seedLegalStages } from "./db/seeds/legal-stages.seed.js";
 import { seedStageTemplates } from "./db/seeds/stage-templates.seed.js";
 import { seedPlanes } from "./db/seeds/planes.seed.js";
+import { subscriptionService } from "./services/subscription.service.js";
 
 const app = express();
 app.use(cookieParser());
@@ -364,6 +365,40 @@ function setupErrorHandler(app: express.Application) {
       console.error("[cron:calendar] Error al procesar recordatorios:", err);
     }
   }, 60 * 60 * 1000); // cada hora
+
+  // Cron: vencimiento de suscripciones (cada 24 horas)
+  setInterval(async () => {
+    try {
+      // 1. Degradar suscripciones vencidas a plan gratis
+      const vencidas = await storage.suscripciones.getVencidas();
+      for (const s of vencidas) {
+        await storage.suscripciones.updateEstado(s.id, "vencida");
+        await subscriptionService.activatePlanGratis(s.userId);
+        await storage.appNotifications.createNotification(
+          s.userId,
+          "subscription_expired",
+          "Tu suscripción ha vencido",
+          "Tu plan ha sido degradado al plan gratuito. Renueva para seguir usando todas las funcionalidades.",
+          { suscripcionId: s.id },
+        );
+        console.log(`[cron:suscripciones] Suscripción ${s.id} degradada a gratis`);
+      }
+
+      // 2. Notificar suscripciones que vencen en 3 días
+      const proximasAVencer = await storage.suscripciones.getProximasAVencer(3);
+      for (const s of proximasAVencer) {
+        await storage.appNotifications.createNotification(
+          s.userId,
+          "subscription_expiring_soon",
+          "Tu suscripción vence pronto",
+          `Tu plan vence el ${s.fechaVencimiento.toLocaleDateString("es-CO")}. Renueva para no perder el acceso.`,
+          { suscripcionId: s.id },
+        );
+      }
+    } catch (err) {
+      console.error("[cron:suscripciones] Error:", err);
+    }
+  }, 24 * 60 * 60 * 1000); // cada 24 horas
 
   setupErrorHandler(app);
 

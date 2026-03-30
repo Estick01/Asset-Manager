@@ -33,6 +33,8 @@ import stageTemplatesRoutes from "./stage-task-templates.js";
 import stageEventsRoutes from "./stage-events.js";
 import procesoOwnershipRoutes from "./proceso-ownership.js";
 import firmSettingsRoutes from "./firm-settings.js";
+import suscripcionesRoutes from "./suscripciones.js";
+import webhooksRoutes      from "./webhooks.js";
 
 /**
  * Register all application routes
@@ -72,6 +74,8 @@ export function registerAppRoutes(app: Express): void {
   app.use("/api", stageEventsRoutes);
   app.use("/api", procesoOwnershipRoutes);
   app.use("/api", firmSettingsRoutes);
+  app.use("/api", suscripcionesRoutes);
+  app.use("/api", webhooksRoutes);
 }
 
 export default registerAppRoutes;
