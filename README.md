@@ -149,6 +149,15 @@ EXPO_PUBLIC_LOCAL_IP=192.168.1.X
 # RECAPTCHA_MIN_SCORE=0.5
 ```
 
+### Wompi — Pasarela de pagos
+
+| Variable | Requerida | Descripción | Cómo obtenerla |
+|---|---|---|---|
+| `WOMPI_BASE_URL` | Sí | URL base de la API | Sandbox: `https://sandbox.wompi.co/v1` / Prod: `https://production.wompi.co/v1` |
+| `WOMPI_PRIVATE_KEY` | Sí | Llave privada | Panel Wompi → Desarrolladores → Llaves |
+| `WOMPI_EVENTS_SECRET` | Sí | Secret para verificar webhooks | Panel Wompi → Desarrolladores → Webhooks → Integrity secret |
+| `WOMPI_REDIRECT_URL` | Sí | URL de retorno post-pago | Dev: `exp://localhost:8081/--/checkout/result` · Prod: tu dominio |
+
 > **Nota:** Para Gmail, se debe usar una **App Password** (no la contraseña de la cuenta). Activar en Google Account → Seguridad → Verificación en dos pasos → Contraseñas de aplicación.
 
 ---
