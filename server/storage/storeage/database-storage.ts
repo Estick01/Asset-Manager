@@ -47,6 +47,10 @@ import { ProcesoOwnershipStorage } from "./models/proceso-ownership-storage";
 import { ProcesoSharingStorage } from "./models/proceso-sharing-storage";
 import { ClienteOwnershipStorage } from "./models/cliente-ownership-storage";
 import { FirmSettingsStorage } from "./models/firm-settings-storage";
+import { FeatureStorage } from "./models/feature-storage";
+import { SuscripcionStorage } from "./models/suscripcion-storage";
+import { PagoStorage } from "./models/pago-storage";
+import { UsageTrackingStorage } from "./models/usage-tracking-storage";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -100,6 +104,10 @@ export class DatabaseStorage {
   public procesoSharing:     ProcesoSharingStorage;
   public clienteOwnership:   ClienteOwnershipStorage;
   public firmSettings:       FirmSettingsStorage;
+  public featureStorage:  FeatureStorage;
+  public suscripciones:   SuscripcionStorage;
+  public pagosStorage:    PagoStorage;
+  public usageTracking:   UsageTrackingStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -156,6 +164,10 @@ export class DatabaseStorage {
     this.procesoSharing   = new ProcesoSharingStorage(this.db);
     this.clienteOwnership = new ClienteOwnershipStorage(this.db);
     this.firmSettings     = new FirmSettingsStorage(this.db);
+    this.featureStorage = new FeatureStorage(this.db);
+    this.suscripciones  = new SuscripcionStorage(this.db);
+    this.pagosStorage   = new PagoStorage(this.db);
+    this.usageTracking  = new UsageTrackingStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
