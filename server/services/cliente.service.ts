@@ -1,4 +1,4 @@
-import { eq, and, or, like, SQL, inArray } from "drizzle-orm";
+import { eq, and, or, like, SQL } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   Cliente, clientes, lawyerClients,
@@ -40,24 +40,9 @@ export class ClientesService {
     offset: number,
     filter?: { search?: string; activo?: boolean }
   ): Promise<any[]> {
-    const lawyers = await storage.abogados.getLawyersByFirm(firmId);
-    const lawyerIds = lawyers.map(l => l.id);
-    const allIds = [...new Set([...lawyerIds, firmId])];
-
-    const [lawyerRelations, firmClientIds] = await Promise.all([
-      db
-        .select({ clientId: lawyerClients.clientId })
-        .from(lawyerClients)
-        .where(and(inArray(lawyerClients.lawyerId, allIds), eq(lawyerClients.status, "active"))),
-      storage.firmClients.getActiveClientIdsByFirm(firmId),
-    ]);
-
-    const clientIds = [
-      ...new Set([
-        ...lawyerRelations.map(r => r.clientId),
-        ...firmClientIds,
-      ]),
-    ];
+    // Usar clienteOwnership para obtener solo clientes cuyo owner activo es el bufete.
+    // Esto excluye correctamente clientes privados de abogados dentro del bufete.
+    const clientIds = await storage.clienteOwnership.getClienteIdsByOwner("bufete", firmId);
     if (clientIds.length === 0) return [];
 
     const results: Cliente[] = [];
@@ -143,6 +128,16 @@ export class ClientesService {
     // Mantener tablas de relación para compatibilidad
     if (ownershipDecision.ownerType === "bufete") {
       await storage.firmClients.createFirmClient(ownershipDecision.ownerId, cliente.id);
+      // Si el creador es un abogado, también crear relación lawyer-client
+      // para que el cliente aparezca en la lista del abogado creador
+      if (rolNombre === "abogado" && actorId) {
+        await storage.lawyerClients.createLawyerClient({
+          id: randomUUID(),
+          lawyerId: actorId,
+          clientId: cliente.id,
+          status: "active",
+        });
+      }
     } else if (ownershipDecision.ownerType === "abogado") {
       await storage.lawyerClients.createLawyerClient({
         id: randomUUID(),

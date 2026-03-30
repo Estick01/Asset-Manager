@@ -247,6 +247,18 @@ router.post("/lawyer-firma-history/:id/retire", authenticate, async (req: Reques
     // 5. Deactivate as responsable in bufete processes
     await storage.desactivarResponsable(lawyerId, bufeteProcesoIds);
 
+    // 6. Deactivate lawyer-client relationships for bufete's clients
+    const bufeteClientIds = await storage.firmClients.getActiveClientIdsByFirm(bufeteId);
+    const abogadoActiveClients = await storage.lawyerClients.getActiveClientsByLawyer(lawyerId);
+    const abogadoClientIds = abogadoActiveClients.map(lc => lc.clientId);
+    const clientsToDeactivate = abogadoClientIds.filter(clientId => bufeteClientIds.includes(clientId));
+    for (const clientId of clientsToDeactivate) {
+      const relation = abogadoActiveClients.find(lc => lc.clientId === clientId);
+      if (relation) {
+        await storage.lawyerClients.terminateRelationship(relation.id);
+      }
+    }
+
     res.json(record);
   } catch (err) {
     next(err);
@@ -275,6 +287,18 @@ router.delete("/lawyer-firma/leave", authenticate, async (req: Request, res: Res
     const bufeteProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", bufeteId);
     await storage.removeAbogadoFromProcesos(lawyerId, bufeteProcesoIds);
     await storage.desactivarResponsable(lawyerId, bufeteProcesoIds);
+
+    // Deactivate lawyer-client relationships for bufete's clients
+    const bufeteClientIds = await storage.firmClients.getActiveClientIdsByFirm(bufeteId);
+    const abogadoActiveClients = await storage.lawyerClients.getActiveClientsByLawyer(lawyerId);
+    const abogadoClientIds = abogadoActiveClients.map(lc => lc.clientId);
+    const clientsToDeactivate = abogadoClientIds.filter(clientId => bufeteClientIds.includes(clientId));
+    for (const clientId of clientsToDeactivate) {
+      const relation = abogadoActiveClients.find(lc => lc.clientId === clientId);
+      if (relation) {
+        await storage.lawyerClients.terminateRelationship(relation.id);
+      }
+    }
 
     // Retire the active history record
     const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(lawyerId);

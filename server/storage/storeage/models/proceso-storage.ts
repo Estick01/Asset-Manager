@@ -1569,6 +1569,10 @@ export class ProcesoStorage {
       conditions.push(eq(estadosProceso.codigo, filter.estadoCodigo));
     }
 
+    if (filter?.clienteId) {
+      conditions.push(eq(procesos.clienteId, filter.clienteId));
+    }
+
     if (filter?.search) {
       const search = `%${filter.search}%`;
       conditions.push(
