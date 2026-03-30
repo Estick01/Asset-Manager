@@ -118,3 +118,54 @@ export async function cancelarRenovacion(): Promise<{
   }
   return res.json();
 }
+
+// ── Tipos adicionales para pagos y límites ─────────────────────────────────────
+
+export type TipoLimite = "procesos" | "clientes" | "storage";
+
+export interface PagoEstado {
+  estado: "pendiente" | "aprobado" | "rechazado";
+  wompiTransactionId: string | null;
+  metodoPago: string | null;
+}
+
+export class LimitReachedError extends Error {
+  constructor(
+    public readonly tipo: TipoLimite,
+    public readonly actual: number,
+    public readonly maximo: number,
+  ) {
+    super(`Límite alcanzado: ${actual}/${maximo} ${tipo}`);
+    this.name = "LimitReachedError";
+  }
+}
+
+// ── Funciones adicionales ──────────────────────────────────────────────────────
+
+/**
+ * Consulta el estado de un pago por su ID.
+ */
+export async function getPagoEstado(pagoId: string): Promise<PagoEstado> {
+  const res = await apiRequest("GET", `/api/pagos/${pagoId}/estado`, undefined, SILENT);
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || err.message || "Error al consultar el estado del pago");
+  }
+  return res.json();
+}
+
+/**
+ * Lanza LimitReachedError si la respuesta es 403 con code LIMIT_REACHED.
+ * De lo contrario lanza un Error genérico con el mensaje del servidor.
+ */
+export async function handleApiError(res: Response): Promise<never> {
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 403 && body.code === "LIMIT_REACHED") {
+    throw new LimitReachedError(
+      body.tipo ?? "procesos",
+      body.actual ?? 0,
+      body.maximo ?? 0,
+    );
+  }
+  throw new Error(body.error || body.message || "Error inesperado");
+}
