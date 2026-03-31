@@ -155,6 +155,14 @@ const handleLogin = async () => {
               <Text style={styles.footerLink}>Registrate</Text>
             </Pressable>
           </View>
+
+          <Pressable
+            onPress={() => router.push("/planes")}
+            style={styles.verPlanesBtn}
+          >
+            <Ionicons name="albums-outline" size={16} color="rgba(255,255,255,0.8)" />
+            <Text style={styles.verPlanesBtnText}>Ver planes y precios</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -299,6 +307,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: Colors.accent,
+  },
+  verPlanesBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  verPlanesBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.8)",
   },
   portalLink: {
     flexDirection: "row",
