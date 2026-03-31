@@ -311,7 +311,7 @@ export default function LandingScreen() {
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Funcionalidades"
-              title="Todo lo que necesitas,\nnada que no uses"
+              title={"Todo lo que necesitas,\nnada que no uses"}
               subtitle="Diseñado para el flujo real de trabajo de un abogado — no para una consultora internacional."
             />
             <View style={styles.featuresGrid}>
@@ -403,12 +403,197 @@ export default function LandingScreen() {
           </View>
         </View>
 
+        {/* ── COMUNIDAD ── */}
+        <LinearGradient
+          colors={["#0F2640", "#1B3A5C"]}
+          style={[styles.section, styles.sectionDark]}
+        >
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Comunidad LexTrack"
+              title={"Consigue clientes.\nExpande tu red."}
+              subtitle="El directorio legal donde clientes encuentran abogados — y abogados construyen su reputación profesional."
+              light
+            />
+            <View style={styles.comunidadGrid}>
+              {/* Card izquierda: para abogados */}
+              <View style={styles.comunidadCard}>
+                <View style={[styles.comunidadIconCircle, { backgroundColor: "rgba(212,168,83,0.15)" }]}>
+                  <Ionicons name="megaphone-outline" size={28} color={Colors.accent} />
+                </View>
+                <Text style={styles.comunidadCardTitulo}>Para abogados</Text>
+                <Text style={styles.comunidadCardDesc}>
+                  Publica sobre tus especialidades, comparte casos resueltos (de forma anónima) y deja que los clientes te encuentren antes de que te busquen.
+                </Text>
+                <View style={styles.comunidadItems}>
+                  {[
+                    { icon: "create-outline" as const, texto: "Publica artículos y casos de tu especialidad" },
+                    { icon: "star-outline" as const,   texto: "Construye reputación con likes y respuestas" },
+                    { icon: "eye-outline" as const,    texto: "Publicaciones anónimas cuando lo necesites" },
+                    { icon: "people-outline" as const, texto: "Red de contactos con otros abogados" },
+                  ].map((item, i) => (
+                    <View key={i} style={styles.comunidadItem}>
+                      <Ionicons name={item.icon} size={16} color={Colors.accentLight} />
+                      <Text style={styles.comunidadItemTexto}>{item.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Card derecha: para clientes */}
+              <View style={styles.comunidadCard}>
+                <View style={[styles.comunidadIconCircle, { backgroundColor: "rgba(16,185,129,0.15)" }]}>
+                  <Ionicons name="search-outline" size={28} color="#10B981" />
+                </View>
+                <Text style={styles.comunidadCardTitulo}>Para clientes</Text>
+                <Text style={styles.comunidadCardDesc}>
+                  Encuentra el abogado indicado según tu caso. Lee su experiencia, sus publicaciones y contacta directamente desde la plataforma.
+                </Text>
+                <View style={styles.comunidadItems}>
+                  {[
+                    { icon: "filter-outline" as const,        texto: "Filtra por ciudad, especialidad y tipo de caso" },
+                    { icon: "chatbubble-outline" as const,     texto: "Contacta directamente al abogado" },
+                    { icon: "document-text-outline" as const,  texto: "Lee su experiencia antes de contratar" },
+                    { icon: "shield-outline" as const,         texto: "Perfiles verificados de abogados activos" },
+                  ].map((item, i) => (
+                    <View key={i} style={styles.comunidadItem}>
+                      <Ionicons name={item.icon} size={16} color="#34D399" />
+                      <Text style={styles.comunidadItemTexto}>{item.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* Mock feed */}
+            <View style={styles.comunidadFeedMock}>
+              <Text style={styles.comunidadFeedLabel}>Vista previa del feed</Text>
+              {[
+                { tipo: "Derecho laboral", urgente: false, titulo: "Despido sin justa causa — caso resuelto con indemnización completa", autor: "Dr. Ramírez · Bogotá", likes: 34, replies: 8 },
+                { tipo: "Derecho de familia", urgente: true, titulo: "Necesito asesoría urgente: custodia compartida con menor en otra ciudad", autor: "Anónimo · Medellín", likes: 12, replies: 5 },
+                { tipo: "Derecho penal", urgente: false, titulo: "Cómo funciona la preclusión y cuándo solicitarla", autor: "Dra. Morales · Cali", likes: 67, replies: 21 },
+              ].map((post, i) => (
+                <View key={i} style={styles.comunidadPostCard}>
+                  <View style={styles.comunidadPostTop}>
+                    <View style={[styles.comunidadPostTipoPill, post.urgente && { backgroundColor: "#FEE2E2" }]}>
+                      {post.urgente && <Ionicons name="flash" size={11} color="#EF4444" />}
+                      <Text style={[styles.comunidadPostTipoText, post.urgente && { color: "#EF4444" }]}>
+                        {post.tipo}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.comunidadPostTitulo}>{post.titulo}</Text>
+                  <View style={styles.comunidadPostBottom}>
+                    <Text style={styles.comunidadPostAutor}>{post.autor}</Text>
+                    <View style={styles.comunidadPostStats}>
+                      <Ionicons name="heart-outline" size={13} color="rgba(255,255,255,0.4)" />
+                      <Text style={styles.comunidadPostStatText}>{post.likes}</Text>
+                      <Ionicons name="chatbubble-outline" size={13} color="rgba(255,255,255,0.4)" />
+                      <Text style={styles.comunidadPostStatText}>{post.replies}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* ── PORTAL CLIENTE ── */}
+        <View style={[styles.section, styles.sectionWhite]}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Portal del cliente"
+              title={"Tu cliente siempre\nal tanto de su caso"}
+              subtitle="Los clientes acceden a su propio portal: ven el estado de sus procesos, chatean con su abogado y reciben notificaciones en tiempo real."
+            />
+            <View style={styles.portalGrid}>
+              {/* Columna izquierda: beneficios */}
+              <View style={styles.portalLeft}>
+                {[
+                  {
+                    icon: "phone-portrait-outline" as const,
+                    color: Colors.primary,
+                    bg: "#DBEAFE",
+                    titulo: "Acceso desde el celular",
+                    desc: "Tu cliente descarga la app y ve el estado de su caso en tiempo real — sin llamadas innecesarias.",
+                  },
+                  {
+                    icon: "pulse-outline" as const,
+                    color: "#10B981",
+                    bg: "#D1FAE5",
+                    titulo: "Seguimiento en vivo",
+                    desc: "Estado del proceso actualizado: activo, en trámite, finalizado. Tu cliente nunca está en la oscuridad.",
+                  },
+                  {
+                    icon: "chatbubbles-outline" as const,
+                    color: "#8B5CF6",
+                    bg: "#EDE9FE",
+                    titulo: "Chat directo y seguro",
+                    desc: "Comunicación dentro de la plataforma — sin exponer tu número personal ni usar WhatsApp.",
+                  },
+                  {
+                    icon: "notifications-outline" as const,
+                    color: "#F59E0B",
+                    bg: "#FEF3C7",
+                    titulo: "Notificaciones automáticas",
+                    desc: "El cliente recibe alertas cuando hay cambios en su proceso, nuevos documentos o mensajes.",
+                  },
+                ].map((item, i) => (
+                  <View key={i} style={styles.portalBeneficioCard}>
+                    <View style={[styles.portalBeneficioIcon, { backgroundColor: item.bg }]}>
+                      <Ionicons name={item.icon} size={22} color={item.color} />
+                    </View>
+                    <View style={styles.portalBeneficioTextos}>
+                      <Text style={styles.portalBeneficioTitulo}>{item.titulo}</Text>
+                      <Text style={styles.portalBeneficioDesc}>{item.desc}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* Columna derecha: mock UI del portal */}
+              <View style={styles.portalRight}>
+                <View style={styles.portalMockPhone}>
+                  <LinearGradient
+                    colors={[Colors.primary, Colors.primaryLight]}
+                    style={styles.portalMockHeader}
+                  >
+                    <Text style={styles.portalMockHola}>Hola, Juan</Text>
+                    <Text style={styles.portalMockSubtitle}>Tus procesos activos</Text>
+                  </LinearGradient>
+                  {[
+                    { nombre: "Proceso laboral #2041", estado: "Activo", color: Colors.success, icon: "pulse" as const },
+                    { nombre: "Divorcio contencioso", estado: "En Trámite", color: Colors.warning, icon: "time-outline" as const },
+                  ].map((proc, i) => (
+                    <View key={i} style={styles.portalMockProcesoCard}>
+                      <View style={[styles.portalMockEstadoDot, { backgroundColor: proc.color }]} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.portalMockProcesoNombre}>{proc.nombre}</Text>
+                        <View style={styles.portalMockEstadoRow}>
+                          <Ionicons name={proc.icon} size={12} color={proc.color} />
+                          <Text style={[styles.portalMockEstadoText, { color: proc.color }]}>{proc.estado}</Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+                    </View>
+                  ))}
+                  <View style={styles.portalMockChatBar}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.portalMockChatText}>Mensaje a tu abogado...</Text>
+                    <Ionicons name="send" size={14} color={Colors.primary} />
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
         {/* ── ROLES ── */}
         <View style={[styles.section, styles.sectionGray]}>
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Para todos"
-              title="Funciona para tu tipo\nde práctica legal"
+              title={"Funciona para tu tipo\nde práctica legal"}
             />
             <View style={styles.rolesGrid}>
               <View style={styles.rolCard}>
@@ -470,7 +655,7 @@ export default function LandingScreen() {
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Planes"
-              title="Precios claros,\nsin sorpresas"
+              title={"Precios claros,\nsin sorpresas"}
               subtitle="Empieza gratis y escala cuando lo necesites. Sin contratos, cancela cuando quieras."
             />
             <View style={styles.planesGrid}>
@@ -1304,5 +1489,230 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.3)",
     marginTop: 4,
+  },
+
+  // ── Comunidad ─────────────────────────────────────────────────────────────
+  comunidadGrid: {
+    flexDirection: IS_WEB ? "row" : "column",
+    gap: 16,
+    marginBottom: 32,
+  },
+  comunidadCard: {
+    flex: IS_WEB ? 1 : undefined,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    gap: 12,
+  },
+  comunidadIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  comunidadCardTitulo: {
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.white,
+  },
+  comunidadCardDesc: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.65)",
+    lineHeight: 21,
+  },
+  comunidadItems: { gap: 10 },
+  comunidadItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  comunidadItemTexto: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.75)",
+    lineHeight: 19,
+  },
+  comunidadFeedMock: {
+    gap: 10,
+  },
+  comunidadFeedLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.35)",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  comunidadPostCard: {
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 12,
+    padding: 16,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  comunidadPostTop: { flexDirection: "row", gap: 8 },
+  comunidadPostTipoPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(212,168,83,0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+  },
+  comunidadPostTipoText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: Colors.accentLight,
+  },
+  comunidadPostTitulo: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.9)",
+    lineHeight: 21,
+  },
+  comunidadPostBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  comunidadPostAutor: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.4)",
+  },
+  comunidadPostStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  comunidadPostStatText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.4)",
+  },
+
+  // ── Portal cliente ────────────────────────────────────────────────────────
+  portalGrid: {
+    flexDirection: IS_WEB ? "row" : "column",
+    gap: 40,
+    alignItems: "flex-start",
+  },
+  portalLeft: {
+    flex: IS_WEB ? 1 : undefined,
+    gap: 16,
+  },
+  portalBeneficioCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    backgroundColor: Colors.background,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  portalBeneficioIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  portalBeneficioTextos: { flex: 1, gap: 4 },
+  portalBeneficioTitulo: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  portalBeneficioDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 19,
+  },
+  portalRight: {
+    flex: IS_WEB ? 1 : undefined,
+    alignItems: "center",
+  },
+  portalMockPhone: {
+    width: IS_WEB ? 320 : "100%",
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  portalMockHeader: {
+    padding: 20,
+    paddingBottom: 24,
+  },
+  portalMockHola: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+  },
+  portalMockSubtitle: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.65)",
+    marginTop: 2,
+  },
+  portalMockProcesoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  portalMockEstadoDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  portalMockProcesoNombre: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+  },
+  portalMockEstadoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  portalMockEstadoText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+  },
+  portalMockChatBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    margin: 12,
+    padding: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  portalMockChatText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
   },
 });
