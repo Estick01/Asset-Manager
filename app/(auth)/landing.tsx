@@ -785,9 +785,12 @@ export default function LandingScreen() {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const w = <T,>(web: T, mob: T): T => (IS_WEB ? web : mob);
+
 // ── Estilos ────────────────────────────────────────────────────────────────────
 
-const SECTION_PX = IS_WEB ? 40 : 20;
+const SECTION_PX = w(40, 16);
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
@@ -795,7 +798,7 @@ const styles = StyleSheet.create({
 
   // ── Navbar ────────────────────────────────────────────────────────────────
   navbar: {
-    position: "absolute",
+    position: w("absolute" as const, "relative" as const),
     top: 0,
     left: 0,
     right: 0,
@@ -841,7 +844,7 @@ const styles = StyleSheet.create({
   },
 
   // ── Sección base ──────────────────────────────────────────────────────────
-  section: { paddingVertical: 64, paddingHorizontal: SECTION_PX },
+  section: { paddingVertical: w(64, 40), paddingHorizontal: SECTION_PX },
   sectionInner: {
     maxWidth: CONTENT_MAX_WIDTH,
     alignSelf: "center",
@@ -852,7 +855,7 @@ const styles = StyleSheet.create({
   sectionDark: {},
 
   // ── Section Title ─────────────────────────────────────────────────────────
-  sectionTitleWrap: { alignItems: "center", marginBottom: 40, gap: 12 },
+  sectionTitleWrap: { alignItems: "center", marginBottom: w(40, 28), gap: 10 },
   labelPill: {
     paddingHorizontal: 12,
     paddingVertical: 5,
@@ -861,7 +864,7 @@ const styles = StyleSheet.create({
   },
   labelPillLight: { backgroundColor: "rgba(255,255,255,0.12)" },
   labelText: {
-    fontSize: 12,
+    fontSize: 11,
     fontFamily: "Inter_600SemiBold",
     color: Colors.primary,
     textTransform: "uppercase",
@@ -869,26 +872,26 @@ const styles = StyleSheet.create({
   },
   labelTextLight: { color: Colors.accent },
   sectionH2: {
-    fontSize: IS_WEB ? 36 : 28,
+    fontSize: w(36, 24),
     fontFamily: "Inter_700Bold",
     color: Colors.text,
     textAlign: "center",
-    lineHeight: IS_WEB ? 44 : 36,
+    lineHeight: w(44, 32),
   },
   sectionH2Light: { color: Colors.white },
   sectionSubtitle: {
-    fontSize: 16,
+    fontSize: w(16, 14),
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
     textAlign: "center",
-    lineHeight: 24,
+    lineHeight: w(24, 22),
     maxWidth: 600,
   },
   sectionSubtitleLight: { color: "rgba(255,255,255,0.65)" },
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   hero: {
-    paddingTop: 120,
+    paddingTop: w(120, 32),
     paddingBottom: 0,
     paddingHorizontal: SECTION_PX,
   },
@@ -897,19 +900,19 @@ const styles = StyleSheet.create({
     maxWidth: CONTENT_MAX_WIDTH,
     alignSelf: "center",
     width: "100%",
-    paddingBottom: 48,
+    paddingBottom: w(48, 32),
   },
   heroBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     backgroundColor: "rgba(212,168,83,0.15)",
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "rgba(212,168,83,0.3)",
-    marginBottom: 24,
+    marginBottom: w(24, 16),
   },
   heroBadgeText: {
     fontSize: 12,
@@ -918,32 +921,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   heroH1: {
-    fontSize: IS_WEB ? 52 : 36,
+    fontSize: w(52, 28),
     fontFamily: "Inter_700Bold",
     color: Colors.white,
     textAlign: "center",
-    lineHeight: IS_WEB ? 62 : 44,
-    marginBottom: 20,
+    lineHeight: w(62, 36),
+    marginBottom: w(20, 14),
   },
   heroH1Accent: { color: Colors.accent },
   heroSubtitle: {
-    fontSize: IS_WEB ? 18 : 16,
+    fontSize: w(18, 15),
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.72)",
     textAlign: "center",
-    lineHeight: IS_WEB ? 28 : 24,
+    lineHeight: w(28, 23),
     maxWidth: 580,
-    marginBottom: 36,
+    marginBottom: w(36, 24),
+    paddingHorizontal: w(0, 4),
   },
   heroCtas: {
-    flexDirection: IS_WEB ? "row" : "column",
-    gap: 12,
+    flexDirection: "column",
+    gap: 10,
     width: "100%",
-    maxWidth: 420,
+    maxWidth: w(420, 9999),
     marginBottom: 16,
   },
   ctaPrimary: {
-    flex: IS_WEB ? 1 : undefined,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -960,41 +963,39 @@ const styles = StyleSheet.create({
     color: Colors.primaryDark,
   },
   ctaSecondary: {
-    flex: IS_WEB ? 1 : undefined,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 15,
     paddingHorizontal: 28,
     borderWidth: 1.5,
     borderColor: "rgba(255,255,255,0.3)",
   },
   ctaSecondaryPressed: { backgroundColor: "rgba(255,255,255,0.07)" },
   ctaSecondaryText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: Colors.white,
   },
   heroNote: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.45)",
     marginTop: 4,
+    textAlign: "center",
   },
   heroStats: {
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.06)",
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.1)",
-    maxWidth: CONTENT_MAX_WIDTH,
-    alignSelf: "center",
     width: "100%",
   },
   heroStat: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 20,
-    paddingHorizontal: 8,
+    paddingVertical: w(20, 16),
+    paddingHorizontal: 4,
     gap: 4,
   },
   heroStatBorder: {
@@ -1002,12 +1003,12 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(255,255,255,0.1)",
   },
   heroStatValor: {
-    fontSize: 22,
+    fontSize: w(22, 18),
     fontFamily: "Inter_700Bold",
     color: Colors.accent,
   },
   heroStatLabel: {
-    fontSize: 12,
+    fontSize: w(12, 10),
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.55)",
     textAlign: "center",
@@ -1015,76 +1016,76 @@ const styles = StyleSheet.create({
 
   // ── Problemas ─────────────────────────────────────────────────────────────
   problemasGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
-    gap: 16,
+    flexDirection: w("row" as const, "column" as const),
+    gap: 12,
   },
   problemaCard: {
-    flex: IS_WEB ? 1 : undefined,
+    flex: w(1, undefined),
     backgroundColor: Colors.background,
-    borderRadius: 16,
-    padding: 24,
-    gap: 12,
+    borderRadius: 14,
+    padding: w(24, 16),
+    gap: 10,
     borderWidth: 1,
     borderColor: Colors.border,
   },
   problemaIconWrap: {
-    width: 52,
-    height: 52,
+    width: 48,
+    height: 48,
     borderRadius: 12,
     backgroundColor: "#FEE2E2",
     alignItems: "center",
     justifyContent: "center",
   },
   problemaTitulo: {
-    fontSize: 17,
+    fontSize: w(17, 15),
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
   },
   problemaDesc: {
-    fontSize: 14,
+    fontSize: w(14, 13),
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
-    lineHeight: 21,
+    lineHeight: 20,
   },
 
   // ── Solución ──────────────────────────────────────────────────────────────
   solucionGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
-    flexWrap: "wrap",
-    gap: 14,
+    flexDirection: w("row" as const, "column" as const),
+    flexWrap: w("wrap" as const, "nowrap" as const),
+    gap: 10,
   },
   solucionItem: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    width: IS_WEB ? "46%" : "100%",
+    width: w("46%" as const, "100%" as const),
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
-    padding: 16,
+    padding: w(16, 14),
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
   },
   solucionTexto: {
     flex: 1,
-    fontSize: 15,
+    fontSize: w(15, 14),
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.85)",
-    lineHeight: 22,
+    lineHeight: 21,
   },
 
   // ── Features ──────────────────────────────────────────────────────────────
   featuresGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
+    flexDirection: w("row" as const, "row" as const),
     flexWrap: "wrap",
-    gap: 16,
+    gap: 12,
   },
   featureCard: {
-    width: IS_WEB ? "30%" : "100%",
-    flexGrow: IS_WEB ? 1 : undefined,
+    width: w("30%", "48%"),
+    flexGrow: 1,
     backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 22,
-    gap: 10,
+    borderRadius: 14,
+    padding: w(22, 14),
+    gap: 8,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -1142,48 +1143,48 @@ const styles = StyleSheet.create({
 
   // ── Privacidad spotlight ──────────────────────────────────────────────────
   privacidadCard: {
-    flexDirection: IS_WEB ? "row" : "column",
-    gap: 40,
+    flexDirection: w("row" as const, "column" as const),
+    gap: w(40, 20),
     backgroundColor: Colors.background,
-    borderRadius: 20,
-    padding: IS_WEB ? 40 : 24,
+    borderRadius: 16,
+    padding: w(40, 18),
     borderWidth: 1,
     borderColor: Colors.border,
   },
   privacidadLeft: {
-    flex: IS_WEB ? 1 : undefined,
-    gap: 14,
+    flex: w(1, undefined),
+    gap: 12,
   },
   privacidadIconBig: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
+    width: 60,
+    height: 60,
+    borderRadius: 14,
     backgroundColor: "#DBEAFE",
     alignItems: "center",
     justifyContent: "center",
   },
   privacidadH3: {
-    fontSize: IS_WEB ? 28 : 22,
+    fontSize: w(28, 20),
     fontFamily: "Inter_700Bold",
     color: Colors.text,
-    lineHeight: IS_WEB ? 36 : 30,
+    lineHeight: w(36, 28),
   },
   privacidadDesc: {
-    fontSize: 15,
+    fontSize: w(15, 13),
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
-    lineHeight: 23,
+    lineHeight: w(23, 20),
   },
   privacidadBeneficios: { gap: 8, marginTop: 4 },
   privacidadBeneficioItem: { flexDirection: "row", alignItems: "center", gap: 8 },
   privacidadBeneficioTexto: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_500Medium",
     color: Colors.text,
   },
   privacidadRight: {
-    flex: IS_WEB ? 1 : undefined,
-    gap: 12,
+    flex: w(1, undefined),
+    gap: 10,
     justifyContent: "center",
   },
   privacidadAbogadoCard: {
@@ -1224,14 +1225,14 @@ const styles = StyleSheet.create({
 
   // ── Roles ─────────────────────────────────────────────────────────────────
   rolesGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
+    flexDirection: w("row" as const, "column" as const),
     gap: 20,
   },
   rolCard: {
-    flex: IS_WEB ? 1 : undefined,
+    flex: w(1, undefined),
     backgroundColor: Colors.white,
     borderRadius: 20,
-    padding: 28,
+    padding: w(28, 20),
     borderWidth: 1,
     borderColor: Colors.border,
     gap: 14,
@@ -1299,15 +1300,15 @@ const styles = StyleSheet.create({
 
   // ── Planes ────────────────────────────────────────────────────────────────
   planesGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
+    flexDirection: w("row" as const, "column" as const),
     gap: 16,
-    alignItems: IS_WEB ? "stretch" : undefined,
+    alignItems: w("stretch" as const, undefined),
   },
   planCard: {
-    flex: IS_WEB ? 1 : undefined,
+    flex: w(1, undefined),
     backgroundColor: Colors.white,
     borderRadius: 20,
-    padding: 24,
+    padding: w(24, 18),
     borderWidth: 1,
     borderColor: Colors.border,
     gap: 8,
@@ -1402,11 +1403,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   ctaFinalH2: {
-    fontSize: IS_WEB ? 34 : 26,
+    fontSize: w(34, 24),
     fontFamily: "Inter_700Bold",
     color: Colors.primaryDark,
     textAlign: "center",
-    lineHeight: IS_WEB ? 44 : 34,
+    lineHeight: w(44, 32),
     maxWidth: 560,
   },
   ctaFinalSubtitle: {
@@ -1421,12 +1422,14 @@ const styles = StyleSheet.create({
   ctaFinalBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     backgroundColor: Colors.primaryDark,
     borderRadius: 14,
     paddingVertical: 18,
-    paddingHorizontal: 36,
+    paddingHorizontal: w(36, 24),
     marginTop: 16,
+    alignSelf: w("auto" as any, "stretch"),
   },
   ctaFinalBtnText: {
     fontSize: 17,
@@ -1493,15 +1496,15 @@ const styles = StyleSheet.create({
 
   // ── Comunidad ─────────────────────────────────────────────────────────────
   comunidadGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
+    flexDirection: w("row" as const, "column" as const),
     gap: 16,
     marginBottom: 32,
   },
   comunidadCard: {
-    flex: IS_WEB ? 1 : undefined,
+    flex: w(1, undefined),
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 16,
-    padding: 24,
+    padding: w(24, 18),
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
     gap: 12,
@@ -1600,12 +1603,12 @@ const styles = StyleSheet.create({
 
   // ── Portal cliente ────────────────────────────────────────────────────────
   portalGrid: {
-    flexDirection: IS_WEB ? "row" : "column",
-    gap: 40,
+    flexDirection: w("row" as const, "column" as const),
+    gap: w(40, 24),
     alignItems: "flex-start",
   },
   portalLeft: {
-    flex: IS_WEB ? 1 : undefined,
+    flex: w(1, undefined),
     gap: 16,
   },
   portalBeneficioCard: {
@@ -1639,11 +1642,12 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   portalRight: {
-    flex: IS_WEB ? 1 : undefined,
+    flex: w(1, undefined),
     alignItems: "center",
+    width: "100%",
   },
   portalMockPhone: {
-    width: IS_WEB ? 320 : "100%",
+    width: w(320, "100%" as any),
     backgroundColor: Colors.white,
     borderRadius: 24,
     overflow: "hidden",
