@@ -68,7 +68,7 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
 
   if (!isLoggedIn) {
     if (currentGroup !== "(auth)") {
-      return <Redirect href="/login" />;
+      return <Redirect href="/landing" />;
     }
     return <>{children}</>;
   }
