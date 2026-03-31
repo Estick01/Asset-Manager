@@ -111,8 +111,8 @@ router.get("/permisos/all", authenticate, requirePermission("configuracion.ver")
   }
 });
 
-// GET /api/planes - Get all plans
-router.get("/planes", authenticate, requirePermission("configuracion.ver"), async (req: Request, res: Response, next: NextFunction) => {
+// GET /api/admin/planes - Get all plans (admin/config view, requires auth)
+router.get("/admin/planes", authenticate, requirePermission("configuracion.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const planes = await storage.getPlanes();
     res.json(planes);

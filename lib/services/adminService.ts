@@ -182,7 +182,7 @@ export async function updateLawyerPlan(
 
 export async function getAllPlanes(): Promise<Plan[]> {
   try {
-    const response = await apiRequest("GET", '/api/planes');
+    const response = await apiRequest("GET", '/api/admin/planes');
     if (!response.ok) {
       console.error('Failed to fetch planes from API');
       return [];
