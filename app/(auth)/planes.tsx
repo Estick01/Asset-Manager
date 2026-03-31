@@ -23,6 +23,7 @@ import {
   type PlanPublico,
 } from "@/lib/services/suscripcionService";
 import { PlanCard } from "@/components/subscription/PlanCard";
+import { useAuth } from "@/lib/auth-context";
 
 type TipoPlan = "abogado" | "bufete";
 type Ciclo = "mensual" | "anual";
@@ -33,6 +34,7 @@ const MAX_ABOGADOS = 50;
 export default function PlanesScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const { isLoggedIn } = useAuth();
 
   const [planes, setPlanes] = useState<PlanPublico[]>([]);
   const [cargando, setCargando] = useState(true);
@@ -97,6 +99,20 @@ export default function PlanesScreen() {
   const handleContinuar = async () => {
     if (!planSeleccionado || procesando) return;
 
+    // Sin sesión → llevar al registro con el plan preseleccionado
+    if (!isLoggedIn) {
+      router.push({
+        pathname: "/register-type",
+        params: {
+          planId: planSeleccionado.id,
+          ciclo,
+          extraUsers: (tipoPlan === "bufete" ? extraUsers : 0).toString(),
+          planNombre: planSeleccionado.nombre,
+        },
+      });
+      return;
+    }
+
     const esPlanGratis = planSeleccionado.precioMensualCop === "0";
 
     if (esPlanGratis) {
@@ -131,8 +147,10 @@ export default function PlanesScreen() {
   const handleVolver = () => {
     if (canGoBack) {
       router.back();
-    } else {
+    } else if (isLoggedIn) {
       router.replace("/");
+    } else {
+      router.replace("/login");
     }
   };
 
