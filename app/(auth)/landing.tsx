@@ -729,7 +729,7 @@ export default function LandingScreen() {
           colors={[Colors.accent, Colors.accentDark]}
           style={[styles.section, styles.ctaFinal]}
         >
-          <View style={styles.sectionInner}>
+          <View style={[styles.sectionInner, { alignItems: "center" }]}>
             <View style={styles.ctaFinalIconCircle}>
               <Ionicons name="rocket-outline" size={36} color={Colors.primaryDark} />
             </View>
@@ -1058,7 +1058,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    width: w("46%" as const, "100%" as const),
+    width: w("46%", undefined),
+    flexGrow: IS_WEB ? 1 : 0,
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
     padding: w(16, 14),
@@ -1075,16 +1076,16 @@ const styles = StyleSheet.create({
 
   // ── Features ──────────────────────────────────────────────────────────────
   featuresGrid: {
-    flexDirection: w("row" as const, "row" as const),
-    flexWrap: "wrap",
+    flexDirection: w("row" as const, "column" as const),
+    flexWrap: w("wrap" as const, "nowrap" as const),
     gap: 12,
   },
   featureCard: {
-    width: w("30%", "48%"),
-    flexGrow: 1,
+    width: w("30%", "100%"),
+    flexGrow: IS_WEB ? 1 : 0,
     backgroundColor: Colors.white,
     borderRadius: 14,
-    padding: w(22, 14),
+    padding: w(22, 16),
     gap: 8,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -1427,9 +1428,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDark,
     borderRadius: 14,
     paddingVertical: 18,
-    paddingHorizontal: w(36, 24),
+    paddingHorizontal: w(36, 32),
     marginTop: 16,
-    alignSelf: w("auto" as any, "stretch"),
+    width: w("auto" as any, "100%"),
   },
   ctaFinalBtnText: {
     fontSize: 17,
@@ -1648,6 +1649,7 @@ const styles = StyleSheet.create({
   },
   portalMockPhone: {
     width: w(320, "100%" as any),
+    maxWidth: w(9999, 400),
     backgroundColor: Colors.white,
     borderRadius: 24,
     overflow: "hidden",
