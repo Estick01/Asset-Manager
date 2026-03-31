@@ -1612,10 +1612,11 @@ const styles = StyleSheet.create({
   portalGrid: {
     flexDirection: w("row" as const, "column" as const),
     gap: w(40, 24),
-    alignItems: "flex-start",
+    alignItems: w("flex-start" as const, "stretch" as const),
   },
   portalLeft: {
     flex: w(1, undefined),
+    width: w(undefined, "100%" as any),
     gap: 16,
   },
   portalBeneficioCard: {
