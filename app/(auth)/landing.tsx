@@ -16,6 +16,9 @@ import Colors from "@/constants/colors";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const IS_WEB = Platform.OS === "web";
+// Layout decisions based on viewport width, not platform.
+// Esto funciona en mobile nativo, web móvil, y desktop.
+const IS_MOBILE_LAYOUT = SCREEN_WIDTH < 768;
 const CONTENT_MAX_WIDTH = 1100;
 
 // ── Sub-componentes ────────────────────────────────────────────────────────────
@@ -786,7 +789,10 @@ export default function LandingScreen() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const w = <T,>(web: T, mob: T): T => (IS_WEB ? web : mob);
+// w(desktop, mobile): retorna mobile si el viewport es < 768px,
+// sin importar si es web o nativo. Así funciona en celular real,
+// navegador móvil, y simulador.
+const w = <T,>(desktop: T, mobile: T): T => (IS_MOBILE_LAYOUT ? mobile : desktop);
 
 // ── Estilos ────────────────────────────────────────────────────────────────────
 
@@ -1059,7 +1065,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 12,
     width: w("46%", undefined),
-    flexGrow: IS_WEB ? 1 : 0,
+    flexGrow: IS_MOBILE_LAYOUT ? 0 : 1,
     backgroundColor: "rgba(255,255,255,0.06)",
     borderRadius: 12,
     padding: w(16, 14),
@@ -1082,7 +1088,7 @@ const styles = StyleSheet.create({
   },
   featureCard: {
     width: w("30%", "100%"),
-    flexGrow: IS_WEB ? 1 : 0,
+    flexGrow: IS_MOBILE_LAYOUT ? 0 : 1,
     backgroundColor: Colors.white,
     borderRadius: 14,
     padding: w(22, 16),
