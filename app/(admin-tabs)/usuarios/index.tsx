@@ -65,17 +65,21 @@ export default function UsuariosScreen() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  const params: ListUsersParams = {
-    page,
-    limit: 20,
-    tipo:   tipo   !== "todos" ? tipo   : undefined,
-    estado: estado !== "todos" ? estado : undefined,
-    search: search || undefined,
-  };
+  const LIMIT = 20;
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey:  ["admin-users", params],
-    queryFn:   () => adminUsersService.list(params),
+  const tipoParam:   ListUsersParams["tipo"]   = tipo   !== "todos" ? tipo   : undefined;
+  const estadoParam: ListUsersParams["estado"] = estado !== "todos" ? estado : undefined;
+  const searchParam: string | undefined        = search || undefined;
+
+  const { data, isLoading, isFetching, isError } = useQuery({
+    queryKey: ["admin-users", page, LIMIT, tipoParam, estadoParam, searchParam],
+    queryFn:  () => adminUsersService.list({
+      page,
+      limit:  LIMIT,
+      tipo:   tipoParam,
+      estado: estadoParam,
+      search: searchParam,
+    }),
     staleTime: 30_000,
   });
 
@@ -118,7 +122,7 @@ export default function UsuariosScreen() {
       <View style={styles.filters}>
         <View style={styles.filterGroup}>
           <Text style={styles.filterLabel}>Tipo:</Text>
-          {(["todos", "abogado", "bufete", "cliente"] as TipoFiltro[]).map(t => (
+          {(["todos", "abogado", "bufete", "cliente"] as const).map(t => (
             <FilterChip
               key={t}
               label={t === "todos" ? "Todos" : t.charAt(0).toUpperCase() + t.slice(1)}
@@ -129,7 +133,7 @@ export default function UsuariosScreen() {
         </View>
         <View style={styles.filterGroup}>
           <Text style={styles.filterLabel}>Estado:</Text>
-          {(["todos", "activo", "suspendido"] as EstadoFiltro[]).map(e => (
+          {(["todos", "activo", "suspendido"] as const).map(e => (
             <FilterChip
               key={e}
               label={e === "todos" ? "Todos" : e.charAt(0).toUpperCase() + e.slice(1)}
@@ -141,7 +145,7 @@ export default function UsuariosScreen() {
       </View>
 
       {/* Estados de carga / error */}
-      {isLoading && (
+      {(isLoading || isFetching) && (
         <View style={styles.center}>
           <ActivityIndicator size="large" color="#2563EB" />
         </View>
@@ -154,7 +158,7 @@ export default function UsuariosScreen() {
       )}
 
       {/* Tabla */}
-      {!isLoading && !isError && (
+      {!isLoading && !isFetching && !isError && (
         <>
           {/* Encabezado */}
           <View style={styles.tableHeader}>
@@ -184,7 +188,7 @@ export default function UsuariosScreen() {
                 {u.email}
               </Text>
               <Text style={[styles.cell, { flex: 1 }]} numberOfLines={1}>
-                {u.rol.nombre}
+                {u.rol?.nombre ?? "—"}
               </Text>
               <Text style={[styles.cell, { flex: 1.5 }]} numberOfLines={1}>
                 {u.plan?.nombre ?? "—"}
@@ -211,11 +215,11 @@ export default function UsuariosScreen() {
               </Text>
               <Pressable
                 onPress={() => setPage(p => p + 1)}
-                disabled={page * (meta.limit) >= meta.total}
-                style={[styles.pageBtn, page * meta.limit >= meta.total && styles.pageBtnDisabled]}
+                disabled={page * LIMIT >= meta.total}
+                style={[styles.pageBtn, page * LIMIT >= meta.total && styles.pageBtnDisabled]}
               >
-                <Text style={[styles.pageBtnText, page * meta.limit >= meta.total && styles.pageBtnTextDisabled]}>Siguiente</Text>
-                <Ionicons name="chevron-forward-outline" size={16} color={page * meta.limit >= meta.total ? "#CBD5E1" : "#2563EB"} />
+                <Text style={[styles.pageBtnText, page * LIMIT >= meta.total && styles.pageBtnTextDisabled]}>Siguiente</Text>
+                <Ionicons name="chevron-forward-outline" size={16} color={page * LIMIT >= meta.total ? "#CBD5E1" : "#2563EB"} />
               </Pressable>
             </View>
           )}
