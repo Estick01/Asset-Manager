@@ -438,4 +438,8 @@ export {
 } from "./usage-tracking.schema";
 
 // Admin Audit Log
-export { adminAuditLog, type AdminAuditLog, type InsertAdminAuditLog } from "./admin-audit-log.schema";
+export {
+  adminAuditLog,
+  type AdminAuditLog,
+  type InsertAdminAuditLog,
+} from "./admin-audit-log.schema";
