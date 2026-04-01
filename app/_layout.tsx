@@ -16,6 +16,7 @@ import {
 
 import * as SplashScreen from "expo-splash-screen";
 import { GlobalSocketProvider } from "@/lib/global-socket-context";
+import { SubscriptionProvider } from "@/lib/subscription-context";
 import { InvitationsProvider } from "@/lib/invitations-context";
 import { ChatNotificationProvider } from "@/lib/chat-context";
 import { NotificationsProvider } from "@/lib/notifications-context";
@@ -41,16 +42,19 @@ SplashScreen.preventAutoHideAsync().catch((error: any) => {
 
 const queryClient = new QueryClient();
 
-type AppRoute = "/(lawyer-tabs)" | "/(firm-tabs)" | "/portal";
+type AppRoute = "/(lawyer-tabs)" | "/(firm-tabs)" | "/portal" | "/(admin-tabs)";
 
 
 const ROLE_ROUTES: Record<string, AppRoute> = {
   abogado: "/(lawyer-tabs)",
   bufete: "/(firm-tabs)",
   cliente: "/portal",
+  admin_super: "/(admin-tabs)",
+  admin_soporte: "/(admin-tabs)",
+  admin_finanzas: "/(admin-tabs)",
 };
 
-const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications"];
+const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","(auth)", "checkout"];
 
 const PUBLIC_GRUPS_FIRM = ["firm-components","firm-info"]
 
@@ -72,6 +76,7 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
     }
     return <>{children}</>;
   }
+  console.log(currentGroup);
 
 
   const targetRoute = ROLE_ROUTES[user?.user?.rol?.nombre || ""];
@@ -128,6 +133,7 @@ export default function RootLayout() {
       <View style={styles.contentWrapper}>
         <QueryClientProvider client={queryClient}>
           <UnifiedAuthProvider>
+            <SubscriptionProvider>
             <GlobalSocketProvider>
               <InvitationsProvider>
                 <ChatNotificationProvider>
@@ -137,6 +143,7 @@ export default function RootLayout() {
                       <Stack.Screen name="(auth)" />
                       <Stack.Screen name="(lawyer-tabs)" />
                       <Stack.Screen name="(firm-tabs)" />
+                      <Stack.Screen name="(admin-tabs)" />
                       <Stack.Screen name="portal" />
                     </Stack>
                   </AuthRouteProtection>
@@ -144,6 +151,7 @@ export default function RootLayout() {
                 </ChatNotificationProvider>
               </InvitationsProvider>
             </GlobalSocketProvider>
+            </SubscriptionProvider>
           </UnifiedAuthProvider>
         </QueryClientProvider>
         <Toaster />
@@ -160,7 +168,6 @@ const styles = StyleSheet.create({
   contentWrapper: {
     flex: 1,
     width: '100%',
-    maxWidth: 1200,
     marginHorizontal: 'auto',
     ...(Platform.OS === 'web' ? {
       maxWidth: 1200,
