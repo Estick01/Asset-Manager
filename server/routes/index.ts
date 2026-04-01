@@ -35,6 +35,7 @@ import procesoOwnershipRoutes from "./proceso-ownership.js";
 import firmSettingsRoutes from "./firm-settings.js";
 import suscripcionesRoutes from "./suscripciones.js";
 import webhooksRoutes      from "./webhooks.js";
+import adminRoutes from "../admin/routes/index.js";
 
 /**
  * Register all application routes
@@ -76,6 +77,7 @@ export function registerAppRoutes(app: Express): void {
   app.use("/api", firmSettingsRoutes);
   app.use("/api", suscripcionesRoutes);
   app.use("/api", webhooksRoutes);
+  app.use("/api/admin", adminRoutes);
 }
 
 export default registerAppRoutes;
