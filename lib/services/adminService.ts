@@ -8,6 +8,16 @@ import {
 } from '../../shared/schema';
 import { apiRequest } from '../query-client';
 
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+
+export interface AdminStats {
+  totalUsuarios:         number;
+  suscripcionesActivas:  number;
+  ingresosEstimadosCop:  number;
+  totalProcesos:         number;
+  nuevosEsteMes:         number;
+}
+
 // ============ Role and Permission Functions ============
 
 export async function getRoles(): Promise<Rol[]> {
@@ -297,3 +307,15 @@ export async function getDashboardStats(): Promise<{
       return fallbackStats;
     }
   }
+
+// ── Stats ─────────────────────────────────────────────────────────────────────
+
+export const adminStatsService = {
+  getStats: async (): Promise<{ success: boolean; data: AdminStats }> => {
+    const response = await apiRequest("GET", "/api/admin/stats");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch admin stats: ${response.status}`);
+    }
+    return await response.json();
+  },
+};
