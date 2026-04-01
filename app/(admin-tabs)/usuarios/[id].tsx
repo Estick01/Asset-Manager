@@ -49,7 +49,8 @@ function EstadoBadge({ estado }: { estado: string }) {
 // ── Pantalla principal ────────────────────────────────────────────────────────
 
 export default function UsuarioDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const params = useLocalSearchParams<{ id: string }>();
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
   const queryClient = useQueryClient();
 
   // Modals
@@ -247,7 +248,7 @@ export default function UsuarioDetailScreen() {
         title={user.isActive ? "Suspender usuario" : "Activar usuario"}
         confirmText={user.isActive ? "Suspender" : "Activar"}
         confirmVariant={user.isActive ? "danger" : "primary"}
-        onConfirm={() => mutEstado.mutate(!user.isActive)}
+        onConfirm={() => { if (!mutEstado.isPending) mutEstado.mutate(!user.isActive); }}
       >
         <Text style={styles.modalBody}>
           {user.isActive
@@ -281,7 +282,7 @@ export default function UsuarioDetailScreen() {
         title="Generar reset de contraseña"
         confirmText="Generar token"
         confirmVariant="primary"
-        onConfirm={() => mutReset.mutate()}
+        onConfirm={() => { if (!mutReset.isPending) mutReset.mutate(); }}
       >
         <Text style={styles.modalBody}>
           Se generará un token de reset válido por 1 hora para{" "}
