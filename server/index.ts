@@ -16,6 +16,7 @@ import { setupWebSocketServer } from "./websocket/ws-server.js";
 import { seedLegalStages } from "./db/seeds/legal-stages.seed.js";
 import { seedStageTemplates } from "./db/seeds/stage-templates.seed.js";
 import { seedPlanes } from "./db/seeds/planes.seed.js";
+import { seedAdminRoles } from "./db/seeds/admin-roles.seed.js";
 import { subscriptionService } from "./services/subscription.service.js";
 
 const app = express();
@@ -65,6 +66,9 @@ async function seedDatabase() {
 
   // Seed planes y features
   await seedPlanes(db);
+
+  // Seed roles admin
+  await seedAdminRoles(db);
 }
 
 function setupCors(app: express.Application) {
