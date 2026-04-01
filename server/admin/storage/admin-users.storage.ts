@@ -1,5 +1,5 @@
 // server/admin/storage/admin-users.storage.ts
-import { sql, eq, and, or, like, desc } from "drizzle-orm";
+import { sql, eq, and, or, like, desc, type SQL } from "drizzle-orm";
 import {
   users,
   roles,
@@ -71,7 +71,7 @@ export class AdminUsersStorage {
       rolIdFiltro = roleRow?.id;
     }
 
-    const conditions: ReturnType<typeof eq>[] = [];
+    const conditions: SQL[] = [];
     if (rolIdFiltro !== undefined)      conditions.push(eq(users.rolId, rolIdFiltro));
     if (params.estado === "activo")     conditions.push(eq(users.isActive, true));
     if (params.estado === "suspendido") conditions.push(eq(users.isActive, false));
@@ -81,7 +81,7 @@ export class AdminUsersStorage {
         or(
           like(users.name,  pattern),
           like(users.email, pattern),
-        ) as ReturnType<typeof eq>,
+        )!,
       );
     }
 
@@ -129,41 +129,31 @@ export class AdminUsersStorage {
   }
 
   async getById(id: string): Promise<UserAdminDetail | null> {
-    const [userRow] = await this.db
+    const [row] = await this.db
       .select({
-        id:        users.id,
-        name:      users.name,
-        email:     users.email,
-        isActive:  users.isActive,
-        createdAt: users.createdAt,
-        rolId:     users.rolId,
-        rolNombre: roles.nombre,
+        id:         users.id,
+        name:       users.name,
+        email:      users.email,
+        isActive:   users.isActive,
+        createdAt:  users.createdAt,
+        rolNombre:  roles.nombre,
+        firmId:     firmProfiles.id,
+        firmNombre: firmProfiles.name,
       })
       .from(users)
-      .leftJoin(roles, eq(roles.id, users.rolId))
+      .leftJoin(roles,          eq(roles.id,              users.rolId))
+      .leftJoin(lawyerProfiles, eq(lawyerProfiles.userId,  users.id))
+      .leftJoin(firmProfiles,   eq(firmProfiles.id,        lawyerProfiles.firmId))
       .where(eq(users.id, id))
       .limit(1);
 
-    if (!userRow) return null;
+    if (!row) return null;
 
-    // Firma asociada (solo abogados que pertenecen a un bufete)
-    let firma: { id: string; nombre: string } | null = null;
-    const [lpRow] = await this.db
-      .select({ firmId: lawyerProfiles.firmId })
-      .from(lawyerProfiles)
-      .where(eq(lawyerProfiles.userId, id))
-      .limit(1);
+    const firma = row.firmId && row.firmNombre
+      ? { id: row.firmId, nombre: row.firmNombre }
+      : null;
 
-    if (lpRow?.firmId) {
-      const [firmRow] = await this.db
-        .select({ id: firmProfiles.id, nombre: firmProfiles.name })
-        .from(firmProfiles)
-        .where(eq(firmProfiles.id, lpRow.firmId))
-        .limit(1);
-      if (firmRow) firma = firmRow;
-    }
-
-    // Historial de suscripciones (todas, ordenadas por fecha desc)
+    // Historial de suscripciones (sin cambios)
     const susRows = await this.db
       .select({
         id:               suscripciones.id,
@@ -190,12 +180,12 @@ export class AdminUsersStorage {
     const suscripcionActiva = historial.find(s => s.estado === "activa") ?? null;
 
     return {
-      id:                     userRow.id,
-      name:                   userRow.name,
-      email:                  userRow.email,
-      isActive:               userRow.isActive ?? false,
-      createdAt:              userRow.createdAt?.toISOString() ?? "",
-      rol:                    { nombre: userRow.rolNombre ?? "" },
+      id:                     row.id,
+      name:                   row.name,
+      email:                  row.email,
+      isActive:               row.isActive ?? false,
+      createdAt:              row.createdAt?.toISOString() ?? "",
+      rol:                    { nombre: row.rolNombre ?? "" },
       plan:                   suscripcionActiva ? { nombre: suscripcionActiva.planNombre } : null,
       firma,
       suscripcionActiva,
