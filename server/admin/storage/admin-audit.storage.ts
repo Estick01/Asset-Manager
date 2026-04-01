@@ -10,14 +10,7 @@ export interface AuditEntry {
   detalle?:  string | null;
 }
 
-export interface AuditRow {
-  id:        number;
-  adminId:   string;
-  accion:    string;
-  targetId:  string | null;
-  detalle:   string | null;
-  createdAt: Date;
-}
+export type AuditRow = typeof adminAuditLog.$inferSelect;
 
 export interface AuditLogResult {
   data: AuditRow[];
@@ -37,8 +30,8 @@ export class AdminAuditStorage {
   }
 
   async getLog(params: {
-    page:     number;
-    limit:    number;
+    page?:    number;
+    limit?:   number;
     adminId?: string;
     accion?:  string;
   }): Promise<AuditLogResult> {
@@ -52,7 +45,7 @@ export class AdminAuditStorage {
     const where = conditions.length > 0 ? and(...conditions) : undefined;
 
     const [countRow] = await this.db
-      .select({ total: sql<number>`COUNT(*)` })
+      .select({ total: sql<string>`COUNT(*)` })
       .from(adminAuditLog)
       .where(where);
 
