@@ -319,3 +319,82 @@ export const adminStatsService = {
     return await response.json();
   },
 };
+
+// ── Usuarios ──────────────────────────────────────────────────────────────────
+
+export interface UserAdminRow {
+  id:        string;
+  name:      string | null;
+  email:     string;
+  isActive:  boolean;
+  createdAt: string;
+  rol:       { nombre: string };
+  plan:      { nombre: string } | null;
+}
+
+export interface SuscripcionResumen {
+  id:          string;
+  planNombre:  string;
+  ciclo:       string;
+  estado:      string;
+  fechaInicio: string;
+  fechaFin:    string;
+}
+
+export interface UserAdminDetail extends UserAdminRow {
+  firma:                  { id: string; nombre: string } | null;
+  suscripcionActiva:      SuscripcionResumen | null;
+  historialSuscripciones: SuscripcionResumen[];
+}
+
+export interface ListUsersParams {
+  page?:   number;
+  limit?:  number;
+  tipo?:   "abogado" | "bufete" | "cliente";
+  estado?: "activo" | "suspendido";
+  search?: string;
+}
+
+export interface ListUsersResponse {
+  success: boolean;
+  data:    UserAdminRow[];
+  meta:    { total: number; page: number; limit: number };
+}
+
+export const adminUsersService = {
+  list: async (params: ListUsersParams = {}): Promise<ListUsersResponse> => {
+    const query = new URLSearchParams();
+    if (params.page)   query.set("page",   String(params.page));
+    if (params.limit)  query.set("limit",  String(params.limit));
+    if (params.tipo)   query.set("tipo",   params.tipo);
+    if (params.estado) query.set("estado", params.estado);
+    if (params.search) query.set("search", params.search);
+    const qs = query.toString();
+    const response = await apiRequest("GET", `/api/admin/users${qs ? `?${qs}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json();
+  },
+
+  getById: async (id: string): Promise<{ success: boolean; data: UserAdminDetail }> => {
+    const response = await apiRequest("GET", `/api/admin/users/${id}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json();
+  },
+
+  updateEstado: async (id: string, activo: boolean): Promise<void> => {
+    const response = await apiRequest("PATCH", `/api/admin/users/${id}/estado`, { activo });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  updatePlan: async (id: string, planId: string): Promise<void> => {
+    const response = await apiRequest("PATCH", `/api/admin/users/${id}/plan`, { planId });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  resetPassword: async (id: string): Promise<{ token: string; expiresIn: string }> => {
+    const response = await apiRequest("POST", `/api/admin/users/${id}/reset-password`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+};
