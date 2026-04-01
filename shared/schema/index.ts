@@ -436,3 +436,6 @@ export {
   usageTracking,
   type UsageTracking, type InsertUsageTracking, type UsageDTO,
 } from "./usage-tracking.schema";
+
+// Admin Audit Log
+export { adminAuditLog, type AdminAuditLog, type InsertAdminAuditLog } from "./admin-audit-log.schema";
