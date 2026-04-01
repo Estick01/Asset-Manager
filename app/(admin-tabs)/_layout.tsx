@@ -11,9 +11,9 @@ export default function AdminLayout() {
 
   if (isLoading) return null;
 
-  const rol = user?.user?.rol?.nombre ?? "";
+  const rol = user?.user?.rol?.nombre;
 
-  if (!ADMIN_ROLES.includes(rol as any)) {
+  if (!rol || !(ADMIN_ROLES as readonly string[]).includes(rol)) {
     return <Redirect href="/login" />;
   }
 
