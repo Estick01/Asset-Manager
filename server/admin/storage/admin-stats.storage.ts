@@ -1,5 +1,5 @@
 // server/admin/storage/admin-stats.storage.ts
-import { sql, inArray, eq } from "drizzle-orm";
+import { sql, inArray, eq, and, gte } from "drizzle-orm";
 import { users, roles, suscripciones, planes, procesos } from "@/shared/schema";
 import type { Database } from "../../storage/storeage/database-storage.js";
 
@@ -17,9 +17,8 @@ export class AdminStatsStorage {
   constructor(private db: Database) {}
 
   async getStats(): Promise<AdminStats> {
-    const startOfMonth = new Date();
-    startOfMonth.setDate(1);
-    startOfMonth.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
 
     // IDs de roles de usuario final (excluye admins)
     const userRoleRows = await this.db
@@ -80,8 +79,10 @@ export class AdminStatsStorage {
             .select({ total: sql<number>`COUNT(*)` })
             .from(users)
             .where(
-              sql`${users.rolId} IN (${sql.join(userRoleIds.map(id => sql`${id}`), sql`, `)})
-                  AND ${users.createdAt} >= ${startOfMonth}`
+              and(
+                inArray(users.rolId, userRoleIds),
+                gte(users.createdAt, startOfMonth),
+              )
             )
         : Promise.resolve([{ total: 0 }]),
     ]);
