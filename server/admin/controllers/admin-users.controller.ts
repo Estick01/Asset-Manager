@@ -27,7 +27,9 @@ const updatePlanSchema = z.object({
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getAdminId(req: Request): string {
-  return ((req as any).user as JWTPayload).id;
+  const user = (req as any).user as JWTPayload | undefined;
+  if (!user?.id) throw new Error("Unauthorized: no user on request");
+  return user.id;
 }
 
 // ── Handlers ─────────────────────────────────────────────────────────────────
@@ -118,7 +120,18 @@ export async function resetPassword(
 ): Promise<void> {
   try {
     const userId = req.params.id;
-    const secret = process.env.JWT_SECRET ?? "fallback_secret";
+
+    // Verificar que el usuario existe
+    const user = await adminUsersService.getById(userId);
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET environment variable is not configured");
+    }
 
     const token = jwt.sign(
       { userId, purpose: "password_reset" },
@@ -130,6 +143,7 @@ export async function resetPassword(
       adminId:  getAdminId(req),
       accion:   "usuario.reset_password",
       targetId: userId,
+      detalle:  JSON.stringify({ email: user.email }),
     });
 
     res.json({ success: true, data: { token, expiresIn: "1h" } });
