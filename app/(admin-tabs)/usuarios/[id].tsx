@@ -57,7 +57,9 @@ export default function UsuarioDetailScreen() {
   const [modalPlan,       setModalPlan]       = useState(false);
   const [modalReset,      setModalReset]      = useState(false);
   const [resetToken,      setResetToken]      = useState<string | null>(null);
-  const [errorMsg,        setErrorMsg]        = useState<string | null>(null);
+  const [errorEstado,  setErrorEstado]  = useState<string | null>(null);
+  const [errorPlan,    setErrorPlan]    = useState<string | null>(null);
+  const [errorReset,   setErrorReset]   = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-user", id],
@@ -74,9 +76,9 @@ export default function UsuarioDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["admin-user",  id] });
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setModalEstado(false);
-      setErrorMsg(null);
+      setErrorEstado(null);
     },
-    onError: () => setErrorMsg("Error al cambiar el estado del usuario."),
+    onError: () => setErrorEstado("Error al cambiar el estado del usuario."),
   });
 
   const mutPlan = useMutation({
@@ -85,9 +87,9 @@ export default function UsuarioDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ["admin-user",  id] });
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setModalPlan(false);
-      setErrorMsg(null);
+      setErrorPlan(null);
     },
-    onError: () => setErrorMsg("Error al cambiar el plan."),
+    onError: () => setErrorPlan("Error al cambiar el plan."),
   });
 
   const mutReset = useMutation({
@@ -95,9 +97,9 @@ export default function UsuarioDetailScreen() {
     onSuccess: (result) => {
       setResetToken(result.token);
       setModalReset(false);
-      setErrorMsg(null);
+      setErrorReset(null);
     },
-    onError: () => setErrorMsg("Error al generar el token de reset."),
+    onError: () => setErrorReset("Error al generar el token de reset."),
   });
 
   if (isLoading) {
@@ -196,12 +198,6 @@ export default function UsuarioDetailScreen() {
         <View style={styles.rightCol}>
           <Text style={styles.sectionTitle}>Acciones</Text>
 
-          {errorMsg && (
-            <View style={styles.errorBox}>
-              <Text style={styles.errorText}>{errorMsg}</Text>
-            </View>
-          )}
-
           {/* Reset token generado */}
           {resetToken && (
             <View style={styles.tokenBox}>
@@ -219,6 +215,9 @@ export default function UsuarioDetailScreen() {
             color={user.isActive ? "#DC2626" : "#16A34A"}
             onPress={() => setModalEstado(true)}
           />
+          {errorEstado && (
+            <Text style={styles.inlineError}>{errorEstado}</Text>
+          )}
           <ActionButton
             icon="layers-outline"
             label="Cambiar plan"
@@ -226,12 +225,18 @@ export default function UsuarioDetailScreen() {
             onPress={() => setModalPlan(true)}
             disabled={!user.suscripcionActiva}
           />
+          {errorPlan && (
+            <Text style={styles.inlineError}>{errorPlan}</Text>
+          )}
           <ActionButton
             icon="key-outline"
             label="Generar reset de contraseña"
             color="#9333EA"
             onPress={() => setModalReset(true)}
           />
+          {errorReset && (
+            <Text style={styles.inlineError}>{errorReset}</Text>
+          )}
         </View>
       </View>
 
@@ -531,5 +536,12 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "#475569",
     lineHeight: 22,
+  },
+  inlineError: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#DC2626",
+    marginTop: -4,
+    marginBottom: 4,
   },
 });
