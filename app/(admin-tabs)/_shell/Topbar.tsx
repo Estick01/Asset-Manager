@@ -2,6 +2,7 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/lib/auth-context";
+import { useCallback } from "react";
 
 const ROL_LABELS: Record<string, string> = {
   admin_super:    "Super Admin",
@@ -15,9 +16,17 @@ interface Props {
 
 export function Topbar({ title }: Props) {
   const { user, logout } = useAuth();
-  const rolNombre  = user?.user?.rol?.nombre ?? "";
-  const rolLabel   = ROL_LABELS[rolNombre] ?? rolNombre;
-  const userName   = user?.user?.name ?? user?.user?.email ?? "Admin";
+  const rolNombre = user?.user?.rol?.nombre ?? "";
+  const rolLabel  = ROL_LABELS[rolNombre] ?? rolNombre;
+  const userName  = user?.user?.name ?? user?.user?.email ?? "Admin";
+
+  const handleLogout = useCallback(async () => {
+    try {
+      await logout();
+    } catch {
+      // logout errors are non-critical on the admin web portal
+    }
+  }, [logout]);
 
   return (
     <View style={styles.topbar}>
@@ -28,7 +37,7 @@ export function Topbar({ title }: Props) {
           <Text style={styles.userRol}>{rolLabel}</Text>
         </View>
         <Pressable
-          onPress={logout}
+          onPress={handleLogout}
           style={({ pressed }) => [styles.logoutBtn, pressed && styles.logoutPressed]}
           accessibilityLabel="Cerrar sesión"
         >

@@ -1,11 +1,12 @@
 // app/(admin-tabs)/_shell/AdminShell.tsx
 import { View, StyleSheet, ScrollView } from "react-native";
+import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useAuth } from "@/lib/auth-context";
 
 interface Props {
-  children:   React.ReactNode;
+  children:   ReactNode;
   title:      string;
   scrollable?: boolean;   // false si la pantalla maneja su propio scroll
 }
@@ -44,7 +45,7 @@ const styles = StyleSheet.create({
   main: {
     flex: 1,
     flexDirection: "column",
-    overflow: "hidden" as any,
+    overflow: "hidden" as const,
   },
   scrollArea: {
     flex: 1,

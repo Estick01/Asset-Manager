@@ -86,6 +86,8 @@ export function Sidebar({ rol }: Props) {
             <Pressable
               key={item.route}
               onPress={() => router.push(`/(admin-tabs)/${item.route}` as any)}
+              accessibilityRole="menuitem"
+              accessibilityLabel={item.label}
               style={({ pressed }) => [
                 styles.item,
                 active   && styles.itemActive,
