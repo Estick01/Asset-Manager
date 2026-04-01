@@ -53,6 +53,7 @@ import { PagoStorage } from "./models/pago-storage";
 import { UsageTrackingStorage } from "./models/usage-tracking-storage";
 import { AdminStatsStorage } from "../../admin/storage/admin-stats.storage.js";
 import { AdminAuditStorage } from "../../admin/storage/admin-audit.storage.js";
+import { AdminUsersStorage } from "../../admin/storage/admin-users.storage.js";
 import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
@@ -112,6 +113,7 @@ export class DatabaseStorage {
   public usageTracking:   UsageTrackingStorage;
   public adminStats:      AdminStatsStorage;
   public adminAudit:      AdminAuditStorage;
+  public adminUsers:      AdminUsersStorage;
 
   constructor(databaseUrl?: string) {
     const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -174,6 +176,7 @@ export class DatabaseStorage {
     this.usageTracking  = new UsageTrackingStorage(this.db);
     this.adminStats     = new AdminStatsStorage(this.db);
     this.adminAudit     = new AdminAuditStorage(this.db);
+    this.adminUsers     = new AdminUsersStorage(this.db);
 
     // Cleanup expired sessions every hour
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
