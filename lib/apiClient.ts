@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { API_URL, IS_NGROK } from './config';
 import { STORAGE_KEYS } from './keys';
 import { apiRequest } from './query-client';
+import { featureGateEvents } from './feature-gate-events';
 
 // Re-export apiRequest for direct use
 export { apiRequest };
@@ -122,6 +123,15 @@ export async function authenticatedFetch(
     await AsyncStorage.removeItem(STORAGE_KEYS.USER);
     await AsyncStorage.removeItem(STORAGE_KEYS.CLIENTE);
     return response;
+  }
+
+  // 402 FEATURE_NOT_AVAILABLE → emitir evento global para mostrar modal
+  if (response.status === 402) {
+    response.clone().json().then((body) => {
+      if (body?.error === "FEATURE_NOT_AVAILABLE" && body?.feature) {
+        featureGateEvents.emit(body.feature);
+      }
+    }).catch(() => {});
   }
 
   return response;

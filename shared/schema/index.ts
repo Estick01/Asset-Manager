@@ -6,6 +6,9 @@
 // User
 export { users, usersRelations, type User, type InsertUser} from "./user.schema";
 
+// Admin Profile
+export { adminProfiles, adminProfilesRelations, type AdminProfile, type InsertAdminProfile } from "./admin-profile.schema";
+
 // Planes
 export { planes, type Plan, type InsertPlan, type PlanPublicoDTO } from "./plane.schema";
 
@@ -131,6 +134,18 @@ export {
   type InsertProcesoResponsable
 } from "./proceso-responsables.schema";
 
+// Proceso Etapa Historial
+export {
+  procesoEtapaHistorial,
+  procesoEtapaHistorialRelations,
+  ETAPA_ESTADOS,
+  type ProcesoEtapaHistorial,
+  type InsertProcesoEtapaHistorial,
+  type EtapaEstado,
+  type ProcesoEtapaHistorialDTO,
+  type CreateProcesoEtapaHistorialDTO,
+} from "./proceso-etapa-historial.schema";
+
 // LawyerFirmaHistory
 export {
   lawyerFirmaHistory,
@@ -173,6 +188,7 @@ export {
   type ConversationDTO,
   type MessageDTO,
   type WsIncomingMessage,
+  type WsNotificationData,
   type WsOutgoingMessage,
 } from "./chat.schema";
 

@@ -4,25 +4,43 @@ import type { StageEventResponseDTO } from "@/shared/schema";
 const SILENT = { silent: true } as const;
 
 /**
- * Obtiene los eventos de una etapa procesal específica.
- * @param procesoId  ID del proceso
- * @param stage      Código de la etapa legal (ej: "demand", "answer", etc.)
+ * Obtiene todos los eventos de etapa de un proceso paginados.
+ * Descarga hasta `maxItems` eventos en lotes para no traer cientos de registros de golpe.
+ */
+export async function getAllStageEvents(
+  procesoId: string,
+  maxItems = 200,
+): Promise<StageEventResponseDTO[]> {
+  const PAGE = 50;
+  const collected: StageEventResponseDTO[] = [];
+  let offset = 0;
+
+  while (collected.length < maxItems) {
+    const params = new URLSearchParams({ limit: String(PAGE), offset: String(offset) });
+    const res = await apiRequest("GET", `/api/procesos/${procesoId}/stage-events?${params}`, undefined, SILENT);
+    if (!res.ok) break;
+    const { data, total } = await res.json() as { data: StageEventResponseDTO[]; total: number };
+    collected.push(...data);
+    offset += data.length;
+    if (offset >= total || data.length < PAGE) break;
+  }
+  return collected;
+}
+
+/**
+ * Obtiene los eventos de una etapa procesal específica (paginados).
  */
 export async function getStageEvents(
   procesoId: string,
   stage: string,
+  limit = 50,
+  offset = 0,
 ): Promise<StageEventResponseDTO[]> {
-  const params = new URLSearchParams();
-  params.set("stage", stage);
-
-  const res = await apiRequest(
-    "GET",
-    `/api/procesos/${procesoId}/stage-events?${params.toString()}`,
-    undefined,
-    SILENT,
-  );
+  const params = new URLSearchParams({ stage, limit: String(limit), offset: String(offset) });
+  const res = await apiRequest("GET", `/api/procesos/${procesoId}/stage-events?${params}`, undefined, SILENT);
   if (!res.ok) throw new Error("Error al obtener eventos de la etapa");
-  return res.json();
+  const { data } = await res.json() as { data: StageEventResponseDTO[]; total: number };
+  return data;
 }
 
 /**

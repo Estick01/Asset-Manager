@@ -107,6 +107,14 @@ export class OwnershipPolicyService {
     const ownership = await storage.clienteOwnership.getActive(clienteId);
     if (!ownership) return; // cliente sin ownership aún — no bloquear
 
+    // Si el cliente pertenece a un abogado, verificar si ese abogado tiene firma.
+    // Un abogado independiente (sin firma) no tiene el concepto privado/bufete,
+    // así que la validación de consistencia no aplica.
+    if (ownership.ownerType === "abogado") {
+      const firmId = await this.getFirmId(ownership.ownerId);
+      if (!firmId) return; // abogado independiente — no hay bufete que proteger
+    }
+
     const clienteEsPrivado = ownership.ownerType === "abogado";
 
     if (clienteEsPrivado && !procesoEsPrivado) {

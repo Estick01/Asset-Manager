@@ -27,6 +27,17 @@ export async function getLegalStages(
 /**
  * Avanza (o retrocede en caso de APPEAL) la etapa procesal de un proceso.
  */
+export interface StageBlockedError extends Error {
+  code: 'STAGE_BLOCKED';
+  message: string;
+  tareasBloqueantes: Array<{
+    id: string;
+    titulo: string;
+    estado: string;
+    prioridad: string;
+  }>;
+}
+
 export async function updateLegalStage(
   procesoId: string,
   dto: UpdateLegalStageDTO,
@@ -34,6 +45,15 @@ export async function updateLegalStage(
   const res = await apiRequest("PATCH", `/api/procesos/${procesoId}/legal-stage`, dto, SILENT);
   if (!res.ok) {
     const err = await res.json();
+
+    // Manejar error específico de STAGE_BLOCKED
+    if (err.error === 'STAGE_BLOCKED') {
+      const stageError: StageBlockedError = new Error(err.message) as StageBlockedError;
+      stageError.code = 'STAGE_BLOCKED';
+      stageError.tareasBloqueantes = err.tareasBloqueantes || [];
+      throw stageError;
+    }
+
     throw new Error(err.error || err.message || "Error al actualizar etapa procesal");
   }
 }

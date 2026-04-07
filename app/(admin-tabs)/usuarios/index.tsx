@@ -7,6 +7,8 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  ScrollView,
+  Alert,
 } from "react-native";
 import { router } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +19,7 @@ import {
   type ListUsersParams,
   type UserAdminRow,
 } from "@/lib/services/adminService";
+import { getOrCreateSupportConversation } from "@/lib/services/chatService";
 
 // ── Tipos de filtro ───────────────────────────────────────────────────────────
 
@@ -101,130 +104,163 @@ export default function UsuariosScreen() {
     setPage(1);
   }
 
+  async function handleSupportMessage(user: UserAdminRow) {
+    try {
+      const conversation = await getOrCreateSupportConversation(user.id);
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? `Soporte · ${user.name ?? user.email}`,
+          from: "/(admin-tabs)/usuarios",
+          support: "1",
+        },
+      });
+    } catch {
+      Alert.alert("Soporte", "No se pudo abrir la conversación con el usuario.");
+    }
+  }
+
   return (
     <AdminShell title="Usuarios" scrollable={false}>
-      {/* Barra de búsqueda */}
-      <View style={styles.searchBar}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Buscar por nombre o email..."
-          value={searchInput}
-          onChangeText={setSearchInput}
-          onSubmitEditing={handleSearch}
-          returnKeyType="search"
-        />
-        <Pressable onPress={handleSearch} style={styles.searchBtn}>
-          <Ionicons name="search-outline" size={18} color="#fff" />
-        </Pressable>
-      </View>
+      <View style={styles.screen}>
+        {/* Barra de búsqueda */}
+        <View style={styles.searchBar}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por nombre o email..."
+            value={searchInput}
+            onChangeText={setSearchInput}
+            onSubmitEditing={handleSearch}
+            returnKeyType="search"
+          />
+          <Pressable onPress={handleSearch} style={styles.searchBtn}>
+            <Ionicons name="search-outline" size={18} color="#fff" />
+          </Pressable>
+        </View>
 
-      {/* Filtros */}
-      <View style={styles.filters}>
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Tipo:</Text>
-          {(["todos", "abogado", "bufete", "cliente"] as const).map(t => (
-            <FilterChip
-              key={t}
-              label={t === "todos" ? "Todos" : t.charAt(0).toUpperCase() + t.slice(1)}
-              active={tipo === t}
-              onPress={() => handleTipo(t)}
-            />
-          ))}
-        </View>
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterLabel}>Estado:</Text>
-          {(["todos", "activo", "suspendido"] as const).map(e => (
-            <FilterChip
-              key={e}
-              label={e === "todos" ? "Todos" : e.charAt(0).toUpperCase() + e.slice(1)}
-              active={estado === e}
-              onPress={() => handleEstado(e)}
-            />
-          ))}
-        </View>
-      </View>
-
-      {/* Estados de carga / error */}
-      {(isLoading || isFetching) && (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#2563EB" />
-        </View>
-      )}
-      {isError && (
-        <View style={styles.errorBox}>
-          <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
-          <Text style={styles.errorText}>Error al cargar usuarios.</Text>
-        </View>
-      )}
-
-      {/* Tabla */}
-      {!isLoading && !isFetching && !isError && (
-        <>
-          {/* Encabezado */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Nombre</Text>
-            <Text style={[styles.headerCell, { flex: 2 }]}>Email</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Tipo</Text>
-            <Text style={[styles.headerCell, { flex: 1.5 }]}>Plan</Text>
-            <Text style={[styles.headerCell, { flex: 1 }]}>Estado</Text>
+        {/* Filtros */}
+        <View style={styles.filters}>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Tipo:</Text>
+            {(["todos", "abogado", "bufete", "cliente"] as const).map(t => (
+              <FilterChip
+                key={t}
+                label={t === "todos" ? "Todos" : t.charAt(0).toUpperCase() + t.slice(1)}
+                active={tipo === t}
+                onPress={() => handleTipo(t)}
+              />
+            ))}
           </View>
+          <View style={styles.filterGroup}>
+            <Text style={styles.filterLabel}>Estado:</Text>
+            {(["todos", "activo", "suspendido"] as const).map(e => (
+              <FilterChip
+                key={e}
+                label={e === "todos" ? "Todos" : e.charAt(0).toUpperCase() + e.slice(1)}
+                active={estado === e}
+                onPress={() => handleEstado(e)}
+              />
+            ))}
+          </View>
+        </View>
 
-          {usuarios.length === 0 && (
-            <View style={styles.empty}>
-              <Text style={styles.emptyText}>No se encontraron usuarios.</Text>
+        {/* Estados de carga / error */}
+        {(isLoading || isFetching) && (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color="#2563EB" />
+          </View>
+        )}
+        {isError && (
+          <View style={styles.errorBox}>
+            <Ionicons name="alert-circle-outline" size={18} color="#DC2626" />
+            <Text style={styles.errorText}>Error al cargar usuarios.</Text>
+          </View>
+        )}
+
+        {/* Tabla */}
+        {!isLoading && !isFetching && !isError && (
+          <View style={styles.tableSection}>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.headerCell, { flex: 2 }]}>Nombre</Text>
+              <Text style={[styles.headerCell, { flex: 2 }]}>Email</Text>
+              <Text style={[styles.headerCell, { flex: 1 }]}>Tipo</Text>
+              <Text style={[styles.headerCell, { flex: 1.5 }]}>Plan</Text>
+              <Text style={[styles.headerCell, { flex: 1 }]}>Estado</Text>
+              <Text style={[styles.headerCell, { width: 56, textAlign: "center" }]}>Chat</Text>
             </View>
-          )}
 
-          {usuarios.map(u => (
-            <Pressable
-              key={u.id}
-              onPress={() => router.push(`/(admin-tabs)/usuarios/${u.id}` as any)}
-              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            <ScrollView
+              style={styles.tableScroll}
+              contentContainerStyle={styles.tableContent}
+              showsVerticalScrollIndicator={true}
             >
-              <Text style={[styles.cell, { flex: 2 }]} numberOfLines={1}>
-                {u.name ?? "—"}
-              </Text>
-              <Text style={[styles.cell, { flex: 2 }]} numberOfLines={1}>
-                {u.email}
-              </Text>
-              <Text style={[styles.cell, { flex: 1 }]} numberOfLines={1}>
-                {u.rol?.nombre ?? "—"}
-              </Text>
-              <Text style={[styles.cell, { flex: 1.5 }]} numberOfLines={1}>
-                {u.plan?.nombre ?? "—"}
-              </Text>
-              <View style={{ flex: 1 }}>
-                <EstadoBadge activo={u.isActive} />
-              </View>
-            </Pressable>
-          ))}
+              {usuarios.length === 0 && (
+                <View style={styles.empty}>
+                  <Text style={styles.emptyText}>No se encontraron usuarios.</Text>
+                </View>
+              )}
 
-          {/* Paginación */}
-          {meta && meta.total > 0 && (
-            <View style={styles.pagination}>
-              <Pressable
-                onPress={() => setPage(p => Math.max(p - 1, 1))}
-                disabled={page <= 1}
-                style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]}
-              >
-                <Ionicons name="chevron-back-outline" size={16} color={page <= 1 ? "#CBD5E1" : "#2563EB"} />
-                <Text style={[styles.pageBtnText, page <= 1 && styles.pageBtnTextDisabled]}>Anterior</Text>
-              </Pressable>
-              <Text style={styles.pageInfo}>
-                Página {page} · {meta.total} usuarios
-              </Text>
-              <Pressable
-                onPress={() => setPage(p => p + 1)}
-                disabled={page * LIMIT >= meta.total}
-                style={[styles.pageBtn, page * LIMIT >= meta.total && styles.pageBtnDisabled]}
-              >
-                <Text style={[styles.pageBtnText, page * LIMIT >= meta.total && styles.pageBtnTextDisabled]}>Siguiente</Text>
-                <Ionicons name="chevron-forward-outline" size={16} color={page * LIMIT >= meta.total ? "#CBD5E1" : "#2563EB"} />
-              </Pressable>
-            </View>
-          )}
-        </>
-      )}
+              {usuarios.map(u => (
+                <Pressable
+                  key={u.id}
+                  onPress={() => router.push(`/(admin-tabs)/usuarios/${u.id}` as any)}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                >
+                  <Text style={[styles.cell, { flex: 2 }]} numberOfLines={1}>
+                    {u.name ?? "—"}
+                  </Text>
+                  <Text style={[styles.cell, { flex: 2 }]} numberOfLines={1}>
+                    {u.email}
+                  </Text>
+                  <Text style={[styles.cell, { flex: 1 }]} numberOfLines={1}>
+                    {u.rol?.nombre ?? "—"}
+                  </Text>
+                  <Text style={[styles.cell, { flex: 1.5 }]} numberOfLines={1}>
+                    {u.plan?.nombre ?? "—"}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <EstadoBadge activo={u.isActive} />
+                  </View>
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void handleSupportMessage(u);
+                    }}
+                    style={({ pressed }) => [styles.chatBtn, pressed && { opacity: 0.75 }]}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color="#2563EB" />
+                  </Pressable>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            {meta && meta.total > 0 && (
+              <View style={styles.pagination}>
+                <Pressable
+                  onPress={() => setPage(p => Math.max(p - 1, 1))}
+                  disabled={page <= 1}
+                  style={[styles.pageBtn, page <= 1 && styles.pageBtnDisabled]}
+                >
+                  <Ionicons name="chevron-back-outline" size={16} color={page <= 1 ? "#CBD5E1" : "#2563EB"} />
+                  <Text style={[styles.pageBtnText, page <= 1 && styles.pageBtnTextDisabled]}>Anterior</Text>
+                </Pressable>
+                <Text style={styles.pageInfo}>
+                  Página {page} · {meta.total} usuarios
+                </Text>
+                <Pressable
+                  onPress={() => setPage(p => p + 1)}
+                  disabled={page * LIMIT >= meta.total}
+                  style={[styles.pageBtn, page * LIMIT >= meta.total && styles.pageBtnDisabled]}
+                >
+                  <Text style={[styles.pageBtnText, page * LIMIT >= meta.total && styles.pageBtnTextDisabled]}>Siguiente</Text>
+                  <Ionicons name="chevron-forward-outline" size={16} color={page * LIMIT >= meta.total ? "#CBD5E1" : "#2563EB"} />
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
     </AdminShell>
   );
 }
@@ -232,6 +268,10 @@ export default function UsuariosScreen() {
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    minHeight: 0,
+  },
   searchBar: {
     flexDirection: "row",
     gap: 8,
@@ -322,6 +362,22 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: "#E2E8F0",
   },
+  tableSection: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  tableScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  tableContent: {
+    paddingBottom: 8,
+  },
   headerCell: {
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
@@ -345,6 +401,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "#1E293B",
+  },
+  chatBtn: {
+    width: 40,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
   },
   badge: {
     alignSelf: "flex-start",

@@ -1,16 +1,18 @@
-import React from "react";
-import { View, Text, Pressable, StyleSheet, Alert, Linking } from "react-native";
+import React, { useState } from "react";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { Documento } from "@/shared/schema";
+import DocumentUploadModal from "./DocumentUploadModal";
 
 interface DocumentsSectionProps {
   rol: string | undefined;
   documentos: Documento[];
-  onUpload: () => void;
+  onUpload: (tipoDocumento: "PROCESAL" | "PROBATORIO") => void;
   onDelete: (doc: Documento) => void;
   onDownload: (doc: Documento) => void;
+  onFilterChange?: (tipoDocumento: "PROCESAL" | "PROBATORIO" | null) => void;
 }
 
 function getFileConfig(tipo: string): { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string } {
@@ -34,10 +36,19 @@ export default function DocumentsSection({
   onUpload,
   onDelete,
   onDownload,
+  onFilterChange,
 }: DocumentsSectionProps) {
+  const [uploadModalVisible, setUploadModalVisible] = useState(false);
+  const [tipoFilter, setTipoFilter] = useState<"PROCESAL" | "PROBATORIO" | null>(null);
+
   const canUpload = rol === "abogado" || rol === "bufete";
   const canDelete = rol === "abogado" || rol === "bufete";
   const canDownload = rol === "abogado" || rol === "bufete" || rol === "cliente";
+
+  const handleFilterChange = (filter: "PROCESAL" | "PROBATORIO" | null) => {
+    setTipoFilter(filter);
+    onFilterChange?.(filter);
+  };
 
   const handleDeleteDoc = (doc: Documento) => {
     Alert.alert("Eliminar Documento", `Eliminar "${doc.nombre}"?`, [
@@ -60,12 +71,44 @@ export default function DocumentsSection({
           Archivos{documentos.length > 0 ? ` (${documentos.length})` : ""}
         </Text>
         {canUpload && (
-          <Pressable style={styles.uploadBtn} onPress={onUpload}>
+          <Pressable style={styles.uploadBtn} onPress={() => setUploadModalVisible(true)}>
             <Ionicons name="cloud-upload-outline" size={18} color={Colors.white} />
             <Text style={styles.uploadBtnText}>Subir</Text>
           </Pressable>
         )}
       </View>
+
+      {onFilterChange && (
+        <View style={styles.filterContainer}>
+          <Text style={styles.filterLabel}>Filtrar por tipo:</Text>
+          <View style={styles.filterButtons}>
+            <Pressable
+              style={[styles.filterBtn, tipoFilter === null && styles.filterBtnActive]}
+              onPress={() => handleFilterChange(null)}
+            >
+              <Text style={[styles.filterBtnText, tipoFilter === null && styles.filterBtnTextActive]}>
+                Todos
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.filterBtn, tipoFilter === "PROCESAL" && styles.filterBtnActive]}
+              onPress={() => handleFilterChange("PROCESAL")}
+            >
+              <Text style={[styles.filterBtnText, tipoFilter === "PROCESAL" && styles.filterBtnTextActive]}>
+                Procesal
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.filterBtn, tipoFilter === "PROBATORIO" && styles.filterBtnActive]}
+              onPress={() => handleFilterChange("PROBATORIO")}
+            >
+              <Text style={[styles.filterBtnText, tipoFilter === "PROBATORIO" && styles.filterBtnTextActive]}>
+                Probatorio
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {documentos.length === 0 ? (
         <View style={styles.emptyState}>
@@ -74,7 +117,7 @@ export default function DocumentsSection({
           {canUpload && (
             <>
               <Text style={styles.emptySubtext}>Sube el primer archivo del proceso</Text>
-              <Pressable style={styles.uploadEmptyBtn} onPress={onUpload}>
+              <Pressable style={styles.uploadEmptyBtn} onPress={() => setUploadModalVisible(true)}>
                 <Ionicons name="cloud-upload-outline" size={20} color={Colors.primary} />
                 <Text style={styles.uploadEmptyText}>Subir documento</Text>
               </Pressable>
@@ -114,6 +157,17 @@ export default function DocumentsSection({
                       </Text>
                     </>
                   )}
+                  {doc.tipoDocumento && (
+                    <>
+                      <View style={styles.docMetaDot} />
+                      <Text style={[styles.docMetaText, {
+                        color: doc.tipoDocumento === 'PROCESAL' ? Colors.success : Colors.warning,
+                        fontFamily: "Inter_500Medium"
+                      }]} numberOfLines={1}>
+                        {doc.tipoDocumento === 'PROCESAL' ? 'Procesal' : 'Probatorio'}
+                      </Text>
+                    </>
+                  )}
                 </View>
                 {doc.descripcion && (
                   <Text style={styles.docDescription} numberOfLines={2}>
@@ -142,6 +196,15 @@ export default function DocumentsSection({
           );
         })
       )}
+
+      <DocumentUploadModal
+        visible={uploadModalVisible}
+        onClose={() => setUploadModalVisible(false)}
+        onUpload={(tipoDocumento) => {
+          onUpload(tipoDocumento);
+          setUploadModalVisible(false);
+        }}
+      />
     </>
   );
 }
@@ -263,4 +326,37 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   docActionButton: { padding: 4 },
+  filterContainer: {
+    marginBottom: 16,
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    marginBottom: 8,
+  },
+  filterButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  filterBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    backgroundColor: Colors.white,
+  },
+  filterBtnActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  filterBtnText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  filterBtnTextActive: {
+    color: Colors.white,
+  },
 });

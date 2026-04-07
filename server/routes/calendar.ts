@@ -8,6 +8,7 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { authenticate } from "../auth.js";
+import { requireFeature } from "../middleware/require-feature.js";
 import { storage } from "../storage/storeage/database-storage.js";
 import type { JWTPayload } from "@/shared/model.schema.js";
 import type { CreateCalendarEventDTO, UpdateCalendarEventDTO } from "@/shared/schema";
@@ -36,7 +37,7 @@ function getLawyerProfile(req: Request, res: Response): string | null {
 // Devuelve todos los eventos del abogado en el rango: tareas + etapas + manuales
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get("/calendar", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/calendar", authenticate, requireFeature("calendario"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -66,7 +67,7 @@ router.get("/calendar", authenticate, async (req: Request, res: Response, next: 
 // POST /api/calendar — crear evento manual
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.post("/calendar", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/calendar", authenticate, requireFeature("calendario"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -89,7 +90,7 @@ router.post("/calendar", authenticate, async (req: Request, res: Response, next:
 // PUT /api/calendar/:id — editar evento manual
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.put("/calendar/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/calendar/:id", authenticate, requireFeature("calendario"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -118,7 +119,7 @@ router.put("/calendar/:id", authenticate, async (req: Request, res: Response, ne
 // DELETE /api/calendar/:id — eliminar evento manual (soft delete)
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.delete("/calendar/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.delete("/calendar/:id", authenticate, requireFeature("calendario"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;

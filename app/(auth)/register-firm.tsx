@@ -10,10 +10,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { loginUnified } from "@/lib/auth/unified";
 import { toast } from "sonner-native";
 import { API_URL } from "@/lib/config";
 import { EnumRol, EnumRolType } from "@/shared/schema/user.schema";
+import { useAuth } from "@/lib/auth-context";
 import {
   getTiposDocumento, getDepartamentos, getMunicipios,
   type TipoDocumento, type Departamento, type Municipio,
@@ -101,6 +101,7 @@ const sectionStyles = StyleSheet.create({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function RegisterFirmScreen() {
   const insets = useSafeAreaInsets();
+  const { login } = useAuth();
 
   // firma
   const [firmName, setFirmName]           = useState("");
@@ -205,10 +206,10 @@ export default function RegisterFirmScreen() {
         toast.error(data.message || data.error || "Error al registrar. Intenta de nuevo.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
       }
-      const user = await loginUnified(email, password);
-      if (user) {
+      const loggedIn = await login(email, password);
+      if (loggedIn) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace(getRedirectPath(user.user.rol?.nombre as EnumRolType || EnumRol) as any);
+        router.replace("/(firm-tabs)" as any);
       } else {
         toast.error("Error al iniciar sesión después del registro.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

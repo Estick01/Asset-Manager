@@ -22,8 +22,8 @@ export const conversations = mysqlTable("conversations", {
   id: varchar("id", { length: 36 }).primaryKey(),
   /** Human-readable name, optional (e.g. group chats in the future) */
   name: varchar("name", { length: 200 }),
-  /** Who triggered this conversation: firm_lawyer | lawyer_client | community */
-  type: mysqlEnum("type", ["firm_lawyer", "lawyer_client", "community"]).notNull(),
+  /** Who triggered this conversation: firm_lawyer | lawyer_client | community | direct | admin_support */
+  type: mysqlEnum("type", ["firm_lawyer", "lawyer_client", "community", "direct", "admin_support"]).notNull(),
   /** Set when type === "community" — links the conversation to its originating post */
   sourcePostId: varchar("source_post_id", { length: 36 }),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -111,7 +111,7 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 // TypeScript interfaces
 // ============================================================
 
-export type ConversationType = "firm_lawyer" | "lawyer_client" | "community";
+export type ConversationType = "firm_lawyer" | "lawyer_client" | "community" | "direct" | "admin_support";
 export type MessageType = "text" | "file";
 
 export interface Conversation {

@@ -1,13 +1,13 @@
 import React, { useCallback, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable,
-  RefreshControl, ActivityIndicator, Animated,
+  RefreshControl, ActivityIndicator, Animated, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { getConversations } from "@/lib/services/chatService";
+import { getConversations, getOrCreateSupportConversation } from "@/lib/services/chatService";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import type { ConversationDTO } from "@/shared/schema";
 
@@ -57,7 +57,9 @@ function ConversationCard({ conv, currentUserId, index }: {
 }) {
   const anim = useRef(new Animated.Value(0)).current;
   const other = conv.participants.find(p => p.userId !== currentUserId);
-  const displayName = other?.name || "Abogado";
+  const displayName = conv.type === "admin_support"
+    ? conv.name || "Soporte LexTrack"
+    : other?.name || "Abogado";
   const av = avatarColor(displayName);
   const hasUnread = conv.unreadCount > 0;
   const timeStr = formatRelative(conv.lastMessage?.createdAt ?? conv.updatedAt);
@@ -79,7 +81,13 @@ function ConversationCard({ conv, currentUserId, index }: {
         style={({ pressed }) => [styles.card, pressed && { backgroundColor: "#F5F7FA" }]}
         onPress={() => router.push({
           pathname: "/chat/[id]",
-          params: { id: conv.id, name: displayName, from: "/portal/chat", userId: other?.userId },
+          params: {
+            id: conv.id,
+            name: displayName,
+            from: "/portal/chat",
+            userId: conv.type === "admin_support" ? undefined : other?.userId,
+            support: conv.type === "admin_support" ? "1" : undefined,
+          },
         })}
       >
         {/* Unread strip */}
@@ -136,6 +144,23 @@ export default function ClientChatScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [total, setTotal] = useState(0);
   const offsetRef = useRef(0);
+
+  const openSupportChat = useCallback(async () => {
+    try {
+      const conversation = await getOrCreateSupportConversation();
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? "Soporte LexTrack",
+          from: "/portal/chat",
+          support: "1",
+        },
+      });
+    } catch {
+      Alert.alert("Soporte", "No se pudo abrir el chat de soporte.");
+    }
+  }, []);
 
   const fetchConversations = useCallback(async (isLoadMore = false) => {
     try {
@@ -203,6 +228,11 @@ export default function ClientChatScreen() {
             </View>
           )}
         </View>
+
+        <Pressable style={({ pressed }) => [styles.supportBtn, pressed && { opacity: 0.84 }]} onPress={openSupportChat}>
+          <Ionicons name="headset-outline" size={16} color={WHITE} />
+          <Text style={styles.supportBtnText}>Soporte</Text>
+        </Pressable>
 
         {/* Stats row */}
         {!loading && conversations.length > 0 && (
@@ -304,6 +334,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20,
   },
   headerBadgeText: { fontSize: 13, fontFamily: "Inter_700Bold", color: WHITE },
+  supportBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  supportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
 
   statsRow: { flexDirection: "row", gap: 8 },
   statPill: {

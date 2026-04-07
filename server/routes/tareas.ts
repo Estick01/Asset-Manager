@@ -6,6 +6,7 @@ import { tareaService } from "../services/tarea.service.js";
 import { validate } from "../middleware/validation.js";
 import type { JWTPayload } from "@/shared/model.schema.js";
 import { storage } from "../storage/storeage/database-storage.js";
+import { subscriptionService } from "../services/subscription.service.js";
 
 const router = Router();
 
@@ -403,6 +404,18 @@ router.post(
       const file = req.file;
       if (!file) return res.status(400).json({ error: "No se proporcionó archivo" });
 
+      // Verificar límite de storage del plan
+      const uid = (req as any).user?.id;
+      const fileSizeMb = file.size / (1024 * 1024);
+      const storageCheck = await subscriptionService.checkLimit(uid, "storage", fileSizeMb);
+      if (!storageCheck.permitido) {
+        return res.status(402).json({
+          error: "Has alcanzado el límite de almacenamiento de tu plan. Actualiza para continuar.",
+          usado: storageCheck.actual,
+          maximo: storageCheck.maximo,
+        });
+      }
+
       // Fetch tarea to get procesoId → clienteId for S3 path
       const tarea = await storage.tareas.findRawById(tareaId);
       if (!tarea) return res.status(404).json({ error: "Tarea no encontrada" });
@@ -428,6 +441,10 @@ router.post(
         file.size,
         userId(req),
       );
+
+      // Registrar uso de storage (en MB, redondeado hacia arriba)
+      await subscriptionService.incrementUsage(uid, "storage", Math.ceil(fileSizeMb * 10) / 10).catch(() => {});
+
       res.status(201).json(result);
     } catch (err) { next(err); }
   },

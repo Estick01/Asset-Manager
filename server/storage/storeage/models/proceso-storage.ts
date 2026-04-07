@@ -8,8 +8,8 @@
 
 import { ProcesoFilter } from "@/server/services";
 import { randomUUID } from "crypto";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
-import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile, firmProfiles, procesoOwnership } from "@/shared/schema";
+import { eq, and, desc, sql, inArray, isNull } from "drizzle-orm";
+import { clientes, clientesNatural, clientesEmpresa, personas, departamentos, municipios, estadosProceso, InsertProceso, lawyerProfiles, ProcesoDTO, procesoLawyers, ProcesoLawyerWithLawyer, procesos, procesoResponsables, tiposProceso, representantesLegales, LawyerProfile, firmProfiles, procesoOwnership, etapasPorTipoProceso } from "@/shared/schema";
 import { Database } from "../database-storage";
 import { alias } from 'drizzle-orm/mysql-core';
 
@@ -363,9 +363,10 @@ export class ProcesoStorage {
     offset: number = 0,
     filter?: ProcesoFilter
   ): Promise<{ data: ProcesoDTO[]; total: number }> {
-    const responsableLawyer   = alias(lawyerProfiles,      'responsableLawyer');
-    const responsableJoin     = alias(procesoResponsables, 'responsableJoin');
-    const personasResponsable = alias(personas,            'personasResponsable');
+    const responsableLawyer   = alias(lawyerProfiles,         'responsableLawyer');
+    const responsableJoin     = alias(procesoResponsables,    'responsableJoin');
+    const personasResponsable = alias(personas,               'personasResponsable');
+    const etapaActualJoin     = alias(etapasPorTipoProceso,   'etapaActualJoin');
 
     const joinConditions = and(
       eq(responsableJoin.procesoId, procesos.id),
@@ -409,6 +410,7 @@ export class ProcesoStorage {
         juzgado: procesos.juzgado,
         estadoId: procesos.estadoId,
         descripcionEstado: procesos.descripcionEstado,
+        legalStage: procesos.legalStage,
         tipoProcesoNombre: tiposProceso.nombre,
         estadoIdRel: estadosProceso.id,
         estadoCodigo: estadosProceso.codigo,
@@ -421,6 +423,10 @@ export class ProcesoStorage {
         responsableFechaInicio: responsableJoin.fechaInicio,
         responsableRazon: responsableJoin.razon,
         responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre,
+        etapaCodigo:  etapaActualJoin.codigo,
+        etapaNombre:  etapaActualJoin.nombre,
+        etapaColor:   etapaActualJoin.color,
+        etapaOrden:   etapaActualJoin.orden,
       })
       .from(procesos)
       .leftJoin(estadosProceso, eq(procesos.estadoId, estadosProceso.id))
@@ -428,6 +434,10 @@ export class ProcesoStorage {
       .leftJoin(responsableJoin,   joinConditions)
       .leftJoin(responsableLawyer, eq(responsableJoin.lawyerId, responsableLawyer.id))
       .leftJoin(personasResponsable, eq(responsableLawyer.personaId, personasResponsable.id))
+      .leftJoin(etapaActualJoin, and(
+        sql`${etapaActualJoin.codigo} = ${procesos.legalStage}`,
+        isNull(etapaActualJoin.tipoProcesoId),
+      ))
       .where(and(...conditions))
       .orderBy(desc(procesos.fechaCreacion))
       .limit(limit)
@@ -443,6 +453,7 @@ export class ProcesoStorage {
       juzgado: p.juzgado,
       estadoId: p.estadoId,
       descripcionEstado: p.descripcionEstado,
+      legalStage: p.legalStage ?? null,
       clienteNombre: 'Sin cliente',
       tipoProceso: p.tipoProcesoNombre ? { nombre: p.tipoProcesoNombre } : null,
       estado: p.estadoIdRel ? {
@@ -464,6 +475,12 @@ export class ProcesoStorage {
             apellido: p.responsablePersonaApellido ?? '',
           } : null,
         },
+      } : null,
+      etapaActual: p.etapaCodigo ? {
+        codigo: p.etapaCodigo,
+        nombre: p.etapaNombre,
+        color:  p.etapaColor,
+        orden:  p.etapaOrden,
       } : null,
     }));
 
@@ -1468,7 +1485,7 @@ export class ProcesoStorage {
       rawProceso.lawyers.map(async l => {
         if (l.lawyer !== null) return { ...l, firm: null };
         const firm = await this.db
-          .select({ id: firmProfiles.id, name: firmProfiles.name, phone: firmProfiles.phone })
+          .select({ id: firmProfiles.id, name: firmProfiles.name, phone: firmProfiles.phone, userId: firmProfiles.userId })
           .from(firmProfiles)
           .where(eq(firmProfiles.id, l.lawyerId))
           .limit(1);

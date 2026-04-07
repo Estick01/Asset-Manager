@@ -129,6 +129,11 @@ export function extractToken(req: Request): string | null {
     return authHeader.substring(7);
   }
 
+  // For multipart uploads, check body.token
+  if (req.body?.token) {
+    return req.body.token;
+  }
+
   return req.cookies?.[COOKIE_NAME] ?? null;
 }
 

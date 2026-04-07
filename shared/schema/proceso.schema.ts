@@ -122,6 +122,12 @@ export interface ProcesoDTO extends Proceso {
     en_progreso: number;
     completadas: number;
   } | null;
+  etapaActual?: {
+    codigo: string;
+    nombre: string;
+    color: string;
+    orden: number;
+  } | null;
 }
 
 export type InsertProcesoLegacy = typeof procesos.$inferInsert;

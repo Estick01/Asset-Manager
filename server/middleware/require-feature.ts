@@ -16,6 +16,12 @@ export function requireFeature(featureCode: string) {
         return;
       }
 
+      // Clients have access to all features without subscription
+      if (user.rol?.nombre === "cliente") {
+        next();
+        return;
+      }
+
       const has = await subscriptionService.hasFeature(user.id, featureCode);
       if (!has) {
         res.status(402).json({

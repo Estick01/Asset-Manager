@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 
@@ -32,18 +32,29 @@ interface PlanCardProps {
   selected?: boolean;
   onSelect: () => void;
   destacado?: boolean;
+  esPlanActual?: boolean;
+  extraUsers?: number; // total de usuarios en la firma (bufete)
 }
 
 const FEATURE_LABELS: Record<string, string> = {
-  calendario: "Calendario",
+  calendario: "Calendario legal",
   etapas_procesales: "Etapas procesales",
   privacidad_basica: "Privacidad básica",
   privacidad_avanzada: "Privacidad avanzada",
-  comunidad: "Comunidad",
-  chat: "Chat",
-  dashboard_bufete: "Dashboard bufete",
+  comunidad: "Comunidad LexTrack",
+  chat: "Chat con clientes",
+  dashboard_bufete: "Dashboard de firma",
   roles_custom: "Roles personalizados",
   soporte_prioritario: "Soporte prioritario",
+};
+
+const PLAN_DESC: Record<string, string> = {
+  Gratis: "Para empezar sin compromisos",
+  Esencial: "Para el abogado activo",
+  Pro: "Sin límites, todo incluido",
+  Starter: "Para equipos pequeños",
+  Business: "Para firmas en crecimiento",
+  Enterprise: "Para grandes firmas",
 };
 
 function formatCOP(valor: string): string {
@@ -53,7 +64,7 @@ function formatCOP(valor: string): string {
 }
 
 function formatRecurso(valor: number): string {
-  if (valor === -1) return "Ilimitados";
+  if (valor === -1 || valor === 0) return "Ilimitados";
   return String(valor);
 }
 
@@ -67,296 +78,526 @@ export function PlanCard({
   selected = false,
   onSelect,
   destacado = false,
+  esPlanActual = false,
+  extraUsers,
 }: PlanCardProps) {
-  const precioCOP =
-    ciclo === "mensual" ? plan.precioMensualCop : plan.precioAnualCop;
-  const precioFormateado = formatCOP(precioCOP);
-  const esBufete = plan.tipo === "bufete";
+  const precioMensualNum = parseInt(plan.precioMensualCop, 10);
+  const precioAnualNum   = parseInt(plan.precioAnualCop, 10);
+  const esGratis  = precioMensualNum === 0;
+  const esBufete  = plan.tipo === "bufete";
+  const descripcion = PLAN_DESC[plan.nombre] ?? "";
+
+  // ── Usuarios extra (solo bufete) ───────────────────────────────────────────
+  const precioExtraCop = plan.precioUsuarioExtraCop
+    ? parseInt(plan.precioUsuarioExtraCop, 10)
+    : 0;
+  const usuariosExtraCount =
+    esBufete && extraUsers !== undefined && plan.includedUsers > 0
+      ? Math.max(0, extraUsers - plan.includedUsers)
+      : 0;
+  const costoExtraMensual = usuariosExtraCount * precioExtraCop;
+
+  // Precio base + extra (mensual)
+  const precioMensualTotal = precioMensualNum + costoExtraMensual;
+  // Para anual: precio base anual + extra * 12
+  const precioAnualTotal   = precioAnualNum + costoExtraMensual * 12;
+
+  const precioCOPTotal =
+    ciclo === "mensual"
+      ? String(precioMensualTotal)
+      : String(precioAnualTotal);
+
+  const ahorroAnual =
+    ciclo === "anual" && !esGratis && precioMensualNum > 0
+      ? Math.round(((precioMensualTotal * 12 - precioAnualTotal) / (precioMensualTotal * 12)) * 100)
+      : 0;
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
         destacado && styles.cardDestacado,
-        selected && styles.cardSelected,
-        pressed && styles.cardPressed,
+        esPlanActual && !destacado && styles.cardPlanActual,
+        selected && !destacado && !esPlanActual && styles.cardSelected,
+        pressed && { opacity: 0.97, transform: [{ scale: 0.995 }] },
       ]}
       onPress={onSelect}
     >
-      {/* Badges superiores */}
-      <View style={styles.badgesRow}>
-        {destacado && (
+      {/* ── Top row: badges ── */}
+      <View style={styles.topRow}>
+        {esPlanActual ? (
+          <View style={styles.badgePlanActual}>
+            <Ionicons name="checkmark-circle" size={11} color="#fff" />
+            <Text style={styles.badgePlanActualText}>Tu plan actual</Text>
+          </View>
+        ) : destacado ? (
           <View style={styles.badgePopular}>
+            <Ionicons name="flash" size={11} color={Colors.primaryDark} />
             <Text style={styles.badgePopularText}>Más popular</Text>
           </View>
+        ) : (
+          <View style={{ height: 24 }} />
         )}
-        {ciclo === "anual" && (
-          <View style={styles.badgeAnual}>
-            <Text style={styles.badgeAnualText}>2 meses gratis</Text>
+        {ciclo === "anual" && ahorroAnual > 0 && (
+          <View style={styles.badgeAhorro}>
+            <Text style={styles.badgeAhorroText}>−{ahorroAnual}%</Text>
           </View>
         )}
       </View>
 
-      {/* Nombre del plan */}
-      <Text style={[styles.planNombre, destacado && styles.planNombreDestacado]}>
-        {plan.nombre}
-      </Text>
-
-      {/* Precio */}
-      <View style={styles.precioContainer}>
-        <Text style={styles.precioSymbol}>$</Text>
-        <Text style={styles.precioValor}>{precioFormateado}</Text>
-        <Text style={styles.precioPeriodo}>
-          COP/{ciclo === "mensual" ? "mes" : "año"}
+      {/* ── Plan name + description ── */}
+      <View style={styles.nameBlock}>
+        <Text style={[styles.planNombre, destacado && styles.planNombreDestacado]}>
+          {plan.nombre}
         </Text>
+        {!!descripcion && (
+          <Text style={[styles.planDesc, destacado && styles.planDescDestacado]}>
+            {descripcion}
+          </Text>
+        )}
       </View>
 
-      {/* Separador */}
-      <View style={styles.separador} />
-
-      {/* Límites */}
-      <View style={styles.limitesContainer}>
-        <View style={styles.limiteRow}>
-          <Ionicons name="document-text-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.limiteText}>
-            {formatRecurso(plan.maxProcesos)} procesos
+      {/* ── Price ── */}
+      <View style={styles.precioBlock}>
+        {esGratis ? (
+          <Text style={[styles.precioGratis, destacado && { color: Colors.accentLight }]}>
+            Gratis
           </Text>
-        </View>
+        ) : (
+          <View style={styles.precioRow}>
+            <Text style={[styles.precioSymbol, destacado && styles.precioDestacado]}>$</Text>
+            <Text style={[styles.precioValor, destacado && styles.precioDestacado]}>
+              {formatCOP(precioCOPTotal)}
+            </Text>
+            <Text style={[styles.precioPeriodo, destacado && styles.precioPeriodoDestacado]}>
+              {"\n"}COP/{ciclo === "mensual" ? "mes" : "año"}
+            </Text>
+          </View>
+        )}
 
-        <View style={styles.limiteRow}>
-          <Ionicons name="people-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.limiteText}>
-            {formatRecurso(plan.maxClientes)} clientes
+        {/* Nota anual */}
+        {ciclo === "anual" && ahorroAnual > 0 && (
+          <Text style={[styles.precioAnualNota, destacado && { color: "rgba(255,255,255,0.5)" }]}>
+            equivale a ${formatCOP(String(Math.round(precioAnualTotal / 12)))} COP/mes
           </Text>
-        </View>
+        )}
 
-        <View style={styles.limiteRow}>
-          <Ionicons name="cloud-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.limiteText}>
-            {plan.maxStorageGb > 0 ? `${plan.maxStorageGb} GB` : "Sin almacenamiento"}
-          </Text>
-        </View>
+        {/* Desglose de usuarios extra */}
+        {esBufete && !esGratis && extraUsers !== undefined && (
+          <View style={[styles.precioDesglose, destacado && styles.precioDesgloseDestacado]}>
+            <View style={styles.precioDesgloseRow}>
+              <Ionicons name="people-outline" size={12} color={destacado ? "rgba(255,255,255,0.5)" : Colors.textTertiary} />
+              <Text style={[styles.precioDesgloseText, destacado && styles.precioDesgloseTextDestacado]}>
+                {plan.includedUsers} usuario{plan.includedUsers !== 1 ? "s" : ""} incluido{plan.includedUsers !== 1 ? "s" : ""}
+              </Text>
+            </View>
+            {usuariosExtraCount > 0 && (
+              <View style={styles.precioDesgloseRow}>
+                <Ionicons name="add-circle-outline" size={12} color={destacado ? Colors.accentLight : Colors.primary} />
+                <Text style={[styles.precioDesgloseExtra, destacado && { color: Colors.accentLight }]}>
+                  +{usuariosExtraCount} extra × ${formatCOP(String(precioExtraCop))}/mes
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
 
+      {/* ── Divider ── */}
+      <View style={[styles.divider, destacado && styles.dividerDestacado]} />
+
+      {/* ── Recursos ── */}
+      <View style={styles.recursosGrid}>
+        <RecursoItem
+          icon="document-text-outline"
+          label={`${formatRecurso(plan.maxProcesos)} procesos`}
+          destacado={destacado}
+        />
+        <RecursoItem
+          icon="people-outline"
+          label={`${formatRecurso(plan.maxClientes)} clientes`}
+          destacado={destacado}
+        />
+        <RecursoItem
+          icon="cloud-outline"
+          label={plan.maxStorageGb > 0 ? `${plan.maxStorageGb} GB` : "Sin almacenamiento"}
+          destacado={destacado}
+        />
         {esBufete && (
-          <View style={styles.limiteRow}>
-            <Ionicons name="person-add-outline" size={16} color={Colors.textSecondary} />
-            <Text style={styles.limiteText}>
-              {plan.includedUsers} usuario{plan.includedUsers !== 1 ? "s" : ""} incluido
-              {plan.maxUsers > plan.includedUsers
-                ? ` (máx. ${plan.maxUsers})`
-                : ""}
-            </Text>
-          </View>
-        )}
-
-        {esBufete && plan.precioUsuarioExtraCop !== null && (
-          <View style={styles.limiteRow}>
-            <Ionicons name="add-circle-outline" size={16} color={Colors.textSecondary} />
-            <Text style={styles.limiteText}>
-              +${formatCOP(plan.precioUsuarioExtraCop)} COP/usuario extra
-            </Text>
-          </View>
+          <RecursoItem
+            icon="person-add-outline"
+            label={`${plan.includedUsers} usuario${plan.includedUsers !== 1 ? "s" : ""} incluido${plan.maxUsers > plan.includedUsers ? ` (máx. ${plan.maxUsers})` : ""}`}
+            destacado={destacado}
+          />
         )}
       </View>
 
-      {/* Features */}
+      {/* ── Features ── */}
       {plan.features.length > 0 && (
         <>
-          <View style={styles.separador} />
-          <View style={styles.featuresContainer}>
+          <View style={[styles.divider, destacado && styles.dividerDestacado]} />
+          <View style={styles.featuresBlock}>
             {plan.features.map((feature) => {
               const activa = isFeatureActiva(feature.value);
-              const etiqueta =
-                FEATURE_LABELS[feature.code] ?? feature.nombre;
+              const etiqueta = FEATURE_LABELS[feature.code] ?? feature.nombre;
               return (
-                <View key={feature.code} style={styles.featureRow}>
-                  <Ionicons
-                    name={activa ? "checkmark-circle" : "close-circle-outline"}
-                    size={16}
-                    color={activa ? Colors.success : Colors.textTertiary}
-                  />
-                  <Text
-                    style={[
-                      styles.featureText,
-                      !activa && styles.featureTextInactiva,
-                    ]}
-                  >
-                    {etiqueta}
-                  </Text>
-                </View>
+                <FeatureItem
+                  key={feature.code}
+                  label={etiqueta}
+                  activa={activa}
+                  destacado={destacado}
+                />
               );
             })}
           </View>
         </>
       )}
 
-      {/* Botón selección */}
+      {/* ── CTA Button ── */}
       <Pressable
-        style={[
-          styles.selectButton,
-          selected && styles.selectButtonSelected,
-          destacado && !selected && styles.selectButtonDestacado,
+        style={({ pressed }) => [
+          styles.ctaBtn,
+          destacado ? styles.ctaBtnDestacado : styles.ctaBtnBase,
+          selected && styles.ctaBtnSelected,
+          pressed && { opacity: 0.88 },
         ]}
         onPress={onSelect}
       >
+        {selected && (
+          <Ionicons
+            name="checkmark-circle"
+            size={18}
+            color={destacado ? Colors.primaryDark : Colors.white}
+          />
+        )}
         <Text
           style={[
-            styles.selectButtonText,
-            selected && styles.selectButtonTextSelected,
-            destacado && !selected && styles.selectButtonTextDestacado,
+            styles.ctaBtnText,
+            destacado && styles.ctaBtnTextDestacado,
+            selected && styles.ctaBtnTextSelected,
           ]}
         >
-          {selected ? "Seleccionado" : "Seleccionar"}
+          {esPlanActual && !selected
+            ? "Plan activo"
+            : selected
+            ? "Seleccionado"
+            : esGratis
+            ? "Empezar gratis"
+            : "Seleccionar plan"}
         </Text>
       </Pressable>
     </Pressable>
   );
 }
 
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function RecursoItem({
+  icon,
+  label,
+  destacado,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  destacado: boolean;
+}) {
+  return (
+    <View style={styles.recursoRow}>
+      <View style={[styles.recursoIconWrap, destacado && styles.recursoIconWrapDestacado]}>
+        <Ionicons
+          name={icon}
+          size={14}
+          color={destacado ? Colors.accentLight : Colors.primary}
+        />
+      </View>
+      <Text style={[styles.recursoText, destacado && styles.recursoTextDestacado]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+function FeatureItem({
+  label,
+  activa,
+  destacado,
+}: {
+  label: string;
+  activa: boolean;
+  destacado: boolean;
+}) {
+  return (
+    <View style={styles.featureRow}>
+      <Ionicons
+        name={activa ? "checkmark-circle" : "remove-circle-outline"}
+        size={17}
+        color={
+          activa
+            ? destacado
+              ? Colors.accentLight
+              : Colors.success
+            : destacado
+            ? "rgba(255,255,255,0.25)"
+            : Colors.border
+        }
+      />
+      <Text
+        style={[
+          styles.featureText,
+          !activa && styles.featureTextInactiva,
+          destacado && (activa ? styles.featureTextDestacado : styles.featureTextInactivaDestacado),
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
+  // Card base
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 22,
     borderWidth: 1.5,
     borderColor: Colors.border,
-    gap: 14,
+    gap: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 2 },
+    }),
   },
   cardDestacado: {
+    backgroundColor: Colors.primaryDark,
     borderColor: Colors.accent,
     borderWidth: 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: Colors.primary,
+        shadowOpacity: 0.3,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 8 },
+      },
+      android: { elevation: 8 },
+    }),
   },
   cardSelected: {
-    backgroundColor: "#EEF3FA",
     borderColor: Colors.primary,
     borderWidth: 2,
+    backgroundColor: "#EEF3FA",
   },
-  cardPressed: {
-    opacity: 0.95,
+  cardPlanActual: {
+    borderColor: "#16A34A",
+    borderWidth: 2,
+    backgroundColor: "#F0FDF4",
   },
-  badgesRow: {
+
+  // Top row
+  topRow: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    minHeight: 0,
+    justifyContent: "space-between",
+    alignItems: "center",
+    minHeight: 24,
   },
   badgePopular: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     backgroundColor: Colors.accent,
     borderRadius: 20,
-    paddingVertical: 3,
+    paddingVertical: 4,
     paddingHorizontal: 10,
-    alignSelf: "flex-start",
   },
   badgePopularText: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    color: Colors.white,
+    color: Colors.primaryDark,
   },
-  badgeAnual: {
+  badgePlanActual: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#16A34A",
+    borderRadius: 20,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  badgePlanActualText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "#fff",
+  },
+  badgeAhorro: {
     backgroundColor: Colors.successLight,
     borderRadius: 20,
     paddingVertical: 3,
-    paddingHorizontal: 10,
-    alignSelf: "flex-start",
+    paddingHorizontal: 8,
   },
-  badgeAnualText: {
+  badgeAhorroText: {
     fontSize: 11,
-    fontFamily: "Inter_600SemiBold",
+    fontFamily: "Inter_700Bold",
     color: Colors.success,
   },
+
+  // Name block
+  nameBlock: { gap: 3 },
   planNombre: {
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
-  planNombreDestacado: {
-    color: Colors.primary,
+  planNombreDestacado: { color: Colors.white },
+  planDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
   },
-  precioContainer: {
+  planDescDestacado: { color: "rgba(255,255,255,0.6)" },
+
+  // Price
+  precioBlock: { gap: 4 },
+  precioGratis: {
+    fontSize: 36,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  precioRow: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: 2,
+    gap: 1,
   },
   precioSymbol: {
     fontSize: 18,
     fontFamily: "Inter_600SemiBold",
     color: Colors.text,
-    lineHeight: 32,
-  },
-  precioValor: {
-    fontSize: 32,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
     lineHeight: 36,
   },
+  precioValor: {
+    fontSize: 36,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    lineHeight: 40,
+  },
+  precioDestacado: { color: Colors.accentLight },
   precioPeriodo: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
-    lineHeight: 20,
+    lineHeight: 16,
     marginBottom: 4,
-    marginLeft: 2,
+    marginLeft: 4,
   },
-  separador: {
-    height: 1,
-    backgroundColor: Colors.border,
-  },
-  limitesContainer: {
-    gap: 8,
-  },
-  limiteRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  limiteText: {
-    fontSize: 14,
+  precioPeriodoDestacado: { color: "rgba(255,255,255,0.5)" },
+  precioAnualNota: {
+    fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    color: Colors.textTertiary,
+    marginTop: 2,
   },
-  featuresContainer: {
-    gap: 8,
+  precioDesglose: {
+    marginTop: 8,
+    gap: 4,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  featureRow: {
+  precioDesgloseDestacado: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  precioDesgloseRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 5,
   },
+  precioDesgloseText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+  },
+  precioDesgloseTextDestacado: {
+    color: "rgba(255,255,255,0.45)",
+  },
+  precioDesgloseExtra: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+  },
+
+  // Divider
+  divider: { height: 1, backgroundColor: Colors.border },
+  dividerDestacado: { backgroundColor: "rgba(255,255,255,0.1)" },
+
+  // Resources
+  recursosGrid: { gap: 8 },
+  recursoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  recursoIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  recursoIconWrapDestacado: { backgroundColor: "rgba(212,168,83,0.15)" },
+  recursoText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+  },
+  recursoTextDestacado: { color: "rgba(255,255,255,0.85)" },
+
+  // Features
+  featuresBlock: { gap: 9 },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 9 },
   featureText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: Colors.text,
+    flex: 1,
   },
-  featureTextInactiva: {
-    color: Colors.textTertiary,
-    textDecorationLine: "line-through",
-  },
-  selectButton: {
-    paddingVertical: 12,
-    borderRadius: 10,
+  featureTextDestacado: { color: "rgba(255,255,255,0.9)" },
+  featureTextInactiva: { color: Colors.textTertiary },
+  featureTextInactivaDestacado: { color: "rgba(255,255,255,0.3)" },
+
+  // CTA
+  ctaBtn: {
+    flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceSecondary,
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 15,
+    borderRadius: 13,
     marginTop: 4,
   },
-  selectButtonSelected: {
+  ctaBtnBase: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  ctaBtnDestacado: {
+    backgroundColor: Colors.accent,
+    borderWidth: 0,
+  },
+  ctaBtnSelected: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
-  selectButtonDestacado: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-  selectButtonText: {
+  ctaBtnText: {
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     color: Colors.textSecondary,
   },
-  selectButtonTextSelected: {
-    color: Colors.white,
-  },
-  selectButtonTextDestacado: {
-    color: Colors.white,
-  },
+  ctaBtnTextDestacado: { color: Colors.primaryDark },
+  ctaBtnTextSelected: { color: Colors.white },
 });

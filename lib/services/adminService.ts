@@ -192,12 +192,13 @@ export async function updateLawyerPlan(
 
 export async function getAllPlanes(): Promise<Plan[]> {
   try {
-    const response = await apiRequest("GET", '/api/admin/planes');
+    const response = await apiRequest("GET", '/api/admin/plans');
     if (!response.ok) {
       console.error('Failed to fetch planes from API');
       return [];
     }
-    return await response.json();
+    const body = await response.json();
+    return body.data ?? [];
   } catch (e) {
     console.error('Error fetching planes:', e);
     return [];
@@ -364,8 +365,8 @@ export interface ListUsersResponse {
 export const adminUsersService = {
   list: async (params: ListUsersParams = {}): Promise<ListUsersResponse> => {
     const query = new URLSearchParams();
-    if (params.page)   query.set("page",   String(params.page));
-    if (params.limit)  query.set("limit",  String(params.limit));
+    if (params.page  != null) query.set("page",  String(params.page));
+    if (params.limit != null) query.set("limit", String(params.limit));
     if (params.tipo)   query.set("tipo",   params.tipo);
     if (params.estado) query.set("estado", params.estado);
     if (params.search) query.set("search", params.search);
@@ -396,5 +397,383 @@ export const adminUsersService = {
     if (!response.ok) throw new Error(`Error ${response.status}`);
     const body = await response.json();
     return body.data;
+  },
+};
+
+export interface AdminPlanRow extends Plan {
+  suscriptores?: number;
+}
+
+export interface BillingSummary {
+  suscripciones: {
+    activas: number;
+    canceladas: number;
+    vencidas: number;
+  };
+  pagos: {
+    pendientes: number;
+    aprobados: number;
+    rechazados: number;
+  };
+  ingresosCopAprobados: number;
+}
+
+export interface BillingSubscriptionRow {
+  id: string;
+  userId: string;
+  planId: string;
+  estado: string;
+  ciclo: string;
+  fechaInicio: string;
+  fechaVencimiento: string;
+  autoRenovacion: boolean;
+  extraUsers: number;
+  userName: string | null;
+  email: string;
+  planNombre: string;
+  planTipo: string;
+}
+
+export interface BillingPaymentRow {
+  id: string;
+  estado: string;
+  currency: string;
+  amountCop: string | null;
+  amountUsd: string | null;
+  metodoPago: string | null;
+  wompiReference: string;
+  concepto: string | null;
+  createdAt: string;
+  email: string;
+  userName: string | null;
+  planNombre: string | null;
+}
+
+export interface ProcessSummary {
+  total: number;
+  activos: number;
+  archivados: number;
+  porTipo: Array<{ nombre: string | null; total: number }>;
+}
+
+export interface ProcessRecordRow {
+  id: string;
+  radicado: string;
+  juzgado: string;
+  state: boolean;
+  fechaCreacion: string;
+  tipoProceso: string | null;
+  estado: string | null;
+  clienteNombre: string;
+}
+
+export interface CommunityOverview {
+  posts: {
+    total: number;
+    open: number;
+    inProgress: number;
+    closed: number;
+    disabled: number;
+  };
+  reports: number;
+}
+
+export interface CommunityAdminPostRow {
+  id: string;
+  title: string;
+  status: "open" | "in_progress" | "closed";
+  disabled: boolean;
+  visibility: string;
+  city: string | null;
+  createdAt: string;
+  authorName: string | null;
+  reportCount: number;
+}
+
+export interface CommunityReportRow {
+  id: string;
+  postId: string | null;
+  commentId: string | null;
+  reason: string;
+  detail: string | null;
+  createdAt: string;
+  reporterEmail: string | null;
+  reporterName: string | null;
+}
+
+export interface SupportOverview {
+  security: {
+    total: number;
+    loginFail: number;
+    blocked: number;
+  };
+  users: {
+    activos: number;
+    suspendidos: number;
+  };
+  support: {
+    total: number;
+    open: number;
+  };
+  audit: Array<{
+    id: number;
+    adminId: string;
+    accion: string;
+    targetId: string | null;
+    detalle: string | null;
+    createdAt: string;
+  }>;
+}
+
+export interface SecurityEventRow {
+  id: string;
+  email: string;
+  ip: string;
+  userAgent: string | null;
+  eventType: string;
+  success: boolean;
+  metadata: string | null;
+  createdAt: string;
+}
+
+export interface SupportConversationRow {
+  id: string;
+  name: string | null;
+  type: "admin_support";
+  updatedAt: string;
+  unreadCount: number;
+  lastMessage: {
+    id: string;
+    content: string | null;
+    type: string;
+    createdAt: string;
+  } | null;
+  participants: Array<{
+    userId: string;
+    name: string;
+    email: string;
+    lastReadAt: string | null;
+  }>;
+}
+
+export interface ConfigOverview {
+  roles: Array<Rol & { permisos: string[] }>;
+  permisos: Permiso[];
+  modulos: Array<{ id: number; nombre: string; descripcion: string | null; icono: string | null; orden: number | null; activo: boolean }>;
+}
+
+export const adminPlansService = {
+  list: async (): Promise<AdminPlanRow[]> => {
+    const response = await apiRequest("GET", "/api/admin/plans");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data ?? [];
+  },
+
+  create: async (payload: Partial<Plan>): Promise<AdminPlanRow> => {
+    const response = await apiRequest("POST", "/api/admin/plans", payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  update: async (id: string, payload: Partial<Plan>): Promise<AdminPlanRow> => {
+    const response = await apiRequest("PUT", `/api/admin/plans/${id}`, payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  archive: async (id: string): Promise<void> => {
+    const response = await apiRequest("DELETE", `/api/admin/plans/${id}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+};
+
+export const adminBillingService = {
+  getSummary: async (): Promise<BillingSummary> => {
+    const response = await apiRequest("GET", "/api/admin/billing/summary");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  listSubscriptions: async (params: { page?: number; limit?: number; estado?: string; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/billing/subscriptions${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: BillingSubscriptionRow[]; meta: { total: number; page: number; limit: number } }>;
+  },
+
+  listPayments: async (params: { page?: number; limit?: number; estado?: string; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/billing/payments${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: BillingPaymentRow[]; meta: { total: number; page: number; limit: number } }>;
+  },
+
+  updateSubscription: async (id: string, payload: { estado?: string; autoRenovacion?: boolean }) => {
+    const response = await apiRequest("PATCH", `/api/admin/billing/subscriptions/${id}`, payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+};
+
+export const adminProcessesService = {
+  getSummary: async (): Promise<ProcessSummary> => {
+    const response = await apiRequest("GET", "/api/admin/processes/summary");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  listRecords: async (params: { page?: number; limit?: number; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/processes/records${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: ProcessRecordRow[]; meta: { total: number; page: number; limit: number } }>;
+  },
+
+  toggleState: async (id: string, state: boolean) => {
+    const response = await apiRequest("PATCH", `/api/admin/processes/records/${id}/state`, { state });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  listTypes: async (): Promise<TiposProceso[]> => {
+    const response = await apiRequest("GET", "/api/admin/processes/types");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  createType: async (payload: { nombre: string; descripcion?: string }) => {
+    const response = await apiRequest("POST", "/api/admin/processes/types", payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data as TiposProceso;
+  },
+
+  updateType: async (id: number, payload: Partial<TiposProceso>) => {
+    const response = await apiRequest("PUT", `/api/admin/processes/types/${id}`, payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data as TiposProceso;
+  },
+
+  deleteType: async (id: number) => {
+    const response = await apiRequest("DELETE", `/api/admin/processes/types/${id}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+};
+
+export const adminCommunityService = {
+  getOverview: async (): Promise<CommunityOverview> => {
+    const response = await apiRequest("GET", "/api/admin/community/overview");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  listPosts: async (params: { page?: number; limit?: number; status?: string; disabled?: string; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/community/posts${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: CommunityAdminPostRow[]; meta: { total: number; page: number; limit: number } }>;
+  },
+
+  listReports: async (): Promise<CommunityReportRow[]> => {
+    const response = await apiRequest("GET", "/api/admin/community/reports");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  updatePostStatus: async (id: string, status: CommunityAdminPostRow["status"]) => {
+    const response = await apiRequest("PATCH", `/api/admin/community/posts/${id}/status`, { status });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  setDisabled: async (id: string, disabled: boolean) => {
+    const response = await apiRequest("PATCH", `/api/admin/community/posts/${id}/disabled`, { disabled });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+};
+
+export const adminSupportService = {
+  getOverview: async (): Promise<SupportOverview> => {
+    const response = await apiRequest("GET", "/api/admin/support/overview");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  listSecurityEvents: async (params: { page?: number; limit?: number; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/support/security-events${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: SecurityEventRow[]; meta: { total: number; page: number; limit: number } }>;
+  },
+
+  getAuditLog: async (params: { page?: number; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value != null && value !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/support/audit-log${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: SupportOverview["audit"]; meta: { total: number; page: number; limit: number } }>;
+  },
+
+  listConversations: async (params: { limit?: number; offset?: number; search?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/support/conversations${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: SupportConversationRow[]; meta: { total: number; limit: number; offset: number } }>;
+  },
+
+  openConversation: async (targetUserId: string): Promise<SupportConversationRow> => {
+    const response = await apiRequest("POST", "/api/admin/support/conversations", { targetUserId });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+};
+
+export const adminConfigService = {
+  getOverview: async (): Promise<ConfigOverview> => {
+    const response = await apiRequest("GET", "/api/admin/config/overview");
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  getRole: async (id: number) => {
+    const response = await apiRequest("GET", `/api/admin/config/roles/${id}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data as { rol: Rol; assignedCodes: string[]; permisos: Permiso[] };
+  },
+
+  updateRolePermissions: async (id: number, permisoIds: number[]) => {
+    const response = await apiRequest("PUT", `/api/admin/config/roles/${id}/permisos`, { permisoIds });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json();
   },
 };

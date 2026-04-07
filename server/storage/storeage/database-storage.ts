@@ -42,6 +42,7 @@ import { LegalStageStorage } from "./models/legal-stage-storage";
 import { CalendarStorage } from "./models/calendar-storage";
 import { StageTaskTemplateStorage } from "./models/stage-task-template-storage";
 import { StageEventStorage } from "./models/stage-event-storage";
+import { ProcesoEtapaHistorialStorage } from "./models/proceso-etapa-historial-storage";
 import { TareaExtensionStorage } from "./models/tarea-extension-storage";
 import { ProcesoOwnershipStorage } from "./models/proceso-ownership-storage";
 import { ProcesoSharingStorage } from "./models/proceso-sharing-storage";
@@ -51,10 +52,11 @@ import { FeatureStorage } from "./models/feature-storage";
 import { SuscripcionStorage } from "./models/suscripcion-storage";
 import { PagoStorage } from "./models/pago-storage";
 import { UsageTrackingStorage } from "./models/usage-tracking-storage";
+import { AdminProfileStorage } from "./models/admin-profile.storage";
 import { AdminStatsStorage } from "../../admin/storage/admin-stats.storage.js";
 import { AdminAuditStorage } from "../../admin/storage/admin-audit.storage.js";
 import { AdminUsersStorage } from "../../admin/storage/admin-users.storage.js";
-import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal } from '@/shared/schema';
+import { Cliente, InsertCliente, InsertUser, InsertLawyerProfile, LawyerProfile, InsertFirmProfile, FirmProfile, InsertPersona, InsertRepresentanteLegal, InsertAdminProfile } from '@/shared/schema';
 import { UpdateLawyerProfileDTO } from '@/shared/schema/lawyer-profile.schema';
 
 // Export the database type for use in storage classes
@@ -102,6 +104,7 @@ export class DatabaseStorage {
   public calendar: CalendarStorage;
   public stageTemplates: StageTaskTemplateStorage;
   public stageEvents:    StageEventStorage;
+  public procesoEtapaHistorial: ProcesoEtapaHistorialStorage;
   public tareaExtensions: TareaExtensionStorage;
   public procesoOwnership:   ProcesoOwnershipStorage;
   public procesoSharing:     ProcesoSharingStorage;
@@ -111,6 +114,7 @@ export class DatabaseStorage {
   public suscripciones:   SuscripcionStorage;
   public pagosStorage:    PagoStorage;
   public usageTracking:   UsageTrackingStorage;
+  public adminProfiles:   AdminProfileStorage;
   public adminStats:      AdminStatsStorage;
   public adminAudit:      AdminAuditStorage;
   public adminUsers:      AdminUsersStorage;
@@ -165,6 +169,7 @@ export class DatabaseStorage {
     this.calendar = new CalendarStorage(this.db);
     this.stageTemplates   = new StageTaskTemplateStorage(this.db);
     this.stageEvents      = new StageEventStorage(this.db);
+    this.procesoEtapaHistorial = new ProcesoEtapaHistorialStorage(this.db);
     this.tareaExtensions  = new TareaExtensionStorage(this.db);
     this.procesoOwnership = new ProcesoOwnershipStorage(this.db);
     this.procesoSharing   = new ProcesoSharingStorage(this.db);
@@ -174,6 +179,7 @@ export class DatabaseStorage {
     this.suscripciones  = new SuscripcionStorage(this.db);
     this.pagosStorage   = new PagoStorage(this.db);
     this.usageTracking  = new UsageTrackingStorage(this.db);
+    this.adminProfiles  = new AdminProfileStorage(this.db);
     this.adminStats     = new AdminStatsStorage(this.db);
     this.adminAudit     = new AdminAuditStorage(this.db);
     this.adminUsers     = new AdminUsersStorage(this.db);
@@ -500,6 +506,14 @@ export class DatabaseStorage {
     return this.firmProfiles.updateFirmProfile(id, updates);
   }
 
+  async getAdminProfileByUserId(userId: string) {
+    return this.adminProfiles.getAdminProfileByUserId(userId);
+  }
+
+  async createAdminProfile(data: InsertAdminProfile) {
+    return this.adminProfiles.createAdminProfile(data);
+  }
+
   async addLawyerToProceso(procesoId: string, lawyerId: string, options: {   rol?: string;   tipoAsignacionId?: number | null;   razonAsignacion?: string | null;   asignadoPor?: string | null;  fechaFin?: Date | null;  status?: string;  } = {}) {
     return this.procesos.addLawyerToProceso(procesoId, lawyerId, options);
   }
@@ -578,6 +592,11 @@ export class DatabaseStorage {
   async getUserProfile(userId: string, rolNombre: string) {
     console.log(rolNombre,'rolNombre', userId,'userId')
     switch (rolNombre) {
+      case "admin":
+      case "admin_super":
+      case "admin_soporte":
+      case "admin_finanzas":
+        return this.adminProfiles.getAdminProfileByUserId(userId);
       case "abogado": {
         // getLawyerByUserId returns bare row without persona JOIN — resolve full profile
         const bare = await this.abogados.getLawyerByUserId(userId);

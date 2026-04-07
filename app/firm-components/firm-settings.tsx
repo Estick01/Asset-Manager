@@ -10,10 +10,12 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useAuth } from "@/lib/auth-context";
 import { LogoutModal } from "@/components/LogoutModal";
+import { FeatureGate } from "@/components/subscription/FeatureGate";
 import { apiRequest } from "@/lib/query-client";
+import { getOrCreateSupportConversation } from "@/lib/services/chatService";
 import { toast } from "sonner-native";
-import { getMiSuscripcion, type MiSuscripcion } from "@/lib/services/suscripcionService";
 import { UsageBars } from "@/components/subscription/UsageBars";
+import { useSubscription } from "@/lib/subscription-context";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const NAVY      = "#0F2640";
@@ -251,7 +253,10 @@ function PrivacySection({
               ) : (
                 <Switch
                   value={settings[row.field]}
-                  onValueChange={v => !isDisabled && onToggle(row.field, v)}
+                  onValueChange={v => {
+                    if (isDisabled) return;
+                    onToggle(row.field, v);
+                  }}
                   disabled={isDisabled}
                   trackColor={{ false: BORDER, true: TEAL + "80" }}
                   thumbColor={settings[row.field] ? TEAL : "#ccc"}
@@ -274,7 +279,7 @@ export default function FirmSettingsScreen() {
   const [loggingOut, setLoggingOut]           = useState(false);
   const [showPwdModal, setShowPwdModal]       = useState(false);
 
-  const [miSuscripcion, setMiSuscripcion] = useState<MiSuscripcion | null>(null);
+  const { plan, uso } = useSubscription();
 
   const [privacy, setPrivacy]     = useState<FirmPrivacySettings>({
     allowPrivateClientes:       false,
@@ -289,7 +294,6 @@ export default function FirmSettingsScreen() {
       .then(r => r.json())
       .then((data: FirmPrivacySettings) => setPrivacy(data))
       .catch(() => toast.error("No se pudo cargar la configuración de privacidad."));
-    getMiSuscripcion().then(setMiSuscripcion).catch(() => {});
   }, []);
 
   const handlePrivacyToggle = useCallback(
@@ -335,6 +339,23 @@ export default function FirmSettingsScreen() {
   const email       = user?.user.email || "";
   const initials    = displayName.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
+  const openSupportChat = async () => {
+    try {
+      const conversation = await getOrCreateSupportConversation();
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? "Soporte LexTrack",
+          from: "/firm-components/firm-settings",
+          support: "1",
+        },
+      });
+    } catch {
+      toast.error("No se pudo abrir el chat de soporte.");
+    }
+  };
+
   const sections = [
     {
       title: "Bufete",
@@ -361,13 +382,13 @@ export default function FirmSettingsScreen() {
     {
       title: "Plan",
       items: [
-        { icon: "card-outline",          label: "Plan y facturación",      sublabel: "Plan Empresarial activo", onPress: () => Alert.alert("Plan", "Plan Empresarial activo"),                  tint: AMBER },
+        { icon: "card-outline",          label: "Plan y facturación",      sublabel: plan?.nombre ?? "Gratis", onPress: () => router.push("/(auth)/planes" as any),                            tint: AMBER },
       ],
     },
     {
       title: "Información",
       items: [
-        { icon: "help-circle-outline",   label: "Ayuda y soporte",         sublabel: "soporte@lextrack.com",   onPress: () => Alert.alert("Soporte", "soporte@lextrack.com") },
+        { icon: "help-circle-outline",   label: "Ayuda y soporte",         sublabel: "Respuesta por chat",   onPress: openSupportChat },
         { icon: "information-circle-outline", label: "Acerca de",          sublabel: "LexTrack v1.0.0",        onPress: () => {} },
       ],
     },
@@ -399,7 +420,7 @@ export default function FirmSettingsScreen() {
             <Text style={styles.userEmail}>{email}</Text>
             <View style={styles.planBadge}>
               <Ionicons name="star" size={10} color={AMBER} />
-              <Text style={styles.planBadgeText}>Plan Empresarial</Text>
+              <Text style={styles.planBadgeText}>{plan?.nombre ?? "Gratis"}</Text>
             </View>
           </View>
           <Pressable
@@ -416,25 +437,49 @@ export default function FirmSettingsScreen() {
         ))}
 
         {/* ── Privacidad ── */}
-        <PrivacySection
-          settings={privacy}
-          saving={savingField}
-          onToggle={handlePrivacyToggle}
-        />
+        <FeatureGate featureCode="privacidad_basica">
+          <PrivacySection
+            settings={privacy}
+            saving={savingField}
+            onToggle={handlePrivacyToggle}
+          />
+        </FeatureGate>
 
         {/* ── Mi Suscripción ── */}
-        {miSuscripcion?.uso && (
-          <View style={styles.suscripcionCard}>
-            <View style={styles.suscripcionHeader}>
-              <Text style={styles.suscripcionTitle}>Mi Suscripción</Text>
-              <Pressable onPress={() => router.push("/planes")}>
-                <Text style={styles.cambiarPlanText}>Cambiar plan</Text>
-              </Pressable>
+        <View style={styles.suscripcionCard}>
+          {/* Banner del plan */}
+          <LinearGradient colors={[NAVY, NAVY_MID]} style={styles.suscripcionBanner}>
+            <View style={styles.suscripcionBannerLeft}>
+              <View style={styles.suscripcionBannerIconWrap}>
+                <Ionicons name="business" size={22} color={AMBER} />
+              </View>
+              <View>
+                <Text style={styles.suscripcionBannerLabel}>Plan activo</Text>
+                <Text style={styles.suscripcionBannerNombre}>{plan?.nombre ?? "Gratis"}</Text>
+              </View>
             </View>
-            <Text style={styles.planNombreText}>{miSuscripcion.plan?.nombre ?? "Plan activo"}</Text>
-            <UsageBars uso={miSuscripcion.uso} onUpgrade={() => router.push("/planes")} />
-          </View>
-        )}
+            <View style={styles.suscripcionActiveBadge}>
+              <View style={styles.suscripcionActiveDot} />
+              <Text style={styles.suscripcionActiveText}>Activo</Text>
+            </View>
+          </LinearGradient>
+
+          {/* Barras de uso */}
+          {uso && (
+            <View style={styles.suscripcionUsageWrap}>
+              <UsageBars uso={uso} onUpgrade={() => router.push("/(auth)/planes" as any)} />
+            </View>
+          )}
+
+          {/* Botón de upgrade */}
+          <Pressable
+            style={({ pressed }) => [styles.upgradeBtn, pressed && { opacity: 0.85 }]}
+            onPress={() => router.push("/(auth)/planes" as any)}
+          >
+            <Text style={styles.upgradeBtnText}>Ver planes y mejorar</Text>
+            <Ionicons name="chevron-forward" size={15} color={NAVY} />
+          </Pressable>
+        </View>
 
         {/* ── Cerrar sesión ── */}
         <Pressable
@@ -445,7 +490,7 @@ export default function FirmSettingsScreen() {
           <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
         </Pressable>
 
-        <Text style={styles.version}>LexTrack v1.0.0 · Plan Empresarial</Text>
+        <Text style={styles.version}>LexTrack v1.0.0 · {plan?.nombre ?? "Gratis"}</Text>
       </ScrollView>
 
       <LogoutModal
@@ -600,34 +645,53 @@ const styles = StyleSheet.create({
 
   // Suscripción
   suscripcionCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    backgroundColor: WHITE, borderRadius: 20,
+    marginBottom: 12, overflow: "hidden",
+    borderWidth: 1, borderColor: BORDER,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
   },
-  suscripcionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 4,
+  suscripcionBanner: {
+    flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", padding: 18,
   },
-  suscripcionTitle: {
-    fontSize: 15,
-    fontFamily: "Inter_600SemiBold",
-    color: "#1A1D21",
+  suscripcionBannerLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  suscripcionBannerIconWrap: {
+    width: 46, height: 46, borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center", justifyContent: "center",
   },
-  cambiarPlanText: {
-    fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: "#1B3A5C",
+  suscripcionBannerLabel: {
+    fontSize: 11, fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.5)", letterSpacing: 0.4,
+    marginBottom: 2,
   },
-  planNombreText: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: "#6B7280",
-    marginBottom: 12,
+  suscripcionBannerNombre: {
+    fontSize: 20, fontFamily: "Inter_700Bold",
+    color: WHITE, letterSpacing: -0.3,
+  },
+  suscripcionActiveBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+  },
+  suscripcionActiveDot: {
+    width: 7, height: 7, borderRadius: 4, backgroundColor: "#4ADE80",
+  },
+  suscripcionActiveText: {
+    fontSize: 12, fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.85)",
+  },
+  suscripcionUsageWrap: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 4 },
+  upgradeBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: AMBER,
+    margin: 16, marginTop: 8,
+    borderRadius: 12, paddingVertical: 13,
+  },
+  upgradeBtnText: {
+    fontSize: 14, fontFamily: "Inter_600SemiBold",
+    color: NAVY, flex: 1, textAlign: "center",
   },
 
   // Sheet actions

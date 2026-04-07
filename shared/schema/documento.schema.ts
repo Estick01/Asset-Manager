@@ -13,6 +13,7 @@ export const documentos = mysqlTable("documentos", {
   nombre: varchar("nombre", { length: 255 }).notNull(),
   url: text("url").notNull(),
   tipo: varchar("tipo", { length: 50 }).notNull(), // "demanda", "contestacion", "sentencia", etc.
+  tipoDocumento: varchar("tipo_documento", { length: 20 }).notNull().default("PROCESAL"), // "PROCESAL" | "PROBATORIO"
   tamano: int("tamano").notNull().default(0),
   descripcion: text("descripcion"),
   fechaSubida: timestamp("fecha_subida").notNull().default(new Date()),
@@ -38,6 +39,7 @@ export interface Documento {
   nombre: string;
   url: string;
   tipo: string;
+  tipoDocumento: "PROCESAL" | "PROBATORIO";
   descripcion: string | null;
   fechaSubida: Date;
   state: boolean;
@@ -52,6 +54,7 @@ export interface InsertDocumento {
   nombre: string;
   url: string;
   tipo: string;
+  tipoDocumento?: "PROCESAL" | "PROBATORIO";
   tamano?: number;
   descripcion?: string | null;
   fechaSubida?: Date;

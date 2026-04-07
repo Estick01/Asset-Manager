@@ -48,6 +48,7 @@ export interface PostsFilter {
   authorId?:       string;    // filter posts by author userId
   unlinkedOnly?:   boolean;   // only posts where procesoId IS NULL
   clientAccepted?: boolean;   // only posts where clientAccepted = 1
+  includeDisabled?: boolean;
 }
 
 export class CommunityStorage {
@@ -82,6 +83,7 @@ export class CommunityStorage {
       city:            (row as any).city ?? null,
       viewCount:       row.viewCount ?? 0,
       status:          (row as any).status ?? "open",
+      disabled:        (row as any).disabled ?? false,
       takenByLawyerId: (row as any).takenByLawyerId ?? null,
       takenByUserId:   (row as any).takenByUserId ?? null,
       takenAt:         (row as any).takenAt ?? null,
@@ -112,7 +114,7 @@ export class CommunityStorage {
   }
 
   async getPost(id: string): Promise<Post | undefined> {
-    const result = await this.db.select().from(posts).where(eq(posts.id, id)).limit(1);
+    const result = await this.db.select().from(posts).where(and(eq(posts.id, id), eq(posts.disabled, false))).limit(1);
     return result[0];
   }
 
@@ -129,6 +131,7 @@ export class CommunityStorage {
         city:            posts.city,
         viewCount:       posts.viewCount,
         status:          posts.status,
+        disabled:        posts.disabled,
         takenByLawyerId: posts.takenByLawyerId,
         takenByUserId:   posts.takenByUserId,
         takenAt:         posts.takenAt,
@@ -155,6 +158,7 @@ export class CommunityStorage {
 
     // Build WHERE conditions
     const conditions: ReturnType<typeof eq>[] = [];
+    if (!filter.includeDisabled) conditions.push(eq(posts.disabled, false));
     if (filter.authorId)       conditions.push(eq(posts.userId,      filter.authorId));
     if (filter.unlinkedOnly)   conditions.push(isNull(posts.procesoId));
     if (filter.clientAccepted) conditions.push(eq(posts.clientAccepted, 1));
@@ -209,6 +213,7 @@ export class CommunityStorage {
         city:            posts.city,
         viewCount:       posts.viewCount,
         status:          posts.status,
+        disabled:        posts.disabled,
         takenByLawyerId: posts.takenByLawyerId,
         takenByUserId:   posts.takenByUserId,
         takenAt:         posts.takenAt,
@@ -226,7 +231,7 @@ export class CommunityStorage {
       .from(posts)
       .leftJoin(users, eq(posts.userId, users.id))
       .leftJoin(roles, eq(users.rolId, roles.id))
-      .where(eq(posts.id, id))
+      .where(and(eq(posts.id, id), eq(posts.disabled, false)))
       .limit(1);
     const row = rows[0];
     if (!row) return undefined;
@@ -251,7 +256,7 @@ export class CommunityStorage {
     const open = await this.db
       .select({ id: posts.id })
       .from(posts)
-      .where(and(eq(posts.id, postId), eq(posts.status, "open")))
+      .where(and(eq(posts.id, postId), eq(posts.status, "open"), eq(posts.disabled, false)))
       .limit(1);
     if (open.length === 0) return false;
     const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h window
@@ -265,8 +270,12 @@ export class CommunityStorage {
         takenExpiresAt:  expiresAt,
         clientAccepted:  null,
       })
-      .where(and(eq(posts.id, postId), eq(posts.status, "open")));
+      .where(and(eq(posts.id, postId), eq(posts.status, "open"), eq(posts.disabled, false)));
     return true;
+  }
+
+  async setPostDisabled(postId: string, disabled: boolean): Promise<void> {
+    await this.db.update(posts).set({ disabled }).where(eq(posts.id, postId));
   }
 
   /** Client rejects the lawyer — post goes back to open. */
@@ -581,6 +590,7 @@ export class CommunityStorage {
         city: posts.city, viewCount: posts.viewCount, createdAt: posts.createdAt,
         updatedAt: posts.updatedAt, authorName: users.name, authorEmail: users.email,
         status:          posts.status,
+        disabled:        posts.disabled,
         takenByLawyerId: posts.takenByLawyerId,
         takenByUserId:   posts.takenByUserId,
         takenAt:         posts.takenAt,
@@ -592,7 +602,7 @@ export class CommunityStorage {
       })
       .from(posts)
       .leftJoin(users, eq(posts.userId, users.id))
-      .where(eq(posts.userId, userId))
+      .where(and(eq(posts.userId, userId), eq(posts.disabled, false)))
       .orderBy(desc(posts.createdAt))
       .limit(50);
 

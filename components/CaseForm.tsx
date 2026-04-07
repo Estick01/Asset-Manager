@@ -509,13 +509,13 @@ export function CaseForm({ initialData, onSave, isLoading, error, firmAllowsPriv
 
         {/* ── Descripción ── */}
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Descripcion del estado</Text>
+          <Text style={styles.label}>Descripción de los hechos jurídicamente relevantes </Text>
           <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={form.descripcionEstado}
               onChangeText={v => updateField("descripcionEstado", v)}
-              placeholder="Descripcion del estado actual del proceso"
+              placeholder="Descripción de los hechos jurídicamente relevantes"
               placeholderTextColor={Colors.textTertiary}
               multiline
               numberOfLines={3}

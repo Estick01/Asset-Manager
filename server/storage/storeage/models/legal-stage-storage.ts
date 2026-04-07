@@ -88,26 +88,29 @@ export class LegalStageStorage {
         ? Math.ceil((fechaVencimiento.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
         : null;
 
-    const mapped: EtapaProcesoDTO[] = etapas.map((e, i) => ({
-      id:              e.id,
-      codigo:          e.codigo,
-      nombre:          e.nombre,
-      descripcion:     e.descripcion ?? null,
-      orden:           e.orden,
-      diasLegales:     e.diasLegales,
-      color:           e.color,
-      completada:      currentIndex >= 0 && i < currentIndex,
-      esActual:        i === currentIndex,
-      fechaVencimiento: i === currentIndex ? fechaVencimiento : null,
-      diasRestantes:   i === currentIndex ? diasRestantes : null,
-    }));
+    const mapped: EtapaProcesoDTO[] = etapas.map((e, i) => {
+      const esActual = i === currentIndex || (currentIndex === -1 && i === 0);
+      return {
+        id:              e.id,
+        codigo:          e.codigo,
+        nombre:          e.nombre,
+        descripcion:     e.descripcion ?? null,
+        orden:           e.orden,
+        diasLegales:     e.diasLegales,
+        color:           e.color,
+        completada:      currentIndex >= 0 && i < currentIndex,
+        esActual,
+        fechaVencimiento: esActual ? fechaVencimiento : null,
+        diasRestantes:   esActual ? diasRestantes : null,
+      };
+    });
 
-    const etapaActual    = mapped.find((e) => e.esActual) ?? null;
-    // Si no hay etapa aún (currentIndex = -1) → la primera es la siguiente
-    const siguienteEtapa = currentIndex === -1
-      ? (mapped[0] ?? null)
-      : currentIndex < mapped.length - 1
-      ? mapped[currentIndex + 1]
+    const etapaActual = mapped.find((e) => e.esActual) ?? null;
+
+    // Determinar la siguiente etapa
+    const currentActualIndex = mapped.findIndex((e) => e.esActual);
+    const siguienteEtapa = currentActualIndex >= 0 && currentActualIndex < mapped.length - 1
+      ? mapped[currentActualIndex + 1]
       : null;
 
     return { etapas: mapped, etapaActual, siguienteEtapa };

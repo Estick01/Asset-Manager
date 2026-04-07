@@ -22,6 +22,7 @@ import { ChatNotificationProvider } from "@/lib/chat-context";
 import { NotificationsProvider } from "@/lib/notifications-context";
 import { Toaster } from "sonner-native";
 
+
 // Suppress known Expo Router + iOS splash screen warning on view controller
 // transitions (logout, deep links). This handles both warnings and uncaught errors.
 const SPLASH_SCREEN_ERRORS = [
@@ -42,16 +43,16 @@ SplashScreen.preventAutoHideAsync().catch((error: any) => {
 
 const queryClient = new QueryClient();
 
-type AppRoute = "/(lawyer-tabs)" | "/(firm-tabs)" | "/portal" | "/(admin-tabs)";
+type AppRoute = "/(lawyer-tabs)" | "/(firm-tabs)" | "/portal" | "/(admin-tabs)/dashboard";
 
 
 const ROLE_ROUTES: Record<string, AppRoute> = {
   abogado: "/(lawyer-tabs)",
   bufete: "/(firm-tabs)",
   cliente: "/portal",
-  admin_super: "/(admin-tabs)",
-  admin_soporte: "/(admin-tabs)",
-  admin_finanzas: "/(admin-tabs)",
+  admin_super: "/(admin-tabs)/dashboard",
+  admin_soporte: "/(admin-tabs)/dashboard",
+  admin_finanzas: "/(admin-tabs)/dashboard",
 };
 
 const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","(auth)", "checkout"];
@@ -59,6 +60,17 @@ const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", 
 const PUBLIC_GRUPS_FIRM = ["firm-components","firm-info"]
 
 const PUBLIC_GROUPS_LAWYER = ["lawyer-componts"]
+
+function resolveTargetRoute(roleName: string | undefined, isWeb: boolean): AppRoute | null {
+  if (!roleName) return null;
+
+  const normalizedRole = roleName.toLowerCase();
+  if (normalizedRole.startsWith("admin_")) {
+    return isWeb ? "/(admin-tabs)" : null;
+  }
+
+  return ROLE_ROUTES[normalizedRole] ?? null;
+}
 
 
 function AuthRouteProtection({ children }: { children: React.ReactNode }) {
@@ -79,10 +91,10 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   console.log(currentGroup);
 
 
-  const targetRoute = ROLE_ROUTES[user?.user?.rol?.nombre || ""];
+  const targetRoute = resolveTargetRoute(user?.user?.rol?.nombre, Platform.OS === "web");
 
   if (!targetRoute) {
-    return <Redirect href="/login" />;
+    return <Redirect href="/landing" />;
   }
 
 
@@ -98,6 +110,10 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   if (PUBLIC_GROUPS.includes(currentGroup)) {
     return <>{children}</>;
   }
+
+  console.log("Target route:", targetRoute);
+
+
   const targetGroup = targetRoute.replace("/", "");
   if (currentGroup !== targetGroup) {
     return <Redirect href={targetRoute} />;

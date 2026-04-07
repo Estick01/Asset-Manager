@@ -24,12 +24,9 @@ router.get(
       const rol       = user.rol.nombre;
       const idProfile = user.idProfile;
       const procesoId = req.params.procesoId;
-      const stage     = req.query.stage as string | undefined;
-
-      if (!stage) {
-        res.status(400).json({ error: "Parámetro stage es requerido" });
-        return;
-      }
+      const stage  = req.query.stage  as string | undefined;
+      const limit  = Math.min(Math.max(parseInt(req.query.limit  as string || "50", 10), 1), 200);
+      const offset = Math.max(parseInt(req.query.offset as string || "0",  10), 0);
 
       if (!idProfile) {
         res.status(400).json({ error: "idProfile requerido" });
@@ -60,8 +57,10 @@ router.get(
         return;
       }
 
-      const events = await storage.stageEvents.getByStage(procesoId, stage);
-      res.json(events);
+      const result = stage
+        ? await storage.stageEvents.getByStage(procesoId, stage, limit, offset)
+        : await storage.stageEvents.getByProceso(procesoId, limit, offset);
+      res.json(result);
     } catch (err) {
       next(err);
     }

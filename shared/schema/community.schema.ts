@@ -10,6 +10,7 @@ import {
   text,
   int,
   tinyint,
+  boolean,
   timestamp,
   mysqlEnum,
   index,
@@ -33,6 +34,7 @@ export const posts = mysqlTable(
     city:       varchar("city", { length: 100 }),
     viewCount:       int("view_count").notNull().default(0),
     status:          mysqlEnum("status", ["open", "in_progress", "closed"]).notNull().default("open"),
+    disabled:        boolean("disabled").notNull().default(false),
     takenByLawyerId: varchar("taken_by_lawyer_id", { length: 36 }),
     takenByUserId:   varchar("taken_by_user_id",   { length: 36 }),
     takenAt:         timestamp("taken_at"),
@@ -188,6 +190,7 @@ export interface Post {
   city:            string | null;
   viewCount:       number;
   status:          CaseStatus;
+  disabled:        boolean;
   takenByLawyerId: string | null;
   takenByUserId:   string | null;
   takenAt:         Date | null;

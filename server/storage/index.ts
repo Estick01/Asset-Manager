@@ -27,6 +27,8 @@ export type {
   Modulo,
   User,
   InsertUser,
+  AdminProfile,
+  InsertAdminProfile,
   FirmProfile,
   InsertFirmProfile,
   LawyerProfile,

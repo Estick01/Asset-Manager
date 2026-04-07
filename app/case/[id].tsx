@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
+import { FeatureGate } from "@/components/subscription/FeatureGate";
 import {
   getProceso,
   getActualizaciones,
@@ -23,6 +24,10 @@ import {
   saveActualizacion,
   getDocumentoDownloadUrl,
 } from "@/lib/services/procesoService";
+import {
+  getUltimoEstadoPorEtapa,
+  createEtapaHistorial,
+} from "@/lib/services/proceso-etapa-historial.service";
 import { linkProcesoToPost, getPosts, type PostDTO } from "@/lib/services/communityService";
 import { type Actualizacion, type Documento, type ProcesoDTO, type TareasProgresoDTO, type LegalStagesResponseDTO, type EtapaProcesoDTO, type StageEventResponseDTO } from "@/shared/schema";
 import { getStageEvents } from "@/lib/services/stageEventService";
@@ -42,6 +47,7 @@ import { ConfirmDialog, type ConfirmDialogConfig } from "@/components/ConfirmDia
 import { LegalStageStepper } from "@/components/proceso/LegalStageStepper";
 import { ChangeStageModal } from "@/components/proceso/ChangeStageModal";
 import { StageDetailSheet } from "@/components/proceso/StageDetailSheet";
+import EtapaHistorialTimeline from "@/components/proceso/EtapaHistorialTimeline";
 import { ProcessAccessPanel } from "@/components/proceso/ProcessAccessPanel";
 
 const ACTUALIZACIONES_LIMIT = 10;
@@ -74,12 +80,15 @@ export default function CaseDetailScreen() {
   const [showChangeStage,      setShowChangeStage]      = useState(false);
   const [selectedStage,        setSelectedStage]        = useState<EtapaProcesoDTO | null>(null);
   const [stageSheetOpen,       setStageSheetOpen]       = useState(false);
+  const [etapaHistorialOpen,   setEtapaHistorialOpen]   = useState(false);
   const [stageFilter,          setStageFilter]          = useState<string | null>(null);
+  const [tipoDocumentoFilter,   setTipoDocumentoFilter]   = useState<"PROCESAL" | "PROBATORIO" | null>(null);
   const [stageEvents,          setStageEvents]          = useState<StageEventResponseDTO[]>([]);
   const [stageCreateTarea,     setStageCreateTarea]     = useState(false);
   const [stageCreateLegalStage,setStageCreateLegalStage]= useState<string | null>(null);
   const stageFilterRef = useRef<string | null>(null);
   const [ownershipExpanded, setOwnershipExpanded] = useState(false);
+  const [ultimosEstadosPorEtapa, setUltimosEstadosPorEtapa] = useState<Record<string, string>>({});
 
   // Link community post modal
   const [linkPostModal,  setLinkPostModal]  = useState(false);
@@ -99,11 +108,20 @@ export default function CaseDetailScreen() {
       setActualizaciones(acts);
       setActualizacionesOffset(acts.length);
       setHasMoreActualizaciones(acts.length === ACTUALIZACIONES_LIMIT);
-      const docs = await getDocumentos(p.id, stageFilterRef.current);
+      const docs = await getDocumentos(p.id, stageFilterRef.current, tipoDocumentoFilter);
       setDocumentos(docs);
       try {
         const td = await getTareasByProceso(p.id, stageFilterRef.current ?? undefined);
         setTareasData(td);
+      } catch { /* non-critical */ }
+      try {
+        const ultimosEstados = await getUltimoEstadoPorEtapa(p.id);
+        // Convertir los objetos del historial a un mapa de etapa -> estado
+        const estadosMap: Record<string, string> = {};
+        Object.entries(ultimosEstados).forEach(([etapa, registro]) => {
+          estadosMap[etapa] = registro.estado;
+        });
+        setUltimosEstadosPorEtapa(estadosMap);
       } catch { /* non-critical */ }
       if (stageFilterRef.current) {
         try {
@@ -150,7 +168,7 @@ export default function CaseDetailScreen() {
     try {
       const [td, docs] = await Promise.all([
         getTareasByProceso(proceso.id, stage ?? undefined),
-        getDocumentos(proceso.id, stage),
+        getDocumentos(proceso.id, stage, tipoDocumentoFilter),
       ]);
       setTareasData(td);
       setDocumentos(docs);
@@ -165,9 +183,29 @@ export default function CaseDetailScreen() {
     }
   };
 
-  const handleAdvanceStage = async () => {
+  const handleAdvanceStage = async (fechaVencimiento?: Date) => {
     if (!proceso || !legalStages?.siguienteEtapa) return;
-    await updateLegalStage(proceso.id, { legalStage: legalStages.siguienteEtapa.codigo });
+
+    // Actualizar la etapa legal
+    await updateLegalStage(proceso.id, {
+      legalStage: legalStages.siguienteEtapa.codigo,
+      fechaVencimientoEtapa: fechaVencimiento
+    });
+
+    // Registrar en el historial de etapas
+    try {
+      await createEtapaHistorial(proceso.id, {
+        etapa: legalStages.siguienteEtapa.codigo,
+        estado: "INICIADA",
+        observacion: fechaVencimiento
+          ? `Avanzada con fecha de vencimiento: ${fechaVencimiento.toLocaleDateString("es-ES")}`
+          : "Avanzada a nueva etapa"
+      });
+    } catch (error) {
+      console.error('Error registering etapa historial:', error);
+      // No fallar la operación principal por esto
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     toast.success(`Etapa avanzada: ${legalStages.siguienteEtapa.nombre}`);
     loadData();
@@ -239,7 +277,7 @@ export default function CaseDetailScreen() {
     }
   };
 
-  const handlePickDocument = async (legalStage?: string | null) => {
+  const handlePickDocument = async (tipoDocumento: "PROCESAL" | "PROBATORIO", legalStage?: string | null) => {
     if (!proceso) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -252,6 +290,7 @@ export default function CaseDetailScreen() {
           procesoId: proceso.id,
           nombre:    file.name,
           tipo:      file.mimeType || "application/octet-stream",
+          tipoDocumento,
           tamano:    file.size || 0,
           uri:       file.uri,
           legalStage: legalStage ?? null,
@@ -367,17 +406,21 @@ export default function CaseDetailScreen() {
         )}
 
         {/* ── Legal Stage Stepper ── */}
-        {legalStages && (
-          <LegalStageStepper
-            data={legalStages}
-            canAdvance={rol === "abogado" || rol === "bufete"}
-            onAdvance={() => setShowChangeStage(true)}
-            onStagePress={(etapa) => {
-              setSelectedStage(etapa);
-              setStageSheetOpen(true);
-            }}
-          />
-        )}
+        <FeatureGate featureCode="etapas_procesales">
+          {legalStages && (
+            <LegalStageStepper
+              data={legalStages}
+              canAdvance={rol === "abogado" || rol === "bufete"}
+              onAdvance={() => setShowChangeStage(true)}
+              ultimosEstadosPorEtapa={ultimosEstadosPorEtapa}
+              onShowHistorial={() => setEtapaHistorialOpen(true)}
+              onStagePress={(etapa) => {
+                setSelectedStage(etapa);
+                setStageSheetOpen(true);
+              }}
+            />
+          )}
+        </FeatureGate>
 
         {/* ── Community post link ── */}
         {(rol === "abogado" || rol === "bufete") && (
@@ -511,9 +554,16 @@ export default function CaseDetailScreen() {
           <DocumentsSection
             rol={rol}
             documentos={documentos}
-            onUpload={() => handlePickDocument(stageFilter)}
+            onUpload={(tipoDocumento) => handlePickDocument(tipoDocumento, stageFilter)}
             onDelete={handleDeleteDocumento}
             onDownload={handleDownloadDocumento}
+            onFilterChange={(tipoDocumento) => {
+              setTipoDocumentoFilter(tipoDocumento);
+              // Reload documents with new filter
+              if (proceso) {
+                getDocumentos(proceso.id, stageFilter, tipoDocumento).then(setDocumentos).catch(() => {});
+              }
+            }}
           />
         )}
 
@@ -558,7 +608,7 @@ export default function CaseDetailScreen() {
           }}
           onUploadDoc={(stage) => {
             setStageSheetOpen(false);
-            handlePickDocument(stage);
+            handlePickDocument("PROCESAL", stage);
           }}
         />
       )}
@@ -627,6 +677,16 @@ export default function CaseDetailScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Etapa Historial Timeline ── */}
+      {proceso && (
+        <EtapaHistorialTimeline
+          procesoId={proceso.id}
+          visible={etapaHistorialOpen}
+          onClose={() => setEtapaHistorialOpen(false)}
+          canEdit={rol === "abogado" || rol === "bufete"}
+        />
+      )}
     </View>
   );
 }

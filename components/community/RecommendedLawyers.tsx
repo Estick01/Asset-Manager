@@ -49,9 +49,20 @@ function LawyerCard({ lawyer, onContact }: {
   const av      = getAvatarColor(lawyer.name);
   const initial = lawyer.name.charAt(0).toUpperCase();
 
+  // Reset loading when component mounts (when returning to screen)
+  useEffect(() => {
+    setLoading(false);
+  }, []);
+
   const handleContact = async () => {
     setLoading(true);
-    onContact(lawyer);
+    try {
+      await onContact(lawyer);
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      // Could show an error message here
+    }
   };
 
   return (
@@ -212,13 +223,19 @@ export default function RecommendedLawyers({ postId }: Props) {
   const handleContact = useCallback(async (lawyer: RecommendedLawyerDTO) => {
     const result = await startDirectChat(lawyer.userId);
     if (result?.id) {
-      router.push(`/chat/${result.id}` as any);
+      router.push(`/chat/${result.id}?name=${encodeURIComponent(lawyer.name)}&userId=${lawyer.userId}` as any);
+    } else {
+      throw new Error('No se pudo iniciar el chat');
     }
   }, []);
 
   const handleContactBest = useCallback(async () => {
     if (!lawyers[0]) return;
-    handleContact(lawyers[0]);
+    try {
+      await handleContact(lawyers[0]);
+    } catch (error) {
+      // Error handling could be added here if needed
+    }
   }, [lawyers, handleContact]);
 
   const allFallback = lawyers.length > 0 && lawyers.every(l => l.isFallback);

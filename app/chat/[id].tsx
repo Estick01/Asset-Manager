@@ -303,8 +303,8 @@ function AttachModal({ visible, onClose, onDocument, onImage }: {
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id: conversationId, name, from, procesoId, userId } =
-    useLocalSearchParams<{ id: string; name: string; from: string; procesoId?: string; userId?: string }>();
+  const { id: conversationId, name, from, procesoId, userId, support } =
+    useLocalSearchParams<{ id: string; name: string; from: string; procesoId?: string; userId?: string; support?: string }>();
 
   const { clearConversation } = useChatNotifications();
 
@@ -531,6 +531,7 @@ export default function ConversationScreen() {
   const isOnline      = status === "connected";
   const displayInitial = (name ?? "C").charAt(0).toUpperCase();
   const av            = avatarColor(name ?? "Chat");
+  const isSupportChat = support === "1";
 
   return (
     <KeyboardAvoidingView
@@ -551,7 +552,7 @@ export default function ConversationScreen() {
           <Pressable
             style={styles.headerProfileBtn}
             onPress={() => userId && router.push(`/community/profile/${userId}` as any)}
-            disabled={!userId}
+            disabled={!userId || isSupportChat}
             hitSlop={8}
           >
             <View style={[styles.headerAvatar, { backgroundColor: av.bg }]}>
@@ -561,9 +562,9 @@ export default function ConversationScreen() {
             <View style={styles.headerInfo}>
               <Text style={styles.headerName} numberOfLines={1}>{name ?? "Chat"}</Text>
               <View style={styles.headerStatusRow}>
-                <View style={[styles.statusDot, { backgroundColor: isOnline ? GREEN : TEXT3 }]} />
+                <View style={[styles.statusDot, { backgroundColor: isSupportChat ? TEAL : isOnline ? GREEN : TEXT3 }]} />
                 <Text style={styles.headerStatus}>
-                  {isOnline ? "En línea" : "Conectando..."}
+                  {isSupportChat ? "Canal de soporte" : isOnline ? "En línea" : "Conectando..."}
                 </Text>
               </View>
             </View>

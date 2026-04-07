@@ -8,6 +8,7 @@ type NavItem = {
   route: string;         // segmento relativo, ej: "dashboard"
   icon:  keyof typeof Ionicons.glyphMap;
   roles: string[];
+  implemented?: boolean;
 };
 
 const NAV_ITEMS: NavItem[] = [
@@ -16,48 +17,56 @@ const NAV_ITEMS: NavItem[] = [
     route: "dashboard",
     icon:  "grid-outline",
     roles: ["admin_super", "admin_soporte", "admin_finanzas"],
+    implemented: true,
   },
   {
     label: "Usuarios",
     route: "usuarios",
     icon:  "people-outline",
     roles: ["admin_super", "admin_soporte"],
+    implemented: true,
   },
   {
     label: "Planes",
     route: "planes",
     icon:  "layers-outline",
     roles: ["admin_super", "admin_finanzas"],
+    implemented: true,
   },
   {
     label: "Facturación",
     route: "facturacion",
     icon:  "card-outline",
     roles: ["admin_super", "admin_finanzas"],
+    implemented: true,
   },
   {
     label: "Procesos",
     route: "procesos",
     icon:  "document-text-outline",
     roles: ["admin_super"],
+    implemented: true,
   },
   {
     label: "Soporte",
     route: "soporte",
     icon:  "chatbox-ellipses-outline",
     roles: ["admin_super", "admin_soporte"],
+    implemented: true,
   },
   {
     label: "Comunidad",
     route: "comunidad",
     icon:  "globe-outline",
     roles: ["admin_super", "admin_soporte"],
+    implemented: true,
   },
   {
     label: "Configuración",
     route: "configuracion",
     icon:  "settings-outline",
     roles: ["admin_super"],
+    implemented: true,
   },
 ];
 
@@ -69,7 +78,7 @@ export function Sidebar({ rol }: Props) {
   const segments = useSegments();
   const currentSegment = segments[1] ?? "dashboard";   // segments[0] = "(admin-tabs)"
 
-  const visible = NAV_ITEMS.filter(item => item.roles.includes(rol));
+  const visible = NAV_ITEMS.filter(item => item.roles.includes(rol) && item.implemented);
 
   return (
     <View style={styles.sidebar}>

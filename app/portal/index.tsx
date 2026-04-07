@@ -18,6 +18,7 @@ const ESTADO_CONFIG: Record<string, { color: string; label: string; icon: keyof 
   archivado:  { color: Colors.textTertiary, label: "Archivado",   icon: "archive-outline" },
 };
 
+
 export default function ClientPortalScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile, logout } = useUnifiedAuth();
@@ -60,7 +61,8 @@ export default function ClientPortalScreen() {
 
   // ── Render proceso card ───────────────────────────────────────
   const renderProceso = ({ item: p }: { item: ProcesoDTO }) => {
-    const estado = ESTADO_CONFIG[p.estado?.codigo || "archivado"] ?? ESTADO_CONFIG.archivado;
+    const estado     = ESTADO_CONFIG[p.estado?.codigo || "archivado"] ?? ESTADO_CONFIG.archivado;
+    const etapaInfo  = p.etapaActual ?? null;
 
     return (
       <Pressable
@@ -86,6 +88,16 @@ export default function ClientPortalScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Etapa actual */}
+          {etapaInfo && (
+            <View style={[styles.etapaBadge, { backgroundColor: etapaInfo.color + "18" }]}>
+              <Ionicons name="git-branch-outline" size={11} color={etapaInfo.color} />
+              <Text style={[styles.etapaText, { color: etapaInfo.color }]}>
+                {etapaInfo.nombre}
+              </Text>
+            </View>
+          )}
 
           {/* Footer */}
           <View style={styles.cardFooter}>
@@ -300,6 +312,12 @@ const styles = StyleSheet.create({
   },
   estadoDot: { width: 6, height: 6, borderRadius: 3 },
   estadoText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  etapaBadge: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+  },
+  etapaText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cardFooter: { flexDirection: "row", gap: 14 },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   metaText: {

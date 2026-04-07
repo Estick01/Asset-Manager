@@ -19,12 +19,27 @@ export async function getConversations(
   return res.json();
 }
 
+export async function getUnreadCount(): Promise<number> {
+  const res = await apiRequest("GET", "/api/chat/unread-count");
+  if (!res.ok) return 0;
+  const data = await res.json() as { count: number };
+  return data.count ?? 0;
+}
+
 export async function getOrCreateConversation(
   targetUserId: string,
   type: ConversationType
 ): Promise<ConversationDTO> {
   const res = await apiRequest("POST", "/api/chat/conversations", { targetUserId, type });
   if (!res.ok) throw new Error("Error al crear conversación");
+  return res.json();
+}
+
+export async function getOrCreateSupportConversation(
+  targetUserId?: string
+): Promise<ConversationDTO> {
+  const res = await apiRequest("POST", "/api/chat/support-conversation", targetUserId ? { targetUserId } : undefined);
+  if (!res.ok) throw new Error("Error al abrir soporte");
   return res.json();
 }
 

@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Platform, Linking, Alert, ActivityIndicator, TextInput
+  Platform, Linking, Alert, ActivityIndicator, TextInput,
 } from "react-native";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +12,9 @@ import {
   getProceso, getActualizaciones, getDocumentos, getDocumentoDownloadUrl,
 } from "@/lib/services/procesoService";
 import { getLegalStages } from "@/lib/services/legalStageService";
-import { type ProcesoDTO, type Documento, type LegalStagesResponseDTO } from "@/shared/schema";
+import { getAllStageEvents } from "@/lib/services/stageEventService";
+import { getEtapaHistorial } from "@/lib/services/proceso-etapa-historial.service";
+import { type ProcesoDTO, type Documento, type LegalStagesResponseDTO, type StageEventResponseDTO, type EtapaProcesoDTO, type ProcesoEtapaHistorialDTO } from "@/shared/schema";
 import { type ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import { getOrCreateConversation } from "@/lib/services/chatService";
@@ -52,14 +54,18 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+function openUrl(url: string) {
+  if (Platform.OS === "web") {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } else {
+    Linking.openURL(url);
+  }
+}
+
 async function handleDownloadDoc(doc: Documento) {
   try {
-    const supported = await Linking.canOpenURL(doc.url);
-    if (supported) { await Linking.openURL(doc.url); return; }
     const url = await getDocumentoDownloadUrl(doc.id);
-    const fileSupported = await Linking.canOpenURL(url);
-    if (fileSupported) await Linking.openURL(url);
-    else Alert.alert("Error", "No se puede abrir el documento");
+    openUrl(url);
   } catch {
     Alert.alert("Error", "No se pudo descargar el documento");
   }
@@ -68,9 +74,7 @@ async function handleDownloadDoc(doc: Documento) {
 async function handleDownloadDocById(documentoId: string) {
   try {
     const url = await getDocumentoDownloadUrl(documentoId);
-    const supported = await Linking.canOpenURL(url);
-    if (supported) await Linking.openURL(url);
-    else Alert.alert("Error", "No se puede abrir el documento");
+    openUrl(url);
   } catch {
     Alert.alert("Error", "No se pudo descargar el documento");
   }
@@ -87,7 +91,10 @@ export default function ClientCaseDetailScreen() {
   const [chatLoading, setChatLoading] = useState(false);
   const [actualizaciones, setActualizaciones] = useState<ActualizacionRelations[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
-  const [activeTab, setActiveTab] = useState<"timeline" | "documents">("timeline");
+  const [stageEvents, setStageEvents] = useState<StageEventResponseDTO[]>([]);
+  const [etapaHistorial, setEtapaHistorial] = useState<ProcesoEtapaHistorialDTO[]>([]);
+  const [activeTab, setActiveTab] = useState<"timeline" | "documents" | "etapas">("timeline");
+  const [stageFilter, setStageFilter] = useState<string | null>(null);
   const [documentSearch, setDocumentSearch] = useState("");
   const [actualizacionesOffset, setActualizacionesOffset] = useState(0);
   const [actualizacionesLoading, setActualizacionesLoading] = useState(false);
@@ -103,42 +110,62 @@ export default function ClientCaseDetailScreen() {
     const p = await getProceso(id);
     setProceso(p);
     if (p) {
-      if (p.responsable) {
+      if (p.responsable?.lawyer) {
+        const persona = (p.responsable.lawyer as any).persona;
         setAbogado({
-          nombre: `${p.responsable.firstName} ${p.responsable.lastName}`,
-          telefono: (p.responsable as any).phone || undefined,
-          userId: p.responsable.userId,
+          nombre: persona?.nombre && persona?.apellido
+            ? `${persona.nombre} ${persona.apellido}`
+            : persona?.nombre ?? "Responsable",
+          telefono: persona?.telefono || undefined,
+          userId: p.responsable.lawyer.userId,
         });
       } else {
         const lawyerEntry = p.lawyers?.find((l: any) => l.rol === "principal" && l.lawyer);
         if (lawyerEntry) {
           setAbogado({
-            nombre: `${lawyerEntry.lawyer.persona.nombre} ${lawyerEntry.lawyer.persona.apellido}`,
-            telefono: lawyerEntry.lawyer.persona.telefono || undefined,
+            nombre: lawyerEntry.lawyer.persona?.nombre && lawyerEntry.lawyer.persona?.apellido
+              ? `${lawyerEntry.lawyer.persona.nombre} ${lawyerEntry.lawyer.persona.apellido}`
+              : lawyerEntry.lawyer.persona?.nombre ?? "Abogado",
+            telefono: lawyerEntry.lawyer.persona?.telefono || undefined,
             userId: lawyerEntry.lawyer.userId,
           });
         } else {
-          // Proceso gestionado por bufete sin abogado asignado
+          // Proceso gestionado por bufete sin abogado asignado aún
           const firmEntry = p.lawyers?.find((l: any) => l.firm);
           if (firmEntry?.firm) {
             setAbogado({
               nombre: firmEntry.firm.name ?? "Bufete",
               telefono: firmEntry.firm.phone || undefined,
-              userId: undefined, // sin chat directo
+              userId: firmEntry.firm.userId,
             });
           }
         }
       }
-      const acts = await getActualizaciones(p.id, LIMIT, 0);
+      const [acts, docs] = await Promise.all([
+        getActualizaciones(p.id, LIMIT, 0),
+        getDocumentos(p.id),
+      ]);
       setActualizaciones(acts);
       setActualizacionesOffset(acts.length);
       setHasMoreActualizaciones(acts.length === LIMIT);
-      setIsInitialLoad(false);
-      const docs = await getDocumentos(p.id);
       setDocumentos(docs);
+      setIsInitialLoad(false);
       try {
-        const stages = await getLegalStages(p.tipoProceso?.nombre, p.id);
+        const [stages, allEvents] = await Promise.all([
+          getLegalStages(p.tipoProceso?.nombre, p.id),
+          getAllStageEvents(p.id),
+        ]);
         setLegalStages(stages);
+        setStageEvents(allEvents);
+
+        // Cargar historial de etapas
+        try {
+          const historial = await getEtapaHistorial(p.id);
+          setEtapaHistorial(historial);
+        } catch (error) {
+          console.error('Error loading etapa historial:', error);
+          // No fallar si no se puede cargar el historial
+        }
       } catch { /* non-critical */ }
     }
   }, [id]);
@@ -180,6 +207,20 @@ export default function ClientCaseDetailScreen() {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
+  // Etapas disponibles: todas hasta la etapa actual (inclusive)
+  const etapasDisponibles = useMemo((): EtapaProcesoDTO[] => {
+    if (!legalStages) return [];
+    const ordenActual = legalStages.etapaActual?.orden ?? 999;
+    return legalStages.etapas.filter(e => e.orden <= ordenActual);
+  }, [legalStages]);
+
+  // Cuando hay filtro activo, historial = stageEvents de esa etapa (tienen legalStageCode exacto).
+  // Sin filtro, historial = actualizaciones normales.
+  const stageEventsForFilter = useMemo(() => {
+    if (!stageFilter) return [];
+    return stageEvents.filter(e => e.legalStageCode === stageFilter);
+  }, [stageEvents, stageFilter]);
+
   if (!proceso) {
     return (
       <View style={[styles.screen, styles.centered]}>
@@ -189,11 +230,13 @@ export default function ClientCaseDetailScreen() {
   }
 
   const estadoConfig = ESTADO_CONFIG[proceso.estado?.codigo || "archivado"] ?? ESTADO_CONFIG.archivado;
-  const filteredDocs = documentos.filter(d =>
-    !documentSearch ||
-    d.nombre?.toLowerCase().includes(documentSearch.toLowerCase()) ||
-    d.descripcion?.toLowerCase().includes(documentSearch.toLowerCase())
-  );
+  const filteredDocs = documentos.filter(d => {
+    const matchesStage = !stageFilter || d.legalStage === stageFilter;
+    const matchesSearch = !documentSearch ||
+      d.nombre?.toLowerCase().includes(documentSearch.toLowerCase()) ||
+      d.descripcion?.toLowerCase().includes(documentSearch.toLowerCase());
+    return matchesStage && matchesSearch;
+  });
 
 
   return (
@@ -381,19 +424,126 @@ export default function ClientCaseDetailScreen() {
                 <Text style={styles.quickActionText}>Mensaje</Text>
               </Pressable>
             )}
+
+            <Pressable
+              style={[styles.quickAction, activeTab === "etapas" && styles.quickActionActive]}
+              onPress={() => setActiveTab("etapas")}
+            >
+              <View style={[styles.quickActionIcon, {
+                backgroundColor: activeTab === "etapas" ? Colors.success : Colors.success + "15"
+              }]}>
+                <Ionicons name="git-branch-outline" size={20} color={activeTab === "etapas" ? Colors.white : Colors.success} />
+              </View>
+              <Text style={[styles.quickActionText, activeTab === "etapas" && styles.quickActionTextActive]}>
+                Etapas
+              </Text>
+            </Pressable>
           </View>
 
+          {/* ── Filtro por etapa procesal ── */}
+          {etapasDisponibles.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.stageFilterRow}
+            >
+              <Pressable
+                style={[styles.stageChip, stageFilter === null && styles.stageChipActive]}
+                onPress={() => setStageFilter(null)}
+              >
+                <Text style={[styles.stageChipText, stageFilter === null && styles.stageChipTextActive]}>
+                  Todas
+                </Text>
+              </Pressable>
+              {etapasDisponibles.map(etapa => (
+                <Pressable
+                  key={etapa.codigo}
+                  style={[styles.stageChip, stageFilter === etapa.codigo && styles.stageChipActive]}
+                  onPress={() => setStageFilter(prev => prev === etapa.codigo ? null : etapa.codigo)}
+                >
+                  <Text style={[styles.stageChipText, stageFilter === etapa.codigo && styles.stageChipTextActive]}
+                    numberOfLines={1}
+                  >
+                    {etapa.nombre}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
           {/* ── Tab: Timeline ── */}
-          {activeTab === "timeline" && (
-            actualizaciones.length === 0 ? (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconWrap}>
-                  <Ionicons name="time-outline" size={32} color={PORTAL_BLUE} />
+          {activeTab === "timeline" && (() => {
+            // Con filtro de etapa: muestra stageEvents de esa etapa (tienen legalStageCode exacto)
+            // Sin filtro: muestra actualizaciones normales
+            if (stageFilter) {
+              if (stageEventsForFilter.length === 0) {
+                return (
+                  <View style={styles.emptyState}>
+                    <View style={styles.emptyIconWrap}>
+                      <Ionicons name="time-outline" size={32} color={PORTAL_BLUE} />
+                    </View>
+                    <Text style={styles.emptyTitle}>Sin historial en esta etapa</Text>
+                    <Text style={styles.emptySubtitle}>No hay eventos registrados para esta etapa procesal</Text>
+                  </View>
+                );
+              }
+              return (
+                <View>
+                  {stageEventsForFilter.map((ev, idx) => (
+                    <View key={ev.id} style={styles.timelineItem}>
+                      <View style={styles.timelineLine}>
+                        <View style={[
+                          styles.timelineDot,
+                          idx === 0 && { backgroundColor: PORTAL_BLUE },
+                          ev.tipo === "documento_subido" && { backgroundColor: Colors.accent },
+                        ]}>
+                          <Ionicons
+                            name={
+                              ev.tipo === "etapa_iniciada"   ? "flag-outline"            :
+                              ev.tipo === "etapa_completada" ? "checkmark-circle-outline" :
+                              ev.tipo === "documento_subido" ? "attach"                   :
+                              ev.tipo === "tarea_completada" ? "checkmark-done-outline"   :
+                              "create-outline"
+                            }
+                            size={9}
+                            color={Colors.white}
+                          />
+                        </View>
+                        {idx < stageEventsForFilter.length - 1 && <View style={styles.timelineConnector} />}
+                      </View>
+                      <View style={[
+                        styles.timelineCard,
+                        idx === 0 && { borderWidth: 1, borderColor: PORTAL_BLUE + "25" },
+                      ]}>
+                        <View style={styles.timelineCardHeader}>
+                          <Text style={styles.timelineDate}>
+                            {new Date(ev.createdAt).toLocaleDateString("es-CO", {
+                              day: "numeric", month: "short", year: "numeric",
+                              hour: "2-digit", minute: "2-digit",
+                            })}
+                          </Text>
+                        </View>
+                        <Text style={styles.timelineTitle}>{ev.descripcion}</Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
-                <Text style={styles.emptyTitle}>Sin actualizaciones</Text>
-                <Text style={styles.emptySubtitle}>Las actualizaciones del proceso aparecerán aquí</Text>
-              </View>
-            ) : (
+              );
+            }
+
+            // Sin filtro: actualizaciones normales
+            if (actualizaciones.length === 0) {
+              return (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconWrap}>
+                    <Ionicons name="time-outline" size={32} color={PORTAL_BLUE} />
+                  </View>
+                  <Text style={styles.emptyTitle}>Sin actualizaciones</Text>
+                  <Text style={styles.emptySubtitle}>Las actualizaciones del proceso aparecerán aquí</Text>
+                </View>
+              );
+            }
+            return (
               <View>
                 {actualizaciones.map((act, idx) => (
                   <View key={act.id} style={styles.timelineItem}>
@@ -411,7 +561,6 @@ export default function ClientCaseDetailScreen() {
                       </View>
                       {idx < actualizaciones.length - 1 && <View style={styles.timelineConnector} />}
                     </View>
-
                     <View style={[
                       styles.timelineCard,
                       idx === 0 && { borderWidth: 1, borderColor: PORTAL_BLUE + "25" },
@@ -445,15 +594,14 @@ export default function ClientCaseDetailScreen() {
                     </View>
                   </View>
                 ))}
-
                 {actualizacionesLoading && (
                   <View style={styles.loadingMore}>
                     <ActivityIndicator size="small" color={PORTAL_BLUE} />
                   </View>
                 )}
               </View>
-            )
-          )}
+            );
+          })()}
 
           {/* ── Tab: Documentos ── */}
           {activeTab === "documents" && (
@@ -480,12 +628,14 @@ export default function ClientCaseDetailScreen() {
                     <Ionicons name="folder-open-outline" size={32} color={PORTAL_BLUE} />
                   </View>
                   <Text style={styles.emptyTitle}>
-                    {documentSearch ? "Sin resultados" : "Sin documentos"}
+                    {documentSearch ? "Sin resultados" : stageFilter ? "Sin documentos en esta etapa" : "Sin documentos"}
                   </Text>
                   <Text style={styles.emptySubtitle}>
                     {documentSearch
                       ? "Intenta con otro término"
-                      : "Los documentos del proceso aparecerán aquí"
+                      : stageFilter
+                        ? "No hay documentos registrados para esta etapa procesal"
+                        : "Los documentos del proceso aparecerán aquí"
                     }
                   </Text>
                 </View>
@@ -530,6 +680,106 @@ export default function ClientCaseDetailScreen() {
                     </Pressable>
                   );
                 })
+              )}
+            </>
+          )}
+
+          {/* ── Tab: Etapas ── */}
+          {activeTab === "etapas" && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Historial de Etapas</Text>
+                <Text style={styles.sectionSubtitle}>
+                  Seguimiento completo del progreso del proceso
+                </Text>
+              </View>
+
+              {etapaHistorial.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="git-branch-outline" size={48} color={Colors.textTertiary} />
+                  <Text style={styles.emptyStateTitle}>Sin historial de etapas</Text>
+                  <Text style={styles.emptyStateText}>
+                    El historial de cambios en las etapas aparecerá aquí
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.etapasTimeline}>
+                  {etapaHistorial
+                    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+                    .map((registro, index) => {
+                      const isLast = index === etapaHistorial.length - 1;
+                      const getEstadoColor = (estado: string) => {
+                        switch (estado) {
+                          case 'COMPLETADA': return Colors.success;
+                          case 'INICIADA':
+                          case 'EN_PROCESO': return Colors.primary;
+                          case 'NO_ADMITIDA':
+                          case 'FALLIDA':
+                          case 'CANCELADA': return Colors.danger;
+                          case 'SUBSANADA':
+                          case 'REINTENTO': return Colors.warning;
+                          case 'APLAZADA': return Colors.info;
+                          case 'SUSPENDIDA': return Colors.textSecondary;
+                          default: return Colors.textSecondary;
+                        }
+                      };
+
+                      const getEstadoIcon = (estado: string) => {
+                        switch (estado) {
+                          case 'COMPLETADA': return 'checkmark-circle';
+                          case 'NO_ADMITIDA':
+                          case 'FALLIDA':
+                          case 'CANCELADA': return 'close-circle';
+                          case 'APLAZADA': return 'pause-circle';
+                          case 'REINTENTO': return 'refresh-circle';
+                          case 'SUBSANADA': return 'arrow-undo-circle';
+                          default: return 'ellipse';
+                        }
+                      };
+
+                      const formatFecha = (fecha: string) => {
+                        return new Date(fecha).toLocaleDateString("es-ES", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                      };
+
+                      return (
+                        <View key={registro.id} style={styles.etapaTimelineItem}>
+                          {/* Línea vertical */}
+                          <View style={styles.etapaTimelineConnector}>
+                            <View style={[styles.etapaTimelineDot, { backgroundColor: getEstadoColor(registro.estado) }]} />
+                            {!isLast && <View style={styles.etapaTimelineLine} />}
+                          </View>
+
+                          {/* Contenido */}
+                          <View style={styles.etapaTimelineContent}>
+                            <View style={styles.etapaTimelineHeader}>
+                              <View style={[styles.etapaEstadoBadge, { backgroundColor: getEstadoColor(registro.estado) + "20" }]}>
+                                <Ionicons name={getEstadoIcon(registro.estado) as any} size={14} color={getEstadoColor(registro.estado)} />
+                                <Text style={[styles.etapaEstadoText, { color: getEstadoColor(registro.estado) }]}>
+                                  {registro.estado.replace('_', ' ')}
+                                </Text>
+                              </View>
+                              <Text style={styles.etapaFechaText}>{formatFecha(registro.fecha)}</Text>
+                            </View>
+
+                            <View style={styles.etapaBadge}>
+                              <Ionicons name="document-text-outline" size={12} color={Colors.primary} />
+                              <Text style={styles.etapaNombreText}>{registro.etapa}</Text>
+                            </View>
+
+                            {registro.observacion && (
+                              <Text style={styles.etapaObservacionText}>{registro.observacion}</Text>
+                            )}
+                          </View>
+                        </View>
+                      );
+                    })}
+                </View>
               )}
             </>
           )}
@@ -713,6 +963,113 @@ const styles = StyleSheet.create({
   },
   loadingMore: { paddingVertical: 16, alignItems: "center" },
 
+  // ── Etapas ────────────────────────────────────────────────────
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyStateTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
+    textAlign: "center",
+  },
+  emptyStateText: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  etapasTimeline: {
+    gap: 16,
+  },
+  etapaTimelineItem: {
+    flexDirection: "row",
+  },
+  etapaTimelineConnector: {
+    alignItems: "center",
+    width: 40,
+  },
+  etapaTimelineDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  etapaTimelineLine: {
+    width: 2,
+    height: 40,
+    backgroundColor: Colors.border,
+    marginTop: 8,
+  },
+  etapaTimelineContent: {
+    flex: 1,
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 12,
+    padding: 12,
+    marginLeft: 8,
+  },
+  etapaTimelineHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  etapaEstadoBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  etapaEstadoText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
+  etapaFechaText: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+  },
+  etapaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+    backgroundColor: Colors.primary + "15",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  etapaNombreText: {
+    fontSize: 11,
+    color: Colors.primary,
+    fontFamily: "Inter_500Medium",
+  },
+  etapaObservacionText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+
   // ── Documents ────────────────────────────────────────────────
   downloadBtn: {
     width: 36, height: 36, borderRadius: 10,
@@ -761,6 +1118,34 @@ const styles = StyleSheet.create({
   docDescription: {
     fontSize: 11, fontFamily: "Inter_400Regular",
     color: Colors.textSecondary, marginTop: 3,
+  },
+
+  // ── Filtro por etapa ─────────────────────────────────────────
+  stageFilterRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingVertical: 2,
+  },
+  stageChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  stageChipActive: {
+    backgroundColor: PORTAL_BLUE,
+    borderColor: PORTAL_BLUE,
+  },
+  stageChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  stageChipTextActive: {
+    color: Colors.white,
+    fontFamily: "Inter_600SemiBold",
   },
 
   // ── Empty ─────────────────────────────────────────────────────

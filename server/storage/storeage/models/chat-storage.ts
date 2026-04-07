@@ -46,7 +46,8 @@ export class ChatStorage {
   async getConversationsForUser(
     userId: string,
     limit = 20,
-    offset = 0
+    offset = 0,
+    type?: Conversation["type"]
   ): Promise<ConversationDTO[]> {
     const participations = await this.db
       .select({ conversationId: conversationParticipants.conversationId })
@@ -60,7 +61,12 @@ export class ChatStorage {
     const convs = await this.db
       .select()
       .from(conversations)
-      .where(inArray(conversations.id, convIds))
+      .where(
+        and(
+          inArray(conversations.id, convIds),
+          type ? eq(conversations.type, type) : undefined
+        )
+      )
       .orderBy(desc(conversations.updatedAt))
       .limit(limit)
       .offset(offset);
@@ -154,12 +160,48 @@ export class ChatStorage {
     return dtos;
   }
 
-  async getConversationsCount(userId: string): Promise<number> {
-    const participations = await this.db
+  async getConversationsCount(userId: string, type?: Conversation["type"]): Promise<number> {
+    if (!type) {
+      const participations = await this.db
+        .select({ count: sql<number>`count(*)` })
+        .from(conversationParticipants)
+        .where(eq(conversationParticipants.userId, userId));
+      return Number(participations[0]?.count ?? 0);
+    }
+
+    const rows = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(conversationParticipants)
-      .where(eq(conversationParticipants.userId, userId));
-    return Number(participations[0]?.count ?? 0);
+      .innerJoin(conversations, eq(conversationParticipants.conversationId, conversations.id))
+      .where(
+        and(
+          eq(conversationParticipants.userId, userId),
+          eq(conversations.type, type)
+        )
+      );
+
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  /** Total de mensajes no leídos del usuario en todas sus conversaciones. */
+  async getTotalUnreadCount(userId: string): Promise<number> {
+    const result = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(messages)
+      .innerJoin(
+        conversationParticipants,
+        and(
+          eq(conversationParticipants.conversationId, messages.conversationId),
+          eq(conversationParticipants.userId, userId),
+        )
+      )
+      .where(
+        and(
+          eq(messages.isDeleted, false),
+          sql`(${conversationParticipants.lastReadAt} IS NULL OR ${messages.createdAt} > ${conversationParticipants.lastReadAt})`
+        )
+      );
+    return Number(result[0]?.count ?? 0);
   }
 
   /**
@@ -208,14 +250,21 @@ export class ChatStorage {
     return undefined;
   }
 
-  async findDirectConversation(
+  async findTwoPartyConversation(
     userIdA: string,
-    userIdB: string
+    userIdB: string,
+    type: Conversation["type"]
   ): Promise<Conversation | undefined> {
     const result = await this.db
       .select({ conversationId: conversationParticipants.conversationId })
       .from(conversationParticipants)
-      .where(eq(conversationParticipants.userId, userIdA));
+      .innerJoin(conversations, eq(conversationParticipants.conversationId, conversations.id))
+      .where(
+        and(
+          eq(conversationParticipants.userId, userIdA),
+          eq(conversations.type, type)
+        )
+      );
 
     for (const { conversationId } of result) {
       const other = await this.db

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { planes, planFeatures, features, type Plan, type InsertPlan, type PlanPublicoDTO } from "@/shared/schema";
 import type { Database } from "../database-storage";
 
@@ -11,7 +11,7 @@ export class PlanStorage {
 
   async getPlanes(tipo?: "abogado" | "bufete"): Promise<Plan[]> {
     if (tipo) {
-      return this.db.select().from(planes).where(eq(planes.tipo, tipo));
+      return this.db.select().from(planes).where(and(eq(planes.tipo, tipo), eq(planes.state, true)));
     }
     return this.db.select().from(planes).where(eq(planes.state, true));
   }
@@ -54,15 +54,17 @@ export class PlanStorage {
       id:               insertPlan.id,
       nombre:           insertPlan.nombre,
       tipo:             (insertPlan as any).tipo ?? "abogado",
-      precioMensualCop: (insertPlan as any).precio ?? "0",
-      precioAnualCop:   "0",
-      precioMensualUsd: "0",
-      precioAnualUsd:   "0",
-      maxProcesos:      5,
-      maxClientes:      10,
-      maxStorageGb:     0,
-      includedUsers:    1,
-      maxUsers:         1,
+      precioMensualCop: (insertPlan as any).precioMensualCop ?? (insertPlan as any).precio ?? "0",
+      precioAnualCop:   (insertPlan as any).precioAnualCop ?? "0",
+      precioMensualUsd: (insertPlan as any).precioMensualUsd ?? "0",
+      precioAnualUsd:   (insertPlan as any).precioAnualUsd ?? "0",
+      maxProcesos:      (insertPlan as any).maxProcesos ?? 5,
+      maxClientes:      (insertPlan as any).maxClientes ?? 10,
+      maxStorageGb:     (insertPlan as any).maxStorageGb ?? 0,
+      includedUsers:    (insertPlan as any).includedUsers ?? 1,
+      maxUsers:         (insertPlan as any).maxUsers ?? 1,
+      precioUsuarioExtraCop: (insertPlan as any).precioUsuarioExtraCop ?? null,
+      precioUsuarioExtraUsd: (insertPlan as any).precioUsuarioExtraUsd ?? null,
       state:            insertPlan.state ?? true,
     } as InsertPlan;
     await this.db.insert(planes).values(newPlan);

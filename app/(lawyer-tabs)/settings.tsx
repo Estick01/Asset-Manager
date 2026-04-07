@@ -8,6 +8,7 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { LogoutModal } from "@/components/LogoutModal";
 import { apiRequest } from "@/lib/query-client";
+import { getOrCreateSupportConversation } from "@/lib/services/chatService";
 import { LawyerProfile } from "@/shared/schema";
 import { toast } from "sonner-native";
 
@@ -45,6 +46,23 @@ export default function LawyerSettingsScreen() {
     setNewPwd("");
     setConfirmPwd("");
     setShowPwdModal(true);
+  };
+
+  const openSupportChat = async () => {
+    try {
+      const conversation = await getOrCreateSupportConversation();
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? "Soporte LexTrack",
+          from: "/(lawyer-tabs)/settings",
+          support: "1",
+        },
+      });
+    } catch {
+      toast.error("No se pudo abrir el chat de soporte.");
+    }
   };
 
   const handleChangePassword = async () => {
@@ -87,7 +105,7 @@ export default function LawyerSettingsScreen() {
     {
       title: "Aplicación",
       items: [
-        { icon: "help-circle-outline", label: "Ayuda y Soporte", onPress: () => Alert.alert("Ayuda", "Contacta a soporte@lextrack.com") },
+        { icon: "help-circle-outline", label: "Ayuda y Soporte", onPress: openSupportChat },
         { icon: "information-circle-outline", label: "Acerca de", onPress: () => Alert.alert("LexTrack", "Versión 1.0.0\nSistema de Seguimiento Jurídico") },
       ],
     },

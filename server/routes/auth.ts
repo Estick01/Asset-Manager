@@ -16,6 +16,7 @@ import { hashPassword, verifyPassword, verifyToken, authenticate, extractToken, 
 import { JWTPayload } from "@/shared/model.schema.js";
 import { validate } from "../middleware/validation.js";
 import { loginRateLimiter, registerRateLimiter } from "../middleware/rate-limit.js";
+import { subscriptionService } from "../services/subscription.service.js";
 import {
   recordFailure,
   recordSuccess,
@@ -221,6 +222,8 @@ router.post("/register/lawyer",
       }
     );
 
+    await subscriptionService.activatePlanGratis(lawyer.userId, "abogado");
+
     return res.status(201).json({
       message: "Abogado creado exitosamente",
       data: lawyer,
@@ -305,6 +308,8 @@ router.post("/register/firm",
       },
       repData
     );
+
+    await subscriptionService.activatePlanGratis(firm.userId, "bufete");
 
     return res.status(201).json({
       message: "Firma creada exitosamente",

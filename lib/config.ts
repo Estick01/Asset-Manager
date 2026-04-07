@@ -17,7 +17,8 @@ const LOCAL_IP = getLocalIp();
 
 // ⚠️ TUNNEL: comenta esta línea cuando no uses ngrok
 // const NGROK_URL = "https://asha-unsoaked-boundlessly.ngrok-free.dev";
-const NGROK_URL = "";
+const NGROK_URL = undefined;
+
 
 const getApiUrl = (): string => {
   if (NGROK_URL) return NGROK_URL;

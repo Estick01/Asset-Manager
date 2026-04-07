@@ -102,12 +102,21 @@ export async function apiRequest(
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
-    credentials: "include",
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000); // 10s timeout
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: isFormData ? data : (data ? JSON.stringify(data) : undefined),
+      credentials: "include",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (res.status === 401) {
     // Avoid infinite loop on the refresh/logout endpoints themselves

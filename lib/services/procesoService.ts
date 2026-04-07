@@ -215,11 +215,16 @@ export async function deleteActualizacion(id: string): Promise<void> {
 
 // --- Documentos (Documents) ---
 
-export async function getDocumentos(procesoId: string, stage?: string | null): Promise<Documento[]> {
+export async function getDocumentos(procesoId: string, stage?: string | null, tipoDocumento?: "PROCESAL" | "PROBATORIO"): Promise<Documento[]> {
   try {
-    const url = stage
+    let url = stage
       ? `/api/documentos?procesoId=${procesoId}&stage=${encodeURIComponent(stage)}`
       : `/api/documentos?procesoId=${procesoId}`;
+
+    if (tipoDocumento) {
+      url += `&tipoDocumento=${encodeURIComponent(tipoDocumento)}`;
+    }
+
     const response = await apiRequest(
       "GET",
       url
@@ -238,6 +243,7 @@ export async function uploadDocument(doc: {
   procesoId: string;
   nombre: string;
   tipo: string;
+  tipoDocumento?: "PROCESAL" | "PROBATORIO";
   tamano: number;
   uri: string;
   descripcion?: string;
@@ -254,6 +260,7 @@ export async function uploadDocument(doc: {
   formData.append('procesoId', doc.procesoId);
   formData.append('nombre', doc.nombre);
   formData.append('tipo', doc.tipo);
+  formData.append('tipoDocumento', doc.tipoDocumento || 'PROCESAL');
   formData.append('tamano', doc.tamano.toString());
   if (doc.descripcion) {
     formData.append('descripcion', doc.descripcion);

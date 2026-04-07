@@ -9,10 +9,13 @@ import crypto from "crypto";
 import { Router, type Request, type Response, type NextFunction } from "express";
 import multer from "multer";
 import { authenticate } from "../auth.js";
+import { requireFeature } from "../middleware/require-feature.js";
 import { chatService } from "../services/chat.service.js";
 import { uploadBuffer } from "../services/s3-storage.js";
 import { broadcastToRoom } from "../websocket/ws-server.js";
 import type { ConversationType } from "@/shared/schema";
+import type { JWTPayload } from "@/shared/model.schema.js";
+import { ADMIN_ROLES } from "../admin/middleware/require-admin.js";
 
 const router = Router();
 
@@ -55,12 +58,58 @@ function detectMimeFromBuffer(buf: Buffer): string | null {
 const IMAGE_MAX = 5 * 1024 * 1024;   // 5 MB for images
 const DOC_MAX  = 10 * 1024 * 1024;   // 10 MB for documents
 
+async function ensureConversationAccess(
+  req: Request,
+  res: Response,
+  conversationId: string,
+): Promise<true | Response> {
+  try {
+    const user = (req as any).user as JWTPayload;
+    await chatService.assertConversationAccess(user, conversationId);
+    return true;
+  } catch (err) {
+    const msg = (err as Error).message;
+    if (msg === "Forbidden") {
+      return res.status(403).json({ error: "No autorizado" });
+    }
+    if (msg === "FeatureUnavailable") {
+      return res.status(402).json({
+        error: "FEATURE_NOT_AVAILABLE",
+        feature: "chat",
+        mensaje: "Esta funcionalidad no está disponible en tu plan actual. Actualiza para acceder.",
+      });
+    }
+    if (msg === "NotFound") {
+      return res.status(404).json({ error: "CONVERSATION_NOT_FOUND" });
+    }
+    throw err;
+  }
+}
+
+// ----------------------------------------------------------------
+// GET /api/chat/unread-count  — endpoint liviano para badge de no leídos
+// ----------------------------------------------------------------
+router.get(
+  "/chat/unread-count",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = (req as any).user?.id;
+      const count = await chatService.getUnreadCount(userId);
+      res.json({ count });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ----------------------------------------------------------------
 // GET /api/chat/conversations
 // ----------------------------------------------------------------
 router.get(
   "/chat/conversations",
   authenticate,
+  requireFeature("chat"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).user?.id;
@@ -80,6 +129,7 @@ router.get(
 router.post(
   "/chat/conversations",
   authenticate,
+  requireFeature("chat"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).user?.id;
@@ -92,9 +142,39 @@ router.post(
         return res.status(400).json({ error: "targetUserId y type son requeridos" });
       }
 
+      if (type === "admin_support") {
+        return res.status(403).json({ error: "Usa el endpoint dedicado de soporte" });
+      }
+
       const conversation = await chatService.getOrCreateConversation(userId, targetUserId, type);
       res.status(201).json(conversation);
     } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.post(
+  "/chat/support-conversation",
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = (req as any).user as JWTPayload;
+      const targetUserId = typeof req.body?.targetUserId === "string" ? req.body.targetUserId : undefined;
+
+      if (targetUserId && !ADMIN_ROLES.includes((user.rol?.nombre ?? "") as any)) {
+        return res.status(403).json({ error: "No autorizado" });
+      }
+
+      const conversation = targetUserId
+        ? await chatService.getOrCreateSupportConversationForAdmin(user.id, targetUserId)
+        : await chatService.getOrCreateSupportConversationForUser(user.id);
+
+      res.status(201).json(conversation);
+    } catch (err) {
+      if ((err as Error).message === "NO_SUPPORT_ADMIN") {
+        return res.status(503).json({ error: "SUPPORT_NOT_AVAILABLE" });
+      }
       next(err);
     }
   }
@@ -112,6 +192,9 @@ router.get(
       const id     = req.params.id as string;
       const limit  = req.query.limit  ? parseInt(req.query.limit  as string, 10) : 50;
       const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+      const access = await ensureConversationAccess(req, res, id);
+      if (access !== true) return access;
 
       const msgs = await chatService.getMessages(id, userId, limit, offset);
       res.json(msgs);
@@ -136,6 +219,9 @@ router.post(
       const id      = req.params.id as string;
       const { content } = req.body as { content: string };
 
+      const access = await ensureConversationAccess(req, res, id);
+      if (access !== true) return access;
+
       if (!content?.trim()) {
         return res.status(400).json({ error: "El contenido no puede estar vacío" });
       }
@@ -157,8 +243,8 @@ router.post(
 // ----------------------------------------------------------------
 router.post(
   "/chat/conversations/:conversationId/upload",
-  authenticate,
   upload.single("file"),
+  authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId         = (req as any).user?.id as string;
@@ -169,6 +255,9 @@ router.post(
       if (!req.file) {
         return res.status(400).json({ error: "FILE_MISSING" });
       }
+
+      const access = await ensureConversationAccess(req, res, conversationId);
+      if (access !== true) return access;
 
       // 1. Validate participant
       const isMember = await chatService.getParticipantUserIds(conversationId)
@@ -273,6 +362,10 @@ router.post(
     try {
       const userId = (req as any).user?.id;
       const id     = req.params.id as string;
+
+      const access = await ensureConversationAccess(req, res, id);
+      if (access !== true) return access;
+
       await chatService.markRead(id, userId);
       res.json({ ok: true });
     } catch (err) {

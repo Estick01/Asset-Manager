@@ -23,7 +23,13 @@ export default function LoginScreen() {
     if (user) {
       const rolNombre = user.user.rol?.nombre?.toLowerCase() || "";
       const profile = user.profile as any;
-      if (rolNombre.includes("firm") || rolNombre.includes("bufete")) {
+      if (rolNombre.startsWith("admin_")) {
+        if (Platform.OS === "web") {
+          router.replace("/(admin-tabs)/dashboard");
+        } else {
+          setError("El panel de administracion solo esta disponible en web");
+        }
+      } else if (rolNombre.includes("firm") || rolNombre.includes("bufete")) {
         router.replace("/(firm-tabs)");
       } else if (rolNombre.includes("cliente")) {
         if (profile?.tipo === "empresa") {

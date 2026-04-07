@@ -9,22 +9,29 @@ export class DocumentoStorage {
   constructor(private db: MySql2Database<any>) {}
 
   async getDocumentos(procesoId: string, stage?: string): Promise<Documento[]> {
+    let result;
     if (stage === undefined) {
-      return this.db
+      result = await this.db
         .select()
         .from(documentos)
         .where(eq(documentos.procesoId, procesoId));
-    }
-    if (stage === "__general__") {
-      return this.db
+    } else if (stage === "__general__") {
+      result = await this.db
         .select()
         .from(documentos)
         .where(and(eq(documentos.procesoId, procesoId), isNull(documentos.legalStage)));
+    } else {
+      result = await this.db
+        .select()
+        .from(documentos)
+        .where(and(eq(documentos.procesoId, procesoId), eq(documentos.legalStage, stage)));
     }
-    return this.db
-      .select()
-      .from(documentos)
-      .where(and(eq(documentos.procesoId, procesoId), eq(documentos.legalStage, stage)));
+
+    // Cast tipoDocumento to the correct union type
+    return result.map(doc => ({
+      ...doc,
+      tipoDocumento: doc.tipoDocumento as "PROCESAL" | "PROBATORIO"
+    }));
   }
 
   async getDocumento(id: string): Promise<Documento | undefined> {
@@ -33,7 +40,13 @@ export class DocumentoStorage {
       .from(documentos)
       .where(eq(documentos.id, id))
       .limit(1);
-    return results[0];
+    if (results[0]) {
+      return {
+        ...results[0],
+        tipoDocumento: results[0].tipoDocumento as "PROCESAL" | "PROBATORIO"
+      };
+    }
+    return undefined;
   }
 
   async createDocumento(insertDocumento: InsertDocumento): Promise<Documento> {
@@ -50,6 +63,7 @@ export class DocumentoStorage {
       fechaSubida,
       state: insertDocumento.state ?? true,
       legalStage: insertDocumento.legalStage ?? null,
+      tipoDocumento: insertDocumento.tipoDocumento ?? "PROCESAL",
     };
     await this.db.insert(documentos).values(newDocumento);
     return newDocumento;
@@ -68,8 +82,8 @@ export class DocumentoStorage {
     await this.db.delete(documentos).where(eq(documentos.id, id));
   }
 
-  async getDocumentosByTipo(procesoId: string, tipo: string): Promise<Documento[]> {
+  async getDocumentosByTipoDocumento(procesoId: string, tipoDocumento: "PROCESAL" | "PROBATORIO"): Promise<Documento[]> {
     const docs = await this.getDocumentos(procesoId);
-    return docs.filter(d => d.tipo === tipo);
+    return docs.filter(d => d.tipoDocumento === tipoDocumento);
   }
 }

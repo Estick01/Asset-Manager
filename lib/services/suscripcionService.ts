@@ -140,6 +140,16 @@ export class LimitReachedError extends Error {
   }
 }
 
+export class FeatureNotAvailableError extends Error {
+  constructor(
+    public readonly featureCode: string,
+    public readonly mensaje: string,
+  ) {
+    super(mensaje);
+    this.name = "FeatureNotAvailableError";
+  }
+}
+
 // ── Funciones adicionales ──────────────────────────────────────────────────────
 
 /**
@@ -165,6 +175,12 @@ export async function handleApiError(res: Response): Promise<never> {
       body.tipo ?? "procesos",
       body.actual ?? 0,
       body.maximo ?? 0,
+    );
+  }
+  if (res.status === 402 && body.error === "FEATURE_NOT_AVAILABLE") {
+    throw new FeatureNotAvailableError(
+      body.feature ?? "",
+      body.mensaje ?? "Esta funcionalidad no está disponible en tu plan actual.",
     );
   }
   throw new Error(body.error || body.message || "Error inesperado");

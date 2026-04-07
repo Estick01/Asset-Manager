@@ -24,7 +24,7 @@ import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { toast } from "sonner-native";
 import { useAuth } from "@/lib/auth-context";
-import { getConversations } from "@/lib/services/chatService";
+import { getUnreadCount } from "@/lib/services/chatService";
 import { getWsToken, apiRequest } from "@/lib/apiClient";
 import { STORAGE_KEYS } from "@/lib/keys";
 import { API_URL } from "@/lib/config";
@@ -79,17 +79,10 @@ export function ChatNotificationProvider({
   const refreshUnread = useCallback(async () => {
     if (!isLoggedIn) return;
     try {
-      const convs = await getConversations();
-      const total = convs.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0);
+      const count = await getUnreadCount();
       if (isMounted.current) {
-        setUnreadCount(total);
-        // Reset session tracking to match server state
+        setUnreadCount(count);
         sessionUnread.current.clear();
-        for (const c of convs) {
-          if (c.unreadCount > 0) {
-            sessionUnread.current.set(c.id, c.unreadCount);
-          }
-        }
       }
     } catch {
       // silent — badge just won't update until next poll

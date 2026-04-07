@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
-  RefreshControl, ActivityIndicator, Animated,
+  RefreshControl, ActivityIndicator, Animated, Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import { getConversations } from "@/lib/services/chatService";
+import { getConversations, getOrCreateSupportConversation } from "@/lib/services/chatService";
 import type { ConversationDTO } from "@/shared/schema";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "@/lib/keys";
@@ -65,7 +65,9 @@ function ConversationCard({
 }) {
   const anim = useRef(new Animated.Value(0)).current;
   const other = conv.participants.find(p => p.userId !== currentUserId);
-  const displayName = other?.name ?? "Conversación";
+  const displayName = conv.type === "admin_support"
+    ? conv.name ?? "Soporte LexTrack"
+    : other?.name ?? "Conversación";
   const av = avatarColor(displayName);
   const hasUnread = conv.unreadCount > 0;
   const timeStr = formatRelative(conv.lastMessage?.createdAt ?? conv.updatedAt);
@@ -87,7 +89,13 @@ function ConversationCard({
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
         onPress={() => router.push({
           pathname: "/chat/[id]",
-          params: { id: conv.id, name: displayName, from: "/(lawyer-tabs)/chat", userId: other?.userId },
+          params: {
+            id: conv.id,
+            name: displayName,
+            from: "/(lawyer-tabs)/chat",
+            userId: conv.type === "admin_support" ? undefined : other?.userId,
+            support: conv.type === "admin_support" ? "1" : undefined,
+          },
         })}
       >
         {/* Unread accent strip */}
@@ -150,6 +158,23 @@ export default function LawyerChatScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const offsetRef = useRef(0);
+
+  const openSupportChat = useCallback(async () => {
+    try {
+      const conversation = await getOrCreateSupportConversation();
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? "Soporte LexTrack",
+          from: "/(lawyer-tabs)/chat",
+          support: "1",
+        },
+      });
+    } catch {
+      Alert.alert("Soporte", "No se pudo abrir el chat de soporte.");
+    }
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEYS.USER).then(raw => {
@@ -226,6 +251,9 @@ export default function LawyerChatScreen() {
             </Text>
           )}
         </View>
+        <Pressable style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.82 }]} onPress={openSupportChat}>
+          <Ionicons name="headset-outline" size={20} color={WHITE} />
+        </Pressable>
       </View>
 
       {/* ── Stats bar ── */}
@@ -323,7 +351,7 @@ export default function LawyerChatScreen() {
                   <Text style={styles.emptySub}>
                     {search
                       ? `No hay chats con "${search}"`
-                      : "Tus conversaciones con clientes aparecerán aquí"}
+                  : "Tus conversaciones con clientes aparecerán aquí"}
                   </Text>
                 </View>
               }

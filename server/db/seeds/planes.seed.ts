@@ -15,7 +15,7 @@ const PLANES_SEED = [
     id: "plan-abogado-gratis",   nombre: "Gratis",    tipo: "abogado" as const,
     precioMensualCop: "0",       precioAnualCop: "0",
     precioMensualUsd: "0",       precioAnualUsd: "0",
-    maxProcesos: 5,              maxClientes: 10,      maxStorageGb: 0,
+    maxProcesos: 5,              maxClientes: 10,      maxStorageGb: 0.5,
     includedUsers: 1,            maxUsers: 1,
     precioUsuarioExtraCop: null, precioUsuarioExtraUsd: null,
     features: [],
@@ -50,6 +50,15 @@ const PLANES_SEED = [
     ],
   },
   // Bufete
+  {
+    id: "plan-bufete-gratis",    nombre: "Gratis",    tipo: "bufete" as const,
+    precioMensualCop: "0",       precioAnualCop: "0",
+    precioMensualUsd: "0",       precioAnualUsd: "0",
+    maxProcesos: 5,              maxClientes: 10,      maxStorageGb: 0.5,
+    includedUsers: 3,            maxUsers: 3,
+    precioUsuarioExtraCop: null, precioUsuarioExtraUsd: null,
+    features: [],
+  },
   {
     id: "plan-bufete-starter",   nombre: "Starter",   tipo: "bufete" as const,
     precioMensualCop: "180000",  precioAnualCop: "1728000",
@@ -116,9 +125,17 @@ const FEATURES_SEED = [
   { code: "soporte_prioritario", nombre: "Soporte prioritario",     descripcion: "Acceso a soporte con tiempo de respuesta garantizado" },
 ] as const;
 
+// ── Planes legacy que deben desactivarse ──────────────────────────────────────
+const PLANES_LEGACY_IDS = ["default-plan-id"];
+
 // ── Función principal ─────────────────────────────────────────────────────────
 
 export async function seedPlanes(db: Database): Promise<void> {
+  // 0. Desactivar planes legacy (creados antes del sistema de seed actual)
+  for (const legacyId of PLANES_LEGACY_IDS) {
+    await db.update(planes).set({ state: false }).where(eq(planes.id, legacyId)).catch(() => {});
+  }
+
   // 1. Seed features
   for (const f of FEATURES_SEED) {
     const existing = await db.select().from(features).where(eq(features.code, f.code)).limit(1).then(r => r[0]);
@@ -133,6 +150,12 @@ export async function seedPlanes(db: Database): Promise<void> {
     const existing = await db.select().from(planes).where(eq(planes.id, p.id)).limit(1).then(r => r[0]);
     if (!existing) {
       await db.insert(planes).values({ ...planData, state: true });
+    } else {
+      // Actualizar campos que pueden cambiar entre versiones del seed
+      await db.update(planes).set({
+        maxStorageGb: planData.maxStorageGb,
+        state: true,
+      }).where(eq(planes.id, p.id));
     }
     // Upsert plan_features
     for (const pf of planFeaturesList) {

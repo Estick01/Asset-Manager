@@ -126,16 +126,17 @@ class SubscriptionService {
 
   // ── Activar plan gratis (al registrarse) ──────────────────────────────────
 
-  async activatePlanGratis(userId: string): Promise<void> {
+  async activatePlanGratis(userId: string, tipo: "abogado" | "bufete" = "abogado"): Promise<void> {
     const existing = await storage.suscripciones.getActive(userId);
     if (existing) return; // Ya tiene una suscripción
 
+    const planId = tipo === "bufete" ? "plan-bufete-gratis" : "plan-abogado-gratis";
     const fechaInicio      = new Date();
     const fechaVencimiento = new Date("2099-12-31T23:59:59");
 
     const nueva = await storage.suscripciones.create({
       userId,
-      planId:           "plan-abogado-gratis",
+      planId,
       ciclo:            "mensual",
       estado:           "activa",
       fechaInicio,

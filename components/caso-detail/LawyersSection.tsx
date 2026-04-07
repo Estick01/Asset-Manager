@@ -72,7 +72,9 @@ export default function LawyersSection({
               </View>
               <View style={styles.lawyerInfo}>
                 <Text style={styles.lawyerNombre}>
-                  {responsable.lawyer?.persona?.nombre} {responsable.lawyer?.persona?.apellido}
+                  {responsable.lawyer?.persona?.nombre && responsable.lawyer?.persona?.apellido
+                    ? `${responsable.lawyer.persona.nombre} ${responsable.lawyer.persona.apellido}`
+                    : responsable.lawyer?.persona?.nombre ?? ""}
                 </Text>
                 {responsable.lawyer?.specialization && (
                   <Text style={styles.responsableSpec}>{responsable.lawyer.specialization}</Text>

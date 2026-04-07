@@ -126,6 +126,15 @@ export interface FirmProfile {
   updatedAt: string | Date;
 }
 
+export interface AdminProfile {
+  id: string;
+  userId: string;
+  displayName: string;
+  adminType: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+}
+
 
 
 export interface ClientProfile {

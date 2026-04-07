@@ -147,8 +147,7 @@ export function EditarTareaModal({
   const isCreator    = tarea?.creadoPor.id === currentProfileId;
   const isCompleted  = tarea?.estado === "completada";
   const isCancelled  = tarea?.estado === "cancelada";
-  const isLocked     = isCompleted || isCancelled ||
-                       !!(tarea?.fechaLimite && new Date(tarea.fechaLimite) < new Date());
+  const isLocked     = isCompleted || isCancelled;
   const isEnProgreso = tarea?.estado === "en_progreso";
   // Show Progreso tab for any state that's past "pendiente"
   const showProgresoTab = tarea?.estado !== "pendiente" && tarea?.estado !== undefined;

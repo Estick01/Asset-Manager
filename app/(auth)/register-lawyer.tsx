@@ -9,10 +9,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { loginUnified } from "@/lib/auth/unified";
 import { API_URL } from "@/lib/config";
 import { toast } from "sonner-native";
 import { EnumRol } from "@/shared/schema/user.schema";
+import { useAuth } from "@/lib/auth-context";
 import {
   getTiposDocumento, getDepartamentos, getMunicipios,
   type TipoDocumento, type Departamento, type Municipio,
@@ -100,6 +100,7 @@ const sectionStyles = StyleSheet.create({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function RegisterLawyerScreen() {
   const insets = useSafeAreaInsets();
+  const { login } = useAuth();
 
   const [firstName, setFirstName]         = useState("");
   const [lastName, setLastName]           = useState("");
@@ -187,10 +188,10 @@ export default function RegisterLawyerScreen() {
         toast.error(data.details?.[0]?.message || data.error || data.message || "Error al registrar.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
       }
-      const user = await loginUnified(email, password);
-      if (user) {
+      const loggedIn = await login(email, password);
+      if (loggedIn) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace("/planes" as any);
+        router.replace("/(lawyer-tabs)" as any);
       } else {
         toast.error("Error al iniciar sesión después del registro.");
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

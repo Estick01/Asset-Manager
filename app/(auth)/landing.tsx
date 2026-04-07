@@ -81,9 +81,19 @@ const PROBLEMAS = [
     desc: "Procesos en cuadernos, fechas en WhatsApp, clientes en Excel. Todo está en todas partes y en ninguna.",
   },
   {
-    icon: "lock-open-outline" as const,
-    titulo: "Sin privacidad real",
-    desc: "Cualquier colega en tu firma puede ver los clientes de otro. La confidencialidad queda expuesta.",
+    icon: "chatbubble-ellipses-outline" as const,
+    titulo: "El cliente no sabe qué pasa",
+    desc: "Llamadas sin respuesta, mensajes de WhatsApp sin contexto. El cliente no entiende cómo va su proceso y pierde la confianza en su abogado.",
+  },
+  {
+    icon: "search-outline" as const,
+    titulo: "Difícil encontrar un abogado de confianza",
+    desc: "Para el cliente, elegir un abogado es una apuesta a ciegas. No hay forma de comparar, validar experiencia ni saber quién realmente lo puede ayudar.",
+  },
+  {
+    icon: "briefcase-outline" as const,
+    titulo: "El abogado nuevo no consigue trabajo",
+    desc: "Graduarse no garantiza clientes. Sin red de contactos ni visibilidad, los abogados que inician pasan meses sin casos aunque tengan el conocimiento.",
   },
   {
     icon: "time-outline" as const,
@@ -406,100 +416,305 @@ export default function LandingScreen() {
           </View>
         </View>
 
-        {/* ── COMUNIDAD ── */}
+        {/* ── COMUNIDAD — HERO INTRO ── */}
         <LinearGradient
-          colors={["#0F2640", "#1B3A5C"]}
+          colors={["#0F2640", "#1B3A5C", "#0F3460"]}
           style={[styles.section, styles.sectionDark]}
         >
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Comunidad LexTrack"
-              title={"Consigue clientes.\nExpande tu red."}
-              subtitle="El directorio legal donde clientes encuentran abogados — y abogados construyen su reputación profesional."
+              title={"Tu reputación trabaja\nmientras tú duermes"}
+              subtitle="La única plataforma legal con un algoritmo que conecta clientes con el abogado correcto — automáticamente."
               light
             />
-            <View style={styles.comunidadGrid}>
-              {/* Card izquierda: para abogados */}
-              <View style={styles.comunidadCard}>
-                <View style={[styles.comunidadIconCircle, { backgroundColor: "rgba(212,168,83,0.15)" }]}>
-                  <Ionicons name="megaphone-outline" size={28} color={Colors.accent} />
-                </View>
-                <Text style={styles.comunidadCardTitulo}>Para abogados</Text>
-                <Text style={styles.comunidadCardDesc}>
-                  Publica sobre tus especialidades, comparte casos resueltos (de forma anónima) y deja que los clientes te encuentren antes de que te busquen.
-                </Text>
-                <View style={styles.comunidadItems}>
-                  {[
-                    { icon: "create-outline" as const, texto: "Publica artículos y casos de tu especialidad" },
-                    { icon: "star-outline" as const,   texto: "Construye reputación con likes y respuestas" },
-                    { icon: "eye-outline" as const,    texto: "Publicaciones anónimas cuando lo necesites" },
-                    { icon: "people-outline" as const, texto: "Red de contactos con otros abogados" },
-                  ].map((item, i) => (
-                    <View key={i} style={styles.comunidadItem}>
-                      <Ionicons name={item.icon} size={16} color={Colors.accentLight} />
-                      <Text style={styles.comunidadItemTexto}>{item.texto}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
 
-              {/* Card derecha: para clientes */}
-              <View style={styles.comunidadCard}>
-                <View style={[styles.comunidadIconCircle, { backgroundColor: "rgba(16,185,129,0.15)" }]}>
-                  <Ionicons name="search-outline" size={28} color="#10B981" />
-                </View>
-                <Text style={styles.comunidadCardTitulo}>Para clientes</Text>
-                <Text style={styles.comunidadCardDesc}>
-                  Encuentra el abogado indicado según tu caso. Lee su experiencia, sus publicaciones y contacta directamente desde la plataforma.
-                </Text>
-                <View style={styles.comunidadItems}>
-                  {[
-                    { icon: "filter-outline" as const,        texto: "Filtra por ciudad, especialidad y tipo de caso" },
-                    { icon: "chatbubble-outline" as const,     texto: "Contacta directamente al abogado" },
-                    { icon: "document-text-outline" as const,  texto: "Lee su experiencia antes de contratar" },
-                    { icon: "shield-outline" as const,         texto: "Perfiles verificados de abogados activos" },
-                  ].map((item, i) => (
-                    <View key={i} style={styles.comunidadItem}>
-                      <Ionicons name={item.icon} size={16} color="#34D399" />
-                      <Text style={styles.comunidadItemTexto}>{item.texto}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            </View>
-
-            {/* Mock feed */}
-            <View style={styles.comunidadFeedMock}>
-              <Text style={styles.comunidadFeedLabel}>Vista previa del feed</Text>
+            {/* Stats de comunidad */}
+            <View style={styles.comStatsRow}>
               {[
-                { tipo: "Derecho laboral", urgente: false, titulo: "Despido sin justa causa — caso resuelto con indemnización completa", autor: "Dr. Ramírez · Bogotá", likes: 34, replies: 8 },
-                { tipo: "Derecho de familia", urgente: true, titulo: "Necesito asesoría urgente: custodia compartida con menor en otra ciudad", autor: "Anónimo · Medellín", likes: 12, replies: 5 },
-                { tipo: "Derecho penal", urgente: false, titulo: "Cómo funciona la preclusión y cuándo solicitarla", autor: "Dra. Morales · Cali", likes: 67, replies: 21 },
-              ].map((post, i) => (
-                <View key={i} style={styles.comunidadPostCard}>
-                  <View style={styles.comunidadPostTop}>
-                    <View style={[styles.comunidadPostTipoPill, post.urgente && { backgroundColor: "#FEE2E2" }]}>
-                      {post.urgente && <Ionicons name="flash" size={11} color="#EF4444" />}
-                      <Text style={[styles.comunidadPostTipoText, post.urgente && { color: "#EF4444" }]}>
-                        {post.tipo}
-                      </Text>
-                    </View>
+                { valor: "Algoritmo", label: "de matching inteligente", icon: "git-network-outline" as const },
+                { valor: "Ranking", label: "de reputación por área", icon: "trophy-outline" as const },
+                { valor: "Trabajo", label: "real desde el día 1", icon: "briefcase-outline" as const },
+              ].map((s, i) => (
+                <View key={i} style={styles.comStatCard}>
+                  <View style={styles.comStatIconWrap}>
+                    <Ionicons name={s.icon} size={22} color={Colors.accent} />
                   </View>
-                  <Text style={styles.comunidadPostTitulo}>{post.titulo}</Text>
-                  <View style={styles.comunidadPostBottom}>
-                    <Text style={styles.comunidadPostAutor}>{post.autor}</Text>
-                    <View style={styles.comunidadPostStats}>
-                      <Ionicons name="heart-outline" size={13} color="rgba(255,255,255,0.4)" />
-                      <Text style={styles.comunidadPostStatText}>{post.likes}</Text>
-                      <Ionicons name="chatbubble-outline" size={13} color="rgba(255,255,255,0.4)" />
-                      <Text style={styles.comunidadPostStatText}>{post.replies}</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.comStatValor}>{s.valor}</Text>
+                  <Text style={styles.comStatLabel}>{s.label}</Text>
                 </View>
               ))}
             </View>
           </View>
         </LinearGradient>
+
+        {/* ── COMUNIDAD — ALGORITMO DE MATCHING ── */}
+        <View style={[styles.section, styles.sectionWhite]}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Algoritmo inteligente"
+              title={"El sistema encuentra\nel caso perfecto para ti"}
+              subtitle="Cuando un cliente publica una necesidad legal, nuestro algoritmo evalúa tu perfil, especialidad y actividad — y te sugiere como candidato."
+            />
+
+            {/* Diagrama de matching */}
+            <View style={styles.matchDiagram}>
+              {/* Cliente publica */}
+              <View style={styles.matchSide}>
+                <View style={[styles.matchNodeCard, { borderColor: "#EF4444" }]}>
+                  <View style={[styles.matchNodeIcon, { backgroundColor: "#FEE2E2" }]}>
+                    <Ionicons name="person-circle-outline" size={28} color="#EF4444" />
+                  </View>
+                  <Text style={styles.matchNodeTitle}>Cliente publica</Text>
+                  <View style={[styles.matchPostMini, { borderLeftColor: "#EF4444" }]}>
+                    <View style={styles.matchPostMiniPill}>
+                      <Ionicons name="flash" size={10} color="#EF4444" />
+                      <Text style={[styles.matchPostMiniType, { color: "#EF4444" }]}>Urgente · Laboral</Text>
+                    </View>
+                    <Text style={styles.matchPostMiniText}>
+                      "Despido injustificado, necesito asesoría esta semana en Bogotá"
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Flecha con algoritmo */}
+              <View style={styles.matchArrowCol}>
+                <View style={styles.matchAlgoBox}>
+                  <Ionicons name="git-network-outline" size={20} color={Colors.primary} />
+                  <Text style={styles.matchAlgoText}>Algoritmo</Text>
+                </View>
+                <View style={styles.matchArrowLine} />
+                {["Especialidad", "Reputación", "Ciudad", "Actividad"].map((f, i) => (
+                  <View key={i} style={styles.matchFactorPill}>
+                    <Ionicons name="checkmark-circle" size={11} color={Colors.primary} />
+                    <Text style={styles.matchFactorText}>{f}</Text>
+                  </View>
+                ))}
+                <View style={styles.matchArrowLine} />
+              </View>
+
+              {/* Abogados sugeridos */}
+              <View style={styles.matchSide}>
+                <View style={[styles.matchNodeCard, { borderColor: Colors.primary }]}>
+                  <View style={[styles.matchNodeIcon, { backgroundColor: "#DBEAFE" }]}>
+                    <Ionicons name="shield-checkmark-outline" size={28} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.matchNodeTitle}>Top coincidencias</Text>
+                  {[
+                    { nombre: "Dr. Ramírez", score: 98, area: "Laboral · Bogotá" },
+                    { nombre: "Dra. Torres", score: 94, area: "Laboral · Bogotá" },
+                    { nombre: "Dr. Mora",    score: 87, area: "Laboral · Soacha" },
+                  ].map((a, i) => (
+                    <View key={i} style={styles.matchAbogadoRow}>
+                      <View style={[styles.matchRankBadge, i === 0 && { backgroundColor: Colors.accent }]}>
+                        <Text style={styles.matchRankText}>#{i + 1}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.matchAbogadoNombre}>{a.nombre}</Text>
+                        <Text style={styles.matchAbogadoArea}>{a.area}</Text>
+                      </View>
+                      <Text style={[styles.matchScore, i === 0 && { color: Colors.accent }]}>{a.score}%</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            {/* Cómo funciona */}
+            <View style={styles.matchStepsRow}>
+              {[
+                { num: "1", icon: "create-outline" as const, titulo: "Publica o participa", desc: "Responde casos, comparte artículos de tu área. Cada interacción suma a tu perfil." },
+                { num: "2", icon: "analytics-outline" as const, titulo: "El algoritmo te evalúa", desc: "Analiza tu especialidad, historial de respuestas, valoraciones y ubicación en tiempo real." },
+                { num: "3", icon: "mail-outline" as const, titulo: "Recibes el caso", desc: "El cliente te contacta directamente. Tú decides si aceptar o no, sin intermediarios." },
+              ].map((step, i) => (
+                <View key={i} style={styles.matchStepCard}>
+                  <View style={styles.matchStepNumWrap}>
+                    <Text style={styles.matchStepNum}>{step.num}</Text>
+                  </View>
+                  <View style={[styles.matchStepIconWrap, { backgroundColor: "#DBEAFE" }]}>
+                    <Ionicons name={step.icon} size={22} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.matchStepTitulo}>{step.titulo}</Text>
+                  <Text style={styles.matchStepDesc}>{step.desc}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* ── COMUNIDAD — REPUTACIÓN Y RECOMPENSAS ── */}
+        <LinearGradient
+          colors={["#1a1a2e", "#16213e", "#0f3460"]}
+          style={[styles.section, styles.sectionDark]}
+        >
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Sistema de reputación"
+              title={"Tu actividad construye\ntu posición en el ranking"}
+              subtitle="LexTrack premia a los abogados más activos y útiles. Cuanto más aportas a la comunidad, más visible eres para los clientes."
+              light
+            />
+
+            <View style={styles.reputGrid}>
+              {/* Ranking */}
+              <View style={styles.reputCard}>
+                <View style={styles.reputCardHeader}>
+                  <Ionicons name="trophy" size={24} color={Colors.accent} />
+                  <Text style={styles.reputCardTitulo}>Ranking por área</Text>
+                </View>
+                <Text style={styles.reputCardDesc}>
+                  Cada área del derecho tiene su propio ranking. Los abogados más activos y mejor valorados aparecen primero cuando un cliente busca asesoría.
+                </Text>
+                {/* Mock ranking */}
+                <View style={styles.reputRankingMock}>
+                  {[
+                    { pos: 1, nombre: "Dra. Morales", pts: "2.840 pts", crown: true },
+                    { pos: 2, nombre: "Dr. Ramírez",  pts: "2.510 pts", crown: false },
+                    { pos: 3, nombre: "Dr. Castro",   pts: "2.190 pts", crown: false },
+                  ].map((r, i) => (
+                    <View key={i} style={[styles.reputRankRow, i === 0 && styles.reputRankRowTop]}>
+                      {r.crown
+                        ? <Ionicons name="trophy" size={16} color={Colors.accent} />
+                        : <Text style={styles.reputRankPos}>#{r.pos}</Text>
+                      }
+                      <Text style={[styles.reputRankNombre, i === 0 && { color: Colors.accent }]}>{r.nombre}</Text>
+                      <Text style={styles.reputRankPts}>{r.pts}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Cómo ganar puntos */}
+              <View style={styles.reputCard}>
+                <View style={styles.reputCardHeader}>
+                  <Ionicons name="star" size={24} color="#A78BFA" />
+                  <Text style={styles.reputCardTitulo}>Cómo subes de nivel</Text>
+                </View>
+                <Text style={styles.reputCardDesc}>
+                  Cada acción en la comunidad genera puntos que construyen tu reputación visible para clientes y colegas.
+                </Text>
+                <View style={styles.reputPuntosGrid}>
+                  {[
+                    { icon: "create-outline" as const,          color: "#60A5FA", accion: "Publicar artículo",      pts: "+50 pts" },
+                    { icon: "chatbubble-outline" as const,       color: "#34D399", accion: "Responder caso",        pts: "+30 pts" },
+                    { icon: "heart-outline" as const,            color: "#F87171", accion: "Recibir like",          pts: "+5 pts"  },
+                    { icon: "checkmark-done-outline" as const,   color: Colors.accent, accion: "Caso aceptado",    pts: "+100 pts" },
+                    { icon: "star-outline" as const,             color: "#A78BFA", accion: "Valoración 5 estrellas", pts: "+80 pts" },
+                    { icon: "eye-outline" as const,              color: "#FB923C", accion: "Perfil visitado",       pts: "+2 pts"  },
+                  ].map((p, i) => (
+                    <View key={i} style={styles.reputPuntoItem}>
+                      <View style={[styles.reputPuntoIcon, { backgroundColor: p.color + "20" }]}>
+                        <Ionicons name={p.icon} size={15} color={p.color} />
+                      </View>
+                      <Text style={styles.reputPuntoAccion}>{p.accion}</Text>
+                      <Text style={[styles.reputPuntoPts, { color: p.color }]}>{p.pts}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Beneficios de reputación alta */}
+              <View style={[styles.reputCard, styles.reputCardDestacado]}>
+                <View style={styles.reputCardHeader}>
+                  <Ionicons name="rocket-outline" size={24} color={Colors.accent} />
+                  <Text style={[styles.reputCardTitulo, { color: Colors.white }]}>Beneficios de escalar</Text>
+                </View>
+                <Text style={[styles.reputCardDesc, { color: "rgba(255,255,255,0.65)" }]}>
+                  Cuanto más alta tu reputación, más oportunidades recibe tu perfil automáticamente.
+                </Text>
+                <View style={styles.reputBeneficiosList}>
+                  {[
+                    { icon: "eye-outline" as const,            texto: "Mayor visibilidad en búsquedas de clientes" },
+                    { icon: "flash-outline" as const,          texto: "El algoritmo te prioriza en el matching" },
+                    { icon: "ribbon-outline" as const,         texto: "Insignia de 'Abogado destacado' en tu perfil" },
+                    { icon: "mail-unread-outline" as const,    texto: "Clientes te contactan directamente" },
+                    { icon: "trending-up-outline" as const,    texto: "Apareces en el feed de más usuarios" },
+                  ].map((b, i) => (
+                    <View key={i} style={styles.reputBeneficioItem}>
+                      <View style={styles.reputBeneficioIconWrap}>
+                        <Ionicons name={b.icon} size={15} color={Colors.accent} />
+                      </View>
+                      <Text style={styles.reputBeneficioTexto}>{b.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+
+        {/* ── COMUNIDAD — FEED + CTA ── */}
+        <View style={[styles.section, styles.sectionGray]}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Consigue trabajo"
+              title={"Clientes que buscan,\nabogados que responden"}
+              subtitle="El feed de la comunidad es donde los clientes publican sus necesidades legales. Tú respondes, el cliente elige. Así de directo."
+            />
+
+            <View style={styles.comFeedLayout}>
+              {/* Feed mock */}
+              <View style={styles.comFeedCol}>
+                {[
+                  { tipo: "Derecho laboral", urgente: true,  titulo: "Despido sin justa causa — necesito abogado esta semana en Bogotá", autor: "Anónimo · Bogotá",    likes: 0,  replies: 4,  tomado: false },
+                  { tipo: "Derecho de familia", urgente: false, titulo: "¿Cómo funciona la custodia compartida si el padre viaja al exterior?", autor: "Dra. Morales · Cali",   likes: 67, replies: 21, tomado: false },
+                  { tipo: "Derecho penal", urgente: false, titulo: "Proceso de preclusión: criterios y plazos explicados paso a paso", autor: "Dr. Ramírez · Medellín", likes: 34, replies: 8,  tomado: true  },
+                ].map((post, i) => (
+                  <View key={i} style={styles.comFeedCard}>
+                    <View style={styles.comFeedCardTop}>
+                      <View style={[styles.comFeedTypePill, post.urgente && styles.comFeedTypePillUrgente]}>
+                        {post.urgente && <Ionicons name="flash" size={10} color="#EF4444" />}
+                        <Text style={[styles.comFeedTypeText, post.urgente && { color: "#EF4444" }]}>{post.tipo}</Text>
+                      </View>
+                      {post.tomado && (
+                        <View style={styles.comFeedTomadoPill}>
+                          <Ionicons name="checkmark-circle" size={11} color="#10B981" />
+                          <Text style={styles.comFeedTomadoText}>Caso tomado</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.comFeedCardTitulo}>{post.titulo}</Text>
+                    <View style={styles.comFeedCardBottom}>
+                      <Text style={styles.comFeedCardAutor}>{post.autor}</Text>
+                      <View style={styles.comFeedCardStats}>
+                        <Ionicons name="heart-outline" size={13} color={Colors.textTertiary} />
+                        <Text style={styles.comFeedStatText}>{post.likes}</Text>
+                        <Ionicons name="chatbubble-outline" size={13} color={Colors.textTertiary} />
+                        <Text style={styles.comFeedStatText}>{post.replies}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {/* Panel derecho: acciones */}
+              <View style={styles.comActionsCol}>
+                <View style={styles.comActionCard}>
+                  <Ionicons name="hand-right-outline" size={28} color={Colors.primary} style={{ marginBottom: 10 }} />
+                  <Text style={styles.comActionTitle}>"Tomar" un caso</Text>
+                  <Text style={styles.comActionDesc}>
+                    Cuando ves un caso que dominas, lo marcas como tuyo. El cliente recibe tu perfil y decide si contactarte.
+                  </Text>
+                </View>
+                <View style={styles.comActionCard}>
+                  <Ionicons name="megaphone-outline" size={28} color="#8B5CF6" style={{ marginBottom: 10 }} />
+                  <Text style={styles.comActionTitle}>Publica tu expertise</Text>
+                  <Text style={styles.comActionDesc}>
+                    Comparte artículos, explica conceptos legales, responde preguntas. Cada publicación es un anuncio gratuito de tus capacidades.
+                  </Text>
+                </View>
+                <View style={[styles.comActionCard, { backgroundColor: Colors.primary, borderColor: Colors.primary }]}>
+                  <Ionicons name="trending-up-outline" size={28} color={Colors.white} style={{ marginBottom: 10 }} />
+                  <Text style={[styles.comActionTitle, { color: Colors.white }]}>Crece con el tiempo</Text>
+                  <Text style={[styles.comActionDesc, { color: "rgba(255,255,255,0.75)" }]}>
+                    Cada interacción suma a tu reputación. En 3 meses de actividad constante, los abogados duplican las consultas recibidas.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
 
         {/* ── PORTAL CLIENTE ── */}
         <View style={[styles.section, styles.sectionWhite]}>
@@ -1023,10 +1238,12 @@ const styles = StyleSheet.create({
   // ── Problemas ─────────────────────────────────────────────────────────────
   problemasGrid: {
     flexDirection: w("row" as const, "column" as const),
+    flexWrap: w("wrap" as const, "nowrap" as const),
     gap: 12,
   },
   problemaCard: {
-    flex: w(1, undefined),
+    width: w("31%" as any, "100%"),
+    flexGrow: IS_MOBILE_LAYOUT ? 0 : 1,
     backgroundColor: Colors.background,
     borderRadius: 14,
     padding: w(24, 16),
@@ -1727,5 +1944,471 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
+  },
+
+  // ── Comunidad — Stats hero ────────────────────────────────────────────────
+  comStatsRow: {
+    flexDirection: w("row" as const, "column" as const),
+    gap: 16,
+    marginTop: 8,
+  },
+  comStatCard: {
+    flex: w(1, undefined),
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: w(24, 18),
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    gap: 8,
+  },
+  comStatIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: "rgba(212,168,83,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  comStatValor: {
+    fontSize: w(22, 18),
+    fontFamily: "Inter_700Bold",
+    color: Colors.accent,
+    textAlign: "center",
+  },
+  comStatLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
+    lineHeight: 18,
+  },
+
+  // ── Comunidad — Match diagram ─────────────────────────────────────────────
+  matchDiagram: {
+    flexDirection: w("row" as const, "column" as const),
+    alignItems: w("flex-start" as const, "stretch" as const),
+    gap: w(20, 16),
+    marginBottom: 40,
+  },
+  matchSide: {
+    flex: w(1, undefined),
+  },
+  matchArrowCol: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingTop: w(24, 0),
+    minWidth: w(120, undefined),
+  },
+  matchAlgoBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  matchAlgoText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+  },
+  matchArrowLine: {
+    width: 2,
+    height: 16,
+    backgroundColor: "#BFDBFE",
+  },
+  matchFactorPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  matchFactorText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: Colors.primary,
+  },
+  matchNodeCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  matchNodeIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchNodeTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  matchPostMini: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.primary,
+    paddingLeft: 10,
+    gap: 6,
+    backgroundColor: Colors.background,
+    borderRadius: 8,
+    padding: 10,
+  },
+  matchPostMiniPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  matchPostMiniType: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+  },
+  matchPostMiniText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 17,
+    fontStyle: "italic",
+  },
+  matchAbogadoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  matchRankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchRankText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  matchAbogadoNombre: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  matchAbogadoArea: {
+    fontSize: 11,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  matchScore: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: Colors.primary,
+  },
+  matchStepsRow: {
+    flexDirection: w("row" as const, "column" as const),
+    gap: 16,
+  },
+  matchStepCard: {
+    flex: w(1, undefined),
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    padding: w(24, 18),
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  matchStepNumWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchStepNum: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+  },
+  matchStepIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  matchStepTitulo: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  matchStepDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+
+  // ── Comunidad — Reputación ────────────────────────────────────────────────
+  reputGrid: {
+    flexDirection: w("row" as const, "column" as const),
+    gap: 16,
+  },
+  reputCard: {
+    flex: w(1, undefined),
+    backgroundColor: "rgba(255,255,255,0.07)",
+    borderRadius: 16,
+    padding: w(24, 18),
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    gap: 12,
+  },
+  reputCardDestacado: {
+    backgroundColor: "rgba(15,38,64,0.6)",
+    borderColor: Colors.primary,
+    borderWidth: 1.5,
+  },
+  reputCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reputCardTitulo: {
+    fontSize: 17,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.white,
+  },
+  reputCardDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.6)",
+    lineHeight: 20,
+  },
+  reputRankingMock: {
+    gap: 6,
+    marginTop: 4,
+  },
+  reputRankRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  reputRankRowTop: {
+    backgroundColor: "rgba(212,168,83,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(212,168,83,0.3)",
+  },
+  reputRankPos: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "rgba(255,255,255,0.5)",
+    width: 24,
+    textAlign: "center",
+  },
+  reputRankNombre: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.85)",
+  },
+  reputRankPts: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.5)",
+  },
+  reputPuntosGrid: {
+    flexDirection: w("row" as const, "column" as const),
+    flexWrap: w("wrap" as const, "nowrap" as const),
+    gap: 8,
+  },
+  reputPuntoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    width: w("46%" as any, "100%"),
+    flexGrow: IS_MOBILE_LAYOUT ? 0 : 1,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    padding: 10,
+  },
+  reputPuntoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  reputPuntoAccion: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.75)",
+  },
+  reputPuntoPts: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+  },
+  reputBeneficiosList: {
+    gap: 10,
+    marginTop: 4,
+  },
+  reputBeneficioItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reputBeneficioIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "rgba(212,168,83,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  reputBeneficioTexto: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 19,
+  },
+
+  // ── Comunidad — Feed + CTA ────────────────────────────────────────────────
+  comFeedLayout: {
+    flexDirection: w("row" as const, "column" as const),
+    gap: 20,
+    alignItems: w("flex-start" as const, "stretch" as const),
+  },
+  comFeedCol: {
+    flex: w(3, undefined),
+    gap: 12,
+  },
+  comFeedCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  comFeedCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  comFeedTypePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  comFeedTypePillUrgente: {
+    backgroundColor: "#FEE2E2",
+  },
+  comFeedTypeText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: Colors.primary,
+  },
+  comFeedTomadoPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#D1FAE5",
+    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  comFeedTomadoText: {
+    fontSize: 11,
+    fontFamily: "Inter_500Medium",
+    color: "#10B981",
+  },
+  comFeedCardTitulo: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+    lineHeight: 21,
+  },
+  comFeedCardBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  comFeedCardAutor: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+  },
+  comFeedCardStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  comFeedStatText: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textTertiary,
+  },
+  comActionsCol: {
+    flex: w(2, undefined),
+    gap: 12,
+  },
+  comActionCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    padding: w(20, 16),
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  comActionTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    marginBottom: 6,
+  },
+  comActionDesc: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
 });

@@ -85,6 +85,13 @@
       "when": 1772134663137,
       "tag": "0024_create_firm_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1775511600000,
+      "tag": "0069_create_admin_profiles",
+      "breakpoints": true
     }
   ]
 }

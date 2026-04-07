@@ -4,6 +4,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
 import { authenticate, authenticateOptional } from "../auth.js";
+import { requireFeature } from "../middleware/require-feature.js";
 import { communityService } from "../services/community.service.js";
 import { matchingService } from "../services/matching.service.js";
 import { storage } from "../storage/storeage/database-storage.js";
@@ -88,7 +89,7 @@ router.get("/posts/:id", authenticateOptional, async (req: Request, res: Respons
 });
 
 // ── POST /api/posts ────────────────────────────────────────────────────────
-router.post("/posts", authenticate, writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts", authenticate, requireFeature("comunidad"), writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = createPostSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
@@ -97,7 +98,7 @@ router.post("/posts", authenticate, writeLimiter, async (req: Request, res: Resp
 });
 
 // ── PUT /api/posts/:id ─────────────────────────────────────────────────────
-router.put("/posts/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/posts/:id", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = updatePostSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
@@ -106,7 +107,7 @@ router.put("/posts/:id", authenticate, async (req: Request, res: Response, next:
 });
 
 // ── DELETE /api/posts/:id ──────────────────────────────────────────────────
-router.delete("/posts/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.delete("/posts/:id", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     await communityService.deletePost(str(req.params.id), req.user!.id);
     res.json({ ok: true });
@@ -124,7 +125,7 @@ router.get("/posts/:id/comments", async (req: Request, res: Response, next: Next
 });
 
 // ── POST /api/posts/:id/comments ───────────────────────────────────────────
-router.post("/posts/:id/comments", authenticate, writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/comments", authenticate, requireFeature("comunidad"), writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = createCommentSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
@@ -142,7 +143,7 @@ const updateCommentSchema = z.object({
   content: z.string().min(1).max(5_000),
 });
 
-router.put("/comments/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.put("/comments/:id", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = updateCommentSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
@@ -152,7 +153,7 @@ router.put("/comments/:id", authenticate, async (req: Request, res: Response, ne
 });
 
 // ── DELETE /api/comments/:id ───────────────────────────────────────────────
-router.delete("/comments/:id", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.delete("/comments/:id", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     await communityService.deleteComment(str(req.params.id), req.user!.id);
     res.json({ ok: true });
@@ -160,28 +161,28 @@ router.delete("/comments/:id", authenticate, async (req: Request, res: Response,
 });
 
 // ── POST /api/posts/:id/like ───────────────────────────────────────────────
-router.post("/posts/:id/like", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/like", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     res.json(await communityService.toggleLike(str(req.params.id), req.user!.id));
   } catch (e) { next(e); }
 });
 
 // ── POST /api/posts/:id/bookmark ──────────────────────────────────────────
-router.post("/posts/:id/bookmark", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/bookmark", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     res.json(await communityService.toggleBookmark(str(req.params.id), req.user!.id));
   } catch (e) { next(e); }
 });
 
 // ── GET /api/bookmarks ────────────────────────────────────────────────────
-router.get("/bookmarks", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/bookmarks", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     res.json(await communityService.getBookmarks(req.user!.id));
   } catch (e) { next(e); }
 });
 
 // ── POST /api/posts/:id/report ────────────────────────────────────────────
-router.post("/posts/:id/report", authenticate, writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/report", authenticate, requireFeature("comunidad"), writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = reportSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
@@ -191,7 +192,7 @@ router.post("/posts/:id/report", authenticate, writeLimiter, async (req: Request
 });
 
 // ── POST /api/comments/:id/report ────────────────────────────────────────
-router.post("/comments/:id/report", authenticate, writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/comments/:id/report", authenticate, requireFeature("comunidad"), writeLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const parsed = reportSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.errors[0].message });
@@ -201,7 +202,7 @@ router.post("/comments/:id/report", authenticate, writeLimiter, async (req: Requ
 });
 
 // ── POST /api/posts/:id/start-chat ────────────────────────────────────────
-router.post("/posts/:id/start-chat", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/start-chat", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     res.json(await communityService.startChat(str(req.params.id), req.user!.id));
   } catch (e: any) {
@@ -246,7 +247,7 @@ router.get("/community/recommended-lawyers", authenticateOptional, async (req: R
 // ── GET /api/community/lawyer-feed ────────────────────────────────────────
 // Returns personalised case feed for the authenticated lawyer/firm user.
 // Sections: urgent | recommended | recent — ordered by urgency + match score.
-router.get("/community/lawyer-feed", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.get("/community/lawyer-feed", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
 
@@ -268,7 +269,7 @@ router.get("/community/lawyer-feed", authenticate, async (req: Request, res: Res
 
 // ── POST /api/community/posts/:id/seen ────────────────────────────────────
 // Marks a matched post as "seen" in the lawyer's feed.
-router.post("/posts/:id/seen", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/seen", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const lawyerProfile = await storage.abogados.getLawyerByUserId(userId);
@@ -280,7 +281,7 @@ router.post("/posts/:id/seen", authenticate, async (req: Request, res: Response,
 
 // ── POST /api/posts/:id/take ───────────────────────────────────────────────
 // Lawyer claims an open post. Returns updated PostDTO.
-router.post("/posts/:id/take", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/take", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId       = req.user!.id;
     const lawyerProfile = await storage.abogados.getLawyerByUserId(userId);
@@ -300,7 +301,7 @@ router.post("/posts/:id/take", authenticate, async (req: Request, res: Response,
 
 // ── POST /api/posts/:id/accept-take ───────────────────────────────────────
 // Client accepts the lawyer who took their post.
-router.post("/posts/:id/accept-take", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/accept-take", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Lazy expiry check on every interaction
     communityService.runExpiry().catch(() => {});
@@ -316,7 +317,7 @@ router.post("/posts/:id/accept-take", authenticate, async (req: Request, res: Re
 
 // ── POST /api/posts/:id/reject-take ───────────────────────────────────────
 // Client rejects the lawyer — post reopens for other lawyers.
-router.post("/posts/:id/reject-take", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/reject-take", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     communityService.runExpiry().catch(() => {});
     const post = await communityService.rejectTake(str(req.params.id), req.user!.id);
@@ -331,7 +332,7 @@ router.post("/posts/:id/reject-take", authenticate, async (req: Request, res: Re
 
 // ── POST /api/posts/:id/close ──────────────────────────────────────────────
 // Post author marks their case as resolved.
-router.post("/posts/:id/close", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+router.post("/posts/:id/close", authenticate, requireFeature("comunidad"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const post = await communityService.closePost(str(req.params.id), req.user!.id);
     res.json(post);

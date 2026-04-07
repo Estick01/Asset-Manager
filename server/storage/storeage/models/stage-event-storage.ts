@@ -1,5 +1,5 @@
 // server/storage/storeage/models/stage-event-storage.ts
-import { eq, and, asc } from "drizzle-orm";
+import { eq, and, asc, count as drizzleCount } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import {
   etapaEventos,
@@ -53,17 +53,32 @@ export class StageEventStorage {
   async getByStage(
     procesoId: string,
     legalStageCode: string,
-  ): Promise<StageEventResponseDTO[]> {
-    const rows = await this.db
-      .select()
-      .from(etapaEventos)
-      .where(
-        and(
-          eq(etapaEventos.procesoId, procesoId),
-          eq(etapaEventos.legalStageCode, legalStageCode),
-        ),
-      )
-      .orderBy(asc(etapaEventos.createdAt));   // chronological per spec
-    return rows.map(toDTO);
+    limit = 50,
+    offset = 0,
+  ): Promise<{ data: StageEventResponseDTO[]; total: number }> {
+    const where = and(
+      eq(etapaEventos.procesoId, procesoId),
+      eq(etapaEventos.legalStageCode, legalStageCode),
+    );
+    const [rows, [{ total }]] = await Promise.all([
+      this.db.select().from(etapaEventos).where(where)
+        .orderBy(asc(etapaEventos.createdAt)).limit(limit).offset(offset),
+      this.db.select({ total: drizzleCount() }).from(etapaEventos).where(where),
+    ]);
+    return { data: rows.map(toDTO), total: Number(total) };
+  }
+
+  async getByProceso(
+    procesoId: string,
+    limit = 50,
+    offset = 0,
+  ): Promise<{ data: StageEventResponseDTO[]; total: number }> {
+    const where = eq(etapaEventos.procesoId, procesoId);
+    const [rows, [{ total }]] = await Promise.all([
+      this.db.select().from(etapaEventos).where(where)
+        .orderBy(asc(etapaEventos.createdAt)).limit(limit).offset(offset),
+      this.db.select({ total: drizzleCount() }).from(etapaEventos).where(where),
+    ]);
+    return { data: rows.map(toDTO), total: Number(total) };
   }
 }

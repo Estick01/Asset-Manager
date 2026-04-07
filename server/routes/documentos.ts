@@ -11,6 +11,7 @@ import multer from "multer";
 import { authenticate, requirePermission, extractToken, verifyToken } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
 import { notificacionesService } from "../services/notificacion.service.js";
+import { subscriptionService } from "../services/subscription.service.js";
 import type { JWTPayload } from "@/shared/model.schema.js";
 import { EnumRol } from "@/shared/schema/user.schema.js";
 
@@ -129,7 +130,7 @@ async function assertProcesoDocumentoAccess(
 // GET /api/documentos - Get documents for a process
 router.get("/documentos", authenticate, requirePermission("documentos.ver"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { procesoId } = req.query;
+    const { procesoId, tipoDocumento } = req.query;
     if (!procesoId || typeof procesoId !== "string") {
       return res.status(400).json({ error: "procesoId is required" });
     }
@@ -137,7 +138,13 @@ router.get("/documentos", authenticate, requirePermission("documentos.ver"), asy
     const allowed = await assertProcesoDocumentoAccess(payload, procesoId, res);
     if (!allowed) return;
     const stage = req.query.stage as string | undefined;
-    const documentos = await storage.getDocumentos(procesoId, stage);
+    let documentos = await storage.getDocumentos(procesoId, stage);
+
+    // Filter by tipoDocumento if provided
+    if (tipoDocumento && typeof tipoDocumento === "string") {
+      documentos = documentos.filter(doc => doc.tipoDocumento === tipoDocumento);
+    }
+
     res.json(documentos);
   } catch (err) {
     next(err);
@@ -241,7 +248,7 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const file = req.file; // uploaded file
-      const { procesoId, nombre, tipo, tamano, descripcion, legalStage } = req.body;
+      const { procesoId, nombre, tipo, tipoDocumento, tamano, descripcion, legalStage } = req.body;
 
       if (!file && !nombre) {
         return res.status(400).json({ error: "No se proporcionó archivo" });
@@ -251,6 +258,18 @@ router.post(
 
       // If there's a file, upload to S3
       if (file) {
+        // Verificar límite de storage del plan
+        const uid = (req as any).user?.id;
+        const fileSizeMb = file.size / (1024 * 1024);
+        const storageCheck = await subscriptionService.checkLimit(uid, "storage", fileSizeMb);
+        if (!storageCheck.permitido) {
+          return res.status(402).json({
+            error: "Has alcanzado el límite de almacenamiento de tu plan. Actualiza para continuar.",
+            usado: storageCheck.actual,
+            maximo: storageCheck.maximo,
+          });
+        }
+
         // Cross-validate declared MIME against actual file content (magic bytes).
         // Solo rechaza si detectamos POSITIVAMENTE un tipo diferente al declarado.
         // Si detectedMime === null (buffer vacío o tipo no reconocido), dejamos pasar
@@ -288,6 +307,9 @@ router.post(
         );
 
         url = s3Key;
+
+        // Registrar uso de storage (en MB)
+        await subscriptionService.incrementUsage(uid, "storage", Math.ceil(fileSizeMb * 10) / 10).catch(() => {});
       }
 
       // Prepare data to save in DB
@@ -296,6 +318,7 @@ router.post(
         nombre: nombre || file?.originalname || "Documento sin nombre",
         url,
         tipo: file?.mimetype || tipo,
+        tipoDocumento: tipoDocumento || "PROCESAL",
         tamano: file?.size || tamano,
         descripcion: descripcion || null,
         legalStage: legalStage && legalStage !== "__general__" ? legalStage : null,

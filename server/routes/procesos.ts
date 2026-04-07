@@ -4,6 +4,7 @@
  */
 
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { randomUUID } from "crypto";
 
 import { authenticate, extractToken, requirePermission, verifyToken } from "../auth.js";
 import { storage } from '../storage/storeage/database-storage';
@@ -41,7 +42,7 @@ const router = Router();
  * Retorna ProcesoAccess { proceso, role, permission } si tiene acceso,
  * null si no existe o sin acceso (responde directamente con 4xx).
  */
-async function assertProcesoAccess(
+export async function assertProcesoAccess(
   req: Request,
   res: Response,
   procesoId: string,
@@ -90,7 +91,12 @@ async function assertProcesoAccess(
     }
   }
 
-  // PASO 2 — Sharing activo
+  // PASO 2 — Cliente directo (clienteId en el proceso)
+  if (rol === "cliente" && proceso.clienteId === idProfile) {
+    updateBest("shared", "ver");
+  }
+
+  // PASO 2b — Sharing activo
   if (rol === "bufete" || rol === "corporacion" || rol === "cliente") {
     const sharedWithType = rol as SharedWithType;
     const sharing = await storage.procesoSharing.findActive(procesoId, sharedWithType, idProfile);
@@ -158,6 +164,7 @@ router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (
     if (!idProfile) return res.status(400).json({ error: "idProfile requerido" });
 
     let procesos: any[];
+    let totalCount: number = 0;
 
     switch (rol) {
       case "abogado": {
@@ -174,6 +181,7 @@ router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (
         }
         const allIds = [...new Set([...ownedIds, ...validAssignedIds])];
         procesos = await storage.getProcesosByIds(allIds, filter);
+        totalCount = procesos.length; // Note: This is approximate since getProcesosByIds doesn't return total
         break;
       }
       case "bufete": {
@@ -181,23 +189,26 @@ router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("bufete", idProfile);
         const allIds = [...new Set([...ownedIds, ...sharedIds])];
         procesos = await storage.getProcesosByIds(allIds, filter);
+        totalCount = procesos.length;
         break;
       }
       case "corporacion": {
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("corporacion", idProfile);
         procesos = await storage.getProcesosByIds(sharedIds, filter);
+        totalCount = procesos.length;
         break;
       }
       case "cliente": {
-        const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("cliente", idProfile);
-        procesos = await storage.getProcesosByIds(sharedIds, filter);
+        const result = await storage.getProcesosByClienteId(idProfile, limitNum, offsetNum, filter);
+        procesos = result.data;
+        totalCount = result.total;
         break;
       }
       default:
         return res.status(403).json({ error: "Rol no autorizado" });
     }
 
-    const result = { data: procesos, total: procesos.length };
+    const result = { data: procesos, total: totalCount };
     return res.json(await withTareas(result));
   } catch (err) {
     next(err);
@@ -762,7 +773,30 @@ router.get("/legal-stages", authenticate, async (req: Request, res: Response, ne
     if (procesoId) {
       const proceso = await storage.getProceso(procesoId);
       if (proceso) {
-        currentStage     = proceso.legalStage     ?? null;
+        // Primero intentar obtener la etapa actual del historial
+        try {
+          const ultimosEstados = await storage.procesoEtapaHistorial.getUltimoEstadoPorEtapa(procesoId);
+          // Buscar la etapa más reciente que no esté finalizada
+          const estadosFinales = ['COMPLETADA', 'CANCELADA', 'SUSPENDIDA'];
+          let etapaMasReciente: string | null = null;
+          let fechaMasReciente: Date | null = null;
+
+          for (const [etapa, registro] of Object.entries(ultimosEstados)) {
+            if (!estadosFinales.includes(registro.estado)) {
+              const fechaRegistro = new Date(registro.fecha);
+              if (!fechaMasReciente || fechaRegistro > fechaMasReciente) {
+                fechaMasReciente = fechaRegistro;
+                etapaMasReciente = etapa;
+              }
+            }
+          }
+
+          currentStage = etapaMasReciente ?? proceso.legalStage ?? null;
+        } catch (error) {
+          // Si falla el historial, usar el campo tradicional
+          currentStage = proceso.legalStage ?? null;
+        }
+
         fechaVencimiento = proceso.fechaVencimientoEtapa ?? null;
       }
     }
@@ -868,6 +902,24 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
 
     // Persistir cambio de etapa
     await storage.procesos.updateLegalStage(procesoId, legalStage, fechaVencimiento);
+
+    // Registrar en el historial de etapas
+    try {
+      await storage.procesoEtapaHistorial.createHistorial({
+        id: randomUUID(),
+        procesoId,
+        etapa: legalStage,
+        estado: "INICIADA",
+        fecha: new Date(),
+        observacion: fechaVencimiento
+          ? `Avanzada con fecha de vencimiento: ${fechaVencimiento.toLocaleDateString("es-ES")}`
+          : "Avanzada a nueva etapa",
+        usuarioId: idProfile || null,
+      });
+    } catch (error) {
+      console.error('Error registering etapa historial:', error);
+      // No fallar la operación principal por esto
+    }
 
     // 1. Entrada automática en timeline
     const descripcionAct = fechaVencimiento

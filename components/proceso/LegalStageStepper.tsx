@@ -26,19 +26,32 @@ interface StepProps {
   etapa: EtapaProcesoDTO;
   isLast: boolean;
   blockerCount?: number;
+  ultimoEstado?: string; // Último estado del historial para esta etapa
 }
 
-function Step({ etapa, isLast, blockerCount }: StepProps) {
-  const isDone    = etapa.completada;
-  const isCurrent = etapa.esActual;
+function Step({ etapa, isLast, blockerCount, ultimoEstado }: StepProps) {
+  // Determinar estado basado en el historial
+  const estadosExitosos = ['COMPLETADA'];
+  const estadosFallidos = ['NO_ADMITIDA', 'FALLIDA', 'CANCELADA', 'SUSPENDIDA'];
+  const estadosEnCurso = ['INICIADA', 'EN_PROCESO', 'REINTENTO', 'APLAZADA', 'SUBSANADA'];
+
+  const isDone = ultimoEstado ? estadosExitosos.includes(ultimoEstado) : etapa.completada;
+  const isError = ultimoEstado ? estadosFallidos.includes(ultimoEstado) : false;
+  const isCurrent = ultimoEstado
+    ? estadosEnCurso.includes(ultimoEstado)
+    : etapa.esActual;
 
   const circleStyle = isDone
     ? styles.circleDone
+    : isError
+    ? styles.circleError
     : isCurrent
     ? styles.circleCurrent
     : styles.circleFuture;
 
-  const labelStyle = isCurrent
+  const labelStyle = isError
+    ? styles.labelError
+    : isCurrent
     ? styles.labelCurrent
     : isDone
     ? styles.labelDone
@@ -116,22 +129,38 @@ interface Props {
   canAdvance?: boolean;
   /** Abre el detalle de la etapa al presionar */
   onStagePress?: (etapa: EtapaProcesoDTO) => void;
+  /** Último estado de cada etapa del historial */
+  ultimosEstadosPorEtapa?: Record<string, string>;
+  /** Muestra botón de historial si se pasa el handler */
+  onShowHistorial?: () => void;
 }
 
-export function LegalStageStepper({ data, onAdvance, canAdvance = false, onStagePress }: Props) {
+export function LegalStageStepper({ data, onAdvance, canAdvance = false, onStagePress, ultimosEstadosPorEtapa, onShowHistorial }: Props) {
   const { etapas, etapaActual, siguienteEtapa } = data;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Etapa procesal</Text>
-        {etapaActual && (
-          <View style={[styles.currentBadge, { backgroundColor: (etapaActual as any).color + "22" }]}>
-            <Text style={[styles.currentBadgeText, { color: (etapaActual as any).color || Colors.primary }]}>
-              {etapaActual.nombre}
-            </Text>
-          </View>
-        )}
+        <View style={styles.headerActions}>
+          {onShowHistorial && (
+            <Pressable
+              style={styles.historialBtn}
+              onPress={onShowHistorial}
+              hitSlop={8}
+            >
+              <Ionicons name="time-outline" size={16} color={Colors.primary} />
+              <Text style={styles.historialBtnText}>Historial</Text>
+            </Pressable>
+          )}
+          {etapaActual && (
+            <View style={[styles.currentBadge, { backgroundColor: (etapaActual as any).color + "22" }]}>
+              <Text style={[styles.currentBadgeText, { color: (etapaActual as any).color || Colors.primary }]}>
+                {etapaActual.nombre}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       {/* Stepper horizontal scrollable */}
@@ -142,7 +171,11 @@ export function LegalStageStepper({ data, onAdvance, canAdvance = false, onStage
       >
         {etapas.map((etapa, idx) => (
           <Pressable key={etapa.codigo} onPress={() => onStagePress?.(etapa)}>
-            <Step etapa={etapa} isLast={idx === etapas.length - 1} />
+            <Step
+              etapa={etapa}
+              isLast={idx === etapas.length - 1}
+              ultimoEstado={ultimosEstadosPorEtapa?.[etapa.codigo]}
+            />
           </Pressable>
         ))}
       </ScrollView>
@@ -189,10 +222,29 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   title: {
     fontSize: 14,
     fontWeight: "600",
     color: Colors.text,
+  },
+  historialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + "15",
+  },
+  historialBtnText: {
+    fontSize: 12,
+    color: Colors.primary,
+    fontWeight: "500",
   },
   currentBadge: {
     paddingHorizontal: 10,
@@ -246,6 +298,9 @@ const styles = StyleSheet.create({
   circleDone: {
     backgroundColor: Colors.success,
   },
+  circleError: {
+    backgroundColor: Colors.danger,
+  },
   circleCurrent: {
     backgroundColor: Colors.primary,
     shadowColor: Colors.primary,
@@ -275,6 +330,10 @@ const styles = StyleSheet.create({
   },
   labelDone: {
     color: Colors.textSecondary,
+  },
+  labelError: {
+    color: Colors.danger,
+    fontWeight: "600",
   },
   labelCurrent: {
     color: Colors.primary,

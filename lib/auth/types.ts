@@ -3,11 +3,11 @@
 
 
 import { UserWithRol } from '@/shared/schema/user.schema';
-import {  type Cliente, type Rol, type User, type LawyerProfile  ,type FirmProfile} from '../../shared/schema';
+import {  type AdminProfile, type Cliente, type Rol, type User, type LawyerProfile  ,type FirmProfile} from '../../shared/schema';
 
 // --- Unified User Types ---
 
-export type Profile = Cliente | LawyerProfile | FirmProfile
+export type Profile = Cliente | LawyerProfile | FirmProfile | AdminProfile
 
 export interface UnifiedUser {
   user: UserWithRol;
