@@ -42,8 +42,8 @@ var init_user_schema = __esm({
       passwordHash: varchar2("password_hash", { length: 255 }).notNull(),
       name: varchar2("name", { length: 100 }),
       rolId: int2("rol_id"),
-      planId: varchar2("plan_id", { length: 36 }),
       isActive: boolean2("is_active").notNull().default(true),
+      emailVerified: boolean2("email_verified").notNull().default(false),
       createdAt: timestamp2("created_at").notNull().default(/* @__PURE__ */ new Date()),
       updatedAt: timestamp2("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
     });
@@ -63,33 +63,72 @@ var init_user_schema = __esm({
   }
 });
 
+// shared/schema/admin-profile.schema.ts
+import { relations as relations2 } from "drizzle-orm";
+import { mysqlTable as mysqlTable3, timestamp as timestamp3, varchar as varchar3 } from "drizzle-orm/mysql-core";
+var adminProfiles, adminProfilesRelations;
+var init_admin_profile_schema = __esm({
+  "shared/schema/admin-profile.schema.ts"() {
+    "use strict";
+    init_user_schema();
+    adminProfiles = mysqlTable3("admin_profiles", {
+      id: varchar3("id", { length: 36 }).primaryKey(),
+      userId: varchar3("user_id", { length: 36 }).notNull().unique(),
+      displayName: varchar3("display_name", { length: 120 }).notNull(),
+      adminType: varchar3("admin_type", { length: 50 }).notNull(),
+      createdAt: timestamp3("created_at").notNull().default(/* @__PURE__ */ new Date()),
+      updatedAt: timestamp3("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
+    });
+    adminProfilesRelations = relations2(adminProfiles, ({ one }) => ({
+      user: one(users, {
+        fields: [adminProfiles.userId],
+        references: [users.id]
+      })
+    }));
+  }
+});
+
 // shared/schema/plane.schema.ts
-import { mysqlTable as mysqlTable3, varchar as varchar3, text as text3, boolean as boolean3, decimal } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable4, varchar as varchar4, int as int3, decimal, boolean as boolean3, mysqlEnum } from "drizzle-orm/mysql-core";
 var planes;
 var init_plane_schema = __esm({
   "shared/schema/plane.schema.ts"() {
     "use strict";
-    planes = mysqlTable3("planes", {
-      id: varchar3("id", { length: 36 }).primaryKey(),
-      nombre: varchar3("nombre", { length: 50 }).notNull(),
-      precio: decimal("precio", { precision: 10, scale: 2 }).notNull(),
-      caracteristicas: text3("caracteristicas").notNull(),
+    planes = mysqlTable4("planes", {
+      id: varchar4("id", { length: 36 }).primaryKey(),
+      nombre: varchar4("nombre", { length: 50 }).notNull(),
+      tipo: mysqlEnum("tipo", ["abogado", "bufete"]).notNull(),
+      // Precios
+      precioMensualCop: decimal("precio_mensual_cop", { precision: 12, scale: 2 }).notNull(),
+      precioAnualCop: decimal("precio_anual_cop", { precision: 12, scale: 2 }).notNull(),
+      precioMensualUsd: decimal("precio_mensual_usd", { precision: 10, scale: 2 }).notNull(),
+      precioAnualUsd: decimal("precio_anual_usd", { precision: 10, scale: 2 }).notNull(),
+      // Límites de recursos (-1 = ilimitado)
+      maxProcesos: int3("max_procesos").notNull().default(5),
+      maxClientes: int3("max_clientes").notNull().default(10),
+      maxStorageGb: int3("max_storage_gb").notNull().default(0),
+      // Límites de usuarios (solo bufete; abogado siempre 1)
+      includedUsers: int3("included_users").notNull().default(1),
+      maxUsers: int3("max_users").notNull().default(1),
+      // -1 = ilimitado
+      precioUsuarioExtraCop: decimal("precio_usuario_extra_cop", { precision: 10, scale: 2 }),
+      precioUsuarioExtraUsd: decimal("precio_usuario_extra_usd", { precision: 10, scale: 2 }),
       state: boolean3("state").notNull().default(true)
     });
   }
 });
 
 // shared/schema/tipos-documento.schema.ts
-import { mysqlTable as mysqlTable4, varchar as varchar4, boolean as boolean4, int as int3 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable5, varchar as varchar5, boolean as boolean4, int as int4 } from "drizzle-orm/mysql-core";
 var tiposDocumento;
 var init_tipos_documento_schema = __esm({
   "shared/schema/tipos-documento.schema.ts"() {
     "use strict";
-    tiposDocumento = mysqlTable4("tipos_documento", {
-      id: int3("id").autoincrement().primaryKey(),
-      nombre: varchar4("nombre", { length: 50 }).notNull(),
+    tiposDocumento = mysqlTable5("tipos_documento", {
+      id: int4("id").autoincrement().primaryKey(),
+      nombre: varchar5("nombre", { length: 50 }).notNull(),
       // "Cédula", "Pasaporte", "NIT", etc.
-      codigo: varchar4("codigo", { length: 20 }).notNull().unique(),
+      codigo: varchar5("codigo", { length: 20 }).notNull().unique(),
       // "CC", "CE", "NIT", etc.
       state: boolean4("state").notNull().default(true)
     });
@@ -97,33 +136,33 @@ var init_tipos_documento_schema = __esm({
 });
 
 // shared/schema/ubicacion.schema.ts
-import { mysqlTable as mysqlTable5, varchar as varchar5, tinyint, timestamp as timestamp3 } from "drizzle-orm/mysql-core";
-import { relations as relations2 } from "drizzle-orm";
+import { mysqlTable as mysqlTable6, varchar as varchar6, tinyint, timestamp as timestamp4 } from "drizzle-orm/mysql-core";
+import { relations as relations3 } from "drizzle-orm";
 var departamentos, departamentosRelations, municipios, municipiosRelations;
 var init_ubicacion_schema = __esm({
   "shared/schema/ubicacion.schema.ts"() {
     "use strict";
-    departamentos = mysqlTable5("departamentos", {
-      id: varchar5("id", { length: 36 }).primaryKey(),
-      codigo: varchar5("codigo", { length: 10 }).notNull().unique(),
-      nombre: varchar5("nombre", { length: 100 }).notNull(),
+    departamentos = mysqlTable6("departamentos", {
+      id: varchar6("id", { length: 36 }).primaryKey(),
+      codigo: varchar6("codigo", { length: 10 }).notNull().unique(),
+      nombre: varchar6("nombre", { length: 100 }).notNull(),
       state: tinyint("state").notNull().default(1),
-      createdAt: timestamp3("created_at").notNull().defaultNow(),
-      updatedAt: timestamp3("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp4("created_at").notNull().defaultNow(),
+      updatedAt: timestamp4("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    departamentosRelations = relations2(departamentos, ({ many }) => ({
+    departamentosRelations = relations3(departamentos, ({ many }) => ({
       municipios: many(municipios)
     }));
-    municipios = mysqlTable5("municipios", {
-      id: varchar5("id", { length: 36 }).primaryKey(),
-      departamentoId: varchar5("departamento_id", { length: 36 }).notNull(),
-      codigo: varchar5("codigo", { length: 10 }).notNull(),
-      nombre: varchar5("nombre", { length: 100 }).notNull(),
+    municipios = mysqlTable6("municipios", {
+      id: varchar6("id", { length: 36 }).primaryKey(),
+      departamentoId: varchar6("departamento_id", { length: 36 }).notNull(),
+      codigo: varchar6("codigo", { length: 10 }).notNull(),
+      nombre: varchar6("nombre", { length: 100 }).notNull(),
       state: tinyint("state").notNull().default(1),
-      createdAt: timestamp3("created_at").notNull().defaultNow(),
-      updatedAt: timestamp3("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp4("created_at").notNull().defaultNow(),
+      updatedAt: timestamp4("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    municipiosRelations = relations2(municipios, ({ one }) => ({
+    municipiosRelations = relations3(municipios, ({ one }) => ({
       departamento: one(departamentos, {
         fields: [municipios.departamentoId],
         references: [departamentos.id]
@@ -133,26 +172,28 @@ var init_ubicacion_schema = __esm({
 });
 
 // shared/schema/persona.schema.ts
-import { relations as relations3 } from "drizzle-orm";
-import { mysqlTable as mysqlTable6, varchar as varchar6, text as text4, int as int4 } from "drizzle-orm/mysql-core";
+import { relations as relations4 } from "drizzle-orm";
+import { mysqlTable as mysqlTable7, varchar as varchar7, text as text3, int as int5, uniqueIndex } from "drizzle-orm/mysql-core";
 var personas, personasRelations;
 var init_persona_schema = __esm({
   "shared/schema/persona.schema.ts"() {
     "use strict";
     init_tipos_documento_schema();
     init_ubicacion_schema();
-    personas = mysqlTable6("personas", {
-      id: varchar6("id", { length: 36 }).primaryKey(),
-      nombre: varchar6("nombre", { length: 100 }).notNull(),
-      apellido: varchar6("apellido", { length: 100 }).notNull(),
-      telefono: varchar6("telefono", { length: 50 }).notNull(),
-      documento: varchar6("documento", { length: 50 }).notNull(),
-      tipoDocumentoId: int4("tipo_documento_id").notNull(),
-      direccion: text4("direccion"),
-      departamentoId: varchar6("departamento_id", { length: 36 }),
-      municipioId: varchar6("municipio_id", { length: 36 })
-    });
-    personasRelations = relations3(personas, ({ one }) => ({
+    personas = mysqlTable7("personas", {
+      id: varchar7("id", { length: 36 }).primaryKey(),
+      nombre: varchar7("nombre", { length: 100 }).notNull(),
+      apellido: varchar7("apellido", { length: 100 }).notNull(),
+      telefono: varchar7("telefono", { length: 50 }).notNull(),
+      documento: varchar7("documento", { length: 50 }).notNull(),
+      tipoDocumentoId: int5("tipo_documento_id").notNull(),
+      direccion: text3("direccion"),
+      departamentoId: varchar7("departamento_id", { length: 36 }),
+      municipioId: varchar7("municipio_id", { length: 36 })
+    }, (table) => ({
+      documentoUnique: uniqueIndex("personas_documento_unique").on(table.documento)
+    }));
+    personasRelations = relations4(personas, ({ one }) => ({
       tipoDocumento: one(tiposDocumento, {
         fields: [personas.tipoDocumentoId],
         references: [tiposDocumento.id]
@@ -170,20 +211,20 @@ var init_persona_schema = __esm({
 });
 
 // shared/schema/representante-legal.schema.ts
-import { relations as relations4 } from "drizzle-orm";
-import { mysqlTable as mysqlTable7, varchar as varchar7 } from "drizzle-orm/mysql-core";
+import { relations as relations5 } from "drizzle-orm";
+import { mysqlTable as mysqlTable8, varchar as varchar8 } from "drizzle-orm/mysql-core";
 var representantesLegales, representantesLegalesRelations;
 var init_representante_legal_schema = __esm({
   "shared/schema/representante-legal.schema.ts"() {
     "use strict";
     init_persona_schema();
-    representantesLegales = mysqlTable7("representantes_legales", {
-      id: varchar7("id", { length: 36 }).primaryKey(),
-      personaId: varchar7("persona_id", { length: 36 }).notNull(),
-      cargo: varchar7("cargo", { length: 100 }).notNull(),
-      email: varchar7("email", { length: 255 }).notNull()
+    representantesLegales = mysqlTable8("representantes_legales", {
+      id: varchar8("id", { length: 36 }).primaryKey(),
+      personaId: varchar8("persona_id", { length: 36 }).notNull(),
+      cargo: varchar8("cargo", { length: 100 }).notNull(),
+      email: varchar8("email", { length: 255 }).notNull()
     });
-    representantesLegalesRelations = relations4(representantesLegales, ({ one }) => ({
+    representantesLegalesRelations = relations5(representantesLegales, ({ one }) => ({
       persona: one(personas, {
         fields: [representantesLegales.personaId],
         references: [personas.id]
@@ -193,35 +234,31 @@ var init_representante_legal_schema = __esm({
 });
 
 // shared/schema/firm-profile.schema.ts
-import { relations as relations5 } from "drizzle-orm";
-import { mysqlTable as mysqlTable8, text as text5, varchar as varchar8, timestamp as timestamp4 } from "drizzle-orm/mysql-core";
+import { relations as relations6 } from "drizzle-orm";
+import { mysqlTable as mysqlTable9, text as text4, varchar as varchar9, timestamp as timestamp5, uniqueIndex as uniqueIndex2 } from "drizzle-orm/mysql-core";
 var firmProfiles, firmProfilesRelations;
 var init_firm_profile_schema = __esm({
   "shared/schema/firm-profile.schema.ts"() {
     "use strict";
     init_user_schema();
-    init_plane_schema();
     init_representante_legal_schema();
-    firmProfiles = mysqlTable8("firm_profiles", {
-      id: varchar8("id", { length: 36 }).primaryKey(),
-      userId: varchar8("user_id", { length: 36 }).notNull().unique(),
-      name: varchar8("name", { length: 255 }).notNull(),
-      nit: varchar8("nit", { length: 50 }).notNull(),
-      address: text5("address"),
-      phone: varchar8("phone", { length: 50 }),
-      planId: varchar8("plan_id", { length: 36 }).notNull(),
-      representanteLegalId: varchar8("representante_legal_id", { length: 36 }),
-      createdAt: timestamp4("created_at").notNull().default(/* @__PURE__ */ new Date()),
-      updatedAt: timestamp4("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
-    });
-    firmProfilesRelations = relations5(firmProfiles, ({ one }) => ({
+    firmProfiles = mysqlTable9("firm_profiles", {
+      id: varchar9("id", { length: 36 }).primaryKey(),
+      userId: varchar9("user_id", { length: 36 }).notNull().unique(),
+      name: varchar9("name", { length: 255 }).notNull(),
+      nit: varchar9("nit", { length: 50 }).notNull(),
+      address: text4("address"),
+      phone: varchar9("phone", { length: 50 }),
+      representanteLegalId: varchar9("representante_legal_id", { length: 36 }),
+      createdAt: timestamp5("created_at").notNull().default(/* @__PURE__ */ new Date()),
+      updatedAt: timestamp5("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
+    }, (table) => ({
+      nitUnique: uniqueIndex2("firm_profiles_nit_unique").on(table.nit)
+    }));
+    firmProfilesRelations = relations6(firmProfiles, ({ one }) => ({
       user: one(users, {
         fields: [firmProfiles.userId],
         references: [users.id]
-      }),
-      plan: one(planes, {
-        fields: [firmProfiles.planId],
-        references: [planes.id]
       }),
       representanteLegal: one(representantesLegales, {
         fields: [firmProfiles.representanteLegalId],
@@ -236,56 +273,56 @@ var tipo_proceso_schema_exports = {};
 __export(tipo_proceso_schema_exports, {
   tiposProceso: () => tiposProceso
 });
-import { mysqlTable as mysqlTable9, varchar as varchar9, text as text6, boolean as boolean5, timestamp as timestamp5, int as int5 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable10, varchar as varchar10, text as text5, boolean as boolean5, timestamp as timestamp6, int as int6 } from "drizzle-orm/mysql-core";
 var tiposProceso;
 var init_tipo_proceso_schema = __esm({
   "shared/schema/tipo-proceso.schema.ts"() {
     "use strict";
-    tiposProceso = mysqlTable9("tipos_proceso", {
-      id: int5("id").autoincrement().primaryKey(),
-      nombre: varchar9("nombre", { length: 100 }).notNull(),
-      descripcion: text6("descripcion"),
-      activo: boolean5("activo").notNull().default(true),
-      createdAt: timestamp5("created_at").notNull().default(/* @__PURE__ */ new Date()),
-      updatedAt: timestamp5("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
-    });
-  }
-});
-
-// shared/schema/estado-proceso.schema.ts
-import { mysqlTable as mysqlTable10, varchar as varchar10, boolean as boolean6, timestamp as timestamp6, int as int6 } from "drizzle-orm/mysql-core";
-var estadosProceso;
-var init_estado_proceso_schema = __esm({
-  "shared/schema/estado-proceso.schema.ts"() {
-    "use strict";
-    estadosProceso = mysqlTable10("estados_proceso", {
+    tiposProceso = mysqlTable10("tipos_proceso", {
       id: int6("id").autoincrement().primaryKey(),
-      nombre: varchar10("nombre", { length: 50 }).notNull(),
-      codigo: varchar10("codigo", { length: 50 }).notNull().unique(),
-      color: varchar10("color", { length: 20 }).notNull(),
-      // ejemplo: #FF0000
-      state: boolean6("state").notNull().default(true),
-      // activo / inactivo
+      nombre: varchar10("nombre", { length: 100 }).notNull(),
+      descripcion: text5("descripcion"),
+      activo: boolean5("activo").notNull().default(true),
       createdAt: timestamp6("created_at").notNull().default(/* @__PURE__ */ new Date()),
       updatedAt: timestamp6("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
     });
   }
 });
 
+// shared/schema/estado-proceso.schema.ts
+import { mysqlTable as mysqlTable11, varchar as varchar11, boolean as boolean6, timestamp as timestamp7, int as int7 } from "drizzle-orm/mysql-core";
+var estadosProceso;
+var init_estado_proceso_schema = __esm({
+  "shared/schema/estado-proceso.schema.ts"() {
+    "use strict";
+    estadosProceso = mysqlTable11("estados_proceso", {
+      id: int7("id").autoincrement().primaryKey(),
+      nombre: varchar11("nombre", { length: 50 }).notNull(),
+      codigo: varchar11("codigo", { length: 50 }).notNull().unique(),
+      color: varchar11("color", { length: 20 }).notNull(),
+      // ejemplo: #FF0000
+      state: boolean6("state").notNull().default(true),
+      // activo / inactivo
+      createdAt: timestamp7("created_at").notNull().default(/* @__PURE__ */ new Date()),
+      updatedAt: timestamp7("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
+    });
+  }
+});
+
 // shared/schema/tipo-asignacion.schema.ts
-import { mysqlTable as mysqlTable11, varchar as varchar11, text as text7, boolean as boolean7, timestamp as timestamp7, int as int7 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable12, varchar as varchar12, text as text6, boolean as boolean7, timestamp as timestamp8, int as int8 } from "drizzle-orm/mysql-core";
 var tipoAsignacion, TIPO_ASIGNACION_IDS;
 var init_tipo_asignacion_schema = __esm({
   "shared/schema/tipo-asignacion.schema.ts"() {
     "use strict";
-    tipoAsignacion = mysqlTable11("tipo_asignacion", {
-      id: int7("id").autoincrement().primaryKey(),
-      nombre: varchar11("nombre", { length: 100 }).notNull(),
-      descripcion: text7("descripcion"),
-      color: varchar11("color", { length: 7 }),
+    tipoAsignacion = mysqlTable12("tipo_asignacion", {
+      id: int8("id").autoincrement().primaryKey(),
+      nombre: varchar12("nombre", { length: 100 }).notNull(),
+      descripcion: text6("descripcion"),
+      color: varchar12("color", { length: 7 }),
       // Hex color for UI
       activo: boolean7("activo").notNull().default(true),
-      fechaCreacion: timestamp7("fecha_creacion").notNull().default(/* @__PURE__ */ new Date())
+      fechaCreacion: timestamp8("fecha_creacion").notNull().default(/* @__PURE__ */ new Date())
     });
     TIPO_ASIGNACION_IDS = {
       NUEVA_ASIGNACION: 1,
@@ -304,8 +341,8 @@ var init_tipo_asignacion_schema = __esm({
 });
 
 // shared/schema/proceso-lawyer.schema.ts
-import { relations as relations6 } from "drizzle-orm";
-import { mysqlTable as mysqlTable12, varchar as varchar12, timestamp as timestamp8, int as int8 } from "drizzle-orm/mysql-core";
+import { relations as relations7 } from "drizzle-orm";
+import { mysqlTable as mysqlTable13, varchar as varchar13, timestamp as timestamp9, int as int9 } from "drizzle-orm/mysql-core";
 var procesoLawyers, procesoLawyersRelations;
 var init_proceso_lawyer_schema = __esm({
   "shared/schema/proceso-lawyer.schema.ts"() {
@@ -314,25 +351,25 @@ var init_proceso_lawyer_schema = __esm({
     init_lawyer_profile_schema();
     init_user_schema();
     init_tipo_asignacion_schema();
-    procesoLawyers = mysqlTable12("proceso_lawyers", {
-      id: varchar12("id", { length: 36 }).primaryKey(),
-      procesoId: varchar12("proceso_id", { length: 36 }).notNull(),
-      lawyerId: varchar12("lawyer_id", { length: 36 }).notNull(),
-      tipoAsignacionId: int8("tipo_asignacion_id"),
+    procesoLawyers = mysqlTable13("proceso_lawyers", {
+      id: varchar13("id", { length: 36 }).primaryKey(),
+      procesoId: varchar13("proceso_id", { length: 36 }).notNull(),
+      lawyerId: varchar13("lawyer_id", { length: 36 }).notNull(),
+      tipoAsignacionId: int9("tipo_asignacion_id"),
       // FK to tipo_asignacion
-      rol: varchar12("rol", { length: 20 }).notNull().default("asistente"),
+      rol: varchar13("rol", { length: 20 }).notNull().default("asistente"),
       // "principal" | "asistente"
-      razonAsignacion: varchar12("razon_asignacion", { length: 500 }),
+      razonAsignacion: varchar13("razon_asignacion", { length: 500 }),
       // Razón de la asignación
-      fechaAsignacion: timestamp8("fecha_asignacion").notNull().default(/* @__PURE__ */ new Date()),
-      fechaFin: timestamp8("fecha_fin"),
+      fechaAsignacion: timestamp9("fecha_asignacion").notNull().default(/* @__PURE__ */ new Date()),
+      fechaFin: timestamp9("fecha_fin"),
       // Fecha fin de la asignación (nullable)
-      asignadoPor: varchar12("asignado_por", { length: 36 }),
+      asignadoPor: varchar13("asignado_por", { length: 36 }),
       // FK to users - who assigned this lawyer to the proceso
-      status: varchar12("status", { length: 20 }).notNull().default("activo")
+      status: varchar13("status", { length: 20 }).notNull().default("activo")
       // "activo" | "inactivo"
     });
-    procesoLawyersRelations = relations6(procesoLawyers, ({ one }) => ({
+    procesoLawyersRelations = relations7(procesoLawyers, ({ one }) => ({
       proceso: one(procesos, {
         fields: [procesoLawyers.procesoId],
         references: [procesos.id]
@@ -354,8 +391,8 @@ var init_proceso_lawyer_schema = __esm({
 });
 
 // shared/schema/proceso.schema.ts
-import { relations as relations7 } from "drizzle-orm";
-import { mysqlTable as mysqlTable13, text as text8, varchar as varchar13, boolean as boolean8, timestamp as timestamp9, int as int9, datetime } from "drizzle-orm/mysql-core";
+import { relations as relations8 } from "drizzle-orm";
+import { mysqlTable as mysqlTable14, text as text7, varchar as varchar14, boolean as boolean8, timestamp as timestamp10, int as int10, datetime } from "drizzle-orm/mysql-core";
 var procesos, procesosRelations;
 var init_proceso_schema = __esm({
   "shared/schema/proceso.schema.ts"() {
@@ -364,29 +401,29 @@ var init_proceso_schema = __esm({
     init_tipo_proceso_schema();
     init_estado_proceso_schema();
     init_proceso_lawyer_schema();
-    procesos = mysqlTable13("procesos", {
-      id: varchar13("id", { length: 36 }).primaryKey(),
-      clienteId: varchar13("cliente_id", { length: 36 }).notNull(),
-      tipoProcesoId: int9("tipo_proceso_id"),
+    procesos = mysqlTable14("procesos", {
+      id: varchar14("id", { length: 36 }).primaryKey(),
+      clienteId: varchar14("cliente_id", { length: 36 }).notNull(),
+      tipoProcesoId: int10("tipo_proceso_id"),
       // FK to tiposProceso
-      radicado: text8("radicado").notNull(),
-      juzgado: text8("juzgado").notNull(),
-      estadoId: int9("estado_id").notNull(),
-      descripcionEstado: text8("descripcion_estado").notNull(),
-      legalStage: varchar13("legal_stage", { length: 50 }),
+      radicado: text7("radicado").notNull(),
+      juzgado: text7("juzgado").notNull(),
+      estadoId: int10("estado_id").notNull(),
+      descripcionEstado: text7("descripcion_estado").notNull(),
+      legalStage: varchar14("legal_stage", { length: 50 }),
       // etapa jurídica actual
       fechaVencimientoEtapa: datetime("fecha_vencimiento_etapa"),
       // deadline de la etapa
-      etapaActualizadaEn: timestamp9("etapa_actualizada_en"),
+      etapaActualizadaEn: timestamp10("etapa_actualizada_en"),
       // cuándo cambió de etapa
-      fechaCreacion: timestamp9("fecha_creacion").notNull().default(/* @__PURE__ */ new Date()),
+      fechaCreacion: timestamp10("fecha_creacion").notNull().default(/* @__PURE__ */ new Date()),
       state: boolean8("state").notNull().default(true),
-      communityPostId: varchar13("community_post_id", { length: 36 }),
+      communityPostId: varchar14("community_post_id", { length: 36 }),
       // FK to posts (origen comunidad)
       esPrivado: boolean8("es_privado").notNull().default(false),
-      createdBy: varchar13("created_by", { length: 36 })
+      createdBy: varchar14("created_by", { length: 36 })
     });
-    procesosRelations = relations7(procesos, ({ one, many }) => ({
+    procesosRelations = relations8(procesos, ({ one, many }) => ({
       cliente: one(clientes, {
         fields: [procesos.clienteId],
         references: [clientes.id]
@@ -405,19 +442,19 @@ var init_proceso_schema = __esm({
 });
 
 // shared/schema/cliente-natural.schema.ts
-import { relations as relations8 } from "drizzle-orm";
-import { mysqlTable as mysqlTable14, varchar as varchar14 } from "drizzle-orm/mysql-core";
+import { relations as relations9 } from "drizzle-orm";
+import { mysqlTable as mysqlTable15, varchar as varchar15 } from "drizzle-orm/mysql-core";
 var clientesNatural, clientesNaturalRelations;
 var init_cliente_natural_schema = __esm({
   "shared/schema/cliente-natural.schema.ts"() {
     "use strict";
     init_cliente_schema();
     init_persona_schema();
-    clientesNatural = mysqlTable14("clientes_natural", {
-      clienteId: varchar14("cliente_id", { length: 36 }).primaryKey(),
-      personaId: varchar14("persona_id", { length: 36 }).notNull().unique()
+    clientesNatural = mysqlTable15("clientes_natural", {
+      clienteId: varchar15("cliente_id", { length: 36 }).primaryKey(),
+      personaId: varchar15("persona_id", { length: 36 }).notNull().unique()
     });
-    clientesNaturalRelations = relations8(clientesNatural, ({ one }) => ({
+    clientesNaturalRelations = relations9(clientesNatural, ({ one }) => ({
       cliente: one(clientes, {
         fields: [clientesNatural.clienteId],
         references: [clientes.id]
@@ -431,22 +468,24 @@ var init_cliente_natural_schema = __esm({
 });
 
 // shared/schema/cliente-empresa.schema.ts
-import { relations as relations9 } from "drizzle-orm";
-import { mysqlTable as mysqlTable15, varchar as varchar15 } from "drizzle-orm/mysql-core";
+import { relations as relations10 } from "drizzle-orm";
+import { mysqlTable as mysqlTable16, varchar as varchar16, uniqueIndex as uniqueIndex3 } from "drizzle-orm/mysql-core";
 var clientesEmpresa, clientesEmpresaRelations;
 var init_cliente_empresa_schema = __esm({
   "shared/schema/cliente-empresa.schema.ts"() {
     "use strict";
     init_cliente_schema();
     init_representante_legal_schema();
-    clientesEmpresa = mysqlTable15("clientes_empresa", {
-      clienteId: varchar15("cliente_id", { length: 36 }).primaryKey(),
-      razonSocial: varchar15("razon_social", { length: 255 }).notNull(),
-      nit: varchar15("nit", { length: 50 }).notNull(),
-      sector: varchar15("sector", { length: 100 }),
-      representanteLegalId: varchar15("representante_legal_id", { length: 36 })
-    });
-    clientesEmpresaRelations = relations9(clientesEmpresa, ({ one }) => ({
+    clientesEmpresa = mysqlTable16("clientes_empresa", {
+      clienteId: varchar16("cliente_id", { length: 36 }).primaryKey(),
+      razonSocial: varchar16("razon_social", { length: 255 }).notNull(),
+      nit: varchar16("nit", { length: 50 }).notNull(),
+      sector: varchar16("sector", { length: 100 }),
+      representanteLegalId: varchar16("representante_legal_id", { length: 36 })
+    }, (table) => ({
+      nitUnique: uniqueIndex3("clientes_empresa_nit_unique").on(table.nit)
+    }));
+    clientesEmpresaRelations = relations10(clientesEmpresa, ({ one }) => ({
       cliente: one(clientes, {
         fields: [clientesEmpresa.clienteId],
         references: [clientes.id]
@@ -460,8 +499,8 @@ var init_cliente_empresa_schema = __esm({
 });
 
 // shared/schema/cliente.schema.ts
-import { relations as relations10 } from "drizzle-orm";
-import { mysqlTable as mysqlTable16, varchar as varchar16, boolean as boolean9, timestamp as timestamp10, mysqlEnum } from "drizzle-orm/mysql-core";
+import { relations as relations11 } from "drizzle-orm";
+import { mysqlTable as mysqlTable17, varchar as varchar17, boolean as boolean9, timestamp as timestamp11, mysqlEnum as mysqlEnum2 } from "drizzle-orm/mysql-core";
 var clientes, clientesRelations;
 var init_cliente_schema = __esm({
   "shared/schema/cliente.schema.ts"() {
@@ -471,16 +510,16 @@ var init_cliente_schema = __esm({
     init_lawyer_clients_schema();
     init_cliente_natural_schema();
     init_cliente_empresa_schema();
-    clientes = mysqlTable16("clientes", {
-      id: varchar16("id", { length: 36 }).primaryKey(),
-      userId: varchar16("user_id", { length: 36 }).notNull().unique(),
-      tipo: mysqlEnum("tipo", ["natural", "empresa"]).notNull().default("natural"),
-      fechaCreacion: timestamp10("fecha_creacion").notNull().default(/* @__PURE__ */ new Date()),
+    clientes = mysqlTable17("clientes", {
+      id: varchar17("id", { length: 36 }).primaryKey(),
+      userId: varchar17("user_id", { length: 36 }).notNull().unique(),
+      tipo: mysqlEnum2("tipo", ["natural", "empresa"]).notNull().default("natural"),
+      fechaCreacion: timestamp11("fecha_creacion").notNull().default(/* @__PURE__ */ new Date()),
       activo: boolean9("activo").notNull().default(true),
       esPrivado: boolean9("es_privado").notNull().default(false),
-      createdBy: varchar16("created_by", { length: 36 })
+      createdBy: varchar17("created_by", { length: 36 })
     });
-    clientesRelations = relations10(clientes, ({ one, many }) => ({
+    clientesRelations = relations11(clientes, ({ one, many }) => ({
       user: one(users, {
         fields: [clientes.userId],
         references: [users.id]
@@ -500,31 +539,31 @@ var init_cliente_schema = __esm({
 });
 
 // shared/schema/lawyer-clients.schema.ts
-import { relations as relations11 } from "drizzle-orm";
-import { mysqlTable as mysqlTable17, varchar as varchar17, text as text9, timestamp as timestamp11, mysqlEnum as mysqlEnum2 } from "drizzle-orm/mysql-core";
+import { relations as relations12 } from "drizzle-orm";
+import { mysqlTable as mysqlTable18, varchar as varchar18, text as text8, timestamp as timestamp12, mysqlEnum as mysqlEnum3 } from "drizzle-orm/mysql-core";
 var lawyerClients, lawyerClientsRelations;
 var init_lawyer_clients_schema = __esm({
   "shared/schema/lawyer-clients.schema.ts"() {
     "use strict";
     init_lawyer_profile_schema();
     init_cliente_schema();
-    lawyerClients = mysqlTable17("lawyer_clients", {
-      id: varchar17("id", { length: 36 }).primaryKey(),
-      lawyerId: varchar17("lawyer_id", { length: 36 }).notNull(),
-      clientId: varchar17("client_id", { length: 36 }).notNull(),
-      status: mysqlEnum2("status", [
+    lawyerClients = mysqlTable18("lawyer_clients", {
+      id: varchar18("id", { length: 36 }).primaryKey(),
+      lawyerId: varchar18("lawyer_id", { length: 36 }).notNull(),
+      clientId: varchar18("client_id", { length: 36 }).notNull(),
+      status: mysqlEnum3("status", [
         "active",
         "inactive",
         "terminated"
       ]).notNull().default("active"),
-      relationshipStartedAt: timestamp11("relationship_started_at").defaultNow().notNull(),
-      relationshipEndedAt: timestamp11("relationship_ended_at"),
-      createdBy: varchar17("created_by", { length: 36 }),
-      notes: text9("notes"),
-      createdAt: timestamp11("created_at").defaultNow().notNull(),
-      updatedAt: timestamp11("updated_at").defaultNow().onUpdateNow()
+      relationshipStartedAt: timestamp12("relationship_started_at").defaultNow().notNull(),
+      relationshipEndedAt: timestamp12("relationship_ended_at"),
+      createdBy: varchar18("created_by", { length: 36 }),
+      notes: text8("notes"),
+      createdAt: timestamp12("created_at").defaultNow().notNull(),
+      updatedAt: timestamp12("updated_at").defaultNow().onUpdateNow()
     });
-    lawyerClientsRelations = relations11(lawyerClients, ({ one }) => ({
+    lawyerClientsRelations = relations12(lawyerClients, ({ one }) => ({
       lawyer: one(lawyerProfiles, {
         fields: [lawyerClients.lawyerId],
         references: [lawyerProfiles.id]
@@ -538,8 +577,8 @@ var init_lawyer_clients_schema = __esm({
 });
 
 // shared/schema/lawyer-profile.schema.ts
-import { relations as relations12 } from "drizzle-orm";
-import { mysqlTable as mysqlTable18, varchar as varchar18, boolean as boolean10, timestamp as timestamp12 } from "drizzle-orm/mysql-core";
+import { relations as relations13 } from "drizzle-orm";
+import { mysqlTable as mysqlTable19, varchar as varchar19, boolean as boolean10, timestamp as timestamp13, text as text9, uniqueIndex as uniqueIndex4 } from "drizzle-orm/mysql-core";
 var lawyerProfiles, lawyerProfilesRelations;
 var init_lawyer_profile_schema = __esm({
   "shared/schema/lawyer-profile.schema.ts"() {
@@ -548,18 +587,24 @@ var init_lawyer_profile_schema = __esm({
     init_firm_profile_schema();
     init_lawyer_clients_schema();
     init_persona_schema();
-    lawyerProfiles = mysqlTable18("lawyer_profiles", {
-      id: varchar18("id", { length: 36 }).primaryKey(),
-      userId: varchar18("user_id", { length: 36 }).notNull().unique(),
-      firmId: varchar18("firm_id", { length: 36 }).references(() => firmProfiles.id),
-      personaId: varchar18("persona_id", { length: 36 }).notNull().unique(),
-      specialization: varchar18("specialization", { length: 255 }),
-      licenseNumber: varchar18("license_number", { length: 50 }),
+    lawyerProfiles = mysqlTable19("lawyer_profiles", {
+      id: varchar19("id", { length: 36 }).primaryKey(),
+      userId: varchar19("user_id", { length: 36 }).notNull().unique(),
+      firmId: varchar19("firm_id", { length: 36 }).references(() => firmProfiles.id),
+      personaId: varchar19("persona_id", { length: 36 }).notNull().unique(),
+      specialization: varchar19("specialization", { length: 255 }),
+      licenseNumber: varchar19("license_number", { length: 50 }),
       isIndependent: boolean10("is_independent").notNull().default(false),
-      createdAt: timestamp12("created_at").notNull().default(/* @__PURE__ */ new Date()),
-      updatedAt: timestamp12("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
-    });
-    lawyerProfilesRelations = relations12(lawyerProfiles, ({ one, many }) => ({
+      professionalVerificationStatus: varchar19("professional_verification_status", { length: 20 }).notNull().default("pendiente"),
+      professionalReviewedAt: timestamp13("professional_reviewed_at"),
+      professionalReviewedBy: varchar19("professional_reviewed_by", { length: 36 }),
+      professionalReviewNotes: text9("professional_review_notes"),
+      createdAt: timestamp13("created_at").notNull().default(/* @__PURE__ */ new Date()),
+      updatedAt: timestamp13("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
+    }, (table) => ({
+      licenseNumberUnique: uniqueIndex4("lawyer_profiles_license_number_unique").on(table.licenseNumber)
+    }));
+    lawyerProfilesRelations = relations13(lawyerProfiles, ({ one, many }) => ({
       user: one(users, {
         fields: [lawyerProfiles.userId],
         references: [users.id]
@@ -578,62 +623,62 @@ var init_lawyer_profile_schema = __esm({
 });
 
 // shared/schema/permiso.schema.ts
-import { mysqlTable as mysqlTable19, int as int10, varchar as varchar19, text as text10, boolean as boolean11, timestamp as timestamp13 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable20, int as int11, varchar as varchar20, text as text10, boolean as boolean11, timestamp as timestamp14 } from "drizzle-orm/mysql-core";
 var permisos;
 var init_permiso_schema = __esm({
   "shared/schema/permiso.schema.ts"() {
     "use strict";
-    permisos = mysqlTable19("permisos", {
-      id: int10("id").autoincrement().primaryKey(),
-      codigo: varchar19("codigo", { length: 100 }).notNull().unique(),
-      nombre: varchar19("nombre", { length: 100 }).notNull(),
+    permisos = mysqlTable20("permisos", {
+      id: int11("id").autoincrement().primaryKey(),
+      codigo: varchar20("codigo", { length: 100 }).notNull().unique(),
+      nombre: varchar20("nombre", { length: 100 }).notNull(),
       descripcion: text10("descripcion"),
-      moduloId: int10("modulo_id"),
+      moduloId: int11("modulo_id"),
       activo: boolean11("activo").notNull().default(true),
-      createdAt: timestamp13("created_at").notNull().defaultNow(),
-      updatedAt: timestamp13("updated_at").notNull().defaultNow().onUpdateNow(),
+      createdAt: timestamp14("created_at").notNull().defaultNow(),
+      updatedAt: timestamp14("updated_at").notNull().defaultNow().onUpdateNow(),
       state: boolean11("state").notNull().default(true)
     });
   }
 });
 
 // shared/schema/modulo.schema.ts
-import { mysqlTable as mysqlTable20, int as int11, varchar as varchar20, text as text11, boolean as boolean12, timestamp as timestamp14 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable21, int as int12, varchar as varchar21, text as text11, boolean as boolean12, timestamp as timestamp15 } from "drizzle-orm/mysql-core";
 var modulos;
 var init_modulo_schema = __esm({
   "shared/schema/modulo.schema.ts"() {
     "use strict";
-    modulos = mysqlTable20("modulos", {
-      id: int11("id").autoincrement().primaryKey(),
-      nombre: varchar20("nombre", { length: 50 }).notNull().unique(),
+    modulos = mysqlTable21("modulos", {
+      id: int12("id").autoincrement().primaryKey(),
+      nombre: varchar21("nombre", { length: 50 }).notNull().unique(),
       descripcion: text11("descripcion"),
-      icono: varchar20("icono", { length: 50 }),
-      orden: int11("orden").default(0),
+      icono: varchar21("icono", { length: 50 }),
+      orden: int12("orden").default(0),
       activo: boolean12("activo").notNull().default(true),
-      createdAt: timestamp14("created_at").notNull().defaultNow(),
-      updatedAt: timestamp14("updated_at").notNull().defaultNow().onUpdateNow(),
+      createdAt: timestamp15("created_at").notNull().defaultNow(),
+      updatedAt: timestamp15("updated_at").notNull().defaultNow().onUpdateNow(),
       state: boolean12("state").notNull().default(true)
     });
   }
 });
 
 // shared/schema/rolesPermisos.schema.ts
-import { mysqlTable as mysqlTable21, int as int12, timestamp as timestamp15 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable22, int as int13, timestamp as timestamp16 } from "drizzle-orm/mysql-core";
 var rolesPermisos;
 var init_rolesPermisos_schema = __esm({
   "shared/schema/rolesPermisos.schema.ts"() {
     "use strict";
-    rolesPermisos = mysqlTable21("roles_permisos", {
-      id: int12("id").autoincrement().primaryKey(),
-      rolId: int12("rol_id").notNull(),
-      permisoId: int12("permiso_id").notNull(),
-      createdAt: timestamp15("created_at").notNull().defaultNow()
+    rolesPermisos = mysqlTable22("roles_permisos", {
+      id: int13("id").autoincrement().primaryKey(),
+      rolId: int13("rol_id").notNull(),
+      permisoId: int13("permiso_id").notNull(),
+      createdAt: timestamp16("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/auth-relations.ts
-import { relations as relations13 } from "drizzle-orm";
+import { relations as relations14 } from "drizzle-orm";
 var permisosRelations, modulosRelations, rolesPermisosRelations, rolesRelations;
 var init_auth_relations = __esm({
   "shared/schema/auth-relations.ts"() {
@@ -642,64 +687,66 @@ var init_auth_relations = __esm({
     init_modulo_schema();
     init_rolesPermisos_schema();
     init_rol_schema();
-    permisosRelations = relations13(permisos, ({ one, many }) => ({
+    permisosRelations = relations14(permisos, ({ one, many }) => ({
       modulo: one(modulos, { fields: [permisos.moduloId], references: [modulos.id] }),
       rolesPermisos: many(rolesPermisos)
     }));
-    modulosRelations = relations13(modulos, ({ many }) => ({
+    modulosRelations = relations14(modulos, ({ many }) => ({
       permisos: many(permisos)
     }));
-    rolesPermisosRelations = relations13(rolesPermisos, ({ one }) => ({
+    rolesPermisosRelations = relations14(rolesPermisos, ({ one }) => ({
       rol: one(roles, { fields: [rolesPermisos.rolId], references: [roles.id] }),
       permiso: one(permisos, { fields: [rolesPermisos.permisoId], references: [permisos.id] })
     }));
-    rolesRelations = relations13(roles, ({ many }) => ({
+    rolesRelations = relations14(roles, ({ many }) => ({
       rolesPermisos: many(rolesPermisos)
     }));
   }
 });
 
 // shared/schema/tipos-actualizacion.schema.ts
-import { mysqlTable as mysqlTable22, int as int13, varchar as varchar21 } from "drizzle-orm/mysql-core";
-import { relations as relations14 } from "drizzle-orm";
+import { mysqlTable as mysqlTable23, int as int14, varchar as varchar22 } from "drizzle-orm/mysql-core";
+import { relations as relations15 } from "drizzle-orm";
 var tiposActualizacion, tiposActualizacionRelations;
 var init_tipos_actualizacion_schema = __esm({
   "shared/schema/tipos-actualizacion.schema.ts"() {
     "use strict";
     init_actualizaciones_schema();
-    tiposActualizacion = mysqlTable22("tipos_actualizacion", {
-      id: int13("id").autoincrement().primaryKey(),
-      nombre: varchar21("nombre", { length: 50 }).notNull()
+    tiposActualizacion = mysqlTable23("tipos_actualizacion", {
+      id: int14("id").autoincrement().primaryKey(),
+      nombre: varchar22("nombre", { length: 50 }).notNull()
       // "manual", "documento"
     });
-    tiposActualizacionRelations = relations14(tiposActualizacion, ({ many }) => ({
+    tiposActualizacionRelations = relations15(tiposActualizacion, ({ many }) => ({
       actualizaciones: many(actualizaciones)
     }));
   }
 });
 
 // shared/schema/documento.schema.ts
-import { relations as relations15 } from "drizzle-orm";
-import { mysqlTable as mysqlTable23, text as text13, varchar as varchar22, boolean as boolean13, timestamp as timestamp16, int as int14 } from "drizzle-orm/mysql-core";
+import { relations as relations16 } from "drizzle-orm";
+import { mysqlTable as mysqlTable24, text as text13, varchar as varchar23, boolean as boolean13, timestamp as timestamp17, int as int15 } from "drizzle-orm/mysql-core";
 var documentos, documentosRelations;
 var init_documento_schema = __esm({
   "shared/schema/documento.schema.ts"() {
     "use strict";
     init_proceso_schema();
-    documentos = mysqlTable23("documentos", {
-      id: varchar22("id", { length: 36 }).primaryKey(),
-      procesoId: varchar22("proceso_id", { length: 36 }).notNull(),
-      nombre: varchar22("nombre", { length: 255 }).notNull(),
+    documentos = mysqlTable24("documentos", {
+      id: varchar23("id", { length: 36 }).primaryKey(),
+      procesoId: varchar23("proceso_id", { length: 36 }).notNull(),
+      nombre: varchar23("nombre", { length: 255 }).notNull(),
       url: text13("url").notNull(),
-      tipo: varchar22("tipo", { length: 50 }).notNull(),
+      tipo: varchar23("tipo", { length: 50 }).notNull(),
       // "demanda", "contestacion", "sentencia", etc.
-      tamano: int14("tamano").notNull().default(0),
+      tipoDocumento: varchar23("tipo_documento", { length: 20 }).notNull().default("PROCESAL"),
+      // "PROCESAL" | "PROBATORIO"
+      tamano: int15("tamano").notNull().default(0),
       descripcion: text13("descripcion"),
-      fechaSubida: timestamp16("fecha_subida").notNull().default(/* @__PURE__ */ new Date()),
+      fechaSubida: timestamp17("fecha_subida").notNull().default(/* @__PURE__ */ new Date()),
       state: boolean13("state").notNull().default(true),
-      legalStage: varchar22("legal_stage", { length: 50 })
+      legalStage: varchar23("legal_stage", { length: 50 })
     });
-    documentosRelations = relations15(documentos, ({ one }) => ({
+    documentosRelations = relations16(documentos, ({ one }) => ({
       proceso: one(procesos, {
         fields: [documentos.procesoId],
         references: [procesos.id]
@@ -709,8 +756,8 @@ var init_documento_schema = __esm({
 });
 
 // shared/schema/actualizaciones.schema.ts
-import { mysqlTable as mysqlTable24, varchar as varchar23, text as text14, int as int15, timestamp as timestamp17, boolean as boolean14 } from "drizzle-orm/mysql-core";
-import { relations as relations16, sql } from "drizzle-orm";
+import { mysqlTable as mysqlTable25, varchar as varchar24, text as text14, int as int16, timestamp as timestamp18, boolean as boolean14 } from "drizzle-orm/mysql-core";
+import { relations as relations17, sql } from "drizzle-orm";
 var actualizaciones, actualizacionesRelations;
 var init_actualizaciones_schema = __esm({
   "shared/schema/actualizaciones.schema.ts"() {
@@ -718,19 +765,19 @@ var init_actualizaciones_schema = __esm({
     init_proceso_schema();
     init_tipos_actualizacion_schema();
     init_documento_schema();
-    actualizaciones = mysqlTable24("actualizaciones", {
-      id: varchar23("id", { length: 36 }).primaryKey(),
-      procesoId: varchar23("proceso_id", { length: 36 }).notNull(),
-      fecha: timestamp17("fecha").notNull().default(sql`now()`),
+    actualizaciones = mysqlTable25("actualizaciones", {
+      id: varchar24("id", { length: 36 }).primaryKey(),
+      procesoId: varchar24("proceso_id", { length: 36 }).notNull(),
+      fecha: timestamp18("fecha").notNull().default(sql`now()`),
       titulo: text14("titulo").notNull(),
       descripcion: text14("descripcion").notNull(),
-      tipoId: int15("tipo_id").notNull(),
+      tipoId: int16("tipo_id").notNull(),
       // FK to tipos_actualizacion
-      documentoId: varchar23("documento_id", { length: 36 }),
+      documentoId: varchar24("documento_id", { length: 36 }),
       // Nullable
       state: boolean14("state").notNull().default(true)
     });
-    actualizacionesRelations = relations16(actualizaciones, ({ one }) => ({
+    actualizacionesRelations = relations17(actualizaciones, ({ one }) => ({
       proceso: one(procesos, { fields: [actualizaciones.procesoId], references: [procesos.id] }),
       tipo: one(tiposActualizacion, { fields: [actualizaciones.tipoId], references: [tiposActualizacion.id] }),
       documento: one(documentos, { fields: [actualizaciones.documentoId], references: [documentos.id] })
@@ -739,26 +786,26 @@ var init_actualizaciones_schema = __esm({
 });
 
 // shared/schema/proceso-responsables.schema.ts
-import { boolean as boolean15, datetime as datetime2, mysqlTable as mysqlTable25, varchar as varchar24 } from "drizzle-orm/mysql-core";
-import { relations as relations17 } from "drizzle-orm";
+import { boolean as boolean15, datetime as datetime2, mysqlTable as mysqlTable26, varchar as varchar25 } from "drizzle-orm/mysql-core";
+import { relations as relations18 } from "drizzle-orm";
 var procesoResponsables, procesoResponsablesRelations;
 var init_proceso_responsables_schema = __esm({
   "shared/schema/proceso-responsables.schema.ts"() {
     "use strict";
     init_proceso_schema();
     init_lawyer_profile_schema();
-    procesoResponsables = mysqlTable25("proceso_responsables", {
-      id: varchar24("id", { length: 36 }).primaryKey(),
-      procesoId: varchar24("proceso_id", { length: 36 }).notNull(),
-      lawyerId: varchar24("lawyer_id", { length: 36 }).notNull(),
-      asignadoPor: varchar24("asignado_por", { length: 36 }),
-      asignadoPorNombre: varchar24("asignado_por_nombre", { length: 255 }),
+    procesoResponsables = mysqlTable26("proceso_responsables", {
+      id: varchar25("id", { length: 36 }).primaryKey(),
+      procesoId: varchar25("proceso_id", { length: 36 }).notNull(),
+      lawyerId: varchar25("lawyer_id", { length: 36 }).notNull(),
+      asignadoPor: varchar25("asignado_por", { length: 36 }),
+      asignadoPorNombre: varchar25("asignado_por_nombre", { length: 255 }),
       fechaInicio: datetime2("fecha_inicio", { mode: "date", fsp: 3 }).notNull(),
       fechaFin: datetime2("fecha_fin", { mode: "date", fsp: 3 }),
-      razon: varchar24("razon", { length: 255 }),
+      razon: varchar25("razon", { length: 255 }),
       activo: boolean15("activo").default(true).notNull()
     });
-    procesoResponsablesRelations = relations17(procesoResponsables, ({ one }) => ({
+    procesoResponsablesRelations = relations18(procesoResponsables, ({ one }) => ({
       proceso: one(procesos, {
         fields: [procesoResponsables.procesoId],
         references: [procesos.id]
@@ -775,9 +822,67 @@ var init_proceso_responsables_schema = __esm({
   }
 });
 
+// shared/schema/proceso-etapa-historial.schema.ts
+import { mysqlTable as mysqlTable27, varchar as varchar26, text as text15, timestamp as timestamp19 } from "drizzle-orm/mysql-core";
+import { relations as relations19 } from "drizzle-orm";
+var ETAPA_ESTADOS, procesoEtapaHistorial, procesoEtapaHistorialRelations;
+var init_proceso_etapa_historial_schema = __esm({
+  "shared/schema/proceso-etapa-historial.schema.ts"() {
+    "use strict";
+    init_proceso_schema();
+    init_user_schema();
+    ETAPA_ESTADOS = [
+      "INICIADA",
+      // Etapa iniciada
+      "EN_PROCESO",
+      // En proceso de ejecución
+      "COMPLETADA",
+      // Completada exitosamente
+      "NO_ADMITIDA",
+      // Rechazada/no admitida
+      "SUBSANADA",
+      // Subsanada después de rechazo
+      "FALLIDA",
+      // Falló (ej: notificación fallida)
+      "REINTENTO",
+      // Reintento después de falla
+      "APLAZADA",
+      // Aplazada (ej: audiencia)
+      "CANCELADA",
+      // Cancelada
+      "SUSPENDIDA"
+      // Suspendida temporalmente
+    ];
+    procesoEtapaHistorial = mysqlTable27("proceso_etapa_historial", {
+      id: varchar26("id", { length: 36 }).primaryKey(),
+      procesoId: varchar26("proceso_id", { length: 36 }).notNull(),
+      etapa: varchar26("etapa", { length: 50 }).notNull(),
+      // Código de la etapa (ej: "DEMANDA", "NOTIFICACION")
+      estado: varchar26("estado", { length: 20 }).notNull(),
+      // Estado dentro de la etapa
+      fecha: timestamp19("fecha").notNull().defaultNow(),
+      observacion: text15("observacion"),
+      // Observaciones opcionales
+      usuarioId: varchar26("usuario_id", { length: 36 }),
+      // Usuario que realizó el cambio
+      createdAt: timestamp19("created_at").notNull().defaultNow()
+    });
+    procesoEtapaHistorialRelations = relations19(procesoEtapaHistorial, ({ one }) => ({
+      proceso: one(procesos, {
+        fields: [procesoEtapaHistorial.procesoId],
+        references: [procesos.id]
+      }),
+      usuario: one(users, {
+        fields: [procesoEtapaHistorial.usuarioId],
+        references: [users.id]
+      })
+    }));
+  }
+});
+
 // shared/schema/lawyer-firma-history.schema.ts
-import { relations as relations18 } from "drizzle-orm";
-import { mysqlTable as mysqlTable26, varchar as varchar25, timestamp as timestamp18, text as text15, int as int16 } from "drizzle-orm/mysql-core";
+import { relations as relations20 } from "drizzle-orm";
+import { mysqlTable as mysqlTable28, varchar as varchar27, timestamp as timestamp20, text as text16, int as int17 } from "drizzle-orm/mysql-core";
 var lawyerFirmaHistory, lawyerFirmaHistoryRelations;
 var init_lawyer_firma_history_schema = __esm({
   "shared/schema/lawyer-firma-history.schema.ts"() {
@@ -786,23 +891,23 @@ var init_lawyer_firma_history_schema = __esm({
     init_firm_profile_schema();
     init_user_schema();
     init_rol_schema();
-    lawyerFirmaHistory = mysqlTable26("lawyer_firma_history", {
-      id: varchar25("id", { length: 36 }).primaryKey(),
-      lawyerId: varchar25("lawyer_id", { length: 36 }).notNull(),
-      firmaId: varchar25("firma_id", { length: 36 }).notNull(),
-      fechaIngreso: timestamp18("fecha_ingreso").notNull().defaultNow(),
-      fechaSalida: timestamp18("fecha_salida"),
+    lawyerFirmaHistory = mysqlTable28("lawyer_firma_history", {
+      id: varchar27("id", { length: 36 }).primaryKey(),
+      lawyerId: varchar27("lawyer_id", { length: 36 }).notNull(),
+      firmaId: varchar27("firma_id", { length: 36 }).notNull(),
+      fechaIngreso: timestamp20("fecha_ingreso").notNull().defaultNow(),
+      fechaSalida: timestamp20("fecha_salida"),
       // null = firma actual
-      motivoSalida: varchar25("motivo_salida", { length: 255 }),
-      estado: varchar25("estado", { length: 20 }).notNull().default("activo"),
+      motivoSalida: varchar27("motivo_salida", { length: 255 }),
+      estado: varchar27("estado", { length: 20 }).notNull().default("activo"),
       // "activo" | "retirado" | "suspendido" | "transferido"
       /** Rol personalizado asignado por el bufete. NULL = usa el rol global del usuario */
-      firmRolId: int16("firm_rol_id"),
-      createdBy: varchar25("created_by", { length: 36 }),
-      notas: text15("notas"),
-      createdAt: timestamp18("created_at").notNull().defaultNow()
+      firmRolId: int17("firm_rol_id"),
+      createdBy: varchar27("created_by", { length: 36 }),
+      notas: text16("notas"),
+      createdAt: timestamp20("created_at").notNull().defaultNow()
     });
-    lawyerFirmaHistoryRelations = relations18(lawyerFirmaHistory, ({ one }) => ({
+    lawyerFirmaHistoryRelations = relations20(lawyerFirmaHistory, ({ one }) => ({
       lawyer: one(lawyerProfiles, {
         fields: [lawyerFirmaHistory.lawyerId],
         references: [lawyerProfiles.id]
@@ -824,8 +929,8 @@ var init_lawyer_firma_history_schema = __esm({
 });
 
 // shared/schema/firm-invitation.schema.ts
-import { mysqlTable as mysqlTable27, varchar as varchar26, timestamp as timestamp19, mysqlEnum as mysqlEnum3, text as text16 } from "drizzle-orm/mysql-core";
-import { relations as relations19 } from "drizzle-orm";
+import { mysqlTable as mysqlTable29, varchar as varchar28, timestamp as timestamp21, mysqlEnum as mysqlEnum4, text as text17 } from "drizzle-orm/mysql-core";
+import { relations as relations21 } from "drizzle-orm";
 var firmInvitations, firmInvitationsRelations;
 var init_firm_invitation_schema = __esm({
   "shared/schema/firm-invitation.schema.ts"() {
@@ -833,29 +938,29 @@ var init_firm_invitation_schema = __esm({
     init_firm_profile_schema();
     init_lawyer_profile_schema();
     init_user_schema();
-    firmInvitations = mysqlTable27("firm_invitations", {
-      id: varchar26("id", { length: 36 }).primaryKey(),
-      firmId: varchar26("firm_id", { length: 36 }).notNull(),
-      lawyerId: varchar26("lawyer_id", { length: 36 }).notNull(),
-      invitadoPor: varchar26("invitado_por", { length: 36 }).notNull(),
+    firmInvitations = mysqlTable29("firm_invitations", {
+      id: varchar28("id", { length: 36 }).primaryKey(),
+      firmId: varchar28("firm_id", { length: 36 }).notNull(),
+      lawyerId: varchar28("lawyer_id", { length: 36 }).notNull(),
+      invitadoPor: varchar28("invitado_por", { length: 36 }).notNull(),
       // FK users
-      status: mysqlEnum3("status", [
+      status: mysqlEnum4("status", [
         "pendiente",
         "aceptada",
         "rechazada",
         "cancelada"
       ]).notNull().default("pendiente"),
-      mensaje: text16("mensaje"),
+      mensaje: text17("mensaje"),
       // mensaje opcional de la firma
-      motivoRechazo: text16("motivo_rechazo"),
+      motivoRechazo: text17("motivo_rechazo"),
       // si el abogado rechaza
-      expiresAt: timestamp19("expires_at"),
+      expiresAt: timestamp21("expires_at"),
       // expiración de la invitación
-      respondedAt: timestamp19("responded_at"),
-      createdAt: timestamp19("created_at").notNull().defaultNow(),
-      updatedAt: timestamp19("updated_at").notNull().defaultNow().onUpdateNow()
+      respondedAt: timestamp21("responded_at"),
+      createdAt: timestamp21("created_at").notNull().defaultNow(),
+      updatedAt: timestamp21("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    firmInvitationsRelations = relations19(firmInvitations, ({ one }) => ({
+    firmInvitationsRelations = relations21(firmInvitations, ({ one }) => ({
       firm: one(firmProfiles, {
         fields: [firmInvitations.firmId],
         references: [firmProfiles.id]
@@ -873,100 +978,100 @@ var init_firm_invitation_schema = __esm({
 });
 
 // shared/schema/notificacion.schema.ts
-import { mysqlTable as mysqlTable28, varchar as varchar27, text as text17, boolean as boolean16, timestamp as timestamp20, int as int17 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable30, varchar as varchar29, text as text18, boolean as boolean16, timestamp as timestamp22, int as int18 } from "drizzle-orm/mysql-core";
 var notificaciones;
 var init_notificacion_schema = __esm({
   "shared/schema/notificacion.schema.ts"() {
     "use strict";
-    notificaciones = mysqlTable28("notificaciones", {
-      id: int17("id").autoincrement().primaryKey(),
-      procesoId: varchar27("proceso_id", { length: 36 }).notNull(),
+    notificaciones = mysqlTable30("notificaciones", {
+      id: int18("id").autoincrement().primaryKey(),
+      procesoId: varchar29("proceso_id", { length: 36 }).notNull(),
       /** Target client — nullable when notification targets a lawyer or firm only */
-      clienteId: varchar27("cliente_id", { length: 36 }),
+      clienteId: varchar29("cliente_id", { length: 36 }),
       /** Target lawyer — nullable when notification targets a client or firm only */
-      lawyerId: varchar27("lawyer_id", { length: 36 }),
+      lawyerId: varchar29("lawyer_id", { length: 36 }),
       /** Target firm — nullable when notification targets a client or lawyer only */
-      firmId: varchar27("firm_id", { length: 36 }),
-      titulo: varchar27("titulo", { length: 255 }).notNull(),
-      mensaje: text17("mensaje").notNull(),
-      tipo: varchar27("tipo", { length: 50 }).notNull().default("estado_cambio"),
+      firmId: varchar29("firm_id", { length: 36 }),
+      titulo: varchar29("titulo", { length: 255 }).notNull(),
+      mensaje: text18("mensaje").notNull(),
+      tipo: varchar29("tipo", { length: 50 }).notNull().default("estado_cambio"),
       leidoCliente: boolean16("leido_cliente").notNull().default(false),
       leidoLawyer: boolean16("leido_lawyer").notNull().default(false),
       leidoFirma: boolean16("leido_firma").notNull().default(false),
-      createdAt: timestamp20("created_at").notNull().default(/* @__PURE__ */ new Date()),
-      updatedAt: timestamp20("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
+      createdAt: timestamp22("created_at").notNull().default(/* @__PURE__ */ new Date()),
+      updatedAt: timestamp22("updated_at").notNull().default(/* @__PURE__ */ new Date()).onUpdateNow()
     });
   }
 });
 
 // shared/schema/chat.schema.ts
-import { relations as relations20 } from "drizzle-orm";
+import { relations as relations22 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable29,
-  varchar as varchar28,
-  text as text18,
-  int as int18,
-  timestamp as timestamp21,
+  mysqlTable as mysqlTable31,
+  varchar as varchar30,
+  text as text19,
+  int as int19,
+  timestamp as timestamp23,
   boolean as boolean17,
-  mysqlEnum as mysqlEnum4
+  mysqlEnum as mysqlEnum5
 } from "drizzle-orm/mysql-core";
 var conversations, conversationParticipants, messages, conversationsRelations, conversationParticipantsRelations, messagesRelations;
 var init_chat_schema = __esm({
   "shared/schema/chat.schema.ts"() {
     "use strict";
     init_user_schema();
-    conversations = mysqlTable29("conversations", {
-      id: varchar28("id", { length: 36 }).primaryKey(),
+    conversations = mysqlTable31("conversations", {
+      id: varchar30("id", { length: 36 }).primaryKey(),
       /** Human-readable name, optional (e.g. group chats in the future) */
-      name: varchar28("name", { length: 200 }),
-      /** Who triggered this conversation: firm_lawyer | lawyer_client | community */
-      type: mysqlEnum4("type", ["firm_lawyer", "lawyer_client", "community"]).notNull(),
+      name: varchar30("name", { length: 200 }),
+      /** Who triggered this conversation: firm_lawyer | lawyer_client | community | direct | admin_support */
+      type: mysqlEnum5("type", ["firm_lawyer", "lawyer_client", "community", "direct", "admin_support"]).notNull(),
       /** Set when type === "community" — links the conversation to its originating post */
-      sourcePostId: varchar28("source_post_id", { length: 36 }),
-      createdAt: timestamp21("created_at").notNull().defaultNow(),
-      updatedAt: timestamp21("updated_at").notNull().defaultNow().onUpdateNow()
+      sourcePostId: varchar30("source_post_id", { length: 36 }),
+      createdAt: timestamp23("created_at").notNull().defaultNow(),
+      updatedAt: timestamp23("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    conversationParticipants = mysqlTable29(
+    conversationParticipants = mysqlTable31(
       "conversation_participants",
       {
-        id: varchar28("id", { length: 36 }).primaryKey(),
-        conversationId: varchar28("conversation_id", { length: 36 }).notNull(),
-        userId: varchar28("user_id", { length: 36 }).notNull(),
+        id: varchar30("id", { length: 36 }).primaryKey(),
+        conversationId: varchar30("conversation_id", { length: 36 }).notNull(),
+        userId: varchar30("user_id", { length: 36 }).notNull(),
         /** Last time the user read this conversation */
-        lastReadAt: timestamp21("last_read_at"),
-        joinedAt: timestamp21("joined_at").notNull().defaultNow()
+        lastReadAt: timestamp23("last_read_at"),
+        joinedAt: timestamp23("joined_at").notNull().defaultNow()
       }
     );
-    messages = mysqlTable29("messages", {
-      id: varchar28("id", { length: 36 }).primaryKey(),
-      conversationId: varchar28("conversation_id", { length: 36 }).notNull(),
-      senderId: varchar28("sender_id", { length: 36 }).notNull(),
+    messages = mysqlTable31("messages", {
+      id: varchar30("id", { length: 36 }).primaryKey(),
+      conversationId: varchar30("conversation_id", { length: 36 }).notNull(),
+      senderId: varchar30("sender_id", { length: 36 }).notNull(),
       /** Null for file-type messages */
-      content: text18("content"),
-      type: mysqlEnum4("type", ["text", "file"]).notNull().default("text"),
+      content: text19("content"),
+      type: mysqlEnum5("type", ["text", "file"]).notNull().default("text"),
       /** Soft-delete flag */
       isDeleted: boolean17("is_deleted").notNull().default(false),
-      createdAt: timestamp21("created_at").notNull().defaultNow(),
+      createdAt: timestamp23("created_at").notNull().defaultNow(),
       // ── File attachment fields ──────────────────────────────────
       /** Internal S3 key — NEVER exposed to the frontend */
-      fileKey: varchar28("file_key", { length: 500 }),
+      fileKey: varchar30("file_key", { length: 500 }),
       /** Original filename shown to the user */
-      fileName: varchar28("file_name", { length: 255 }),
+      fileName: varchar30("file_name", { length: 255 }),
       /** File size in bytes */
-      fileSize: int18("file_size"),
+      fileSize: int19("file_size"),
       /** MIME type (e.g. image/png, application/pdf) */
-      fileMime: varchar28("file_mime", { length: 100 }),
+      fileMime: varchar30("file_mime", { length: 100 }),
       /** SHA-256 hex digest of the file buffer — for audit only */
-      fileHash: varchar28("file_hash", { length: 64 })
+      fileHash: varchar30("file_hash", { length: 64 })
     });
-    conversationsRelations = relations20(
+    conversationsRelations = relations22(
       conversations,
       ({ many }) => ({
         participants: many(conversationParticipants),
         messages: many(messages)
       })
     );
-    conversationParticipantsRelations = relations20(
+    conversationParticipantsRelations = relations22(
       conversationParticipants,
       ({ one }) => ({
         conversation: one(conversations, {
@@ -979,7 +1084,7 @@ var init_chat_schema = __esm({
         })
       })
     );
-    messagesRelations = relations20(messages, ({ one }) => ({
+    messagesRelations = relations22(messages, ({ one }) => ({
       conversation: one(conversations, {
         fields: [messages.conversationId],
         references: [conversations.id]
@@ -993,27 +1098,27 @@ var init_chat_schema = __esm({
 });
 
 // shared/schema/session.schema.ts
-import { mysqlTable as mysqlTable30, varchar as varchar29, timestamp as timestamp22 } from "drizzle-orm/mysql-core";
-import { relations as relations21 } from "drizzle-orm";
+import { mysqlTable as mysqlTable32, varchar as varchar31, timestamp as timestamp24 } from "drizzle-orm/mysql-core";
+import { relations as relations23 } from "drizzle-orm";
 var sessions, sessionsRelations;
 var init_session_schema = __esm({
   "shared/schema/session.schema.ts"() {
     "use strict";
     init_user_schema();
-    sessions = mysqlTable30("sessions", {
+    sessions = mysqlTable32("sessions", {
       /** JWT ID (jti claim) - used as primary key to look up / revoke tokens */
-      id: varchar29("id", { length: 36 }).primaryKey(),
-      userId: varchar29("user_id", { length: 36 }).notNull(),
-      expiresAt: timestamp22("expires_at").notNull(),
-      revokedAt: timestamp22("revoked_at"),
-      ipAddress: varchar29("ip_address", { length: 45 }),
-      userAgent: varchar29("user_agent", { length: 500 }),
-      createdAt: timestamp22("created_at").notNull().defaultNow(),
+      id: varchar31("id", { length: 36 }).primaryKey(),
+      userId: varchar31("user_id", { length: 36 }).notNull(),
+      expiresAt: timestamp24("expires_at").notNull(),
+      revokedAt: timestamp24("revoked_at"),
+      ipAddress: varchar31("ip_address", { length: 45 }),
+      userAgent: varchar31("user_agent", { length: 500 }),
+      createdAt: timestamp24("created_at").notNull().defaultNow(),
       /** Opaque refresh token - used to issue a new access token without re-login */
-      refreshToken: varchar29("refresh_token", { length: 64 }).unique(),
-      refreshExpiresAt: timestamp22("refresh_expires_at")
+      refreshToken: varchar31("refresh_token", { length: 64 }).unique(),
+      refreshExpiresAt: timestamp24("refresh_expires_at")
     });
-    sessionsRelations = relations21(sessions, ({ one }) => ({
+    sessionsRelations = relations23(sessions, ({ one }) => ({
       user: one(users, {
         fields: [sessions.userId],
         references: [users.id]
@@ -1023,16 +1128,16 @@ var init_session_schema = __esm({
 });
 
 // shared/schema/tarea.schema.ts
-import { relations as relations22 } from "drizzle-orm";
+import { relations as relations24 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable31,
-  varchar as varchar30,
-  text as text19,
-  mysqlEnum as mysqlEnum5,
-  int as int19,
+  mysqlTable as mysqlTable33,
+  varchar as varchar32,
+  text as text20,
+  mysqlEnum as mysqlEnum6,
+  int as int20,
   decimal as decimal2,
   date,
-  timestamp as timestamp23,
+  timestamp as timestamp25,
   boolean as boolean18,
   tinyint as tinyint2
 } from "drizzle-orm/mysql-core";
@@ -1042,35 +1147,35 @@ var init_tarea_schema = __esm({
     "use strict";
     init_proceso_schema();
     init_lawyer_profile_schema();
-    tareas = mysqlTable31("tareas", {
-      id: varchar30("id", { length: 36 }).primaryKey(),
-      procesoId: varchar30("proceso_id", { length: 36 }).notNull(),
-      legalStage: varchar30("legal_stage", { length: 50 }),
+    tareas = mysqlTable33("tareas", {
+      id: varchar32("id", { length: 36 }).primaryKey(),
+      procesoId: varchar32("proceso_id", { length: 36 }).notNull(),
+      legalStage: varchar32("legal_stage", { length: 50 }),
       requerida: tinyint2("requerida").notNull().default(0),
-      titulo: varchar30("titulo", { length: 255 }).notNull(),
-      descripcion: text19("descripcion"),
-      estado: mysqlEnum5("estado", ["pendiente", "en_progreso", "completada", "cancelada"]).notNull().default("pendiente"),
-      prioridad: mysqlEnum5("prioridad", ["baja", "media", "alta", "urgente"]).notNull().default("media"),
+      titulo: varchar32("titulo", { length: 255 }).notNull(),
+      descripcion: text20("descripcion"),
+      estado: mysqlEnum6("estado", ["pendiente", "en_progreso", "completada", "cancelada"]).notNull().default("pendiente"),
+      prioridad: mysqlEnum6("prioridad", ["baja", "media", "alta", "urgente"]).notNull().default("media"),
       fechaLimite: date("fecha_limite", { mode: "date" }),
-      fechaCompletada: timestamp23("fecha_completada"),
+      fechaCompletada: timestamp25("fecha_completada"),
       /** FK al perfil del abogado asignado (puede ser null) */
-      asignadoA: varchar30("asignado_a", { length: 36 }),
+      asignadoA: varchar32("asignado_a", { length: 36 }),
       /** Nombre desnormalizado para evitar joins en listados */
-      asignadoANombre: varchar30("asignado_a_nombre", { length: 255 }),
+      asignadoANombre: varchar32("asignado_a_nombre", { length: 255 }),
       /** FK al perfil del abogado que creó la tarea */
-      creadoPor: varchar30("creado_por", { length: 36 }).notNull(),
+      creadoPor: varchar32("creado_por", { length: 36 }).notNull(),
       /** Nombre desnormalizado */
-      creadoPorNombre: varchar30("creado_por_nombre", { length: 255 }),
+      creadoPorNombre: varchar32("creado_por_nombre", { length: 255 }),
       /** Tiempo estimado para completar la tarea */
       tiempoEstimado: decimal2("tiempo_estimado", { precision: 6, scale: 1 }),
-      tiempoUnidad: mysqlEnum5("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
+      tiempoUnidad: mysqlEnum6("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
       /** Posición para drag & drop futuro */
-      orden: int19("orden").notNull().default(0),
+      orden: int20("orden").notNull().default(0),
       state: boolean18("state").notNull().default(true),
-      createdAt: timestamp23("created_at").notNull().defaultNow(),
-      updatedAt: timestamp23("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp25("created_at").notNull().defaultNow(),
+      updatedAt: timestamp25("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    tareasRelations = relations22(tareas, ({ one }) => ({
+    tareasRelations = relations24(tareas, ({ one }) => ({
       proceso: one(procesos, {
         fields: [tareas.procesoId],
         references: [procesos.id]
@@ -1090,15 +1195,16 @@ var init_tarea_schema = __esm({
 });
 
 // shared/schema/community.schema.ts
-import { relations as relations23 } from "drizzle-orm";
+import { relations as relations25 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable32,
-  varchar as varchar31,
-  text as text20,
-  int as int20,
+  mysqlTable as mysqlTable34,
+  varchar as varchar33,
+  text as text21,
+  int as int21,
   tinyint as tinyint3,
-  timestamp as timestamp24,
-  mysqlEnum as mysqlEnum6,
+  boolean as boolean19,
+  timestamp as timestamp26,
+  mysqlEnum as mysqlEnum7,
   index,
   primaryKey
 } from "drizzle-orm/mysql-core";
@@ -1107,118 +1213,119 @@ var init_community_schema = __esm({
   "shared/schema/community.schema.ts"() {
     "use strict";
     init_user_schema();
-    posts = mysqlTable32(
+    posts = mysqlTable34(
       "posts",
       {
-        id: varchar31("id", { length: 36 }).primaryKey(),
-        userId: varchar31("user_id", { length: 36 }).notNull(),
-        title: varchar31("title", { length: 255 }).notNull(),
-        content: text20("content").notNull(),
-        visibility: mysqlEnum6("visibility", ["public", "anonymous"]).notNull().default("public"),
-        caseType: varchar31("case_type", { length: 50 }),
+        id: varchar33("id", { length: 36 }).primaryKey(),
+        userId: varchar33("user_id", { length: 36 }).notNull(),
+        title: varchar33("title", { length: 255 }).notNull(),
+        content: text21("content").notNull(),
+        visibility: mysqlEnum7("visibility", ["public", "anonymous"]).notNull().default("public"),
+        caseType: varchar33("case_type", { length: 50 }),
         isUrgent: tinyint3("is_urgent").notNull().default(0),
-        city: varchar31("city", { length: 100 }),
-        viewCount: int20("view_count").notNull().default(0),
-        status: mysqlEnum6("status", ["open", "in_progress", "closed"]).notNull().default("open"),
-        takenByLawyerId: varchar31("taken_by_lawyer_id", { length: 36 }),
-        takenByUserId: varchar31("taken_by_user_id", { length: 36 }),
-        takenAt: timestamp24("taken_at"),
-        takenExpiresAt: timestamp24("taken_expires_at"),
+        city: varchar33("city", { length: 100 }),
+        viewCount: int21("view_count").notNull().default(0),
+        status: mysqlEnum7("status", ["open", "in_progress", "closed"]).notNull().default("open"),
+        disabled: boolean19("disabled").notNull().default(false),
+        takenByLawyerId: varchar33("taken_by_lawyer_id", { length: 36 }),
+        takenByUserId: varchar33("taken_by_user_id", { length: 36 }),
+        takenAt: timestamp26("taken_at"),
+        takenExpiresAt: timestamp26("taken_expires_at"),
         clientAccepted: tinyint3("client_accepted"),
-        procesoId: varchar31("proceso_id", { length: 36 }),
-        createdAt: timestamp24("created_at").notNull().defaultNow(),
-        updatedAt: timestamp24("updated_at").notNull().defaultNow().onUpdateNow()
+        procesoId: varchar33("proceso_id", { length: 36 }),
+        createdAt: timestamp26("created_at").notNull().defaultNow(),
+        updatedAt: timestamp26("updated_at").notNull().defaultNow().onUpdateNow()
       },
       (t) => [index("idx_posts_user").on(t.userId), index("idx_posts_created").on(t.createdAt), index("idx_posts_status").on(t.status)]
     );
-    comments = mysqlTable32(
+    comments = mysqlTable34(
       "comments",
       {
-        id: varchar31("id", { length: 36 }).primaryKey(),
-        postId: varchar31("post_id", { length: 36 }).notNull(),
-        userId: varchar31("user_id", { length: 36 }).notNull(),
-        content: text20("content").notNull(),
-        parentId: varchar31("parent_id", { length: 36 }),
-        createdAt: timestamp24("created_at").notNull().defaultNow(),
-        updatedAt: timestamp24("updated_at").notNull().defaultNow().onUpdateNow()
+        id: varchar33("id", { length: 36 }).primaryKey(),
+        postId: varchar33("post_id", { length: 36 }).notNull(),
+        userId: varchar33("user_id", { length: 36 }).notNull(),
+        content: text21("content").notNull(),
+        parentId: varchar33("parent_id", { length: 36 }),
+        createdAt: timestamp26("created_at").notNull().defaultNow(),
+        updatedAt: timestamp26("updated_at").notNull().defaultNow().onUpdateNow()
       },
       (t) => [
         index("idx_comments_post").on(t.postId),
         index("idx_comments_parent").on(t.parentId)
       ]
     );
-    postLikes = mysqlTable32(
+    postLikes = mysqlTable34(
       "post_likes",
       {
-        id: varchar31("id", { length: 36 }).primaryKey(),
-        postId: varchar31("post_id", { length: 36 }).notNull(),
-        userId: varchar31("user_id", { length: 36 }).notNull(),
-        createdAt: timestamp24("created_at").notNull().defaultNow()
+        id: varchar33("id", { length: 36 }).primaryKey(),
+        postId: varchar33("post_id", { length: 36 }).notNull(),
+        userId: varchar33("user_id", { length: 36 }).notNull(),
+        createdAt: timestamp26("created_at").notNull().defaultNow()
       },
       (t) => [index("idx_likes_post").on(t.postId)]
     );
-    postBookmarks = mysqlTable32(
+    postBookmarks = mysqlTable34(
       "post_bookmarks",
       {
-        id: varchar31("id", { length: 36 }).primaryKey(),
-        postId: varchar31("post_id", { length: 36 }).notNull(),
-        userId: varchar31("user_id", { length: 36 }).notNull(),
-        createdAt: timestamp24("created_at").notNull().defaultNow()
+        id: varchar33("id", { length: 36 }).primaryKey(),
+        postId: varchar33("post_id", { length: 36 }).notNull(),
+        userId: varchar33("user_id", { length: 36 }).notNull(),
+        createdAt: timestamp26("created_at").notNull().defaultNow()
       },
       (t) => [index("idx_bookmarks_user").on(t.userId)]
     );
-    tags = mysqlTable32("tags", {
-      id: varchar31("id", { length: 36 }).primaryKey(),
-      name: varchar31("name", { length: 50 }).notNull(),
-      slug: varchar31("slug", { length: 50 }).notNull()
+    tags = mysqlTable34("tags", {
+      id: varchar33("id", { length: 36 }).primaryKey(),
+      name: varchar33("name", { length: 50 }).notNull(),
+      slug: varchar33("slug", { length: 50 }).notNull()
     });
-    postTags = mysqlTable32(
+    postTags = mysqlTable34(
       "post_tags",
       {
-        postId: varchar31("post_id", { length: 36 }).notNull(),
-        tagId: varchar31("tag_id", { length: 36 }).notNull()
+        postId: varchar33("post_id", { length: 36 }).notNull(),
+        tagId: varchar33("tag_id", { length: 36 }).notNull()
       },
       (t) => [primaryKey({ columns: [t.postId, t.tagId] })]
     );
-    postViews = mysqlTable32(
+    postViews = mysqlTable34(
       "post_views",
       {
-        postId: varchar31("post_id", { length: 36 }).notNull(),
-        userId: varchar31("user_id", { length: 36 }).notNull(),
-        viewedAt: timestamp24("viewed_at").notNull().defaultNow()
+        postId: varchar33("post_id", { length: 36 }).notNull(),
+        userId: varchar33("user_id", { length: 36 }).notNull(),
+        viewedAt: timestamp26("viewed_at").notNull().defaultNow()
       },
       (t) => [primaryKey({ columns: [t.postId, t.userId] })]
     );
-    postReports = mysqlTable32(
+    postReports = mysqlTable34(
       "post_reports",
       {
-        id: varchar31("id", { length: 36 }).primaryKey(),
-        postId: varchar31("post_id", { length: 36 }),
-        commentId: varchar31("comment_id", { length: 36 }),
-        reporterUserId: varchar31("reporter_user_id", { length: 36 }).notNull(),
-        reason: varchar31("reason", { length: 50 }).notNull(),
-        detail: text20("detail"),
-        createdAt: timestamp24("created_at").notNull().defaultNow()
+        id: varchar33("id", { length: 36 }).primaryKey(),
+        postId: varchar33("post_id", { length: 36 }),
+        commentId: varchar33("comment_id", { length: 36 }),
+        reporterUserId: varchar33("reporter_user_id", { length: 36 }).notNull(),
+        reason: varchar33("reason", { length: 50 }).notNull(),
+        detail: text21("detail"),
+        createdAt: timestamp26("created_at").notNull().defaultNow()
       },
       (t) => [
         index("idx_reports_post").on(t.postId),
         index("idx_reports_comment").on(t.commentId)
       ]
     );
-    postsRelations = relations23(posts, ({ one, many }) => ({
+    postsRelations = relations25(posts, ({ one, many }) => ({
       author: one(users, { fields: [posts.userId], references: [users.id] }),
       comments: many(comments),
       likes: many(postLikes),
       bookmarks: many(postBookmarks),
       postTags: many(postTags)
     }));
-    commentsRelations = relations23(comments, ({ one, many }) => ({
+    commentsRelations = relations25(comments, ({ one, many }) => ({
       post: one(posts, { fields: [comments.postId], references: [posts.id] }),
       author: one(users, { fields: [comments.userId], references: [users.id] }),
       parent: one(comments, { fields: [comments.parentId], references: [comments.id], relationName: "replies" }),
       replies: many(comments, { relationName: "replies" })
     }));
-    postTagsRelations = relations23(postTags, ({ one }) => ({
+    postTagsRelations = relations25(postTags, ({ one }) => ({
       post: one(posts, { fields: [postTags.postId], references: [posts.id] }),
       tag: one(tags, { fields: [postTags.tagId], references: [tags.id] })
     }));
@@ -1226,22 +1333,22 @@ var init_community_schema = __esm({
 });
 
 // shared/schema/rating.schema.ts
-import { mysqlTable as mysqlTable33, varchar as varchar32, text as text21, timestamp as timestamp25, mysqlEnum as mysqlEnum7, int as int21, index as index2 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable35, varchar as varchar34, text as text22, timestamp as timestamp27, mysqlEnum as mysqlEnum8, int as int22, index as index2 } from "drizzle-orm/mysql-core";
 var ratings;
 var init_rating_schema = __esm({
   "shared/schema/rating.schema.ts"() {
     "use strict";
-    ratings = mysqlTable33(
+    ratings = mysqlTable35(
       "ratings",
       {
-        id: varchar32("id", { length: 36 }).primaryKey(),
-        fromUserId: varchar32("from_user_id", { length: 36 }).notNull(),
-        targetUserId: varchar32("target_user_id", { length: 36 }).notNull(),
-        targetType: mysqlEnum7("target_type", ["lawyer", "firm"]).notNull(),
-        score: int21("score").notNull(),
-        comment: text21("comment"),
-        procesoId: varchar32("proceso_id", { length: 36 }).notNull(),
-        createdAt: timestamp25("created_at").notNull().defaultNow()
+        id: varchar34("id", { length: 36 }).primaryKey(),
+        fromUserId: varchar34("from_user_id", { length: 36 }).notNull(),
+        targetUserId: varchar34("target_user_id", { length: 36 }).notNull(),
+        targetType: mysqlEnum8("target_type", ["lawyer", "firm"]).notNull(),
+        score: int22("score").notNull(),
+        comment: text22("comment"),
+        procesoId: varchar34("proceso_id", { length: 36 }).notNull(),
+        createdAt: timestamp27("created_at").notNull().defaultNow()
       },
       (table) => [
         index2("idx_ratings_target").on(table.targetUserId, table.targetType),
@@ -1252,109 +1359,118 @@ var init_rating_schema = __esm({
 });
 
 // shared/schema/client-request.schema.ts
-import { mysqlTable as mysqlTable34, varchar as varchar33, mysqlEnum as mysqlEnum8, timestamp as timestamp26 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable36, varchar as varchar35, mysqlEnum as mysqlEnum9, timestamp as timestamp28 } from "drizzle-orm/mysql-core";
 var clientRequests;
 var init_client_request_schema = __esm({
   "shared/schema/client-request.schema.ts"() {
     "use strict";
-    clientRequests = mysqlTable34("client_requests", {
-      id: varchar33("id", { length: 36 }).primaryKey(),
-      fromUserId: varchar33("from_user_id", { length: 36 }).notNull(),
-      toUserId: varchar33("to_user_id", { length: 36 }).notNull(),
-      status: mysqlEnum8("status", ["pending", "accepted", "rejected", "expired"]).notNull().default("pending"),
-      createdAt: timestamp26("created_at").defaultNow().notNull(),
-      expiresAt: timestamp26("expires_at").notNull(),
-      respondedAt: timestamp26("responded_at")
+    clientRequests = mysqlTable36("client_requests", {
+      id: varchar35("id", { length: 36 }).primaryKey(),
+      fromUserId: varchar35("from_user_id", { length: 36 }).notNull(),
+      toUserId: varchar35("to_user_id", { length: 36 }).notNull(),
+      status: mysqlEnum9("status", ["pending", "accepted", "rejected", "expired"]).notNull().default("pending"),
+      createdAt: timestamp28("created_at").defaultNow().notNull(),
+      expiresAt: timestamp28("expires_at").notNull(),
+      respondedAt: timestamp28("responded_at")
     });
   }
 });
 
 // shared/schema/app-notification.schema.ts
-import { mysqlTable as mysqlTable35, varchar as varchar34, text as text22, timestamp as timestamp27, json } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable37, varchar as varchar36, text as text23, timestamp as timestamp29, json } from "drizzle-orm/mysql-core";
 var appNotifications;
 var init_app_notification_schema = __esm({
   "shared/schema/app-notification.schema.ts"() {
     "use strict";
-    appNotifications = mysqlTable35("app_notifications", {
-      id: varchar34("id", { length: 36 }).primaryKey(),
-      userId: varchar34("user_id", { length: 36 }).notNull(),
-      type: varchar34("type", { length: 50 }).notNull().default("info"),
-      title: varchar34("title", { length: 255 }).notNull(),
-      body: text22("body").notNull(),
+    appNotifications = mysqlTable37("app_notifications", {
+      id: varchar36("id", { length: 36 }).primaryKey(),
+      userId: varchar36("user_id", { length: 36 }).notNull(),
+      type: varchar36("type", { length: 50 }).notNull().default("info"),
+      title: varchar36("title", { length: 255 }).notNull(),
+      body: text23("body").notNull(),
       data: json("data"),
-      readAt: timestamp27("read_at"),
-      createdAt: timestamp27("created_at").defaultNow().notNull()
+      readAt: timestamp29("read_at"),
+      createdAt: timestamp29("created_at").defaultNow().notNull()
     });
   }
 });
 
 // shared/schema/firm-clients.schema.ts
-import { mysqlTable as mysqlTable36, varchar as varchar35, mysqlEnum as mysqlEnum9, timestamp as timestamp28 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable38, varchar as varchar37, mysqlEnum as mysqlEnum10, timestamp as timestamp30 } from "drizzle-orm/mysql-core";
 var firmClients;
 var init_firm_clients_schema = __esm({
   "shared/schema/firm-clients.schema.ts"() {
     "use strict";
-    firmClients = mysqlTable36("firm_clients", {
-      id: varchar35("id", { length: 36 }).primaryKey(),
-      firmId: varchar35("firm_id", { length: 36 }).notNull(),
-      clientId: varchar35("client_id", { length: 36 }).notNull(),
-      status: mysqlEnum9("status", ["active", "inactive"]).notNull().default("active"),
-      createdAt: timestamp28("created_at").defaultNow().notNull()
+    firmClients = mysqlTable38("firm_clients", {
+      id: varchar37("id", { length: 36 }).primaryKey(),
+      firmId: varchar37("firm_id", { length: 36 }).notNull(),
+      clientId: varchar37("client_id", { length: 36 }).notNull(),
+      status: mysqlEnum10("status", ["active", "inactive"]).notNull().default("active"),
+      createdAt: timestamp30("created_at").defaultNow().notNull()
     });
   }
 });
 
 // shared/schema/otp.schema.ts
-import { mysqlTable as mysqlTable37, varchar as varchar36, boolean as boolean19, timestamp as timestamp29, int as int22 } from "drizzle-orm/mysql-core";
-var passwordResetOtps;
+import { mysqlTable as mysqlTable39, varchar as varchar38, boolean as boolean20, timestamp as timestamp31, int as int23 } from "drizzle-orm/mysql-core";
+var passwordResetOtps, emailVerificationOtps;
 var init_otp_schema = __esm({
   "shared/schema/otp.schema.ts"() {
     "use strict";
-    passwordResetOtps = mysqlTable37("password_reset_otps", {
-      id: varchar36("id", { length: 36 }).primaryKey(),
-      userId: varchar36("user_id", { length: 36 }).notNull(),
-      code: varchar36("code", { length: 6 }).notNull(),
-      expiresAt: timestamp29("expires_at").notNull(),
-      isUsed: boolean19("is_used").notNull().default(false),
-      attempts: int22("attempts").notNull().default(0),
-      createdAt: timestamp29("created_at").notNull().defaultNow()
+    passwordResetOtps = mysqlTable39("password_reset_otps", {
+      id: varchar38("id", { length: 36 }).primaryKey(),
+      userId: varchar38("user_id", { length: 36 }).notNull(),
+      code: varchar38("code", { length: 6 }).notNull(),
+      expiresAt: timestamp31("expires_at").notNull(),
+      isUsed: boolean20("is_used").notNull().default(false),
+      attempts: int23("attempts").notNull().default(0),
+      createdAt: timestamp31("created_at").notNull().defaultNow()
+    });
+    emailVerificationOtps = mysqlTable39("email_verification_otps", {
+      id: varchar38("id", { length: 36 }).primaryKey(),
+      userId: varchar38("user_id", { length: 36 }).notNull(),
+      code: varchar38("code", { length: 6 }).notNull(),
+      expiresAt: timestamp31("expires_at").notNull(),
+      isUsed: boolean20("is_used").notNull().default(false),
+      attempts: int23("attempts").notNull().default(0),
+      createdAt: timestamp31("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/security-audit.schema.ts
-import { mysqlTable as mysqlTable38, varchar as varchar37, boolean as boolean20, timestamp as timestamp30, text as text23 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable40, varchar as varchar39, boolean as boolean21, timestamp as timestamp32, text as text24 } from "drizzle-orm/mysql-core";
 var securityEvents;
 var init_security_audit_schema = __esm({
   "shared/schema/security-audit.schema.ts"() {
     "use strict";
-    securityEvents = mysqlTable38("security_events", {
-      id: varchar37("id", { length: 36 }).primaryKey(),
-      email: varchar37("email", { length: 255 }).notNull(),
-      ip: varchar37("ip", { length: 45 }).notNull(),
-      userAgent: varchar37("user_agent", { length: 500 }),
-      eventType: varchar37("event_type", { length: 32 }).notNull(),
+    securityEvents = mysqlTable40("security_events", {
+      id: varchar39("id", { length: 36 }).primaryKey(),
+      email: varchar39("email", { length: 255 }).notNull(),
+      ip: varchar39("ip", { length: 45 }).notNull(),
+      userAgent: varchar39("user_agent", { length: 500 }),
+      eventType: varchar39("event_type", { length: 32 }).notNull(),
       // SecurityEventType
-      success: boolean20("success").notNull().default(false),
-      metadata: text23("metadata"),
+      success: boolean21("success").notNull().default(false),
+      metadata: text24("metadata"),
       // JSON string for extra context
-      createdAt: timestamp30("created_at").notNull().defaultNow()
+      createdAt: timestamp32("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/community-match.schema.ts
-import { mysqlTable as mysqlTable39, varchar as varchar38, tinyint as tinyint4, timestamp as timestamp31, index as index3, uniqueIndex } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable41, varchar as varchar40, tinyint as tinyint4, timestamp as timestamp33, index as index3, uniqueIndex as uniqueIndex5 } from "drizzle-orm/mysql-core";
 var communityPostMatches;
 var init_community_match_schema = __esm({
   "shared/schema/community-match.schema.ts"() {
     "use strict";
-    communityPostMatches = mysqlTable39(
+    communityPostMatches = mysqlTable41(
       "community_post_matches",
       {
-        id: varchar38("id", { length: 36 }).primaryKey(),
-        postId: varchar38("post_id", { length: 36 }).notNull(),
-        lawyerId: varchar38("lawyer_id", { length: 36 }).notNull(),
+        id: varchar40("id", { length: 36 }).primaryKey(),
+        postId: varchar40("post_id", { length: 36 }).notNull(),
+        lawyerId: varchar40("lawyer_id", { length: 36 }).notNull(),
         // lawyer_profiles.id
         score: tinyint4("score").notNull().default(0),
         // 1–10
@@ -1362,10 +1478,10 @@ var init_community_match_schema = __esm({
         // 1 = sent
         seen: tinyint4("seen").notNull().default(0),
         // 1 = opened
-        createdAt: timestamp31("created_at").notNull().defaultNow()
+        createdAt: timestamp33("created_at").notNull().defaultNow()
       },
       (t) => [
-        uniqueIndex("uq_post_lawyer").on(t.postId, t.lawyerId),
+        uniqueIndex5("uq_post_lawyer").on(t.postId, t.lawyerId),
         index3("idx_match_lawyer").on(t.lawyerId),
         index3("idx_match_post").on(t.postId)
       ]
@@ -1374,8 +1490,8 @@ var init_community_match_schema = __esm({
 });
 
 // shared/schema/legal-stage.schema.ts
-import { mysqlTable as mysqlTable40, varchar as varchar39, int as int23, tinyint as tinyint5, timestamp as timestamp32 } from "drizzle-orm/mysql-core";
-import { relations as relations24 } from "drizzle-orm";
+import { mysqlTable as mysqlTable42, varchar as varchar41, int as int24, tinyint as tinyint5, timestamp as timestamp34 } from "drizzle-orm/mysql-core";
+import { relations as relations26 } from "drizzle-orm";
 var LEGAL_STAGE_CODES, etapasPorTipoProceso, etapasPorTipoProcesoRelations;
 var init_legal_stage_schema = __esm({
   "shared/schema/legal-stage.schema.ts"() {
@@ -1405,21 +1521,21 @@ var init_legal_stage_schema = __esm({
       "ENFORCEMENT"
       // Ejecución de sentencia
     ];
-    etapasPorTipoProceso = mysqlTable40("etapas_por_tipo_proceso", {
-      id: int23("id").autoincrement().primaryKey(),
-      tipoProcesoId: int23("tipo_proceso_id"),
+    etapasPorTipoProceso = mysqlTable42("etapas_por_tipo_proceso", {
+      id: int24("id").autoincrement().primaryKey(),
+      tipoProcesoId: int24("tipo_proceso_id"),
       // NULL = aplica a todos
-      codigo: varchar39("codigo", { length: 50 }).notNull(),
-      nombre: varchar39("nombre", { length: 100 }).notNull(),
-      descripcion: varchar39("descripcion", { length: 255 }),
-      orden: int23("orden").notNull().default(0),
-      diasLegales: int23("dias_legales").notNull().default(0),
+      codigo: varchar41("codigo", { length: 50 }).notNull(),
+      nombre: varchar41("nombre", { length: 100 }).notNull(),
+      descripcion: varchar41("descripcion", { length: 255 }),
+      orden: int24("orden").notNull().default(0),
+      diasLegales: int24("dias_legales").notNull().default(0),
       // días hábiles del término
-      color: varchar39("color", { length: 20 }).notNull().default("#6B7280"),
+      color: varchar41("color", { length: 20 }).notNull().default("#6B7280"),
       activo: tinyint5("activo").notNull().default(1),
-      createdAt: timestamp32("created_at").notNull().defaultNow()
+      createdAt: timestamp34("created_at").notNull().defaultNow()
     });
-    etapasPorTipoProcesoRelations = relations24(etapasPorTipoProceso, ({ one }) => ({
+    etapasPorTipoProcesoRelations = relations26(etapasPorTipoProceso, ({ one }) => ({
       tipoProceso: one(tiposProceso, {
         fields: [etapasPorTipoProceso.tipoProcesoId],
         references: [tiposProceso.id]
@@ -1429,16 +1545,16 @@ var init_legal_stage_schema = __esm({
 });
 
 // shared/schema/calendar-event.schema.ts
-import { relations as relations25 } from "drizzle-orm";
+import { relations as relations27 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable41,
-  varchar as varchar40,
-  text as text24,
-  mysqlEnum as mysqlEnum10,
-  int as int24,
+  mysqlTable as mysqlTable43,
+  varchar as varchar42,
+  text as text25,
+  mysqlEnum as mysqlEnum11,
+  int as int25,
   tinyint as tinyint6,
   datetime as datetime3,
-  timestamp as timestamp33
+  timestamp as timestamp35
 } from "drizzle-orm/mysql-core";
 var REMINDER_OPTIONS, calendarEvents, calendarEventsRelations;
 var init_calendar_event_schema = __esm({
@@ -1454,13 +1570,13 @@ var init_calendar_event_schema = __esm({
       UN_DIA: 1440,
       TRES_DIAS: 4320
     };
-    calendarEvents = mysqlTable41("calendar_events", {
-      id: varchar40("id", { length: 36 }).primaryKey(),
-      lawyerId: varchar40("lawyer_id", { length: 36 }).notNull(),
-      procesoId: varchar40("proceso_id", { length: 36 }),
-      titulo: varchar40("titulo", { length: 255 }).notNull(),
-      descripcion: text24("descripcion"),
-      tipo: mysqlEnum10("tipo", [
+    calendarEvents = mysqlTable43("calendar_events", {
+      id: varchar42("id", { length: 36 }).primaryKey(),
+      lawyerId: varchar42("lawyer_id", { length: 36 }).notNull(),
+      procesoId: varchar42("proceso_id", { length: 36 }),
+      titulo: varchar42("titulo", { length: 255 }).notNull(),
+      descripcion: text25("descripcion"),
+      tipo: mysqlEnum11("tipo", [
         "audiencia",
         "reunion_cliente",
         "diligencia",
@@ -1470,13 +1586,13 @@ var init_calendar_event_schema = __esm({
       fechaInicio: datetime3("fecha_inicio").notNull(),
       fechaFin: datetime3("fecha_fin"),
       // null = sin duración definida
-      recordatorioMinutos: int24("recordatorio_minutos").notNull().default(1440),
+      recordatorioMinutos: int25("recordatorio_minutos").notNull().default(1440),
       notificado: tinyint6("notificado").notNull().default(0),
       state: tinyint6("state").notNull().default(1),
-      createdAt: timestamp33("created_at").notNull().defaultNow(),
-      updatedAt: timestamp33("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp35("created_at").notNull().defaultNow(),
+      updatedAt: timestamp35("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    calendarEventsRelations = relations25(calendarEvents, ({ one }) => ({
+    calendarEventsRelations = relations27(calendarEvents, ({ one }) => ({
       lawyer: one(lawyerProfiles, {
         fields: [calendarEvents.lawyerId],
         references: [lawyerProfiles.id]
@@ -1490,26 +1606,26 @@ var init_calendar_event_schema = __esm({
 });
 
 // shared/schema/stage-task-template.schema.ts
-import { mysqlTable as mysqlTable42, int as int25, varchar as varchar41, text as text25, mysqlEnum as mysqlEnum11, tinyint as tinyint7, timestamp as timestamp34 } from "drizzle-orm/mysql-core";
-import { relations as relations26 } from "drizzle-orm";
+import { mysqlTable as mysqlTable44, int as int26, varchar as varchar43, text as text26, mysqlEnum as mysqlEnum12, tinyint as tinyint7, timestamp as timestamp36 } from "drizzle-orm/mysql-core";
+import { relations as relations28 } from "drizzle-orm";
 var etapasTareasPlantilla, etapasTareasPlantillaRelations;
 var init_stage_task_template_schema = __esm({
   "shared/schema/stage-task-template.schema.ts"() {
     "use strict";
     init_tipo_proceso_schema();
-    etapasTareasPlantilla = mysqlTable42("etapa_tareas_plantilla", {
-      id: int25("id").autoincrement().primaryKey(),
-      tipoProcesoId: int25("tipo_proceso_id"),
-      legalStageCode: varchar41("legal_stage_code", { length: 50 }).notNull(),
-      titulo: varchar41("titulo", { length: 255 }).notNull(),
-      descripcion: text25("descripcion"),
-      prioridad: mysqlEnum11("prioridad", ["baja", "media", "alta", "urgente"]).notNull().default("media"),
+    etapasTareasPlantilla = mysqlTable44("etapa_tareas_plantilla", {
+      id: int26("id").autoincrement().primaryKey(),
+      tipoProcesoId: int26("tipo_proceso_id"),
+      legalStageCode: varchar43("legal_stage_code", { length: 50 }).notNull(),
+      titulo: varchar43("titulo", { length: 255 }).notNull(),
+      descripcion: text26("descripcion"),
+      prioridad: mysqlEnum12("prioridad", ["baja", "media", "alta", "urgente"]).notNull().default("media"),
       requerida: tinyint7("requerida").notNull().default(0),
-      orden: int25("orden").notNull().default(0),
+      orden: int26("orden").notNull().default(0),
       activo: tinyint7("activo").notNull().default(1),
-      createdAt: timestamp34("created_at").notNull().defaultNow()
+      createdAt: timestamp36("created_at").notNull().defaultNow()
     });
-    etapasTareasPlantillaRelations = relations26(etapasTareasPlantilla, ({ one }) => ({
+    etapasTareasPlantillaRelations = relations28(etapasTareasPlantilla, ({ one }) => ({
       tipoProceso: one(tiposProceso, {
         fields: [etapasTareasPlantilla.tipoProcesoId],
         references: [tiposProceso.id]
@@ -1519,30 +1635,30 @@ var init_stage_task_template_schema = __esm({
 });
 
 // shared/schema/stage-event.schema.ts
-import { mysqlTable as mysqlTable43, varchar as varchar42, text as text26, mysqlEnum as mysqlEnum12, json as json2, timestamp as timestamp35 } from "drizzle-orm/mysql-core";
-import { relations as relations27 } from "drizzle-orm";
+import { mysqlTable as mysqlTable45, varchar as varchar44, text as text27, mysqlEnum as mysqlEnum13, json as json2, timestamp as timestamp37 } from "drizzle-orm/mysql-core";
+import { relations as relations29 } from "drizzle-orm";
 var etapaEventos, etapaEventosRelations;
 var init_stage_event_schema = __esm({
   "shared/schema/stage-event.schema.ts"() {
     "use strict";
     init_proceso_schema();
-    etapaEventos = mysqlTable43("etapa_eventos", {
-      id: varchar42("id", { length: 36 }).primaryKey(),
-      procesoId: varchar42("proceso_id", { length: 36 }).notNull(),
-      legalStageCode: varchar42("legal_stage_code", { length: 50 }).notNull(),
-      tipo: mysqlEnum12("tipo", [
+    etapaEventos = mysqlTable45("etapa_eventos", {
+      id: varchar44("id", { length: 36 }).primaryKey(),
+      procesoId: varchar44("proceso_id", { length: 36 }).notNull(),
+      legalStageCode: varchar44("legal_stage_code", { length: 50 }).notNull(),
+      tipo: mysqlEnum13("tipo", [
         "etapa_iniciada",
         "etapa_completada",
         "tarea_completada",
         "documento_subido",
         "nota"
       ]).notNull(),
-      descripcion: text26("descripcion").notNull(),
+      descripcion: text27("descripcion").notNull(),
       metadatos: json2("metadatos"),
-      creadoPor: varchar42("creado_por", { length: 36 }),
-      createdAt: timestamp35("created_at").notNull().defaultNow()
+      creadoPor: varchar44("creado_por", { length: 36 }),
+      createdAt: timestamp37("created_at").notNull().defaultNow()
     });
-    etapaEventosRelations = relations27(etapaEventos, ({ one }) => ({
+    etapaEventosRelations = relations29(etapaEventos, ({ one }) => ({
       proceso: one(procesos, {
         fields: [etapaEventos.procesoId],
         references: [procesos.id]
@@ -1552,22 +1668,22 @@ var init_stage_event_schema = __esm({
 });
 
 // shared/schema/tarea-observacion.schema.ts
-import { mysqlTable as mysqlTable44, varchar as varchar43, text as text27, timestamp as timestamp36 } from "drizzle-orm/mysql-core";
-import { relations as relations28 } from "drizzle-orm";
+import { mysqlTable as mysqlTable46, varchar as varchar45, text as text28, timestamp as timestamp38 } from "drizzle-orm/mysql-core";
+import { relations as relations30 } from "drizzle-orm";
 var tareaObservaciones, tareaObservacionesRelations;
 var init_tarea_observacion_schema = __esm({
   "shared/schema/tarea-observacion.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaObservaciones = mysqlTable44("tarea_observaciones", {
-      id: varchar43("id", { length: 36 }).primaryKey(),
-      tareaId: varchar43("tarea_id", { length: 36 }).notNull(),
-      autorId: varchar43("autor_id", { length: 36 }).notNull(),
-      autorNombre: varchar43("autor_nombre", { length: 255 }),
-      contenido: text27("contenido").notNull(),
-      createdAt: timestamp36("created_at").notNull().defaultNow()
+    tareaObservaciones = mysqlTable46("tarea_observaciones", {
+      id: varchar45("id", { length: 36 }).primaryKey(),
+      tareaId: varchar45("tarea_id", { length: 36 }).notNull(),
+      autorId: varchar45("autor_id", { length: 36 }).notNull(),
+      autorNombre: varchar45("autor_nombre", { length: 255 }),
+      contenido: text28("contenido").notNull(),
+      createdAt: timestamp38("created_at").notNull().defaultNow()
     });
-    tareaObservacionesRelations = relations28(tareaObservaciones, ({ one }) => ({
+    tareaObservacionesRelations = relations30(tareaObservaciones, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaObservaciones.tareaId],
         references: [tareas.id]
@@ -1577,30 +1693,30 @@ var init_tarea_observacion_schema = __esm({
 });
 
 // shared/schema/tarea-subtarea.schema.ts
-import { mysqlTable as mysqlTable45, varchar as varchar44, text as text28, mysqlEnum as mysqlEnum13, decimal as decimal3, int as int26, timestamp as timestamp37 } from "drizzle-orm/mysql-core";
-import { relations as relations29 } from "drizzle-orm";
+import { mysqlTable as mysqlTable47, varchar as varchar46, text as text29, mysqlEnum as mysqlEnum14, decimal as decimal3, int as int27, timestamp as timestamp39 } from "drizzle-orm/mysql-core";
+import { relations as relations31 } from "drizzle-orm";
 var tareaSubtareas, tareaSubtareasRelations;
 var init_tarea_subtarea_schema = __esm({
   "shared/schema/tarea-subtarea.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaSubtareas = mysqlTable45("tarea_subtareas", {
-      id: varchar44("id", { length: 36 }).primaryKey(),
-      tareaId: varchar44("tarea_id", { length: 36 }).notNull(),
-      titulo: varchar44("titulo", { length: 255 }).notNull(),
-      descripcion: text28("descripcion"),
-      estado: mysqlEnum13("estado", ["pendiente", "completada"]).notNull().default("pendiente"),
+    tareaSubtareas = mysqlTable47("tarea_subtareas", {
+      id: varchar46("id", { length: 36 }).primaryKey(),
+      tareaId: varchar46("tarea_id", { length: 36 }).notNull(),
+      titulo: varchar46("titulo", { length: 255 }).notNull(),
+      descripcion: text29("descripcion"),
+      estado: mysqlEnum14("estado", ["pendiente", "completada"]).notNull().default("pendiente"),
       tiempoEstimado: decimal3("tiempo_estimado", { precision: 6, scale: 1 }),
-      tiempoUnidad: mysqlEnum13("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
-      completadaEn: timestamp37("completada_en"),
-      completadaPorId: varchar44("completada_por_id", { length: 36 }),
-      creadoPorId: varchar44("creado_por_id", { length: 36 }).notNull(),
-      creadoPorNombre: varchar44("creado_por_nombre", { length: 255 }),
-      orden: int26("orden").notNull().default(0),
-      createdAt: timestamp37("created_at").notNull().defaultNow(),
-      updatedAt: timestamp37("updated_at").notNull().defaultNow().onUpdateNow()
+      tiempoUnidad: mysqlEnum14("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
+      completadaEn: timestamp39("completada_en"),
+      completadaPorId: varchar46("completada_por_id", { length: 36 }),
+      creadoPorId: varchar46("creado_por_id", { length: 36 }).notNull(),
+      creadoPorNombre: varchar46("creado_por_nombre", { length: 255 }),
+      orden: int27("orden").notNull().default(0),
+      createdAt: timestamp39("created_at").notNull().defaultNow(),
+      updatedAt: timestamp39("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    tareaSubtareasRelations = relations29(tareaSubtareas, ({ one }) => ({
+    tareaSubtareasRelations = relations31(tareaSubtareas, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaSubtareas.tareaId],
         references: [tareas.id]
@@ -1610,23 +1726,23 @@ var init_tarea_subtarea_schema = __esm({
 });
 
 // shared/schema/tarea-historial.schema.ts
-import { mysqlTable as mysqlTable46, varchar as varchar45, text as text29, timestamp as timestamp38 } from "drizzle-orm/mysql-core";
-import { relations as relations30 } from "drizzle-orm";
+import { mysqlTable as mysqlTable48, varchar as varchar47, text as text30, timestamp as timestamp40 } from "drizzle-orm/mysql-core";
+import { relations as relations32 } from "drizzle-orm";
 var tareaHistorial, tareaHistorialRelations;
 var init_tarea_historial_schema = __esm({
   "shared/schema/tarea-historial.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaHistorial = mysqlTable46("tarea_historial", {
-      id: varchar45("id", { length: 36 }).primaryKey(),
-      tareaId: varchar45("tarea_id", { length: 36 }).notNull(),
-      usuarioId: varchar45("usuario_id", { length: 36 }).notNull(),
-      usuarioNombre: varchar45("usuario_nombre", { length: 255 }),
-      accion: varchar45("accion", { length: 50 }).notNull(),
-      detalle: text29("detalle"),
-      createdAt: timestamp38("created_at").notNull().defaultNow()
+    tareaHistorial = mysqlTable48("tarea_historial", {
+      id: varchar47("id", { length: 36 }).primaryKey(),
+      tareaId: varchar47("tarea_id", { length: 36 }).notNull(),
+      usuarioId: varchar47("usuario_id", { length: 36 }).notNull(),
+      usuarioNombre: varchar47("usuario_nombre", { length: 255 }),
+      accion: varchar47("accion", { length: 50 }).notNull(),
+      detalle: text30("detalle"),
+      createdAt: timestamp40("created_at").notNull().defaultNow()
     });
-    tareaHistorialRelations = relations30(tareaHistorial, ({ one }) => ({
+    tareaHistorialRelations = relations32(tareaHistorial, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaHistorial.tareaId],
         references: [tareas.id]
@@ -1636,26 +1752,26 @@ var init_tarea_historial_schema = __esm({
 });
 
 // shared/schema/tarea-archivo.schema.ts
-import { mysqlTable as mysqlTable47, varchar as varchar46, int as int27, text as text30, timestamp as timestamp39 } from "drizzle-orm/mysql-core";
-import { relations as relations31 } from "drizzle-orm";
+import { mysqlTable as mysqlTable49, varchar as varchar48, int as int28, text as text31, timestamp as timestamp41 } from "drizzle-orm/mysql-core";
+import { relations as relations33 } from "drizzle-orm";
 var tareaArchivos, tareaArchivosRelations;
 var init_tarea_archivo_schema = __esm({
   "shared/schema/tarea-archivo.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaArchivos = mysqlTable47("tarea_archivos", {
-      id: varchar46("id", { length: 36 }).primaryKey(),
-      tareaId: varchar46("tarea_id", { length: 36 }).notNull(),
-      nombre: varchar46("nombre", { length: 255 }).notNull(),
-      url: text30("url").notNull(),
+    tareaArchivos = mysqlTable49("tarea_archivos", {
+      id: varchar48("id", { length: 36 }).primaryKey(),
+      tareaId: varchar48("tarea_id", { length: 36 }).notNull(),
+      nombre: varchar48("nombre", { length: 255 }).notNull(),
+      url: text31("url").notNull(),
       // S3 key or local path
-      mimeType: varchar46("mime_type", { length: 100 }).notNull(),
-      tamano: int27("tamano").notNull().default(0),
+      mimeType: varchar48("mime_type", { length: 100 }).notNull(),
+      tamano: int28("tamano").notNull().default(0),
       // bytes
-      subidoPorId: varchar46("subido_por_id", { length: 36 }).notNull(),
-      createdAt: timestamp39("created_at").notNull().defaultNow()
+      subidoPorId: varchar48("subido_por_id", { length: 36 }).notNull(),
+      createdAt: timestamp41("created_at").notNull().defaultNow()
     });
-    tareaArchivosRelations = relations31(tareaArchivos, ({ one }) => ({
+    tareaArchivosRelations = relations33(tareaArchivos, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaArchivos.tareaId],
         references: [tareas.id]
@@ -1666,33 +1782,33 @@ var init_tarea_archivo_schema = __esm({
 
 // shared/schema/proceso-ownership.schema.ts
 import {
-  mysqlTable as mysqlTable48,
-  varchar as varchar47,
-  timestamp as timestamp40,
+  mysqlTable as mysqlTable50,
+  varchar as varchar49,
+  timestamp as timestamp42,
   tinyint as tinyint8
 } from "drizzle-orm/mysql-core";
-import { relations as relations32 } from "drizzle-orm";
+import { relations as relations34 } from "drizzle-orm";
 var procesoOwnership, procesoOwnershipRelations;
 var init_proceso_ownership_schema = __esm({
   "shared/schema/proceso-ownership.schema.ts"() {
     "use strict";
     init_proceso_schema();
-    procesoOwnership = mysqlTable48("proceso_ownership", {
-      id: varchar47("id", { length: 36 }).primaryKey(),
-      procesoId: varchar47("proceso_id", { length: 36 }).notNull(),
-      ownerType: varchar47("owner_type", { length: 20 }).notNull().$type(),
-      ownerId: varchar47("owner_id", { length: 36 }),
+    procesoOwnership = mysqlTable50("proceso_ownership", {
+      id: varchar49("id", { length: 36 }).primaryKey(),
+      procesoId: varchar49("proceso_id", { length: 36 }).notNull(),
+      ownerType: varchar49("owner_type", { length: 20 }).notNull().$type(),
+      ownerId: varchar49("owner_id", { length: 36 }),
       // NULL when sin_owner
-      fechaInicio: timestamp40("fecha_inicio").notNull().defaultNow(),
-      fechaFin: timestamp40("fecha_fin"),
+      fechaInicio: timestamp42("fecha_inicio").notNull().defaultNow(),
+      fechaFin: timestamp42("fecha_fin"),
       activoUnique: tinyint8("activo_unique"),
       // 1 = activo, NULL = histórico
-      creadoPor: varchar47("creado_por", { length: 36 }).notNull(),
-      razon: varchar47("razon", { length: 500 }),
-      createdAt: timestamp40("created_at").notNull().defaultNow(),
-      updatedAt: timestamp40("updated_at").notNull().defaultNow().onUpdateNow()
+      creadoPor: varchar49("creado_por", { length: 36 }).notNull(),
+      razon: varchar49("razon", { length: 500 }),
+      createdAt: timestamp42("created_at").notNull().defaultNow(),
+      updatedAt: timestamp42("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    procesoOwnershipRelations = relations32(procesoOwnership, ({ one }) => ({
+    procesoOwnershipRelations = relations34(procesoOwnership, ({ one }) => ({
       proceso: one(procesos, {
         fields: [procesoOwnership.procesoId],
         references: [procesos.id]
@@ -1703,12 +1819,12 @@ var init_proceso_ownership_schema = __esm({
 
 // shared/schema/proceso-sharing.schema.ts
 import {
-  mysqlTable as mysqlTable49,
-  varchar as varchar48,
-  timestamp as timestamp41,
+  mysqlTable as mysqlTable51,
+  varchar as varchar50,
+  timestamp as timestamp43,
   tinyint as tinyint9
 } from "drizzle-orm/mysql-core";
-import { relations as relations33 } from "drizzle-orm";
+import { relations as relations35 } from "drizzle-orm";
 var PERMISSION_CEILING, procesoSharing, procesoSharingRelations;
 var init_proceso_sharing_schema = __esm({
   "shared/schema/proceso-sharing.schema.ts"() {
@@ -1720,21 +1836,21 @@ var init_proceso_sharing_schema = __esm({
       cliente: ["ver"]
       // Clientes: máximo 'ver'
     };
-    procesoSharing = mysqlTable49("proceso_sharing", {
-      id: varchar48("id", { length: 36 }).primaryKey(),
-      procesoId: varchar48("proceso_id", { length: 36 }).notNull(),
-      sharedWithType: varchar48("shared_with_type", { length: 20 }).notNull().$type(),
-      sharedWithId: varchar48("shared_with_id", { length: 36 }).notNull(),
-      permission: varchar48("permission", { length: 20 }).notNull().$type(),
-      fechaInicio: timestamp41("fecha_inicio").notNull().defaultNow(),
-      fechaFin: timestamp41("fecha_fin"),
+    procesoSharing = mysqlTable51("proceso_sharing", {
+      id: varchar50("id", { length: 36 }).primaryKey(),
+      procesoId: varchar50("proceso_id", { length: 36 }).notNull(),
+      sharedWithType: varchar50("shared_with_type", { length: 20 }).notNull().$type(),
+      sharedWithId: varchar50("shared_with_id", { length: 36 }).notNull(),
+      permission: varchar50("permission", { length: 20 }).notNull().$type(),
+      fechaInicio: timestamp43("fecha_inicio").notNull().defaultNow(),
+      fechaFin: timestamp43("fecha_fin"),
       activoUnique: tinyint9("activo_unique"),
-      creadoPor: varchar48("creado_por", { length: 36 }).notNull(),
-      razon: varchar48("razon", { length: 500 }),
-      createdAt: timestamp41("created_at").notNull().defaultNow(),
-      updatedAt: timestamp41("updated_at").notNull().defaultNow().onUpdateNow()
+      creadoPor: varchar50("creado_por", { length: 36 }).notNull(),
+      razon: varchar50("razon", { length: 500 }),
+      createdAt: timestamp43("created_at").notNull().defaultNow(),
+      updatedAt: timestamp43("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    procesoSharingRelations = relations33(procesoSharing, ({ one }) => ({
+    procesoSharingRelations = relations35(procesoSharing, ({ one }) => ({
       proceso: one(procesos, {
         fields: [procesoSharing.procesoId],
         references: [procesos.id]
@@ -1744,24 +1860,24 @@ var init_proceso_sharing_schema = __esm({
 });
 
 // shared/schema/firm-settings.schema.ts
-import { mysqlTable as mysqlTable50, varchar as varchar49, boolean as boolean21, timestamp as timestamp42 } from "drizzle-orm/mysql-core";
-import { relations as relations34 } from "drizzle-orm";
+import { mysqlTable as mysqlTable52, varchar as varchar51, boolean as boolean22, timestamp as timestamp44 } from "drizzle-orm/mysql-core";
+import { relations as relations36 } from "drizzle-orm";
 var firmSettings, firmSettingsRelations;
 var init_firm_settings_schema = __esm({
   "shared/schema/firm-settings.schema.ts"() {
     "use strict";
     init_firm_profile_schema();
-    firmSettings = mysqlTable50("firm_settings", {
-      id: varchar49("id", { length: 36 }).primaryKey(),
-      firmId: varchar49("firm_id", { length: 36 }).notNull().unique(),
-      allowPrivateClientes: boolean21("allow_private_clientes").notNull().default(false),
-      allowPrivateProcesos: boolean21("allow_private_procesos").notNull().default(false),
-      defaultClienteEsCompartido: boolean21("default_cliente_es_compartido").notNull().default(true),
-      defaultProcesoEsCompartido: boolean21("default_proceso_es_compartido").notNull().default(true),
-      createdAt: timestamp42("created_at").notNull().defaultNow(),
-      updatedAt: timestamp42("updated_at").notNull().defaultNow().onUpdateNow()
+    firmSettings = mysqlTable52("firm_settings", {
+      id: varchar51("id", { length: 36 }).primaryKey(),
+      firmId: varchar51("firm_id", { length: 36 }).notNull().unique(),
+      allowPrivateClientes: boolean22("allow_private_clientes").notNull().default(false),
+      allowPrivateProcesos: boolean22("allow_private_procesos").notNull().default(false),
+      defaultClienteEsCompartido: boolean22("default_cliente_es_compartido").notNull().default(true),
+      defaultProcesoEsCompartido: boolean22("default_proceso_es_compartido").notNull().default(true),
+      createdAt: timestamp44("created_at").notNull().defaultNow(),
+      updatedAt: timestamp44("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    firmSettingsRelations = relations34(firmSettings, ({ one }) => ({
+    firmSettingsRelations = relations36(firmSettings, ({ one }) => ({
       firm: one(firmProfiles, {
         fields: [firmSettings.firmId],
         references: [firmProfiles.id]
@@ -1772,32 +1888,32 @@ var init_firm_settings_schema = __esm({
 
 // shared/schema/cliente-ownership.schema.ts
 import {
-  mysqlTable as mysqlTable51,
-  varchar as varchar50,
-  timestamp as timestamp43,
+  mysqlTable as mysqlTable53,
+  varchar as varchar52,
+  timestamp as timestamp45,
   tinyint as tinyint10
 } from "drizzle-orm/mysql-core";
-import { relations as relations35 } from "drizzle-orm";
+import { relations as relations37 } from "drizzle-orm";
 var clienteOwnership, clienteOwnershipRelations;
 var init_cliente_ownership_schema = __esm({
   "shared/schema/cliente-ownership.schema.ts"() {
     "use strict";
     init_cliente_schema();
-    clienteOwnership = mysqlTable51("cliente_ownership", {
-      id: varchar50("id", { length: 36 }).primaryKey(),
-      clienteId: varchar50("cliente_id", { length: 36 }).notNull(),
-      ownerType: varchar50("owner_type", { length: 20 }).notNull().$type(),
-      ownerId: varchar50("owner_id", { length: 36 }).notNull(),
-      fechaInicio: timestamp43("fecha_inicio").notNull().defaultNow(),
-      fechaFin: timestamp43("fecha_fin"),
+    clienteOwnership = mysqlTable53("cliente_ownership", {
+      id: varchar52("id", { length: 36 }).primaryKey(),
+      clienteId: varchar52("cliente_id", { length: 36 }).notNull(),
+      ownerType: varchar52("owner_type", { length: 20 }).notNull().$type(),
+      ownerId: varchar52("owner_id", { length: 36 }).notNull(),
+      fechaInicio: timestamp45("fecha_inicio").notNull().defaultNow(),
+      fechaFin: timestamp45("fecha_fin"),
       activoUnique: tinyint10("activo_unique"),
       // 1 = activo, NULL = histórico
-      creadoPor: varchar50("creado_por", { length: 36 }).notNull(),
-      razon: varchar50("razon", { length: 500 }),
-      createdAt: timestamp43("created_at").notNull().defaultNow(),
-      updatedAt: timestamp43("updated_at").notNull().defaultNow().onUpdateNow()
+      creadoPor: varchar52("creado_por", { length: 36 }).notNull(),
+      razon: varchar52("razon", { length: 500 }),
+      createdAt: timestamp45("created_at").notNull().defaultNow(),
+      updatedAt: timestamp45("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    clienteOwnershipRelations = relations35(clienteOwnership, ({ one }) => ({
+    clienteOwnershipRelations = relations37(clienteOwnership, ({ one }) => ({
       cliente: one(clientes, {
         fields: [clienteOwnership.clienteId],
         references: [clientes.id]
@@ -1806,14 +1922,144 @@ var init_cliente_ownership_schema = __esm({
   }
 });
 
+// shared/schema/feature.schema.ts
+import { mysqlTable as mysqlTable54, int as int29, varchar as varchar53, text as text32, boolean as boolean23 } from "drizzle-orm/mysql-core";
+var features, planFeatures, FEATURE_CODES;
+var init_feature_schema = __esm({
+  "shared/schema/feature.schema.ts"() {
+    "use strict";
+    features = mysqlTable54("features", {
+      id: int29("id").autoincrement().primaryKey(),
+      code: varchar53("code", { length: 100 }).notNull().unique(),
+      nombre: varchar53("nombre", { length: 100 }).notNull(),
+      descripcion: text32("descripcion"),
+      state: boolean23("state").notNull().default(true)
+    });
+    planFeatures = mysqlTable54("plan_features", {
+      planId: varchar53("plan_id", { length: 36 }).notNull(),
+      featureCode: varchar53("feature_code", { length: 100 }).notNull(),
+      // "true" / "false" para boolean; "5" para límite numérico (ej: privados limitados)
+      value: varchar53("value", { length: 50 }).notNull().default("true")
+    });
+    FEATURE_CODES = [
+      "calendario",
+      "etapas_procesales",
+      "comunidad",
+      "chat",
+      "privacidad_basica",
+      // hasta 5 clientes privados
+      "privacidad_avanzada",
+      // privados ilimitados + procesos privados
+      "dashboard_bufete",
+      "roles_custom",
+      "soporte_prioritario"
+    ];
+  }
+});
+
+// shared/schema/suscripcion.schema.ts
+import { mysqlTable as mysqlTable55, varchar as varchar54, int as int30, boolean as boolean24, datetime as datetime4, timestamp as timestamp46, mysqlEnum as mysqlEnum15 } from "drizzle-orm/mysql-core";
+var suscripciones;
+var init_suscripcion_schema = __esm({
+  "shared/schema/suscripcion.schema.ts"() {
+    "use strict";
+    suscripciones = mysqlTable55("suscripciones", {
+      id: varchar54("id", { length: 36 }).primaryKey(),
+      userId: varchar54("user_id", { length: 36 }).notNull(),
+      planId: varchar54("plan_id", { length: 36 }).notNull(),
+      ciclo: mysqlEnum15("ciclo", ["mensual", "anual"]).notNull(),
+      estado: mysqlEnum15("estado", ["activa", "cancelada", "vencida", "en_prueba"]).notNull().default("activa"),
+      fechaInicio: datetime4("fecha_inicio").notNull(),
+      fechaVencimiento: datetime4("fecha_vencimiento").notNull(),
+      fechaCancelacion: datetime4("fecha_cancelacion"),
+      autoRenovacion: boolean24("auto_renovacion").notNull().default(true),
+      extraUsers: int30("extra_users").notNull().default(0),
+      wompiSubscriptionId: varchar54("wompi_subscription_id", { length: 100 }),
+      createdAt: timestamp46("created_at").notNull().defaultNow()
+    });
+  }
+});
+
+// shared/schema/pago.schema.ts
+import { mysqlTable as mysqlTable56, varchar as varchar55, decimal as decimal4, timestamp as timestamp47, mysqlEnum as mysqlEnum16 } from "drizzle-orm/mysql-core";
+var pagos;
+var init_pago_schema = __esm({
+  "shared/schema/pago.schema.ts"() {
+    "use strict";
+    pagos = mysqlTable56("pagos", {
+      id: varchar55("id", { length: 36 }).primaryKey(),
+      suscripcionId: varchar55("suscripcion_id", { length: 36 }).notNull(),
+      userId: varchar55("user_id", { length: 36 }).notNull(),
+      amountCop: decimal4("amount_cop", { precision: 12, scale: 2 }),
+      amountUsd: decimal4("amount_usd", { precision: 10, scale: 2 }),
+      currency: mysqlEnum16("currency", ["COP", "USD"]).notNull(),
+      metodoPago: mysqlEnum16("metodo_pago", ["card", "pse", "nequi", "bancolombia_transfer", "otro"]),
+      estado: mysqlEnum16("estado", ["pendiente", "aprobado", "rechazado", "reembolsado"]).notNull().default("pendiente"),
+      wompiTransactionId: varchar55("wompi_transaction_id", { length: 100 }),
+      wompiReference: varchar55("wompi_reference", { length: 100 }).notNull().unique(),
+      concepto: varchar55("concepto", { length: 255 }),
+      createdAt: timestamp47("created_at").notNull().defaultNow()
+    });
+  }
+});
+
+// shared/schema/usage-tracking.schema.ts
+import { mysqlTable as mysqlTable57, varchar as varchar56, int as int31, timestamp as timestamp48 } from "drizzle-orm/mysql-core";
+var usageTracking;
+var init_usage_tracking_schema = __esm({
+  "shared/schema/usage-tracking.schema.ts"() {
+    "use strict";
+    usageTracking = mysqlTable57("usage_tracking", {
+      id: varchar56("id", { length: 36 }).primaryKey(),
+      userId: varchar56("user_id", { length: 36 }).notNull().unique(),
+      suscripcionId: varchar56("suscripcion_id", { length: 36 }).notNull(),
+      procesosUsados: int31("procesos_usados").notNull().default(0),
+      clientesUsados: int31("clientes_usados").notNull().default(0),
+      storageUsadoMb: int31("storage_usado_mb").notNull().default(0),
+      updatedAt: timestamp48("updated_at").notNull().defaultNow().onUpdateNow()
+    });
+  }
+});
+
+// shared/schema/admin-audit-log.schema.ts
+import { mysqlTable as mysqlTable58, int as int32, varchar as varchar57, text as text33, timestamp as timestamp49, index as index4 } from "drizzle-orm/mysql-core";
+var adminAuditLog;
+var init_admin_audit_log_schema = __esm({
+  "shared/schema/admin-audit-log.schema.ts"() {
+    "use strict";
+    adminAuditLog = mysqlTable58(
+      "admin_audit_log",
+      {
+        id: int32("id").autoincrement().primaryKey(),
+        /** Referencia soft a users.id — sin FK intencional: los logs de auditoría persisten aunque el admin sea eliminado */
+        adminId: varchar57("admin_id", { length: 36 }).notNull(),
+        accion: varchar57("accion", { length: 100 }).notNull(),
+        targetId: varchar57("target_id", { length: 36 }),
+        detalle: text33("detalle"),
+        createdAt: timestamp49("created_at").notNull().defaultNow()
+      },
+      (table) => [
+        index4("idx_admin_id").on(table.adminId),
+        index4("idx_accion").on(table.accion),
+        index4("idx_created").on(table.createdAt)
+      ]
+    );
+  }
+});
+
 // shared/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  ETAPA_ESTADOS: () => ETAPA_ESTADOS,
+  FEATURE_CODES: () => FEATURE_CODES,
   LEGAL_STAGE_CODES: () => LEGAL_STAGE_CODES,
   PERMISSION_CEILING: () => PERMISSION_CEILING,
   REMINDER_OPTIONS: () => REMINDER_OPTIONS,
   actualizaciones: () => actualizaciones,
   actualizacionesRelations: () => actualizacionesRelations,
+  adminAuditLog: () => adminAuditLog,
+  adminProfiles: () => adminProfiles,
+  adminProfilesRelations: () => adminProfilesRelations,
   appNotifications: () => appNotifications,
   calendarEvents: () => calendarEvents,
   calendarEventsRelations: () => calendarEventsRelations,
@@ -1837,6 +2083,7 @@ __export(schema_exports, {
   departamentosRelations: () => departamentosRelations,
   documentos: () => documentos,
   documentosRelations: () => documentosRelations,
+  emailVerificationOtps: () => emailVerificationOtps,
   estadosProceso: () => estadosProceso,
   etapaEventos: () => etapaEventos,
   etapaEventosRelations: () => etapaEventosRelations,
@@ -1844,6 +2091,7 @@ __export(schema_exports, {
   etapasPorTipoProcesoRelations: () => etapasPorTipoProcesoRelations,
   etapasTareasPlantilla: () => etapasTareasPlantilla,
   etapasTareasPlantillaRelations: () => etapasTareasPlantillaRelations,
+  features: () => features,
   firmClients: () => firmClients,
   firmInvitations: () => firmInvitations,
   firmInvitationsRelations: () => firmInvitationsRelations,
@@ -1864,11 +2112,13 @@ __export(schema_exports, {
   municipios: () => municipios,
   municipiosRelations: () => municipiosRelations,
   notificaciones: () => notificaciones,
+  pagos: () => pagos,
   passwordResetOtps: () => passwordResetOtps,
   permisos: () => permisos,
   permisosRelations: () => permisosRelations,
   personas: () => personas,
   personasRelations: () => personasRelations,
+  planFeatures: () => planFeatures,
   planes: () => planes,
   postBookmarks: () => postBookmarks,
   postLikes: () => postLikes,
@@ -1878,6 +2128,8 @@ __export(schema_exports, {
   postViews: () => postViews,
   posts: () => posts,
   postsRelations: () => postsRelations,
+  procesoEtapaHistorial: () => procesoEtapaHistorial,
+  procesoEtapaHistorialRelations: () => procesoEtapaHistorialRelations,
   procesoLawyers: () => procesoLawyers,
   procesoLawyersRelations: () => procesoLawyersRelations,
   procesoOwnership: () => procesoOwnership,
@@ -1898,6 +2150,7 @@ __export(schema_exports, {
   securityEvents: () => securityEvents,
   sessions: () => sessions,
   sessionsRelations: () => sessionsRelations,
+  suscripciones: () => suscripciones,
   tags: () => tags,
   tareaArchivos: () => tareaArchivos,
   tareaArchivosRelations: () => tareaArchivosRelations,
@@ -1914,6 +2167,7 @@ __export(schema_exports, {
   tiposActualizacionRelations: () => tiposActualizacionRelations,
   tiposDocumento: () => tiposDocumento,
   tiposProceso: () => tiposProceso,
+  usageTracking: () => usageTracking,
   users: () => users,
   usersRelations: () => usersRelations
 });
@@ -1921,6 +2175,7 @@ var init_schema = __esm({
   "shared/schema/index.ts"() {
     "use strict";
     init_user_schema();
+    init_admin_profile_schema();
     init_plane_schema();
     init_firm_profile_schema();
     init_lawyer_profile_schema();
@@ -1944,6 +2199,7 @@ var init_schema = __esm({
     init_proceso_lawyer_schema();
     init_tipo_asignacion_schema();
     init_proceso_responsables_schema();
+    init_proceso_etapa_historial_schema();
     init_lawyer_firma_history_schema();
     init_firm_invitation_schema();
     init_documento_schema();
@@ -1972,6 +2228,11 @@ var init_schema = __esm({
     init_proceso_sharing_schema();
     init_firm_settings_schema();
     init_cliente_ownership_schema();
+    init_feature_schema();
+    init_suscripcion_schema();
+    init_pago_schema();
+    init_usage_tracking_schema();
+    init_admin_audit_log_schema();
   }
 });
 
@@ -2260,13 +2521,112 @@ var init_estadoProceso_storage = __esm({
   }
 });
 
+// server/middleware/http-exception.ts
+var HttpException;
+var init_http_exception = __esm({
+  "server/middleware/http-exception.ts"() {
+    "use strict";
+    HttpException = class _HttpException extends Error {
+      constructor(status, message) {
+        super(message);
+        this.status = status;
+        this.name = "HttpException";
+        Object.setPrototypeOf(this, new.target.prototype);
+      }
+      static badRequest(message) {
+        return new _HttpException(400, message);
+      }
+      static unauthorized(message = "No autenticado") {
+        return new _HttpException(401, message);
+      }
+      static forbidden(message = "Sin permisos para esta acci\xF3n") {
+        return new _HttpException(403, message);
+      }
+      static notFound(message = "Recurso no encontrado") {
+        return new _HttpException(404, message);
+      }
+      static conflict(message) {
+        return new _HttpException(409, message);
+      }
+      static unprocessable(message) {
+        return new _HttpException(422, message);
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/identity-uniqueness.ts
+import { and as and2, eq as eq4, ne } from "drizzle-orm";
+function normalize(value) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+function normalizeLooseText(value) {
+  return value?.trim() ?? "";
+}
+function normalizeOptionalIdentity(value) {
+  return normalize(value);
+}
+function normalizeRequiredIdentity(value, fieldLabel) {
+  const normalized = normalize(value);
+  if (!normalized) {
+    throw HttpException.badRequest(`${fieldLabel} es requerido.`);
+  }
+  return normalized;
+}
+async function assertDocumentoUnique(db2, documento, excludePersonaId) {
+  const normalized = normalizeRequiredIdentity(documento, "El documento");
+  const rows = await db2.select({ id: personas.id }).from(personas).where(
+    excludePersonaId ? and2(eq4(personas.documento, normalized), ne(personas.id, excludePersonaId)) : eq4(personas.documento, normalized)
+  ).limit(1);
+  if (rows[0]) {
+    throw HttpException.conflict("El documento ya est\xE1 registrado en la plataforma.");
+  }
+  return normalized;
+}
+async function assertLicenseNumberUnique(db2, licenseNumber, excludeLawyerId) {
+  const normalized = normalize(licenseNumber);
+  if (!normalized) return null;
+  const rows = await db2.select({ id: lawyerProfiles.id }).from(lawyerProfiles).where(
+    excludeLawyerId ? and2(eq4(lawyerProfiles.licenseNumber, normalized), ne(lawyerProfiles.id, excludeLawyerId)) : eq4(lawyerProfiles.licenseNumber, normalized)
+  ).limit(1);
+  if (rows[0]) {
+    throw HttpException.conflict("La tarjeta profesional ya est\xE1 registrada en la plataforma.");
+  }
+  return normalized;
+}
+async function assertNitUnique(db2, nit, options) {
+  const normalized = normalizeRequiredIdentity(nit, "El NIT");
+  const firmRows = await db2.select({ id: firmProfiles.id }).from(firmProfiles).where(
+    options?.excludeFirmId ? and2(eq4(firmProfiles.nit, normalized), ne(firmProfiles.id, options.excludeFirmId)) : eq4(firmProfiles.nit, normalized)
+  ).limit(1);
+  if (firmRows[0]) {
+    throw HttpException.conflict("El NIT ya est\xE1 registrado en la plataforma.");
+  }
+  const companyRows = await db2.select({ clienteId: clientesEmpresa.clienteId }).from(clientesEmpresa).where(
+    options?.excludeClienteEmpresaId ? and2(eq4(clientesEmpresa.nit, normalized), ne(clientesEmpresa.clienteId, options.excludeClienteEmpresaId)) : eq4(clientesEmpresa.nit, normalized)
+  ).limit(1);
+  if (companyRows[0]) {
+    throw HttpException.conflict("El NIT ya est\xE1 registrado en la plataforma.");
+  }
+  return normalized;
+}
+var init_identity_uniqueness = __esm({
+  "server/storage/storeage/models/identity-uniqueness.ts"() {
+    "use strict";
+    init_schema();
+    init_http_exception();
+  }
+});
+
 // server/storage/storeage/models/firma-storage.ts
-import { eq as eq4 } from "drizzle-orm";
+import { eq as eq5 } from "drizzle-orm";
 var FirmProfileStorage;
 var init_firma_storage = __esm({
   "server/storage/storeage/models/firma-storage.ts"() {
     "use strict";
     init_schema();
+    init_identity_uniqueness();
     FirmProfileStorage = class {
       constructor(db2) {
         this.db = db2;
@@ -2275,7 +2635,7 @@ var init_firma_storage = __esm({
       // Obtener por ID
       // ============================
       async getFirmProfileById(id) {
-        const result = await this.db.select().from(firmProfiles).where(eq4(firmProfiles.id, id)).limit(1);
+        const result = await this.db.select().from(firmProfiles).where(eq5(firmProfiles.id, id)).limit(1);
         return result[0];
       }
       // ============================
@@ -2289,7 +2649,6 @@ var init_firma_storage = __esm({
           nit: firmProfiles.nit,
           address: firmProfiles.address,
           phone: firmProfiles.phone,
-          planId: firmProfiles.planId,
           representanteLegalId: firmProfiles.representanteLegalId,
           createdAt: firmProfiles.createdAt,
           updatedAt: firmProfiles.updatedAt,
@@ -2301,7 +2660,7 @@ var init_firma_storage = __esm({
           repApellido: personas.apellido,
           repTelefono: personas.telefono,
           repDocumento: personas.documento
-        }).from(firmProfiles).leftJoin(representantesLegales, eq4(firmProfiles.representanteLegalId, representantesLegales.id)).leftJoin(personas, eq4(representantesLegales.personaId, personas.id)).where(eq4(firmProfiles.userId, userId2)).limit(1);
+        }).from(firmProfiles).leftJoin(representantesLegales, eq5(firmProfiles.representanteLegalId, representantesLegales.id)).leftJoin(personas, eq5(representantesLegales.personaId, personas.id)).where(eq5(firmProfiles.userId, userId2)).limit(1);
         if (!rows[0]) return void 0;
         const row = rows[0];
         const profile = {
@@ -2311,7 +2670,6 @@ var init_firma_storage = __esm({
           nit: row.nit,
           address: row.address,
           phone: row.phone,
-          planId: row.planId,
           representanteLegalId: row.representanteLegalId,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
@@ -2339,8 +2697,13 @@ var init_firma_storage = __esm({
       // Crear Perfil
       // ============================
       async createFirmProfile(data) {
+        const nit = await assertNitUnique(this.db, data.nit);
         const newProfile = {
           ...data,
+          name: normalizeRequiredIdentity(data.name, "El nombre de la firma"),
+          nit,
+          address: normalizeOptionalIdentity(data.address),
+          phone: normalizeOptionalIdentity(data.phone),
           createdAt: /* @__PURE__ */ new Date(),
           updatedAt: /* @__PURE__ */ new Date()
         };
@@ -2356,24 +2719,29 @@ var init_firma_storage = __esm({
       // ============================
       async updateFirmProfile(id, updates) {
         const { createdAt, ...safeUpdates } = updates;
+        const payload = { ...safeUpdates };
+        if (safeUpdates.name !== void 0) payload.name = normalizeRequiredIdentity(safeUpdates.name, "El nombre de la firma");
+        if (safeUpdates.nit !== void 0) payload.nit = await assertNitUnique(this.db, safeUpdates.nit, { excludeFirmId: id });
+        if (safeUpdates.address !== void 0) payload.address = normalizeOptionalIdentity(safeUpdates.address);
+        if (safeUpdates.phone !== void 0) payload.phone = normalizeOptionalIdentity(safeUpdates.phone);
         await this.db.update(firmProfiles).set({
-          ...safeUpdates,
+          ...payload,
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq4(firmProfiles.id, id));
+        }).where(eq5(firmProfiles.id, id));
         return this.getFirmProfileById(id);
       }
       // ============================
       // Eliminar Perfil
       // ============================
       async deleteFirmProfile(id) {
-        await this.db.delete(firmProfiles).where(eq4(firmProfiles.id, id));
+        await this.db.delete(firmProfiles).where(eq5(firmProfiles.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/permisos-storage.ts
-import { eq as eq5 } from "drizzle-orm";
+import { eq as eq6 } from "drizzle-orm";
 var permisosCache, PermisoStorage;
 var init_permisos_storage = __esm({
   "server/storage/storeage/models/permisos-storage.ts"() {
@@ -2416,7 +2784,7 @@ var init_permisos_storage = __esm({
           return permisosCache.get(cacheKey);
         }
         const result = await this.db.query.rolesPermisos.findMany({
-          where: eq5(rolesPermisos.rolId, rolId),
+          where: eq6(rolesPermisos.rolId, rolId),
           with: { permiso: true }
         });
         const permisosRol = result.filter((rp) => rp.permiso.activo).map((rp) => rp.permiso.codigo);
@@ -2428,7 +2796,7 @@ var init_permisos_storage = __esm({
       // ===============================
       async assignPermisosToRol(rolId, permisosIds) {
         permisosCache.delete(`rol_${rolId}`);
-        await this.db.delete(rolesPermisos).where(eq5(rolesPermisos.rolId, rolId));
+        await this.db.delete(rolesPermisos).where(eq6(rolesPermisos.rolId, rolId));
         if (permisosIds.length > 0) {
           const values = permisosIds.map((permisoId) => ({
             rolId,
@@ -2442,7 +2810,7 @@ var init_permisos_storage = __esm({
 });
 
 // server/storage/storeage/models/plan-storage.ts
-import { eq as eq6 } from "drizzle-orm";
+import { eq as eq7, and as and3 } from "drizzle-orm";
 var PlanStorage;
 var init_plan_storage = __esm({
   "server/storage/storeage/models/plan-storage.ts"() {
@@ -2453,34 +2821,74 @@ var init_plan_storage = __esm({
         this.db = db2;
       }
       async getPlan(id) {
-        return this.db.query.planes.findFirst({
-          where: eq6(planes.id, id)
-        });
+        return this.db.select().from(planes).where(eq7(planes.id, id)).limit(1).then((r) => r[0]);
       }
-      async getPlanes() {
-        return this.db.query.planes.findMany();
+      async getPlanes(tipo) {
+        if (tipo) {
+          return this.db.select().from(planes).where(and3(eq7(planes.tipo, tipo), eq7(planes.state, true)));
+        }
+        return this.db.select().from(planes).where(eq7(planes.state, true));
       }
+      async getPlanesPublicos(tipo) {
+        const listPlanes = await this.getPlanes(tipo);
+        const result = [];
+        for (const p of listPlanes) {
+          const featureRows = await this.db.select({ code: planFeatures.featureCode, nombre: features.nombre, value: planFeatures.value }).from(planFeatures).innerJoin(features, eq7(planFeatures.featureCode, features.code)).where(eq7(planFeatures.planId, p.id));
+          result.push({
+            id: p.id,
+            nombre: p.nombre,
+            tipo: p.tipo,
+            precioMensualCop: p.precioMensualCop,
+            precioAnualCop: p.precioAnualCop,
+            precioMensualUsd: p.precioMensualUsd,
+            precioAnualUsd: p.precioAnualUsd,
+            maxProcesos: p.maxProcesos,
+            maxClientes: p.maxClientes,
+            maxStorageGb: p.maxStorageGb,
+            includedUsers: p.includedUsers,
+            maxUsers: p.maxUsers,
+            precioUsuarioExtraCop: p.precioUsuarioExtraCop ?? null,
+            precioUsuarioExtraUsd: p.precioUsuarioExtraUsd ?? null,
+            features: featureRows
+          });
+        }
+        return result;
+      }
+      /** Compatibilidad legacy — usado por server/index.ts seedDatabase() */
       async createPlan(insertPlan) {
         const newPlan = {
-          ...insertPlan,
+          id: insertPlan.id,
+          nombre: insertPlan.nombre,
+          tipo: insertPlan.tipo ?? "abogado",
+          precioMensualCop: insertPlan.precioMensualCop ?? insertPlan.precio ?? "0",
+          precioAnualCop: insertPlan.precioAnualCop ?? "0",
+          precioMensualUsd: insertPlan.precioMensualUsd ?? "0",
+          precioAnualUsd: insertPlan.precioAnualUsd ?? "0",
+          maxProcesos: insertPlan.maxProcesos ?? 5,
+          maxClientes: insertPlan.maxClientes ?? 10,
+          maxStorageGb: insertPlan.maxStorageGb ?? 0,
+          includedUsers: insertPlan.includedUsers ?? 1,
+          maxUsers: insertPlan.maxUsers ?? 1,
+          precioUsuarioExtraCop: insertPlan.precioUsuarioExtraCop ?? null,
+          precioUsuarioExtraUsd: insertPlan.precioUsuarioExtraUsd ?? null,
           state: insertPlan.state ?? true
         };
         await this.db.insert(planes).values(newPlan);
-        return newPlan;
+        return await this.getPlan(insertPlan.id);
       }
       async updatePlan(id, data) {
-        await this.db.update(planes).set(data).where(eq6(planes.id, id));
+        await this.db.update(planes).set(data).where(eq7(planes.id, id));
         return this.getPlan(id);
       }
       async deletePlan(id) {
-        await this.db.delete(planes).where(eq6(planes.id, id));
+        await this.db.delete(planes).where(eq7(planes.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/rol-storage.ts
-import { eq as eq7, isNull, and as and2 } from "drizzle-orm";
+import { eq as eq8, isNull, and as and4 } from "drizzle-orm";
 var RolStorage;
 var init_rol_storage = __esm({
   "server/storage/storeage/models/rol-storage.ts"() {
@@ -2497,24 +2905,24 @@ var init_rol_storage = __esm({
       }
       async getRol(id) {
         return this.db.query.roles.findFirst({
-          where: eq7(roles.id, id)
+          where: eq8(roles.id, id)
         });
       }
       async getRolByNombre(nombre) {
         return this.db.query.roles.findFirst({
-          where: and2(eq7(roles.nombre, nombre), isNull(roles.firmId))
+          where: and4(eq8(roles.nombre, nombre), isNull(roles.firmId))
         });
       }
       /** Returns all custom roles belonging to a specific firm */
       async getFirmRoles(firmId) {
-        return this.db.select().from(roles).where(eq7(roles.firmId, firmId));
+        return this.db.select().from(roles).where(eq8(roles.firmId, firmId));
       }
       async createRol(data) {
         await this.db.insert(roles).values(data);
         let created;
         if (data.firmId) {
           created = await this.db.query.roles.findFirst({
-            where: and2(eq7(roles.nombre, data.nombre), eq7(roles.firmId, data.firmId))
+            where: and4(eq8(roles.nombre, data.nombre), eq8(roles.firmId, data.firmId))
           });
         } else {
           created = await this.getRolByNombre(data.nombre);
@@ -2527,21 +2935,21 @@ var init_rol_storage = __esm({
       /** Check if any active lawyer is still assigned to this firm role */
       async hasFirmRolAssigned(rolId) {
         const result = await this.db.select({ id: lawyerFirmaHistory.id }).from(lawyerFirmaHistory).where(
-          and2(
-            eq7(lawyerFirmaHistory.firmRolId, rolId),
-            eq7(lawyerFirmaHistory.estado, "activo")
+          and4(
+            eq8(lawyerFirmaHistory.firmRolId, rolId),
+            eq8(lawyerFirmaHistory.estado, "activo")
           )
         ).limit(1);
         return result.length > 0;
       }
       async updateRol(id, updates) {
-        await this.db.update(roles).set(updates).where(eq7(roles.id, id));
+        await this.db.update(roles).set(updates).where(eq8(roles.id, id));
         return this.getRol(id);
       }
       async deleteRol(id) {
         await this.db.transaction(async (tx) => {
-          await tx.delete(rolesPermisos).where(eq7(rolesPermisos.rolId, id));
-          await tx.delete(roles).where(eq7(roles.id, id));
+          await tx.delete(rolesPermisos).where(eq8(rolesPermisos.rolId, id));
+          await tx.delete(roles).where(eq8(roles.id, id));
         });
       }
     };
@@ -2549,7 +2957,7 @@ var init_rol_storage = __esm({
 });
 
 // server/storage/storeage/models/tipoProceso-storage.ts
-import { eq as eq8 } from "drizzle-orm";
+import { eq as eq9 } from "drizzle-orm";
 var TipoProcesoStorage;
 var init_tipoProceso_storage = __esm({
   "server/storage/storeage/models/tipoProceso-storage.ts"() {
@@ -2564,7 +2972,7 @@ var init_tipoProceso_storage = __esm({
       }
       async getTipoProceso(id) {
         return this.db.query.tiposProceso.findFirst({
-          where: eq8(tiposProceso.id, id)
+          where: eq9(tiposProceso.id, id)
         });
       }
       async createTipoProceso(data) {
@@ -2575,7 +2983,7 @@ var init_tipoProceso_storage = __esm({
         };
         await this.db.insert(tiposProceso).values(newTipo);
         const created = await this.db.query.tiposProceso.findFirst({
-          where: eq8(tiposProceso.nombre, data.nombre)
+          where: eq9(tiposProceso.nombre, data.nombre)
         });
         if (!created) {
           throw new Error("No se pudo crear el tipo de proceso");
@@ -2583,18 +2991,18 @@ var init_tipoProceso_storage = __esm({
         return created;
       }
       async updateTipoProceso(id, updates) {
-        await this.db.update(tiposProceso).set(updates).where(eq8(tiposProceso.id, id));
+        await this.db.update(tiposProceso).set(updates).where(eq9(tiposProceso.id, id));
         return this.getTipoProceso(id);
       }
       async deleteTipoProceso(id) {
-        await this.db.delete(tiposProceso).where(eq8(tiposProceso.id, id));
+        await this.db.delete(tiposProceso).where(eq9(tiposProceso.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/user-storage.ts
-import { eq as eq9, like, or as or2 } from "drizzle-orm";
+import { eq as eq10, like, or as or2 } from "drizzle-orm";
 var UserStorage;
 var init_user_storage = __esm({
   "server/storage/storeage/models/user-storage.ts"() {
@@ -2608,7 +3016,7 @@ var init_user_storage = __esm({
       // Buscar por Email
       // ============================
       async getUserByEmail(email) {
-        const result = await this.db.select().from(users).where(eq9(users.email, email)).limit(1);
+        const result = await this.db.select().from(users).where(eq10(users.email, email)).limit(1);
         return result[0];
       }
       // ============================
@@ -2616,7 +3024,7 @@ var init_user_storage = __esm({
       // ============================
       async getUserById(id) {
         return await this.db.query.users.findFirst({
-          where: eq9(users.id, id),
+          where: eq10(users.id, id),
           with: {
             rol: true
           }
@@ -2648,7 +3056,7 @@ var init_user_storage = __esm({
           id: users.id,
           email: users.email,
           name: users.name
-        }).from(users).innerJoin(lawyerProfiles, eq9(users.id, lawyerProfiles.userId)).where(
+        }).from(users).innerJoin(lawyerProfiles, eq10(users.id, lawyerProfiles.userId)).where(
           or2(
             like(users.name, `%${search}%`),
             like(users.email, `%${search}%`)
@@ -2663,7 +3071,7 @@ var init_user_storage = __esm({
         await this.db.update(users).set({
           ...updates,
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq9(users.id, id));
+        }).where(eq10(users.id, id));
         return this.getUserById(id);
       }
       // ============================
@@ -2673,7 +3081,7 @@ var init_user_storage = __esm({
         await this.db.update(users).set({
           isActive,
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq9(users.id, id));
+        }).where(eq10(users.id, id));
         return this.getUserById(id);
       }
       // ============================
@@ -2681,7 +3089,7 @@ var init_user_storage = __esm({
       // ============================
       async getUserWithRole(id) {
         return this.db.query.users.findFirst({
-          where: eq9(users.id, id),
+          where: eq10(users.id, id),
           with: {
             rol: true
             // depende de que tengas relación definida en schema
@@ -2694,12 +3102,13 @@ var init_user_storage = __esm({
 
 // server/storage/storeage/models/cliente-storage.ts
 import { randomUUID as randomUUID2 } from "crypto";
-import { eq as eq10, and as and4, desc as desc2, like as like2, or as or3, inArray as inArray2, sql as sql4 } from "drizzle-orm";
+import { eq as eq11, and as and6, desc as desc2, like as like2, or as or3, inArray as inArray2, sql as sql4 } from "drizzle-orm";
 var ClienteStorage;
 var init_cliente_storage = __esm({
   "server/storage/storeage/models/cliente-storage.ts"() {
     "use strict";
     init_schema();
+    init_identity_uniqueness();
     ClienteStorage = class {
       constructor(db2) {
         this.db = db2;
@@ -2709,14 +3118,14 @@ var init_cliente_storage = __esm({
       // ----------------------------------------------------------------
       /** Returns clientIds of procesos where lawyerId is the active responsable */
       async getClienteIdsByProcesoResponsable(lawyerId) {
-        const rows = await this.db.select({ clienteId: procesos.clienteId }).from(procesoResponsables).innerJoin(procesos, eq10(procesoResponsables.procesoId, procesos.id)).where(and4(
-          eq10(procesoResponsables.lawyerId, lawyerId),
-          eq10(procesoResponsables.activo, true)
+        const rows = await this.db.select({ clienteId: procesos.clienteId }).from(procesoResponsables).innerJoin(procesos, eq11(procesoResponsables.procesoId, procesos.id)).where(and6(
+          eq11(procesoResponsables.lawyerId, lawyerId),
+          eq11(procesoResponsables.activo, true)
         ));
         return [...new Set(rows.map((r) => r.clienteId).filter(Boolean))];
       }
       async getClientes(lawyerId, limit = 10, offset = 0, filter, extraClientIds) {
-        const clienteIdRows = await this.db.select({ clienteId: lawyerClients.clientId }).from(lawyerClients).where(and4(eq10(lawyerClients.lawyerId, lawyerId), eq10(lawyerClients.status, "active")));
+        const clienteIdRows = await this.db.select({ clienteId: lawyerClients.clientId }).from(lawyerClients).where(and6(eq11(lawyerClients.lawyerId, lawyerId), eq11(lawyerClients.status, "active")));
         const clienteIds = [
           .../* @__PURE__ */ new Set([
             ...clienteIdRows.map((r) => r.clienteId).filter(Boolean),
@@ -2767,7 +3176,7 @@ var init_cliente_storage = __esm({
             sector: clientesEmpresa.sector,
             representanteLegalId: clientesEmpresa.representanteLegalId
           }
-        }).from(clientes).innerJoin(users, eq10(clientes.userId, users.id)).leftJoin(clientesNatural, eq10(clientes.id, clientesNatural.clienteId)).leftJoin(personas, eq10(clientesNatural.personaId, personas.id)).leftJoin(clientesEmpresa, eq10(clientes.id, clientesEmpresa.clienteId)).where(and4(...conditions)).orderBy(desc2(clientes.fechaCreacion)).limit(limit).offset(offset);
+        }).from(clientes).innerJoin(users, eq11(clientes.userId, users.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personas, eq11(clientesNatural.personaId, personas.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).where(and6(...conditions)).orderBy(desc2(clientes.fechaCreacion)).limit(limit).offset(offset);
         return rows.map((row) => this._mapRow(row));
       }
       async getProcesosStatsByClientes(clienteIds) {
@@ -2777,7 +3186,7 @@ var init_cliente_storage = __esm({
           codigo: estadosProceso.codigo,
           nombre: estadosProceso.nombre,
           count: sql4`COUNT(*)`
-        }).from(procesos).innerJoin(estadosProceso, eq10(procesos.estadoId, estadosProceso.id)).where(inArray2(procesos.clienteId, clienteIds)).groupBy(procesos.clienteId, estadosProceso.id, estadosProceso.codigo, estadosProceso.nombre);
+        }).from(procesos).innerJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).where(inArray2(procesos.clienteId, clienteIds)).groupBy(procesos.clienteId, estadosProceso.id, estadosProceso.codigo, estadosProceso.nombre);
         const map = /* @__PURE__ */ new Map();
         for (const row of rows) {
           if (!row.clienteId) continue;
@@ -2790,7 +3199,7 @@ var init_cliente_storage = __esm({
         return map;
       }
       async getClientesCount(lawyerId, extraClientIds) {
-        const rows = await this.db.select({ clienteId: lawyerClients.clientId }).from(lawyerClients).where(and4(eq10(lawyerClients.lawyerId, lawyerId), eq10(lawyerClients.status, "active")));
+        const rows = await this.db.select({ clienteId: lawyerClients.clientId }).from(lawyerClients).where(and6(eq11(lawyerClients.lawyerId, lawyerId), eq11(lawyerClients.status, "active")));
         const allIds = /* @__PURE__ */ new Set([
           ...rows.map((r) => r.clienteId).filter(Boolean),
           ...extraClientIds ?? []
@@ -2831,7 +3240,7 @@ var init_cliente_storage = __esm({
             sector: clientesEmpresa.sector,
             representanteLegalId: clientesEmpresa.representanteLegalId
           }
-        }).from(clientes).innerJoin(users, eq10(clientes.userId, users.id)).leftJoin(clientesNatural, eq10(clientes.id, clientesNatural.clienteId)).leftJoin(personas, eq10(clientesNatural.personaId, personas.id)).leftJoin(tiposDocumento, eq10(personas.tipoDocumentoId, tiposDocumento.id)).leftJoin(departamentos, eq10(personas.departamentoId, departamentos.id)).leftJoin(municipios, eq10(personas.municipioId, municipios.id)).leftJoin(clientesEmpresa, eq10(clientes.id, clientesEmpresa.clienteId)).where(eq10(clientes.id, id)).limit(1);
+        }).from(clientes).innerJoin(users, eq11(clientes.userId, users.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personas, eq11(clientesNatural.personaId, personas.id)).leftJoin(tiposDocumento, eq11(personas.tipoDocumentoId, tiposDocumento.id)).leftJoin(departamentos, eq11(personas.departamentoId, departamentos.id)).leftJoin(municipios, eq11(personas.municipioId, municipios.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).where(eq11(clientes.id, id)).limit(1);
         if (!rows[0]) return void 0;
         const cliente = this._mapRow(rows[0]);
         if (cliente.tipo === "empresa" && cliente.empresa?.representanteLegalId) {
@@ -2858,7 +3267,7 @@ var init_cliente_storage = __esm({
             mId: municipios.id,
             mCod: municipios.codigo,
             mNom: municipios.nombre
-          }).from(representantesLegales).leftJoin(personas, eq10(representantesLegales.personaId, personas.id)).leftJoin(tiposDocumento, eq10(personas.tipoDocumentoId, tiposDocumento.id)).leftJoin(departamentos, eq10(personas.departamentoId, departamentos.id)).leftJoin(municipios, eq10(personas.municipioId, municipios.id)).where(eq10(representantesLegales.id, cliente.empresa.representanteLegalId)).limit(1);
+          }).from(representantesLegales).leftJoin(personas, eq11(representantesLegales.personaId, personas.id)).leftJoin(tiposDocumento, eq11(personas.tipoDocumentoId, tiposDocumento.id)).leftJoin(departamentos, eq11(personas.departamentoId, departamentos.id)).leftJoin(municipios, eq11(personas.municipioId, municipios.id)).where(eq11(representantesLegales.id, cliente.empresa.representanteLegalId)).limit(1);
           if (repRows[0]) {
             const r = repRows[0];
             const persona = r.pId ? {
@@ -2887,14 +3296,14 @@ var init_cliente_storage = __esm({
         return cliente;
       }
       async getClienteByDocument(documento) {
-        const personaResult = await this.db.select({ id: personas.id }).from(personas).where(eq10(personas.documento, documento)).limit(1);
+        const personaResult = await this.db.select({ id: personas.id }).from(personas).where(eq11(personas.documento, documento)).limit(1);
         if (!personaResult[0]) return void 0;
-        const naturalResult = await this.db.select({ clienteId: clientesNatural.clienteId }).from(clientesNatural).where(eq10(clientesNatural.personaId, personaResult[0].id)).limit(1);
+        const naturalResult = await this.db.select({ clienteId: clientesNatural.clienteId }).from(clientesNatural).where(eq11(clientesNatural.personaId, personaResult[0].id)).limit(1);
         if (!naturalResult[0]) return void 0;
         return this.getCliente(naturalResult[0].clienteId);
       }
       async getClienteByUser(userId2) {
-        const result = await this.db.select({ id: clientes.id }).from(clientes).where(eq10(clientes.userId, userId2)).limit(1);
+        const result = await this.db.select({ id: clientes.id }).from(clientes).where(eq11(clientes.userId, userId2)).limit(1);
         if (!result[0]) return void 0;
         return this.getCliente(result[0].id);
       }
@@ -2914,25 +3323,27 @@ var init_cliente_storage = __esm({
         if (data.tipo === "natural") {
           const d = data;
           const personaId = randomUUID2();
+          const documento = await assertDocumentoUnique(db2, d.documento);
           await db2.insert(personas).values({
             id: personaId,
-            nombre: d.nombre,
-            apellido: d.apellido,
-            telefono: d.telefono,
-            documento: d.documento,
+            nombre: normalizeLooseText(d.nombre),
+            apellido: normalizeLooseText(d.apellido),
+            telefono: normalizeLooseText(d.telefono),
+            documento,
             tipoDocumentoId: d.tipoDocumentoId,
-            direccion: d.direccion ?? null,
+            direccion: normalizeOptionalIdentity(d.direccion),
             departamentoId: d.departamentoId ?? null,
             municipioId: d.municipioId ?? null
           });
           await db2.insert(clientesNatural).values({ clienteId: id, personaId });
         } else {
           const d = data;
+          const nit = await assertNitUnique(db2, d.nit);
           await db2.insert(clientesEmpresa).values({
             clienteId: id,
-            razonSocial: d.razonSocial,
-            nit: d.nit,
-            sector: d.sector ?? null,
+            razonSocial: normalizeRequiredIdentity(d.razonSocial, "La raz\xF3n social"),
+            nit,
+            sector: normalizeOptionalIdentity(d.sector),
             representanteLegalId: d.representanteLegalId ?? null
           });
         }
@@ -2949,33 +3360,33 @@ var init_cliente_storage = __esm({
         const baseUpdates = {};
         if (activo !== void 0) baseUpdates.activo = activo;
         if (Object.keys(baseUpdates).length > 0) {
-          await db2.update(clientes).set(baseUpdates).where(eq10(clientes.id, id));
+          await db2.update(clientes).set(baseUpdates).where(eq11(clientes.id, id));
         }
         const current = await this.getCliente(id);
         if (!current) return void 0;
         if (current.tipo === "natural") {
           const { nombre, apellido, telefono, documento, tipoDocumentoId, direccion, departamentoId, municipioId } = rest;
           const personaUpdates = {};
-          if (nombre !== void 0) personaUpdates.nombre = nombre;
-          if (apellido !== void 0) personaUpdates.apellido = apellido;
-          if (telefono !== void 0) personaUpdates.telefono = telefono;
-          if (documento !== void 0) personaUpdates.documento = documento;
+          if (nombre !== void 0) personaUpdates.nombre = normalizeLooseText(nombre);
+          if (apellido !== void 0) personaUpdates.apellido = normalizeLooseText(apellido);
+          if (telefono !== void 0) personaUpdates.telefono = normalizeLooseText(telefono);
+          if (documento !== void 0) personaUpdates.documento = await assertDocumentoUnique(db2, documento, current.natural?.personaId);
           if (tipoDocumentoId !== void 0) personaUpdates.tipoDocumentoId = tipoDocumentoId;
-          if (direccion !== void 0) personaUpdates.direccion = direccion;
+          if (direccion !== void 0) personaUpdates.direccion = normalizeOptionalIdentity(direccion);
           if (departamentoId !== void 0) personaUpdates.departamentoId = departamentoId;
           if (municipioId !== void 0) personaUpdates.municipioId = municipioId;
           if (Object.keys(personaUpdates).length > 0 && current.natural?.personaId) {
-            await db2.update(personas).set(personaUpdates).where(eq10(personas.id, current.natural.personaId));
+            await db2.update(personas).set(personaUpdates).where(eq11(personas.id, current.natural.personaId));
           }
         } else {
           const { razonSocial, nit, sector, representanteLegalId } = rest;
           const empresaUpdates = {};
-          if (razonSocial !== void 0) empresaUpdates.razonSocial = razonSocial;
-          if (nit !== void 0) empresaUpdates.nit = nit;
-          if (sector !== void 0) empresaUpdates.sector = sector;
+          if (razonSocial !== void 0) empresaUpdates.razonSocial = normalizeRequiredIdentity(razonSocial, "La raz\xF3n social");
+          if (nit !== void 0) empresaUpdates.nit = await assertNitUnique(db2, nit, { excludeClienteEmpresaId: id });
+          if (sector !== void 0) empresaUpdates.sector = normalizeOptionalIdentity(sector);
           if (representanteLegalId !== void 0) empresaUpdates.representanteLegalId = representanteLegalId;
           if (Object.keys(empresaUpdates).length > 0) {
-            await db2.update(clientesEmpresa).set(empresaUpdates).where(eq10(clientesEmpresa.clienteId, id));
+            await db2.update(clientesEmpresa).set(empresaUpdates).where(eq11(clientesEmpresa.clienteId, id));
           }
         }
         return this.getCliente(id, tx);
@@ -2984,7 +3395,7 @@ var init_cliente_storage = __esm({
       // DELETE
       // ----------------------------------------------------------------
       async deleteCliente(id) {
-        await this.db.delete(clientes).where(eq10(clientes.id, id));
+        await this.db.delete(clientes).where(eq11(clientes.id, id));
       }
       // ----------------------------------------------------------------
       // PRIVATE helpers
@@ -3022,7 +3433,7 @@ var init_cliente_storage = __esm({
 
 // server/storage/storeage/models/proceso-storage.ts
 import { randomUUID as randomUUID3 } from "crypto";
-import { eq as eq11, and as and5, desc as desc3, sql as sql5, inArray as inArray3 } from "drizzle-orm";
+import { eq as eq12, and as and7, desc as desc3, sql as sql5, inArray as inArray3, isNull as isNull2 } from "drizzle-orm";
 import { alias } from "drizzle-orm/mysql-core";
 var ProcesoStorage;
 var init_proceso_storage = __esm({
@@ -3049,9 +3460,9 @@ var init_proceso_storage = __esm({
           fechaInicio: procesoResponsables.fechaInicio,
           razon: procesoResponsables.razon,
           asignadoPorNombre: procesoResponsables.asignadoPorNombre
-        }).from(procesoResponsables).innerJoin(lawyerProfiles, eq11(procesoResponsables.lawyerId, lawyerProfiles.id)).leftJoin(personasResponsable, eq11(lawyerProfiles.personaId, personasResponsable.id)).where(and5(
-          eq11(procesoResponsables.procesoId, procesoId),
-          eq11(procesoResponsables.activo, true)
+        }).from(procesoResponsables).innerJoin(lawyerProfiles, eq12(procesoResponsables.lawyerId, lawyerProfiles.id)).leftJoin(personasResponsable, eq12(lawyerProfiles.personaId, personasResponsable.id)).where(and7(
+          eq12(procesoResponsables.procesoId, procesoId),
+          eq12(procesoResponsables.activo, true)
         )).limit(1);
         if (!result[0]) return null;
         const r = result[0];
@@ -3077,14 +3488,14 @@ var init_proceso_storage = __esm({
       }
       async getProcesos(lawyerId, limit = 10, offset = 0, filter) {
         const [lawyerProcesoIds, responsableProcesoIds, ownedProcesoIds] = await Promise.all([
-          this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq11(procesoLawyers.lawyerId, lawyerId)),
-          this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and5(
-            eq11(procesoResponsables.lawyerId, lawyerId),
-            eq11(procesoResponsables.activo, true)
+          this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq12(procesoLawyers.lawyerId, lawyerId)),
+          this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and7(
+            eq12(procesoResponsables.lawyerId, lawyerId),
+            eq12(procesoResponsables.activo, true)
           )),
-          this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and5(
-            eq11(procesoOwnership.ownerType, "abogado"),
-            eq11(procesoOwnership.ownerId, lawyerId),
+          this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and7(
+            eq12(procesoOwnership.ownerType, "abogado"),
+            eq12(procesoOwnership.ownerId, lawyerId),
             sql5`${procesoOwnership.activoUnique} = 1`
           ))
         ]);
@@ -3102,9 +3513,9 @@ var init_proceso_storage = __esm({
         const municipiosCliente = alias(municipios, "municipiosCliente");
         const repLegal = alias(representantesLegales, "repLegal");
         const personasRepLegal = alias(personas, "personasRepLegal");
-        const conditions = [inArray3(procesos.id, procesoIds), eq11(procesos.state, true)];
+        const conditions = [inArray3(procesos.id, procesoIds), eq12(procesos.state, true)];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -3132,14 +3543,14 @@ var init_proceso_storage = __esm({
       )`);
           }
         }
-        const joinConditions = and5(
-          eq11(responsableJoin.procesoId, procesos.id),
-          eq11(responsableJoin.activo, true)
+        const joinConditions = and7(
+          eq12(responsableJoin.procesoId, procesos.id),
+          eq12(responsableJoin.activo, true)
         );
-        const baseJoins = (qb) => qb.leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq11(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq11(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq11(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq11(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq11(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq11(responsableLawyer.personaId, personasResponsable.id));
+        const baseJoins = (qb) => qb.leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id));
         const [{ count: count5 }] = await baseJoins(
           this.db.select({ count: sql5`COUNT(*)` }).from(procesos)
-        ).where(and5(...conditions));
+        ).where(and7(...conditions));
         const results = await baseJoins(
           this.db.select({
             id: procesos.id,
@@ -3186,7 +3597,7 @@ var init_proceso_storage = __esm({
             responsableRazon: responsableJoin.razon,
             responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre
           }).from(procesos)
-        ).where(and5(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
+        ).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
         const data = results.map((p) => ({
           id: p.id,
           state: p.state,
@@ -3249,10 +3660,10 @@ var init_proceso_storage = __esm({
         return { data, total: Number(count5) };
       }
       async getProcesosCount(lawyerId, filter) {
-        const lawyerProcesoIds = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq11(procesoLawyers.lawyerId, lawyerId));
-        const responsableProcesoIds = await this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and5(
-          eq11(procesoResponsables.lawyerId, lawyerId),
-          eq11(procesoResponsables.activo, true)
+        const lawyerProcesoIds = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq12(procesoLawyers.lawyerId, lawyerId));
+        const responsableProcesoIds = await this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and7(
+          eq12(procesoResponsables.lawyerId, lawyerId),
+          eq12(procesoResponsables.activo, true)
         ));
         const procesoIds = [.../* @__PURE__ */ new Set([
           ...lawyerProcesoIds.map((p) => p.procesoId),
@@ -3262,9 +3673,9 @@ var init_proceso_storage = __esm({
           return 0;
         }
         const personasCliente = alias(personas, "personasCliente");
-        const conditions = [inArray3(procesos.id, procesoIds), eq11(procesos.state, true)];
+        const conditions = [inArray3(procesos.id, procesoIds), eq12(procesos.state, true)];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -3278,20 +3689,21 @@ var init_proceso_storage = __esm({
       )`
           );
         }
-        const result = await this.db.select({ count: sql5`count(*)` }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).where(and5(...conditions));
+        const result = await this.db.select({ count: sql5`count(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         return result[0]?.count || 0;
       }
       async getProcesosByCliente(clienteId, limit = 10, offset = 0, filter) {
         const responsableLawyer = alias(lawyerProfiles, "responsableLawyer");
         const responsableJoin = alias(procesoResponsables, "responsableJoin");
         const personasResponsable = alias(personas, "personasResponsable");
-        const joinConditions = and5(
-          eq11(responsableJoin.procesoId, procesos.id),
-          eq11(responsableJoin.activo, true)
+        const etapaActualJoin = alias(etapasPorTipoProceso, "etapaActualJoin");
+        const joinConditions = and7(
+          eq12(responsableJoin.procesoId, procesos.id),
+          eq12(responsableJoin.activo, true)
         );
-        const conditions = [eq11(procesos.clienteId, clienteId), eq11(procesos.state, true)];
+        const conditions = [eq12(procesos.clienteId, clienteId), eq12(procesos.state, true)];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -3303,7 +3715,7 @@ var init_proceso_storage = __esm({
       )`
           );
         }
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).where(and5(...conditions));
+        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -3314,6 +3726,7 @@ var init_proceso_storage = __esm({
           juzgado: procesos.juzgado,
           estadoId: procesos.estadoId,
           descripcionEstado: procesos.descripcionEstado,
+          legalStage: procesos.legalStage,
           tipoProcesoNombre: tiposProceso.nombre,
           estadoIdRel: estadosProceso.id,
           estadoCodigo: estadosProceso.codigo,
@@ -3325,8 +3738,15 @@ var init_proceso_storage = __esm({
           responsablePersonaApellido: personasResponsable.apellido,
           responsableFechaInicio: responsableJoin.fechaInicio,
           responsableRazon: responsableJoin.razon,
-          responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre
-        }).from(procesos).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq11(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq11(responsableLawyer.personaId, personasResponsable.id)).where(and5(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
+          responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre,
+          etapaCodigo: etapaActualJoin.codigo,
+          etapaNombre: etapaActualJoin.nombre,
+          etapaColor: etapaActualJoin.color,
+          etapaOrden: etapaActualJoin.orden
+        }).from(procesos).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).leftJoin(etapaActualJoin, and7(
+          sql5`${etapaActualJoin.codigo} = ${procesos.legalStage}`,
+          isNull2(etapaActualJoin.tipoProcesoId)
+        )).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
         const data = results.map((p) => ({
           id: p.id,
           state: p.state,
@@ -3337,6 +3757,7 @@ var init_proceso_storage = __esm({
           juzgado: p.juzgado,
           estadoId: p.estadoId,
           descripcionEstado: p.descripcionEstado,
+          legalStage: p.legalStage ?? null,
           clienteNombre: "Sin cliente",
           tipoProceso: p.tipoProcesoNombre ? { nombre: p.tipoProcesoNombre } : null,
           estado: p.estadoIdRel ? {
@@ -3358,13 +3779,19 @@ var init_proceso_storage = __esm({
                 apellido: p.responsablePersonaApellido ?? ""
               } : null
             }
+          } : null,
+          etapaActual: p.etapaCodigo ? {
+            codigo: p.etapaCodigo,
+            nombre: p.etapaNombre,
+            color: p.etapaColor,
+            orden: p.etapaOrden
           } : null
         }));
         return { data, total: Number(count5) };
       }
       async getProceso(id) {
         const rawProceso = await this.db.query.procesos.findFirst({
-          where: and5(eq11(procesos.id, id), eq11(procesos.state, true)),
+          where: and7(eq12(procesos.id, id), eq12(procesos.state, true)),
           with: {
             cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
             estado: true,
@@ -3422,21 +3849,21 @@ var init_proceso_storage = __esm({
       }
       /** Vincula un proceso existente con un post de comunidad (bidireccional). */
       async setCommunityPostId(procesoId, communityPostId) {
-        await this.db.update(procesos).set({ communityPostId }).where(eq11(procesos.id, procesoId));
+        await this.db.update(procesos).set({ communityPostId }).where(eq12(procesos.id, procesoId));
       }
       // Obtener todos los procesos donde un abogado es responsable activo
       async getActiveProcesosByResponsable(lawyerId) {
-        const rows = await this.db.select({ id: procesos.id, radicado: procesos.radicado }).from(procesoResponsables).innerJoin(procesos, eq11(procesoResponsables.procesoId, procesos.id)).where(and5(
-          eq11(procesoResponsables.lawyerId, lawyerId),
-          eq11(procesoResponsables.activo, true),
-          eq11(procesos.state, true)
+        const rows = await this.db.select({ id: procesos.id, radicado: procesos.radicado }).from(procesoResponsables).innerJoin(procesos, eq12(procesoResponsables.procesoId, procesos.id)).where(and7(
+          eq12(procesoResponsables.lawyerId, lawyerId),
+          eq12(procesoResponsables.activo, true),
+          eq12(procesos.state, true)
         ));
         return rows;
       }
       async setResponsable(procesoId, responsableId, options = {}) {
-        await this.db.update(procesoResponsables).set({ activo: false, fechaFin: /* @__PURE__ */ new Date() }).where(and5(
-          eq11(procesoResponsables.procesoId, procesoId),
-          eq11(procesoResponsables.activo, true)
+        await this.db.update(procesoResponsables).set({ activo: false, fechaFin: /* @__PURE__ */ new Date() }).where(and7(
+          eq12(procesoResponsables.procesoId, procesoId),
+          eq12(procesoResponsables.activo, true)
         ));
         if (responsableId) {
           await this.db.insert(procesoResponsables).values({
@@ -3459,15 +3886,15 @@ var init_proceso_storage = __esm({
           state: updates.state ?? true,
           ...updates.fechaCreacion ? { fechaCreacion: new Date(updates.fechaCreacion) } : {}
         };
-        await this.db.update(procesos).set(processedUpdates).where(eq11(procesos.id, id));
+        await this.db.update(procesos).set(processedUpdates).where(eq12(procesos.id, id));
         return this.getProceso(id);
       }
       async deleteProceso(id) {
-        await this.db.update(procesos).set({ state: false }).where(eq11(procesos.id, id));
+        await this.db.update(procesos).set({ state: false }).where(eq12(procesos.id, id));
       }
       // Get lawyers assigned to a proceso
       async getProcesoLawyers(procesoId) {
-        return this.db.select().from(procesoLawyers).where(eq11(procesoLawyers.procesoId, procesoId));
+        return this.db.select().from(procesoLawyers).where(eq12(procesoLawyers.procesoId, procesoId));
       }
       // Assign a lawyer to a proceso
       async addLawyerToProceso(procesoId, lawyerId, options = {}) {
@@ -3486,9 +3913,9 @@ var init_proceso_storage = __esm({
       }
       // Remove a lawyer from a proceso
       async removeLawyerFromProceso(procesoId, lawyerId) {
-        await this.db.delete(procesoLawyers).where(and5(
-          eq11(procesoLawyers.procesoId, procesoId),
-          eq11(procesoLawyers.lawyerId, lawyerId)
+        await this.db.delete(procesoLawyers).where(and7(
+          eq12(procesoLawyers.procesoId, procesoId),
+          eq12(procesoLawyers.lawyerId, lawyerId)
         ));
       }
       /**
@@ -3498,10 +3925,10 @@ var init_proceso_storage = __esm({
       async removeAbogadoFromProcesos(lawyerId, procesoIds) {
         if (procesoIds.length === 0) return;
         for (const procesoId of procesoIds) {
-          await this.db.update(procesoLawyers).set({ status: "inactivo", fechaFin: /* @__PURE__ */ new Date() }).where(and5(
-            eq11(procesoLawyers.lawyerId, lawyerId),
-            eq11(procesoLawyers.procesoId, procesoId),
-            eq11(procesoLawyers.status, "activo")
+          await this.db.update(procesoLawyers).set({ status: "inactivo", fechaFin: /* @__PURE__ */ new Date() }).where(and7(
+            eq12(procesoLawyers.lawyerId, lawyerId),
+            eq12(procesoLawyers.procesoId, procesoId),
+            eq12(procesoLawyers.status, "activo")
           ));
         }
       }
@@ -3512,18 +3939,18 @@ var init_proceso_storage = __esm({
       async desactivarResponsable(lawyerId, procesoIds) {
         if (procesoIds.length === 0) return;
         for (const procesoId of procesoIds) {
-          await this.db.update(procesoResponsables).set({ activo: false }).where(and5(
-            eq11(procesoResponsables.lawyerId, lawyerId),
-            eq11(procesoResponsables.procesoId, procesoId),
-            eq11(procesoResponsables.activo, true)
+          await this.db.update(procesoResponsables).set({ activo: false }).where(and7(
+            eq12(procesoResponsables.lawyerId, lawyerId),
+            eq12(procesoResponsables.procesoId, procesoId),
+            eq12(procesoResponsables.activo, true)
           ));
         }
       }
       async getProcesosByClienteAndLawyer(lawyerId, clienteId, limit = 10, offset = 0, filter) {
-        const lawyerProcesoIds = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq11(procesoLawyers.lawyerId, lawyerId));
-        const responsableProcesoIds = await this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and5(
-          eq11(procesoResponsables.lawyerId, lawyerId),
-          eq11(procesoResponsables.activo, true)
+        const lawyerProcesoIds = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq12(procesoLawyers.lawyerId, lawyerId));
+        const responsableProcesoIds = await this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and7(
+          eq12(procesoResponsables.lawyerId, lawyerId),
+          eq12(procesoResponsables.activo, true)
         ));
         const procesoIds = [.../* @__PURE__ */ new Set([
           ...lawyerProcesoIds.map((p) => p.procesoId),
@@ -3535,11 +3962,11 @@ var init_proceso_storage = __esm({
         const personasCliente = alias(personas, "personasCliente");
         const conditions = [
           inArray3(procesos.id, procesoIds),
-          eq11(procesos.clienteId, clienteId),
-          eq11(procesos.state, true)
+          eq12(procesos.clienteId, clienteId),
+          eq12(procesos.state, true)
         ];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -3553,7 +3980,7 @@ var init_proceso_storage = __esm({
       )`
           );
         }
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).where(and5(...conditions));
+        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -3570,7 +3997,7 @@ var init_proceso_storage = __esm({
           estadoCodigo: estadosProceso.codigo,
           estadoNombre: estadosProceso.nombre,
           estadoColor: estadosProceso.color
-        }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).where(and5(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
+        }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
         const data = results.map((p) => ({
           id: p.id,
           state: p.state,
@@ -3593,19 +4020,19 @@ var init_proceso_storage = __esm({
       }
       async getProcesoByAbogadoIdAndProcesoId(lawyerId, procesoId) {
         const [lawyerProceso, responsableProceso] = await Promise.all([
-          this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and5(
-            eq11(procesoLawyers.lawyerId, lawyerId),
-            eq11(procesoLawyers.procesoId, procesoId)
+          this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and7(
+            eq12(procesoLawyers.lawyerId, lawyerId),
+            eq12(procesoLawyers.procesoId, procesoId)
           )).limit(1),
-          this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and5(
-            eq11(procesoResponsables.procesoId, procesoId),
-            eq11(procesoResponsables.lawyerId, lawyerId),
-            eq11(procesoResponsables.activo, true)
+          this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and7(
+            eq12(procesoResponsables.procesoId, procesoId),
+            eq12(procesoResponsables.lawyerId, lawyerId),
+            eq12(procesoResponsables.activo, true)
           )).limit(1)
         ]);
         if (lawyerProceso.length === 0 && responsableProceso.length === 0) return void 0;
         const rawProceso = await this.db.query.procesos.findFirst({
-          where: eq11(procesos.id, procesoId),
+          where: eq12(procesos.id, procesoId),
           with: {
             cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
             tipoProceso: true,
@@ -3697,9 +4124,9 @@ var init_proceso_storage = __esm({
           fechaInicio: procesoResponsables.fechaInicio,
           razon: procesoResponsables.razon,
           asignadoPorNombre: procesoResponsables.asignadoPorNombre
-        }).from(procesoResponsables).innerJoin(lawyerProfiles, eq11(procesoResponsables.lawyerId, lawyerProfiles.id)).leftJoin(personasResponsable, eq11(lawyerProfiles.personaId, personasResponsable.id)).where(and5(
+        }).from(procesoResponsables).innerJoin(lawyerProfiles, eq12(procesoResponsables.lawyerId, lawyerProfiles.id)).leftJoin(personasResponsable, eq12(lawyerProfiles.personaId, personasResponsable.id)).where(and7(
           inArray3(procesoResponsables.procesoId, procesoIds),
-          eq11(procesoResponsables.activo, true)
+          eq12(procesoResponsables.activo, true)
         ));
         for (const r of rows) {
           map.set(r.procesoId, {
@@ -3756,10 +4183,10 @@ var init_proceso_storage = __esm({
         };
       }
       async getProcesosByFirma(firmId, limit = 10, offset = 0, filter) {
-        const ownedRows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and5(
-          eq11(procesoOwnership.ownerType, "bufete"),
-          eq11(procesoOwnership.ownerId, firmId),
-          eq11(procesoOwnership.activoUnique, 1)
+        const ownedRows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and7(
+          eq12(procesoOwnership.ownerType, "bufete"),
+          eq12(procesoOwnership.ownerId, firmId),
+          eq12(procesoOwnership.activoUnique, 1)
         ));
         const procesoIds = [...new Set(ownedRows.map((r) => r.procesoId))];
         if (procesoIds.length === 0) return { data: [], total: 0 };
@@ -3771,9 +4198,9 @@ var init_proceso_storage = __esm({
         const municipiosCliente = alias(municipios, "municipiosCliente");
         const repLegal = alias(representantesLegales, "repLegal");
         const personasRepLegal = alias(personas, "personasRepLegal");
-        const conditions = [inArray3(procesos.id, procesoIds), eq11(procesos.state, true)];
+        const conditions = [inArray3(procesos.id, procesoIds), eq12(procesos.state, true)];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -3801,11 +4228,11 @@ var init_proceso_storage = __esm({
       )`);
           }
         }
-        const joinConditions = and5(
-          eq11(responsableJoin.procesoId, procesos.id),
-          eq11(responsableJoin.activo, true)
+        const joinConditions = and7(
+          eq12(responsableJoin.procesoId, procesos.id),
+          eq12(responsableJoin.activo, true)
         );
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq11(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq11(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq11(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq11(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq11(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq11(responsableLawyer.personaId, personasResponsable.id)).where(and5(...conditions));
+        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -3850,7 +4277,7 @@ var init_proceso_storage = __esm({
           responsableFechaInicio: responsableJoin.fechaInicio,
           responsableRazon: responsableJoin.razon,
           responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre
-        }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq11(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq11(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq11(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq11(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq11(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq11(responsableLawyer.personaId, personasResponsable.id)).where(and5(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
+        }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
         const data = results.map((p) => ({
           id: p.id,
           state: p.state,
@@ -3913,20 +4340,20 @@ var init_proceso_storage = __esm({
         return { data, total: Number(count5) };
       }
       async getProcesosByClienteAndFirma(firmId, clienteId, limit = 10, offset = 0, filter) {
-        const ownedRows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and5(
-          eq11(procesoOwnership.ownerType, "bufete"),
-          eq11(procesoOwnership.ownerId, firmId),
-          eq11(procesoOwnership.activoUnique, 1)
+        const ownedRows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and7(
+          eq12(procesoOwnership.ownerType, "bufete"),
+          eq12(procesoOwnership.ownerId, firmId),
+          eq12(procesoOwnership.activoUnique, 1)
         ));
         const procesoIds = [...new Set(ownedRows.map((r) => r.procesoId))];
         if (procesoIds.length === 0) return { data: [], total: 0 };
         const conditions = [
           inArray3(procesos.id, procesoIds),
-          eq11(procesos.clienteId, clienteId),
-          eq11(procesos.state, true)
+          eq12(procesos.clienteId, clienteId),
+          eq12(procesos.state, true)
         ];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -3939,7 +4366,7 @@ var init_proceso_storage = __esm({
           );
         }
         const personasCliente = alias(personas, "personasCliente");
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).where(and5(...conditions));
+        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -3956,7 +4383,7 @@ var init_proceso_storage = __esm({
           estadoCodigo: estadosProceso.codigo,
           estadoNombre: estadosProceso.nombre,
           estadoColor: estadosProceso.color
-        }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).where(and5(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
+        }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion)).limit(limit).offset(offset);
         const responsablesMap = await this.getResponsablesMap(results.map((p) => p.id));
         return {
           data: results.map((p) => this.mapToProcesoDTO(p, responsablesMap)),
@@ -3964,15 +4391,15 @@ var init_proceso_storage = __esm({
         };
       }
       async getProcesoByFirmaIdAndProcesoId(firmId, procesoId) {
-        const ownedRow = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and5(
-          eq11(procesoOwnership.ownerType, "bufete"),
-          eq11(procesoOwnership.ownerId, firmId),
-          eq11(procesoOwnership.procesoId, procesoId),
-          eq11(procesoOwnership.activoUnique, 1)
+        const ownedRow = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and7(
+          eq12(procesoOwnership.ownerType, "bufete"),
+          eq12(procesoOwnership.ownerId, firmId),
+          eq12(procesoOwnership.procesoId, procesoId),
+          eq12(procesoOwnership.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         if (!ownedRow) return void 0;
         const rawProceso = await this.db.query.procesos.findFirst({
-          where: eq11(procesos.id, procesoId),
+          where: eq12(procesos.id, procesoId),
           with: {
             cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
             tipoProceso: true,
@@ -4036,14 +4463,14 @@ var init_proceso_storage = __esm({
       }
       async getProcesoByClienteIdAndProcesoId(clienteId, procesoId) {
         const procesoCliente = await this.db.select({ id: procesos.id }).from(procesos).where(
-          and5(
-            eq11(procesos.id, procesoId),
-            eq11(procesos.clienteId, clienteId)
+          and7(
+            eq12(procesos.id, procesoId),
+            eq12(procesos.clienteId, clienteId)
           )
         ).limit(1);
         if (procesoCliente.length === 0) return void 0;
         const rawProceso = await this.db.query.procesos.findFirst({
-          where: eq11(procesos.id, procesoId),
+          where: eq12(procesos.id, procesoId),
           with: {
             cliente: { with: { natural: { with: { persona: true } }, empresa: true } },
             tipoProceso: true,
@@ -4077,7 +4504,7 @@ var init_proceso_storage = __esm({
         const lawyersResolved = await Promise.all(
           rawProceso.lawyers.map(async (l) => {
             if (l.lawyer !== null) return { ...l, firm: null };
-            const firm = await this.db.select({ id: firmProfiles.id, name: firmProfiles.name, phone: firmProfiles.phone }).from(firmProfiles).where(eq11(firmProfiles.id, l.lawyerId)).limit(1);
+            const firm = await this.db.select({ id: firmProfiles.id, name: firmProfiles.name, phone: firmProfiles.phone, userId: firmProfiles.userId }).from(firmProfiles).where(eq12(firmProfiles.id, l.lawyerId)).limit(1);
             return { ...l, firm: firm[0] ?? null };
           })
         );
@@ -4120,7 +4547,7 @@ var init_proceso_storage = __esm({
           legalStage,
           fechaVencimientoEtapa,
           etapaActualizadaEn: /* @__PURE__ */ new Date()
-        }).where(eq11(procesos.id, procesoId));
+        }).where(eq12(procesos.id, procesoId));
       }
       /** Procesos filtrados por etapa procesal */
       async getProcesosByEtapa(lawyerProfileId, legalStage) {
@@ -4129,9 +4556,9 @@ var init_proceso_storage = __esm({
           radicado: procesos.radicado,
           legalStage: procesos.legalStage
         }).from(procesos).where(
-          and5(
-            eq11(procesos.state, true),
-            eq11(procesos.legalStage, legalStage)
+          and7(
+            eq12(procesos.state, true),
+            eq12(procesos.legalStage, legalStage)
           )
         );
       }
@@ -4146,9 +4573,12 @@ var init_proceso_storage = __esm({
         const municipiosCliente = alias(municipios, "municipiosCliente");
         const repLegal = alias(representantesLegales, "repLegal");
         const personasRepLegal = alias(personas, "personasRepLegal");
-        const conditions = [inArray3(procesos.id, ids), eq11(procesos.state, true)];
+        const conditions = [inArray3(procesos.id, ids), eq12(procesos.state, true)];
         if (filter?.estadoCodigo && filter.estadoCodigo !== "todos") {
-          conditions.push(eq11(estadosProceso.codigo, filter.estadoCodigo));
+          conditions.push(eq12(estadosProceso.codigo, filter.estadoCodigo));
+        }
+        if (filter?.clienteId) {
+          conditions.push(eq12(procesos.clienteId, filter.clienteId));
         }
         if (filter?.search) {
           const search = `%${filter.search}%`;
@@ -4163,9 +4593,9 @@ var init_proceso_storage = __esm({
         )`
           );
         }
-        const joinConditions = and5(
-          eq11(responsableJoin.procesoId, procesos.id),
-          eq11(responsableJoin.activo, true)
+        const joinConditions = and7(
+          eq12(responsableJoin.procesoId, procesos.id),
+          eq12(responsableJoin.activo, true)
         );
         const results = await this.db.select({
           id: procesos.id,
@@ -4211,7 +4641,7 @@ var init_proceso_storage = __esm({
           responsableFechaInicio: responsableJoin.fechaInicio,
           responsableRazon: responsableJoin.razon,
           responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre
-        }).from(procesos).leftJoin(clientes, eq11(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq11(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq11(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq11(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq11(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq11(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq11(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq11(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq11(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq11(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq11(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq11(responsableLawyer.personaId, personasResponsable.id)).where(and5(...conditions)).orderBy(desc3(procesos.fechaCreacion));
+        }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion));
         return results.map((p) => ({
           id: p.id,
           state: p.state,
@@ -4274,9 +4704,9 @@ var init_proceso_storage = __esm({
       }
       /** IDs de procesos donde el abogado tiene asignación activa. */
       async getProcesoIdsByAbogadoAssignment(lawyerId) {
-        const rows = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and5(
-          eq11(procesoLawyers.lawyerId, lawyerId),
-          eq11(procesoLawyers.status, "activo")
+        const rows = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and7(
+          eq12(procesoLawyers.lawyerId, lawyerId),
+          eq12(procesoLawyers.status, "activo")
         ));
         return rows.map((r) => r.procesoId);
       }
@@ -4286,7 +4716,7 @@ var init_proceso_storage = __esm({
 
 // server/storage/storeage/models/documento-storage.ts
 import { randomUUID as randomUUID4 } from "crypto";
-import { eq as eq12, and as and6, isNull as isNull2 } from "drizzle-orm";
+import { eq as eq13, and as and8, isNull as isNull3 } from "drizzle-orm";
 var DocumentoStorage;
 var init_documento_storage = __esm({
   "server/storage/storeage/models/documento-storage.ts"() {
@@ -4297,17 +4727,28 @@ var init_documento_storage = __esm({
         this.db = db2;
       }
       async getDocumentos(procesoId, stage) {
+        let result;
         if (stage === void 0) {
-          return this.db.select().from(documentos).where(eq12(documentos.procesoId, procesoId));
+          result = await this.db.select().from(documentos).where(eq13(documentos.procesoId, procesoId));
+        } else if (stage === "__general__") {
+          result = await this.db.select().from(documentos).where(and8(eq13(documentos.procesoId, procesoId), isNull3(documentos.legalStage)));
+        } else {
+          result = await this.db.select().from(documentos).where(and8(eq13(documentos.procesoId, procesoId), eq13(documentos.legalStage, stage)));
         }
-        if (stage === "__general__") {
-          return this.db.select().from(documentos).where(and6(eq12(documentos.procesoId, procesoId), isNull2(documentos.legalStage)));
-        }
-        return this.db.select().from(documentos).where(and6(eq12(documentos.procesoId, procesoId), eq12(documentos.legalStage, stage)));
+        return result.map((doc) => ({
+          ...doc,
+          tipoDocumento: doc.tipoDocumento
+        }));
       }
       async getDocumento(id) {
-        const results = await this.db.select().from(documentos).where(eq12(documentos.id, id)).limit(1);
-        return results[0];
+        const results = await this.db.select().from(documentos).where(eq13(documentos.id, id)).limit(1);
+        if (results[0]) {
+          return {
+            ...results[0],
+            tipoDocumento: results[0].tipoDocumento
+          };
+        }
+        return void 0;
       }
       async createDocumento(insertDocumento) {
         const id = randomUUID4();
@@ -4319,28 +4760,29 @@ var init_documento_storage = __esm({
           descripcion: insertDocumento.descripcion ?? "",
           fechaSubida,
           state: insertDocumento.state ?? true,
-          legalStage: insertDocumento.legalStage ?? null
+          legalStage: insertDocumento.legalStage ?? null,
+          tipoDocumento: insertDocumento.tipoDocumento ?? "PROCESAL"
         };
         await this.db.insert(documentos).values(newDocumento);
         return newDocumento;
       }
       async updateDocumento(id, updates) {
-        await this.db.update(documentos).set(updates).where(eq12(documentos.id, id));
+        await this.db.update(documentos).set(updates).where(eq13(documentos.id, id));
         return this.getDocumento(id);
       }
       async deleteDocumento(id) {
-        await this.db.delete(documentos).where(eq12(documentos.id, id));
+        await this.db.delete(documentos).where(eq13(documentos.id, id));
       }
-      async getDocumentosByTipo(procesoId, tipo) {
+      async getDocumentosByTipoDocumento(procesoId, tipoDocumento) {
         const docs = await this.getDocumentos(procesoId);
-        return docs.filter((d) => d.tipo === tipo);
+        return docs.filter((d) => d.tipoDocumento === tipoDocumento);
       }
     };
   }
 });
 
 // server/storage/storeage/models/notificacion-storage.ts
-import { desc as desc4, and as and7, eq as eq13 } from "drizzle-orm";
+import { desc as desc4, and as and9, eq as eq14 } from "drizzle-orm";
 var NotificacionStorage;
 var init_notificacion_storage = __esm({
   "server/storage/storeage/models/notificacion-storage.ts"() {
@@ -4362,34 +4804,34 @@ var init_notificacion_storage = __esm({
           createdAt: /* @__PURE__ */ new Date()
         };
         await this.db.insert(notificaciones).values(newNotificacion);
-        const rows = await this.db.select().from(notificaciones).where(eq13(notificaciones.procesoId, data.procesoId)).orderBy(desc4(notificaciones.createdAt)).limit(1);
+        const rows = await this.db.select().from(notificaciones).where(eq14(notificaciones.procesoId, data.procesoId)).orderBy(desc4(notificaciones.createdAt)).limit(1);
         return rows[0] ?? newNotificacion;
       }
       // ============================
       // Obtener notificaciones por cliente
       // ============================
       async getNotificacionesByClienteId(clienteId) {
-        return this.db.select().from(notificaciones).where(eq13(notificaciones.clienteId, clienteId)).orderBy(desc4(notificaciones.createdAt));
+        return this.db.select().from(notificaciones).where(eq14(notificaciones.clienteId, clienteId)).orderBy(desc4(notificaciones.createdAt));
       }
       // ============================
       // Obtener notificaciones por abogado
       // ============================
       async getNotificacionesByLawyerId(lawyerId) {
-        return this.db.select().from(notificaciones).where(eq13(notificaciones.lawyerId, lawyerId)).orderBy(desc4(notificaciones.createdAt));
+        return this.db.select().from(notificaciones).where(eq14(notificaciones.lawyerId, lawyerId)).orderBy(desc4(notificaciones.createdAt));
       }
       // ============================
       // Obtener notificaciones por firma
       // ============================
       async getNotificacionesByFirmId(firmId) {
-        return this.db.select().from(notificaciones).where(eq13(notificaciones.firmId, firmId)).orderBy(desc4(notificaciones.createdAt));
+        return this.db.select().from(notificaciones).where(eq14(notificaciones.firmId, firmId)).orderBy(desc4(notificaciones.createdAt));
       }
       // ============================
       // Contar no leídas por cliente
       // ============================
       async countNoLeidasByClienteId(clienteId) {
-        const result = await this.db.select().from(notificaciones).where(and7(
-          eq13(notificaciones.clienteId, clienteId),
-          eq13(notificaciones.leidoCliente, false)
+        const result = await this.db.select().from(notificaciones).where(and9(
+          eq14(notificaciones.clienteId, clienteId),
+          eq14(notificaciones.leidoCliente, false)
         ));
         return result.length;
       }
@@ -4397,9 +4839,9 @@ var init_notificacion_storage = __esm({
       // Contar no leídas por abogado
       // ============================
       async countNoLeidasByLawyerId(lawyerId) {
-        const result = await this.db.select().from(notificaciones).where(and7(
-          eq13(notificaciones.lawyerId, lawyerId),
-          eq13(notificaciones.leidoLawyer, false)
+        const result = await this.db.select().from(notificaciones).where(and9(
+          eq14(notificaciones.lawyerId, lawyerId),
+          eq14(notificaciones.leidoLawyer, false)
         ));
         return result.length;
       }
@@ -4407,9 +4849,9 @@ var init_notificacion_storage = __esm({
       // Contar no leídas por firma
       // ============================
       async countNoLeidasByFirmId(firmId) {
-        const result = await this.db.select().from(notificaciones).where(and7(
-          eq13(notificaciones.firmId, firmId),
-          eq13(notificaciones.leidoFirma, false)
+        const result = await this.db.select().from(notificaciones).where(and9(
+          eq14(notificaciones.firmId, firmId),
+          eq14(notificaciones.leidoFirma, false)
         ));
         return result.length;
       }
@@ -4417,55 +4859,56 @@ var init_notificacion_storage = __esm({
       // Marcar como leída por cliente
       // ============================
       async marcarComoLeidaByClienteId(id, clienteId) {
-        await this.db.update(notificaciones).set({ leidoCliente: true }).where(and7(eq13(notificaciones.id, id), eq13(notificaciones.clienteId, clienteId)));
+        await this.db.update(notificaciones).set({ leidoCliente: true }).where(and9(eq14(notificaciones.id, id), eq14(notificaciones.clienteId, clienteId)));
       }
       // ============================
       // Marcar como leída por abogado
       // ============================
       async marcarComoLeidaByLawyerId(id, lawyerId) {
-        await this.db.update(notificaciones).set({ leidoLawyer: true }).where(and7(eq13(notificaciones.id, id), eq13(notificaciones.lawyerId, lawyerId)));
+        await this.db.update(notificaciones).set({ leidoLawyer: true }).where(and9(eq14(notificaciones.id, id), eq14(notificaciones.lawyerId, lawyerId)));
       }
       // ============================
       // Marcar como leída por firma
       // ============================
       async marcarComoLeidaByFirmaId(id, firmaId) {
-        await this.db.update(notificaciones).set({ leidoFirma: true }).where(and7(eq13(notificaciones.id, id), eq13(notificaciones.firmId, firmaId)));
+        await this.db.update(notificaciones).set({ leidoFirma: true }).where(and9(eq14(notificaciones.id, id), eq14(notificaciones.firmId, firmaId)));
       }
       // ============================
       // Marcar todas como leídas por cliente
       // ============================
       async marcarTodasComoLeidasByClienteId(clienteId) {
-        await this.db.update(notificaciones).set({ leidoCliente: true }).where(eq13(notificaciones.clienteId, clienteId));
+        await this.db.update(notificaciones).set({ leidoCliente: true }).where(eq14(notificaciones.clienteId, clienteId));
       }
       // ============================
       // Marcar todas como leídas por abogado
       // ============================
       async marcarTodasComoLeidasByLawyerId(lawyerId) {
-        await this.db.update(notificaciones).set({ leidoLawyer: true }).where(eq13(notificaciones.lawyerId, lawyerId));
+        await this.db.update(notificaciones).set({ leidoLawyer: true }).where(eq14(notificaciones.lawyerId, lawyerId));
       }
       // ============================
       // Marcar todas como leídas por firma
       // ============================
       async marcarTodasComoLeidasByFirmId(firmId) {
-        await this.db.update(notificaciones).set({ leidoFirma: true }).where(eq13(notificaciones.firmId, firmId));
+        await this.db.update(notificaciones).set({ leidoFirma: true }).where(eq14(notificaciones.firmId, firmId));
       }
       // ============================
       // Eliminar
       // ============================
       async deleteNotificacion(id) {
-        await this.db.delete(notificaciones).where(eq13(notificaciones.id, id));
+        await this.db.delete(notificaciones).where(eq14(notificaciones.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/abogado-storage.ts
-import { and as and8, eq as eq14, like as like3 } from "drizzle-orm";
+import { and as and10, eq as eq15, like as like3 } from "drizzle-orm";
 var AbogadoStorage;
 var init_abogado_storage = __esm({
   "server/storage/storeage/models/abogado-storage.ts"() {
     "use strict";
     init_schema();
+    init_identity_uniqueness();
     AbogadoStorage = class {
       constructor(db2) {
         this.db = db2;
@@ -4482,6 +4925,10 @@ var init_abogado_storage = __esm({
           specialization: lawyerProfiles.specialization,
           licenseNumber: lawyerProfiles.licenseNumber,
           isIndependent: lawyerProfiles.isIndependent,
+          professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+          professionalReviewedAt: lawyerProfiles.professionalReviewedAt,
+          professionalReviewedBy: lawyerProfiles.professionalReviewedBy,
+          professionalReviewNotes: lawyerProfiles.professionalReviewNotes,
           createdAt: lawyerProfiles.createdAt,
           updatedAt: lawyerProfiles.updatedAt,
           user: { id: users.id, email: users.email, name: users.name },
@@ -4497,7 +4944,7 @@ var init_abogado_storage = __esm({
             departamentoId: personas.departamentoId,
             municipioId: personas.municipioId
           }
-        }).from(lawyerProfiles).innerJoin(users, eq14(lawyerProfiles.userId, users.id)).innerJoin(personas, eq14(lawyerProfiles.personaId, personas.id)).leftJoin(firmProfiles, eq14(lawyerProfiles.firmId, firmProfiles.id)).where(eq14(lawyerProfiles.id, id)).limit(1);
+        }).from(lawyerProfiles).innerJoin(users, eq15(lawyerProfiles.userId, users.id)).innerJoin(personas, eq15(lawyerProfiles.personaId, personas.id)).leftJoin(firmProfiles, eq15(lawyerProfiles.firmId, firmProfiles.id)).where(eq15(lawyerProfiles.id, id)).limit(1);
         if (!rows[0]) return void 0;
         const row = rows[0];
         return {
@@ -4508,12 +4955,12 @@ var init_abogado_storage = __esm({
         };
       }
       async getLawyerByEmail(email) {
-        const userResult = await this.db.select().from(users).where(eq14(users.email, email)).limit(1);
+        const userResult = await this.db.select().from(users).where(eq15(users.email, email)).limit(1);
         if (!userResult[0]) return void 0;
         return this.getLawyerByUserId(userResult[0].id);
       }
       async getLawyerByUserId(userId2) {
-        const result = await this.db.select().from(lawyerProfiles).where(eq14(lawyerProfiles.userId, userId2)).limit(1);
+        const result = await this.db.select().from(lawyerProfiles).where(eq15(lawyerProfiles.userId, userId2)).limit(1);
         return result[0];
       }
       /** Same as getLawyer but filters by userId instead of profile id */
@@ -4526,6 +4973,10 @@ var init_abogado_storage = __esm({
           specialization: lawyerProfiles.specialization,
           licenseNumber: lawyerProfiles.licenseNumber,
           isIndependent: lawyerProfiles.isIndependent,
+          professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+          professionalReviewedAt: lawyerProfiles.professionalReviewedAt,
+          professionalReviewedBy: lawyerProfiles.professionalReviewedBy,
+          professionalReviewNotes: lawyerProfiles.professionalReviewNotes,
           createdAt: lawyerProfiles.createdAt,
           updatedAt: lawyerProfiles.updatedAt,
           user: { id: users.id, email: users.email, name: users.name },
@@ -4541,7 +4992,7 @@ var init_abogado_storage = __esm({
             departamentoId: personas.departamentoId,
             municipioId: personas.municipioId
           }
-        }).from(lawyerProfiles).innerJoin(users, eq14(lawyerProfiles.userId, users.id)).innerJoin(personas, eq14(lawyerProfiles.personaId, personas.id)).leftJoin(firmProfiles, eq14(lawyerProfiles.firmId, firmProfiles.id)).where(eq14(lawyerProfiles.userId, userId2)).limit(1);
+        }).from(lawyerProfiles).innerJoin(users, eq15(lawyerProfiles.userId, users.id)).innerJoin(personas, eq15(lawyerProfiles.personaId, personas.id)).leftJoin(firmProfiles, eq15(lawyerProfiles.firmId, firmProfiles.id)).where(eq15(lawyerProfiles.userId, userId2)).limit(1);
         if (!rows[0]) return void 0;
         const row = rows[0];
         return {
@@ -4565,45 +5016,63 @@ var init_abogado_storage = __esm({
           specialization: lawyerProfiles.specialization,
           licenseNumber: lawyerProfiles.licenseNumber,
           isIndependent: lawyerProfiles.isIndependent,
+          professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+          professionalReviewedAt: lawyerProfiles.professionalReviewedAt,
+          professionalReviewedBy: lawyerProfiles.professionalReviewedBy,
+          professionalReviewNotes: lawyerProfiles.professionalReviewNotes,
           createdAt: lawyerProfiles.createdAt,
           updatedAt: lawyerProfiles.updatedAt
-        }).from(lawyerProfiles).innerJoin(personas, eq14(lawyerProfiles.personaId, personas.id)).where(conditions.length ? and8(...conditions) : void 0).limit(limit).offset(offset);
+        }).from(lawyerProfiles).innerJoin(personas, eq15(lawyerProfiles.personaId, personas.id)).where(conditions.length ? and10(...conditions) : void 0).limit(limit).offset(offset);
       }
       async getLawyersByFirm(firmId) {
-        return this.db.select().from(lawyerProfiles).where(eq14(lawyerProfiles.firmId, firmId));
+        return this.db.select().from(lawyerProfiles).where(eq15(lawyerProfiles.firmId, firmId));
       }
       async createLawyer(lawyer) {
-        await this.db.insert(lawyerProfiles).values(lawyer);
-        return lawyer;
+        const licenseNumber = await assertLicenseNumberUnique(this.db, lawyer.licenseNumber);
+        const payload = { ...lawyer, licenseNumber };
+        await this.db.insert(lawyerProfiles).values(payload);
+        return payload;
       }
       async updateLawyer(id, updates) {
         const { persona: personaUpdates, ...lawyerUpdates } = updates;
-        if (Object.keys(lawyerUpdates).length > 0) {
-          await this.db.update(lawyerProfiles).set({ ...lawyerUpdates, updatedAt: /* @__PURE__ */ new Date() }).where(eq14(lawyerProfiles.id, id));
+        const safeLawyerUpdates = { ...lawyerUpdates };
+        if (lawyerUpdates.licenseNumber !== void 0) {
+          safeLawyerUpdates.licenseNumber = await assertLicenseNumberUnique(this.db, lawyerUpdates.licenseNumber, id);
+        }
+        if (Object.keys(safeLawyerUpdates).length > 0) {
+          await this.db.update(lawyerProfiles).set({ ...safeLawyerUpdates, updatedAt: /* @__PURE__ */ new Date() }).where(eq15(lawyerProfiles.id, id));
         }
         if (personaUpdates) {
-          const lawyer = await this.db.select({ personaId: lawyerProfiles.personaId, userId: lawyerProfiles.userId }).from(lawyerProfiles).where(eq14(lawyerProfiles.id, id)).limit(1);
+          const lawyer = await this.db.select({ personaId: lawyerProfiles.personaId, userId: lawyerProfiles.userId }).from(lawyerProfiles).where(eq15(lawyerProfiles.id, id)).limit(1);
           if (lawyer[0]?.personaId) {
-            await this.db.update(personas).set(personaUpdates).where(eq14(personas.id, lawyer[0].personaId));
+            const safePersonaUpdates = {
+              ...personaUpdates,
+              ...personaUpdates.nombre !== void 0 && { nombre: normalizeLooseText(personaUpdates.nombre) },
+              ...personaUpdates.apellido !== void 0 && { apellido: normalizeLooseText(personaUpdates.apellido) },
+              ...personaUpdates.telefono !== void 0 && { telefono: normalizeLooseText(personaUpdates.telefono) },
+              ...personaUpdates.documento !== void 0 && { documento: await assertDocumentoUnique(this.db, personaUpdates.documento, lawyer[0].personaId) },
+              ...personaUpdates.direccion !== void 0 && { direccion: normalizeOptionalIdentity(personaUpdates.direccion) }
+            };
+            await this.db.update(personas).set(safePersonaUpdates).where(eq15(personas.id, lawyer[0].personaId));
           }
           if (lawyer[0]?.userId && (personaUpdates.nombre !== void 0 || personaUpdates.apellido !== void 0)) {
-            const currentPersona = await this.db.select({ nombre: personas.nombre, apellido: personas.apellido }).from(personas).where(eq14(personas.id, lawyer[0].personaId)).limit(1);
+            const currentPersona = await this.db.select({ nombre: personas.nombre, apellido: personas.apellido }).from(personas).where(eq15(personas.id, lawyer[0].personaId)).limit(1);
             if (currentPersona[0]) {
               const fullName = [currentPersona[0].nombre, currentPersona[0].apellido].filter(Boolean).join(" ").trim();
               if (fullName) {
-                await this.db.update(users).set({ name: fullName }).where(eq14(users.id, lawyer[0].userId));
+                await this.db.update(users).set({ name: fullName }).where(eq15(users.id, lawyer[0].userId));
               }
             }
           }
         }
-        const result = await this.db.select().from(lawyerProfiles).where(eq14(lawyerProfiles.id, id)).limit(1);
+        const result = await this.db.select().from(lawyerProfiles).where(eq15(lawyerProfiles.id, id)).limit(1);
         return result[0];
       }
       async deleteLawyer(id) {
-        await this.db.delete(lawyerProfiles).where(eq14(lawyerProfiles.id, id));
+        await this.db.delete(lawyerProfiles).where(eq15(lawyerProfiles.id, id));
       }
       async updateFirmId(lawyerId, firmId) {
-        await this.db.update(lawyerProfiles).set({ firmId }).where(eq14(lawyerProfiles.id, lawyerId));
+        await this.db.update(lawyerProfiles).set({ firmId }).where(eq15(lawyerProfiles.id, lawyerId));
       }
     };
   }
@@ -4611,7 +5080,7 @@ var init_abogado_storage = __esm({
 
 // server/storage/storeage/models/lawyer-clients-storage.ts
 import { randomUUID as randomUUID5 } from "crypto";
-import { eq as eq15, and as and9, desc as desc5 } from "drizzle-orm";
+import { eq as eq16, and as and11, desc as desc5 } from "drizzle-orm";
 var LawyerClientsStorage;
 var init_lawyer_clients_storage = __esm({
   "server/storage/storeage/models/lawyer-clients-storage.ts"() {
@@ -4622,23 +5091,23 @@ var init_lawyer_clients_storage = __esm({
         this.db = db2;
       }
       async getLawyerClients(lawyerId) {
-        const data = await this.db.select().from(lawyerClients).where(eq15(lawyerClients.lawyerId, lawyerId)).orderBy(desc5(lawyerClients.createdAt));
+        const data = await this.db.select().from(lawyerClients).where(eq16(lawyerClients.lawyerId, lawyerId)).orderBy(desc5(lawyerClients.createdAt));
         return data;
       }
       async getClientLawyers(clientId) {
-        const data = await this.db.select().from(lawyerClients).where(eq15(lawyerClients.clientId, clientId)).orderBy(desc5(lawyerClients.createdAt));
+        const data = await this.db.select().from(lawyerClients).where(eq16(lawyerClients.clientId, clientId)).orderBy(desc5(lawyerClients.createdAt));
         return data;
       }
       async getLawyerClientById(id) {
-        const result = await this.db.select().from(lawyerClients).where(eq15(lawyerClients.id, id)).limit(1).then((rows) => rows[0]);
+        const result = await this.db.select().from(lawyerClients).where(eq16(lawyerClients.id, id)).limit(1).then((rows) => rows[0]);
         return result;
       }
       async getActiveLawyerClient(lawyerId, clientId) {
         const result = await this.db.select().from(lawyerClients).where(
-          and9(
-            eq15(lawyerClients.lawyerId, lawyerId),
-            eq15(lawyerClients.clientId, clientId),
-            eq15(lawyerClients.status, "active")
+          and11(
+            eq16(lawyerClients.lawyerId, lawyerId),
+            eq16(lawyerClients.clientId, clientId),
+            eq16(lawyerClients.status, "active")
           )
         ).limit(1).then((rows) => rows[0]);
         return result;
@@ -4655,7 +5124,7 @@ var init_lawyer_clients_storage = __esm({
           updatedAt: /* @__PURE__ */ new Date()
         };
         await this.db.insert(lawyerClients).values(newLawyerClient);
-        const created = await this.db.select().from(lawyerClients).where(eq15(lawyerClients.id, id)).limit(1).then((rows) => rows[0]);
+        const created = await this.db.select().from(lawyerClients).where(eq16(lawyerClients.id, id)).limit(1).then((rows) => rows[0]);
         if (!created) {
           throw new Error("No se pudo crear la relaci\xF3n lawyer-client");
         }
@@ -4670,7 +5139,7 @@ var init_lawyer_clients_storage = __esm({
           dbUpdates.relationshipEndedAt = updates.relationshipEndedAt ? new Date(updates.relationshipEndedAt) : null;
         }
         dbUpdates.updatedAt = /* @__PURE__ */ new Date();
-        await this.db.update(lawyerClients).set(dbUpdates).where(eq15(lawyerClients.id, id));
+        await this.db.update(lawyerClients).set(dbUpdates).where(eq16(lawyerClients.id, id));
         return this.getLawyerClientById(id);
       }
       async terminateRelationship(id) {
@@ -4680,13 +5149,13 @@ var init_lawyer_clients_storage = __esm({
         });
       }
       async deleteLawyerClient(id) {
-        await this.db.delete(lawyerClients).where(eq15(lawyerClients.id, id));
+        await this.db.delete(lawyerClients).where(eq16(lawyerClients.id, id));
       }
       async getActiveClientsByLawyer(lawyerId) {
         const data = await this.db.select().from(lawyerClients).where(
-          and9(
-            eq15(lawyerClients.lawyerId, lawyerId),
-            eq15(lawyerClients.status, "active")
+          and11(
+            eq16(lawyerClients.lawyerId, lawyerId),
+            eq16(lawyerClients.status, "active")
           )
         ).orderBy(desc5(lawyerClients.relationshipStartedAt));
         return data;
@@ -4696,7 +5165,7 @@ var init_lawyer_clients_storage = __esm({
 });
 
 // server/storage/storeage/models/tipos-documento-storage.ts
-import { eq as eq16 } from "drizzle-orm";
+import { eq as eq17 } from "drizzle-orm";
 var TiposDocumentoStorage;
 var init_tipos_documento_storage = __esm({
   "server/storage/storeage/models/tipos-documento-storage.ts"() {
@@ -4707,11 +5176,11 @@ var init_tipos_documento_storage = __esm({
         this.db = db2;
       }
       async getAll() {
-        const data = await this.db.select().from(tiposDocumento).where(eq16(tiposDocumento.state, true));
+        const data = await this.db.select().from(tiposDocumento).where(eq17(tiposDocumento.state, true));
         return data;
       }
       async getById(id) {
-        const result = await this.db.select().from(tiposDocumento).where(eq16(tiposDocumento.id, id)).limit(1).then((rows) => rows[0]);
+        const result = await this.db.select().from(tiposDocumento).where(eq17(tiposDocumento.id, id)).limit(1).then((rows) => rows[0]);
         return result;
       }
     };
@@ -4719,7 +5188,7 @@ var init_tipos_documento_storage = __esm({
 });
 
 // server/storage/storeage/models/departamento-storage.ts
-import { eq as eq17 } from "drizzle-orm";
+import { eq as eq18 } from "drizzle-orm";
 var DepartamentoStorage;
 var init_departamento_storage = __esm({
   "server/storage/storeage/models/departamento-storage.ts"() {
@@ -4730,14 +5199,14 @@ var init_departamento_storage = __esm({
         this.db = db2;
       }
       async findAll() {
-        return this.db.select().from(departamentos).where(eq17(departamentos.state, 1));
+        return this.db.select().from(departamentos).where(eq18(departamentos.state, 1));
       }
       async findById(id) {
-        const result = await this.db.select().from(departamentos).where(eq17(departamentos.id, id));
+        const result = await this.db.select().from(departamentos).where(eq18(departamentos.id, id));
         return result[0];
       }
       async findByCodigo(codigo) {
-        const result = await this.db.select().from(departamentos).where(eq17(departamentos.codigo, codigo));
+        const result = await this.db.select().from(departamentos).where(eq18(departamentos.codigo, codigo));
         return result[0];
       }
       async create(data) {
@@ -4745,11 +5214,11 @@ var init_departamento_storage = __esm({
         return data;
       }
       async update(id, data) {
-        await this.db.update(departamentos).set(data).where(eq17(departamentos.id, id));
+        await this.db.update(departamentos).set(data).where(eq18(departamentos.id, id));
         return this.findById(id);
       }
       async delete(id) {
-        await this.db.update(departamentos).set({ state: 0 }).where(eq17(departamentos.id, id));
+        await this.db.update(departamentos).set({ state: 0 }).where(eq18(departamentos.id, id));
         return true;
       }
     };
@@ -4757,7 +5226,7 @@ var init_departamento_storage = __esm({
 });
 
 // server/storage/storeage/models/municipio-storage.ts
-import { eq as eq18, and as and10, like as like4, sql as sql6 } from "drizzle-orm";
+import { eq as eq19, and as and12, like as like4, sql as sql6 } from "drizzle-orm";
 var MunicipioStorage;
 var init_municipio_storage = __esm({
   "server/storage/storeage/models/municipio-storage.ts"() {
@@ -4769,23 +5238,23 @@ var init_municipio_storage = __esm({
         this.db = db2;
       }
       async findAll() {
-        return this.db.select().from(municipios).where(eq18(municipios.state, 1));
+        return this.db.select().from(municipios).where(eq19(municipios.state, 1));
       }
       async findByDepartamento(departamentoId) {
-        return this.db.select().from(municipios).where(and10(eq18(municipios.departamentoId, departamentoId), eq18(municipios.state, 1)));
+        return this.db.select().from(municipios).where(and12(eq19(municipios.departamentoId, departamentoId), eq19(municipios.state, 1)));
       }
       async findByDepartamentoPaginated(departamentoId, page = 1, pageSize = 10, search) {
         const pageNum = Math.max(1, page);
         const pageSizeNum = Math.min(100, Math.max(1, pageSize));
-        const conditions = [eq18(municipios.departamentoId, departamentoId), eq18(municipios.state, 1)];
+        const conditions = [eq19(municipios.departamentoId, departamentoId), eq19(municipios.state, 1)];
         if (search && search.trim()) {
           conditions.push(like4(municipios.nombre, `%${search.trim()}%`));
         }
         const countResult = await this.db.select({
           count: sql6`count(*)`
-        }).from(municipios).where(and10(...conditions));
+        }).from(municipios).where(and12(...conditions));
         const total = Number(countResult[0]?.count || 0);
-        const data = await this.db.select().from(municipios).where(and10(...conditions)).limit(pageSizeNum).offset((pageNum - 1) * pageSizeNum);
+        const data = await this.db.select().from(municipios).where(and12(...conditions)).limit(pageSizeNum).offset((pageNum - 1) * pageSizeNum);
         const hasMore = pageNum * pageSizeNum < total;
         return { data, total, hasMore };
       }
@@ -4794,17 +5263,17 @@ var init_municipio_storage = __esm({
       }
       /** Search municipios across all departamentos (for community city picker). */
       async searchAll(search = "", limit = 20, offset = 0) {
-        const conditions = [eq18(municipios.state, 1)];
+        const conditions = [eq19(municipios.state, 1)];
         if (search.trim()) {
           conditions.push(like4(municipios.nombre, `%${search.trim()}%`));
         }
-        const countResult = await this.db.select({ count: sql6`count(*)` }).from(municipios).where(and10(...conditions));
+        const countResult = await this.db.select({ count: sql6`count(*)` }).from(municipios).where(and12(...conditions));
         const total = Number(countResult[0]?.count ?? 0);
         const rows = await this.db.select({
           id: municipios.id,
           nombre: municipios.nombre,
           departamentoNombre: departamentos.nombre
-        }).from(municipios).leftJoin(departamentos, eq18(municipios.departamentoId, departamentos.id)).where(and10(...conditions)).orderBy(municipios.nombre).limit(limit).offset(offset);
+        }).from(municipios).leftJoin(departamentos, eq19(municipios.departamentoId, departamentos.id)).where(and12(...conditions)).orderBy(municipios.nombre).limit(limit).offset(offset);
         return {
           data: rows.map((r) => ({
             id: r.id,
@@ -4816,11 +5285,11 @@ var init_municipio_storage = __esm({
         };
       }
       async findById(id) {
-        const result = await this.db.select().from(municipios).where(eq18(municipios.id, id));
+        const result = await this.db.select().from(municipios).where(eq19(municipios.id, id));
         return result[0];
       }
       async findByCodigo(departamentoId, codigo) {
-        const result = await this.db.select().from(municipios).where(and10(eq18(municipios.departamentoId, departamentoId), eq18(municipios.codigo, codigo)));
+        const result = await this.db.select().from(municipios).where(and12(eq19(municipios.departamentoId, departamentoId), eq19(municipios.codigo, codigo)));
         return result[0];
       }
       async create(data) {
@@ -4828,11 +5297,11 @@ var init_municipio_storage = __esm({
         return data;
       }
       async update(id, data) {
-        await this.db.update(municipios).set(data).where(eq18(municipios.id, id));
+        await this.db.update(municipios).set(data).where(eq19(municipios.id, id));
         return this.findById(id);
       }
       async delete(id) {
-        await this.db.update(municipios).set({ state: 0 }).where(eq18(municipios.id, id));
+        await this.db.update(municipios).set({ state: 0 }).where(eq19(municipios.id, id));
         return true;
       }
     };
@@ -4840,7 +5309,7 @@ var init_municipio_storage = __esm({
 });
 
 // server/storage/storeage/models/lawyer-firma-history-storage.ts
-import { eq as eq19, and as and11, desc as desc6, sql as sql7 } from "drizzle-orm";
+import { eq as eq20, and as and13, desc as desc6, sql as sql7 } from "drizzle-orm";
 var LawyerFirmaHistoryStorage;
 var init_lawyer_firma_history_storage = __esm({
   "server/storage/storeage/models/lawyer-firma-history-storage.ts"() {
@@ -4854,29 +5323,29 @@ var init_lawyer_firma_history_storage = __esm({
       // Obtener por ID
       // ============================
       async getById(id) {
-        const result = await this.db.select().from(lawyerFirmaHistory).where(eq19(lawyerFirmaHistory.id, id)).limit(1);
+        const result = await this.db.select().from(lawyerFirmaHistory).where(eq20(lawyerFirmaHistory.id, id)).limit(1);
         return result[0];
       }
       // ============================
       // Obtener historial por lawyerId
       // ============================
       async getByLawyerId(lawyerId) {
-        return await this.db.select().from(lawyerFirmaHistory).where(eq19(lawyerFirmaHistory.lawyerId, lawyerId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
+        return await this.db.select().from(lawyerFirmaHistory).where(eq20(lawyerFirmaHistory.lawyerId, lawyerId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
       }
       // ============================
       // Obtener historial por firmaId
       // ============================
       async getByFirmaId(firmaId) {
-        return await this.db.select().from(lawyerFirmaHistory).where(eq19(lawyerFirmaHistory.firmaId, firmaId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
+        return await this.db.select().from(lawyerFirmaHistory).where(eq20(lawyerFirmaHistory.firmaId, firmaId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
       }
       // ============================
       // Obtener registro activo por lawyerId
       // ============================
       async getActiveByLawyerId(lawyerId) {
         const result = await this.db.select().from(lawyerFirmaHistory).where(
-          and11(
-            eq19(lawyerFirmaHistory.lawyerId, lawyerId),
-            eq19(lawyerFirmaHistory.estado, "activo")
+          and13(
+            eq20(lawyerFirmaHistory.lawyerId, lawyerId),
+            eq20(lawyerFirmaHistory.estado, "activo")
           )
         ).limit(1);
         return result[0];
@@ -4886,8 +5355,8 @@ var init_lawyer_firma_history_storage = __esm({
       // ============================
       async getActiveMembersByFirmaId(firmaId, search) {
         const conditions = [
-          eq19(lawyerFirmaHistory.firmaId, firmaId),
-          eq19(lawyerFirmaHistory.estado, "activo")
+          eq20(lawyerFirmaHistory.firmaId, firmaId),
+          eq20(lawyerFirmaHistory.estado, "activo")
         ];
         if (search) {
           const q = `%${search}%`;
@@ -4913,7 +5382,7 @@ var init_lawyer_firma_history_storage = __esm({
           userId: lawyerProfiles.userId,
           userEmail: users.email,
           userName: users.name
-        }).from(lawyerFirmaHistory).innerJoin(lawyerProfiles, eq19(lawyerFirmaHistory.lawyerId, lawyerProfiles.id)).leftJoin(personas, eq19(lawyerProfiles.personaId, personas.id)).innerJoin(users, eq19(lawyerProfiles.userId, users.id)).where(and11(...conditions)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
+        }).from(lawyerFirmaHistory).innerJoin(lawyerProfiles, eq20(lawyerFirmaHistory.lawyerId, lawyerProfiles.id)).leftJoin(personas, eq20(lawyerProfiles.personaId, personas.id)).innerJoin(users, eq20(lawyerProfiles.userId, users.id)).where(and13(...conditions)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
         return results.map((r) => ({
           id: r.id,
           lawyerId: r.lawyerId,
@@ -4964,7 +5433,7 @@ var init_lawyer_firma_history_storage = __esm({
           licenseNumber: lawyerProfiles.licenseNumber,
           userId: lawyerProfiles.userId,
           userEmail: users.email
-        }).from(lawyerFirmaHistory).innerJoin(lawyerProfiles, eq19(lawyerFirmaHistory.lawyerId, lawyerProfiles.id)).leftJoin(personas, eq19(lawyerProfiles.personaId, personas.id)).innerJoin(users, eq19(lawyerProfiles.userId, users.id)).where(eq19(lawyerFirmaHistory.firmaId, firmaId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
+        }).from(lawyerFirmaHistory).innerJoin(lawyerProfiles, eq20(lawyerFirmaHistory.lawyerId, lawyerProfiles.id)).leftJoin(personas, eq20(lawyerProfiles.personaId, personas.id)).innerJoin(users, eq20(lawyerProfiles.userId, users.id)).where(eq20(lawyerFirmaHistory.firmaId, firmaId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
         return results.map((r) => ({
           id: r.id,
           lawyerId: r.lawyerId,
@@ -5006,7 +5475,7 @@ var init_lawyer_firma_history_storage = __esm({
       async update(id, updates) {
         await this.db.update(lawyerFirmaHistory).set({
           ...updates
-        }).where(eq19(lawyerFirmaHistory.id, id));
+        }).where(eq20(lawyerFirmaHistory.id, id));
         return this.getById(id);
       }
       // ============================
@@ -5064,10 +5533,10 @@ var init_lawyer_firma_history_storage = __esm({
       // ============================
       async setFirmRol(lawyerId, firmaId, firmRolId) {
         await this.db.update(lawyerFirmaHistory).set({ firmRolId }).where(
-          and11(
-            eq19(lawyerFirmaHistory.lawyerId, lawyerId),
-            eq19(lawyerFirmaHistory.firmaId, firmaId),
-            eq19(lawyerFirmaHistory.estado, "activo")
+          and13(
+            eq20(lawyerFirmaHistory.lawyerId, lawyerId),
+            eq20(lawyerFirmaHistory.firmaId, firmaId),
+            eq20(lawyerFirmaHistory.estado, "activo")
           )
         );
         return this.getActiveByLawyerId(lawyerId);
@@ -5076,22 +5545,22 @@ var init_lawyer_firma_history_storage = __esm({
       // Eliminar registro
       // ============================
       async delete(id) {
-        await this.db.delete(lawyerFirmaHistory).where(eq19(lawyerFirmaHistory.id, id));
+        await this.db.delete(lawyerFirmaHistory).where(eq20(lawyerFirmaHistory.id, id));
       }
       // ============================
       // Obtener historial completo de un abogado con detalles de firma
       // ============================
       async getLawyerHistoryWithFirms(lawyerId) {
-        return await this.db.select().from(lawyerFirmaHistory).where(eq19(lawyerFirmaHistory.lawyerId, lawyerId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
+        return await this.db.select().from(lawyerFirmaHistory).where(eq20(lawyerFirmaHistory.lawyerId, lawyerId)).orderBy(desc6(lawyerFirmaHistory.fechaIngreso));
       }
       // ============================
       // Contar miembros activos de una firma
       // ============================
       async countActiveMembers(firmaId) {
         const result = await this.db.select({ count: lawyerFirmaHistory.id }).from(lawyerFirmaHistory).where(
-          and11(
-            eq19(lawyerFirmaHistory.firmaId, firmaId),
-            eq19(lawyerFirmaHistory.estado, "activo")
+          and13(
+            eq20(lawyerFirmaHistory.firmaId, firmaId),
+            eq20(lawyerFirmaHistory.estado, "activo")
           )
         );
         return result.length;
@@ -5101,7 +5570,7 @@ var init_lawyer_firma_history_storage = __esm({
 });
 
 // server/storage/storeage/models/firm-invitation-storage.ts
-import { and as and12, desc as desc7, eq as eq20, isNull as isNull3, ne, or as or4, sql as sql8 } from "drizzle-orm";
+import { and as and14, desc as desc7, eq as eq21, isNull as isNull4, ne as ne2, or as or4, sql as sql8 } from "drizzle-orm";
 import { randomUUID as randomUUID6 } from "crypto";
 var FirmInvitationStorage;
 var init_firm_invitation_storage = __esm({
@@ -5125,7 +5594,7 @@ var init_firm_invitation_storage = __esm({
       }
       async getById(id) {
         return this.db.query.firmInvitations.findFirst({
-          where: eq20(firmInvitations.id, id),
+          where: eq21(firmInvitations.id, id),
           with: {
             firm: true,
             lawyer: true,
@@ -5138,9 +5607,9 @@ var init_firm_invitation_storage = __esm({
       // Invitaciones pendientes recibidas por un abogado
       async getPendingByLawyerId(lawyerId) {
         return this.db.query.firmInvitations.findMany({
-          where: and12(
-            eq20(firmInvitations.lawyerId, lawyerId),
-            eq20(firmInvitations.status, "pendiente")
+          where: and14(
+            eq21(firmInvitations.lawyerId, lawyerId),
+            eq21(firmInvitations.status, "pendiente")
           ),
           with: {
             firm: true,
@@ -5154,7 +5623,7 @@ var init_firm_invitation_storage = __esm({
       // Invitaciones enviadas por una firma
       async getByFirmId(firmId) {
         return this.db.query.firmInvitations.findMany({
-          where: eq20(firmInvitations.firmId, firmId),
+          where: eq21(firmInvitations.firmId, firmId),
           with: {
             lawyer: {
               with: {
@@ -5186,10 +5655,10 @@ var init_firm_invitation_storage = __esm({
       // Verificar si ya existe invitación pendiente
       async getExistingPending(firmId, lawyerId) {
         return this.db.query.firmInvitations.findFirst({
-          where: and12(
-            eq20(firmInvitations.firmId, firmId),
-            eq20(firmInvitations.lawyerId, lawyerId),
-            eq20(firmInvitations.status, "pendiente")
+          where: and14(
+            eq21(firmInvitations.firmId, firmId),
+            eq21(firmInvitations.lawyerId, lawyerId),
+            eq21(firmInvitations.status, "pendiente")
           )
         });
       }
@@ -5197,7 +5666,7 @@ var init_firm_invitation_storage = __esm({
         await this.db.update(firmInvitations).set({
           status: "aceptada",
           respondedAt: /* @__PURE__ */ new Date()
-        }).where(eq20(firmInvitations.id, id));
+        }).where(eq21(firmInvitations.id, id));
         return this.getById(id);
       }
       async reject(id, motivoRechazo) {
@@ -5205,19 +5674,19 @@ var init_firm_invitation_storage = __esm({
           status: "rechazada",
           motivoRechazo: motivoRechazo ?? null,
           respondedAt: /* @__PURE__ */ new Date()
-        }).where(eq20(firmInvitations.id, id));
+        }).where(eq21(firmInvitations.id, id));
         return this.getById(id);
       }
       async cancel(id) {
         await this.db.update(firmInvitations).set({
           status: "cancelada"
-        }).where(eq20(firmInvitations.id, id));
+        }).where(eq21(firmInvitations.id, id));
       }
       async countPending(lawyerId) {
         const result = await this.db.select({ count: sql8`COUNT(*)` }).from(firmInvitations).where(
-          and12(
-            eq20(firmInvitations.lawyerId, lawyerId),
-            eq20(firmInvitations.status, "pendiente")
+          and14(
+            eq21(firmInvitations.lawyerId, lawyerId),
+            eq21(firmInvitations.status, "pendiente")
           )
         );
         return Number(result[0]?.count ?? 0);
@@ -5236,11 +5705,11 @@ var init_firm_invitation_storage = __esm({
           updatedAt: lawyerProfiles.updatedAt,
           persona: personas,
           email: users.email
-        }).from(lawyerProfiles).leftJoin(personas, eq20(lawyerProfiles.personaId, personas.id)).leftJoin(users, eq20(lawyerProfiles.userId, users.id)).where(
-          and12(
+        }).from(lawyerProfiles).leftJoin(personas, eq21(lawyerProfiles.personaId, personas.id)).leftJoin(users, eq21(lawyerProfiles.userId, users.id)).where(
+          and14(
             or4(
-              isNull3(lawyerProfiles.firmId),
-              ne(lawyerProfiles.firmId, firmId)
+              isNull4(lawyerProfiles.firmId),
+              ne2(lawyerProfiles.firmId, firmId)
             ),
             or4(
               sql8`LOWER(${personas.nombre}) LIKE LOWER(${searchTerm})`,
@@ -5257,7 +5726,7 @@ var init_firm_invitation_storage = __esm({
 });
 
 // server/storage/storeage/models/chat-storage.ts
-import { eq as eq21, and as and13, desc as desc8, sql as sql9, inArray as inArray5, gt } from "drizzle-orm";
+import { eq as eq22, and as and15, desc as desc8, sql as sql9, inArray as inArray5, gt } from "drizzle-orm";
 var ChatStorage;
 var init_chat_storage = __esm({
   "server/storage/storeage/models/chat-storage.ts"() {
@@ -5279,21 +5748,26 @@ var init_chat_storage = __esm({
         };
         await this.db.insert(conversations).values(conversationData);
         const result = await this.db.query.conversations.findFirst({
-          where: eq21(conversations.id, data.id)
+          where: eq22(conversations.id, data.id)
         });
         return result;
       }
       async getConversation(id) {
         return this.db.query.conversations.findFirst({
-          where: eq21(conversations.id, id)
+          where: eq22(conversations.id, id)
         });
       }
       /** Returns all conversations a user participates in, newest-updated first (paginated) */
-      async getConversationsForUser(userId2, limit = 20, offset = 0) {
-        const participations = await this.db.select({ conversationId: conversationParticipants.conversationId }).from(conversationParticipants).where(eq21(conversationParticipants.userId, userId2));
+      async getConversationsForUser(userId2, limit = 20, offset = 0, type) {
+        const participations = await this.db.select({ conversationId: conversationParticipants.conversationId }).from(conversationParticipants).where(eq22(conversationParticipants.userId, userId2));
         if (participations.length === 0) return [];
         const convIds = participations.map((p) => p.conversationId);
-        const convs = await this.db.select().from(conversations).where(inArray5(conversations.id, convIds)).orderBy(desc8(conversations.updatedAt)).limit(limit).offset(offset);
+        const convs = await this.db.select().from(conversations).where(
+          and15(
+            inArray5(conversations.id, convIds),
+            type ? eq22(conversations.type, type) : void 0
+          )
+        ).orderBy(desc8(conversations.updatedAt)).limit(limit).offset(offset);
         const dtos = await Promise.all(
           convs.map(async (conv) => {
             const parts = await this.db.select({
@@ -5301,7 +5775,7 @@ var init_chat_storage = __esm({
               lastReadAt: conversationParticipants.lastReadAt,
               name: users.name,
               email: users.email
-            }).from(conversationParticipants).leftJoin(users, eq21(conversationParticipants.userId, users.id)).where(eq21(conversationParticipants.conversationId, conv.id));
+            }).from(conversationParticipants).leftJoin(users, eq22(conversationParticipants.userId, users.id)).where(eq22(conversationParticipants.conversationId, conv.id));
             const lastMsg = await this.db.select({
               id: messages.id,
               conversationId: messages.conversationId,
@@ -5315,18 +5789,18 @@ var init_chat_storage = __esm({
               fileMime: messages.fileMime,
               fileHash: messages.fileHash
             }).from(messages).where(
-              and13(
-                eq21(messages.conversationId, conv.id),
-                eq21(messages.isDeleted, false)
+              and15(
+                eq22(messages.conversationId, conv.id),
+                eq22(messages.isDeleted, false)
               )
             ).orderBy(desc8(messages.createdAt)).limit(1);
             const myParticipation = parts.find((p) => p.userId === userId2);
             let unreadCount = 0;
             if (myParticipation) {
               const unreadResult = await this.db.select({ count: sql9`count(*)` }).from(messages).where(
-                and13(
-                  eq21(messages.conversationId, conv.id),
-                  eq21(messages.isDeleted, false),
+                and15(
+                  eq22(messages.conversationId, conv.id),
+                  eq22(messages.isDeleted, false),
                   myParticipation.lastReadAt ? gt(messages.createdAt, myParticipation.lastReadAt) : sql9`1=1`
                 )
               );
@@ -5361,9 +5835,34 @@ var init_chat_storage = __esm({
         );
         return dtos;
       }
-      async getConversationsCount(userId2) {
-        const participations = await this.db.select({ count: sql9`count(*)` }).from(conversationParticipants).where(eq21(conversationParticipants.userId, userId2));
-        return Number(participations[0]?.count ?? 0);
+      async getConversationsCount(userId2, type) {
+        if (!type) {
+          const participations = await this.db.select({ count: sql9`count(*)` }).from(conversationParticipants).where(eq22(conversationParticipants.userId, userId2));
+          return Number(participations[0]?.count ?? 0);
+        }
+        const rows = await this.db.select({ count: sql9`count(*)` }).from(conversationParticipants).innerJoin(conversations, eq22(conversationParticipants.conversationId, conversations.id)).where(
+          and15(
+            eq22(conversationParticipants.userId, userId2),
+            eq22(conversations.type, type)
+          )
+        );
+        return Number(rows[0]?.count ?? 0);
+      }
+      /** Total de mensajes no leídos del usuario en todas sus conversaciones. */
+      async getTotalUnreadCount(userId2) {
+        const result = await this.db.select({ count: sql9`count(*)` }).from(messages).innerJoin(
+          conversationParticipants,
+          and15(
+            eq22(conversationParticipants.conversationId, messages.conversationId),
+            eq22(conversationParticipants.userId, userId2)
+          )
+        ).where(
+          and15(
+            eq22(messages.isDeleted, false),
+            sql9`(${conversationParticipants.lastReadAt} IS NULL OR ${messages.createdAt} > ${conversationParticipants.lastReadAt})`
+          )
+        );
+        return Number(result[0]?.count ?? 0);
       }
       /**
        * Finds a community conversation between two users that was started
@@ -5373,19 +5872,19 @@ var init_chat_storage = __esm({
       async findConversationByPost(userIdA, userIdB, sourcePostId) {
         const rows = await this.db.select({ conversationId: conversationParticipants.conversationId }).from(conversationParticipants).innerJoin(
           conversations,
-          eq21(conversationParticipants.conversationId, conversations.id)
+          eq22(conversationParticipants.conversationId, conversations.id)
         ).where(
-          and13(
-            eq21(conversationParticipants.userId, userIdA),
-            eq21(conversations.type, "community"),
-            eq21(conversations.sourcePostId, sourcePostId)
+          and15(
+            eq22(conversationParticipants.userId, userIdA),
+            eq22(conversations.type, "community"),
+            eq22(conversations.sourcePostId, sourcePostId)
           )
         );
         for (const { conversationId } of rows) {
           const other = await this.db.select({ id: conversationParticipants.id }).from(conversationParticipants).where(
-            and13(
-              eq21(conversationParticipants.conversationId, conversationId),
-              eq21(conversationParticipants.userId, userIdB)
+            and15(
+              eq22(conversationParticipants.conversationId, conversationId),
+              eq22(conversationParticipants.userId, userIdB)
             )
           ).limit(1);
           if (other.length > 0) {
@@ -5394,17 +5893,22 @@ var init_chat_storage = __esm({
         }
         return void 0;
       }
-      async findDirectConversation(userIdA, userIdB) {
-        const result = await this.db.select({ conversationId: conversationParticipants.conversationId }).from(conversationParticipants).where(eq21(conversationParticipants.userId, userIdA));
+      async findTwoPartyConversation(userIdA, userIdB, type) {
+        const result = await this.db.select({ conversationId: conversationParticipants.conversationId }).from(conversationParticipants).innerJoin(conversations, eq22(conversationParticipants.conversationId, conversations.id)).where(
+          and15(
+            eq22(conversationParticipants.userId, userIdA),
+            eq22(conversations.type, type)
+          )
+        );
         for (const { conversationId } of result) {
           const other = await this.db.select().from(conversationParticipants).where(
-            and13(
-              eq21(conversationParticipants.conversationId, conversationId),
-              eq21(conversationParticipants.userId, userIdB)
+            and15(
+              eq22(conversationParticipants.conversationId, conversationId),
+              eq22(conversationParticipants.userId, userIdB)
             )
           ).limit(1);
           if (other.length > 0) {
-            const total = await this.db.select({ count: sql9`count(*)` }).from(conversationParticipants).where(eq21(conversationParticipants.conversationId, conversationId));
+            const total = await this.db.select({ count: sql9`count(*)` }).from(conversationParticipants).where(eq22(conversationParticipants.conversationId, conversationId));
             if (Number(total[0]?.count) === 2) {
               return this.getConversation(conversationId);
             }
@@ -5418,28 +5922,28 @@ var init_chat_storage = __esm({
       async addParticipant(data) {
         await this.db.insert(conversationParticipants).values(data);
         const result = await this.db.query.conversationParticipants.findFirst({
-          where: eq21(conversationParticipants.id, data.id)
+          where: eq22(conversationParticipants.id, data.id)
         });
         return result;
       }
       async isParticipant(conversationId, userId2) {
         const result = await this.db.select({ id: conversationParticipants.id }).from(conversationParticipants).where(
-          and13(
-            eq21(conversationParticipants.conversationId, conversationId),
-            eq21(conversationParticipants.userId, userId2)
+          and15(
+            eq22(conversationParticipants.conversationId, conversationId),
+            eq22(conversationParticipants.userId, userId2)
           )
         ).limit(1);
         return result.length > 0;
       }
       async getParticipantUserIds(conversationId) {
-        const rows = await this.db.select({ userId: conversationParticipants.userId }).from(conversationParticipants).where(eq21(conversationParticipants.conversationId, conversationId));
+        const rows = await this.db.select({ userId: conversationParticipants.userId }).from(conversationParticipants).where(eq22(conversationParticipants.conversationId, conversationId));
         return rows.map((r) => r.userId);
       }
       async markRead(conversationId, userId2) {
         await this.db.update(conversationParticipants).set({ lastReadAt: /* @__PURE__ */ new Date() }).where(
-          and13(
-            eq21(conversationParticipants.conversationId, conversationId),
-            eq21(conversationParticipants.userId, userId2)
+          and15(
+            eq22(conversationParticipants.conversationId, conversationId),
+            eq22(conversationParticipants.userId, userId2)
           )
         );
       }
@@ -5453,7 +5957,7 @@ var init_chat_storage = __esm({
           createdAt: /* @__PURE__ */ new Date()
         };
         await this.db.insert(messages).values(messageData);
-        await this.db.update(conversations).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq21(conversations.id, data.conversationId));
+        await this.db.update(conversations).set({ updatedAt: /* @__PURE__ */ new Date() }).where(eq22(conversations.id, data.conversationId));
         return this.getMessageWithSender(data.id);
       }
       async getMessageWithSender(messageId) {
@@ -5471,7 +5975,7 @@ var init_chat_storage = __esm({
           fileHash: messages.fileHash,
           senderName: users.name,
           senderEmail: users.email
-        }).from(messages).leftJoin(users, eq21(messages.senderId, users.id)).where(eq21(messages.id, messageId)).limit(1);
+        }).from(messages).leftJoin(users, eq22(messages.senderId, users.id)).where(eq22(messages.id, messageId)).limit(1);
         const row = rows[0];
         return {
           id: row.id,
@@ -5510,7 +6014,7 @@ var init_chat_storage = __esm({
           fileSize: messages.fileSize,
           fileMime: messages.fileMime,
           fileHash: messages.fileHash
-        }).from(messages).where(eq21(messages.id, messageId)).limit(1);
+        }).from(messages).where(eq22(messages.id, messageId)).limit(1);
         if (!rows[0]) return void 0;
         const r = rows[0];
         return {
@@ -5543,10 +6047,10 @@ var init_chat_storage = __esm({
           fileHash: messages.fileHash,
           senderName: users.name,
           senderEmail: users.email
-        }).from(messages).leftJoin(users, eq21(messages.senderId, users.id)).where(
-          and13(
-            eq21(messages.conversationId, conversationId),
-            eq21(messages.isDeleted, false)
+        }).from(messages).leftJoin(users, eq22(messages.senderId, users.id)).where(
+          and15(
+            eq22(messages.conversationId, conversationId),
+            eq22(messages.isDeleted, false)
           )
         ).orderBy(desc8(messages.createdAt)).limit(limit).offset(offset);
         return rows.map((row) => ({
@@ -5570,10 +6074,10 @@ var init_chat_storage = __esm({
       }
       async softDeleteMessage(messageId, userId2) {
         const msg = await this.db.query.messages.findFirst({
-          where: eq21(messages.id, messageId)
+          where: eq22(messages.id, messageId)
         });
         if (!msg || msg.senderId !== userId2) return false;
-        await this.db.update(messages).set({ isDeleted: true }).where(eq21(messages.id, messageId));
+        await this.db.update(messages).set({ isDeleted: true }).where(eq22(messages.id, messageId));
         return true;
       }
     };
@@ -5581,7 +6085,7 @@ var init_chat_storage = __esm({
 });
 
 // server/storage/storeage/models/session-storage.ts
-import { eq as eq22, and as and14, lt } from "drizzle-orm";
+import { eq as eq23, and as and16, lt } from "drizzle-orm";
 var SessionStorage;
 var init_session_storage = __esm({
   "server/storage/storeage/models/session-storage.ts"() {
@@ -5598,7 +6102,7 @@ var init_session_storage = __esm({
       /** Find session by JTI — used in authenticate middleware */
       async findById(jti) {
         return this.db.query.sessions.findFirst({
-          where: eq22(sessions.id, jti)
+          where: eq23(sessions.id, jti)
         });
       }
       /** Check if a session is valid (exists, not expired, not revoked) */
@@ -5611,22 +6115,22 @@ var init_session_storage = __esm({
       }
       /** Revoke a single session (logout) */
       async revoke(jti) {
-        await this.db.update(sessions).set({ revokedAt: /* @__PURE__ */ new Date() }).where(eq22(sessions.id, jti));
+        await this.db.update(sessions).set({ revokedAt: /* @__PURE__ */ new Date() }).where(eq23(sessions.id, jti));
       }
       /** Revoke all active sessions for a user (e.g. password change, account compromise) */
       async revokeAllForUser(userId2) {
         await this.db.update(sessions).set({ revokedAt: /* @__PURE__ */ new Date() }).where(
-          and14(
-            eq22(sessions.userId, userId2),
+          and16(
+            eq23(sessions.userId, userId2),
             // Only revoke non-already-revoked sessions
-            eq22(sessions.revokedAt, null)
+            eq23(sessions.revokedAt, null)
           )
         );
       }
       /** Find session by refresh token */
       async findByRefreshToken(refreshToken) {
         return this.db.query.sessions.findFirst({
-          where: eq22(sessions.refreshToken, refreshToken)
+          where: eq23(sessions.refreshToken, refreshToken)
         });
       }
       /**
@@ -5634,7 +6138,7 @@ var init_session_storage = __esm({
        * Call this on every successful token refresh to prevent replay attacks.
        */
       async rotate(oldJti, newJti, newRefreshToken, newExpiresAt, newRefreshExpiresAt) {
-        await this.db.update(sessions).set({ revokedAt: /* @__PURE__ */ new Date() }).where(eq22(sessions.id, oldJti));
+        await this.db.update(sessions).set({ revokedAt: /* @__PURE__ */ new Date() }).where(eq23(sessions.id, oldJti));
         const old = await this.findById(oldJti);
         await this.db.insert(sessions).values({
           id: newJti,
@@ -5655,7 +6159,7 @@ var init_session_storage = __esm({
 });
 
 // server/storage/storeage/models/tarea-storage.ts
-import { eq as eq23, and as and15, desc as desc9, sql as sql10, inArray as inArray6, count as count2 } from "drizzle-orm";
+import { eq as eq24, and as and17, desc as desc9, sql as sql10, inArray as inArray6, count as count2 } from "drizzle-orm";
 import { randomUUID as randomUUID7 } from "crypto";
 function toDTO(t) {
   const now = /* @__PURE__ */ new Date();
@@ -5730,29 +6234,29 @@ var init_tarea_storage = __esm({
       // ── Find ───────────────────────────────────────────────────────────────────
       async findById(id) {
         const row = await this.db.query.tareas.findFirst({
-          where: eq23(tareas.id, id)
+          where: eq24(tareas.id, id)
         });
         if (!row) return void 0;
         const [enriched] = await this.enrichWithCounts([toDTO(row)]);
         return enriched;
       }
       async findRawById(id) {
-        return this.db.query.tareas.findFirst({ where: eq23(tareas.id, id) });
+        return this.db.query.tareas.findFirst({ where: eq24(tareas.id, id) });
       }
       async findByProceso(procesoId, stage) {
-        const conditions = [eq23(tareas.procesoId, procesoId), eq23(tareas.state, true)];
+        const conditions = [eq24(tareas.procesoId, procesoId), eq24(tareas.state, true)];
         if (stage !== void 0) {
-          conditions.push(eq23(tareas.legalStage, stage));
+          conditions.push(eq24(tareas.legalStage, stage));
         }
-        const rows = await this.db.select().from(tareas).where(and15(...conditions)).orderBy(desc9(tareas.orden), desc9(tareas.createdAt));
+        const rows = await this.db.select().from(tareas).where(and17(...conditions)).orderBy(desc9(tareas.orden), desc9(tareas.createdAt));
         return this.enrichWithCounts(rows.map(toDTO));
       }
       /** Tareas de un abogado en todos sus procesos, agrupadas por estado */
       async findByLawyer(lawyerProfileId) {
         const rows = await this.db.select().from(tareas).where(
-          and15(
-            eq23(tareas.asignadoA, lawyerProfileId),
-            eq23(tareas.state, true)
+          and17(
+            eq24(tareas.asignadoA, lawyerProfileId),
+            eq24(tareas.state, true)
           )
         ).orderBy(tareas.fechaLimite, desc9(tareas.createdAt));
         const dtos = await this.enrichWithCounts(rows.map(toDTO));
@@ -5775,14 +6279,14 @@ var init_tarea_storage = __esm({
       }
       // ── Update ─────────────────────────────────────────────────────────────────
       async update(id, data) {
-        await this.db.update(tareas).set(data).where(eq23(tareas.id, id));
+        await this.db.update(tareas).set(data).where(eq24(tareas.id, id));
         return this.findById(id);
       }
       async updateEstado(id, estado, fechaCompletada) {
         await this.db.update(tareas).set({
           estado,
           ...fechaCompletada !== void 0 ? { fechaCompletada } : {}
-        }).where(eq23(tareas.id, id));
+        }).where(eq24(tareas.id, id));
         return this.findById(id);
       }
       // ── Stats ──────────────────────────────────────────────────────────────────
@@ -5792,7 +6296,7 @@ var init_tarea_storage = __esm({
           pendientes: sql10`SUM(CASE WHEN ${tareas.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
           en_progreso: sql10`SUM(CASE WHEN ${tareas.estado} = 'en_progreso' THEN 1 ELSE 0 END)`,
           completadas: sql10`SUM(CASE WHEN ${tareas.estado} = 'completada' THEN 1 ELSE 0 END)`
-        }).from(tareas).where(and15(eq23(tareas.asignadoA, lawyerProfileId), eq23(tareas.state, true)));
+        }).from(tareas).where(and17(eq24(tareas.asignadoA, lawyerProfileId), eq24(tareas.state, true)));
         return {
           total: Number(rows[0]?.total ?? 0),
           pendientes: Number(rows[0]?.pendientes ?? 0),
@@ -5810,7 +6314,7 @@ var init_tarea_storage = __esm({
           pendientes: sql10`SUM(CASE WHEN ${tareas.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
           en_progreso: sql10`SUM(CASE WHEN ${tareas.estado} = 'en_progreso' THEN 1 ELSE 0 END)`,
           completadas: sql10`SUM(CASE WHEN ${tareas.estado} = 'completada' THEN 1 ELSE 0 END)`
-        }).from(tareas).where(and15(inArray6(tareas.procesoId, procesoIds), eq23(tareas.state, true))).groupBy(tareas.procesoId);
+        }).from(tareas).where(and17(inArray6(tareas.procesoId, procesoIds), eq24(tareas.state, true))).groupBy(tareas.procesoId);
         for (const row of rows) {
           map.set(row.procesoId, {
             total: Number(row.total),
@@ -5824,35 +6328,36 @@ var init_tarea_storage = __esm({
       // ── Gate: tareas requeridas pendientes en una etapa ───────────────────────
       async getRequiredPendingByStage(procesoId, legalStage) {
         return this.db.select().from(tareas).where(
-          and15(
-            eq23(tareas.procesoId, procesoId),
-            eq23(tareas.legalStage, legalStage),
-            eq23(tareas.requerida, 1),
+          and17(
+            eq24(tareas.procesoId, procesoId),
+            eq24(tareas.legalStage, legalStage),
+            eq24(tareas.requerida, 1),
             inArray6(tareas.estado, ["pendiente", "en_progreso"])
           )
         );
       }
       // ── Get raw by id ──────────────────────────────────────────────────────────
       async getById(id) {
-        const [row] = await this.db.select().from(tareas).where(eq23(tareas.id, id));
+        const [row] = await this.db.select().from(tareas).where(eq24(tareas.id, id));
         return row ?? null;
       }
       // ── Delete (soft) ──────────────────────────────────────────────────────────
       async softDelete(id) {
-        await this.db.update(tareas).set({ state: false }).where(eq23(tareas.id, id));
+        await this.db.update(tareas).set({ state: false }).where(eq24(tareas.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/persona-storage.ts
-import { eq as eq24 } from "drizzle-orm";
+import { eq as eq25 } from "drizzle-orm";
 import { randomUUID as randomUUID8 } from "crypto";
 var PersonaStorage;
 var init_persona_storage = __esm({
   "server/storage/storeage/models/persona-storage.ts"() {
     "use strict";
     init_schema();
+    init_identity_uniqueness();
     PersonaStorage = class {
       constructor(db2) {
         this.db = db2;
@@ -5860,29 +6365,50 @@ var init_persona_storage = __esm({
       async createPersona(data, tx) {
         const db2 = tx ?? this.db;
         const id = randomUUID8();
-        await db2.insert(personas).values({ ...data, id });
-        const result = await db2.select().from(personas).where(eq24(personas.id, id)).limit(1);
+        const documento = await assertDocumentoUnique(db2, data.documento);
+        await db2.insert(personas).values({
+          ...data,
+          id,
+          documento,
+          nombre: normalizeLooseText(data.nombre),
+          apellido: normalizeLooseText(data.apellido),
+          telefono: normalizeLooseText(data.telefono)
+        });
+        const result = await db2.select().from(personas).where(eq25(personas.id, id)).limit(1);
         if (!result[0]) throw new Error("No se pudo crear la persona");
         return result[0];
       }
       async getPersona(id) {
-        const result = await this.db.select().from(personas).where(eq24(personas.id, id)).limit(1);
+        const result = await this.db.select().from(personas).where(eq25(personas.id, id)).limit(1);
         return result[0];
       }
       async updatePersona(id, updates, tx) {
         const db2 = tx ?? this.db;
-        await db2.update(personas).set(updates).where(eq24(personas.id, id));
+        const safeUpdates = { ...updates };
+        if (updates.documento !== void 0) {
+          safeUpdates.documento = await assertDocumentoUnique(db2, updates.documento, id);
+        }
+        if (updates.nombre !== void 0) {
+          safeUpdates.nombre = normalizeLooseText(updates.nombre);
+        }
+        if (updates.apellido !== void 0) {
+          safeUpdates.apellido = normalizeLooseText(updates.apellido);
+        }
+        if (updates.telefono !== void 0) {
+          safeUpdates.telefono = normalizeLooseText(updates.telefono);
+        }
+        await db2.update(personas).set(safeUpdates).where(eq25(personas.id, id));
         return this.getPersona(id);
       }
       async deletePersona(id) {
-        await this.db.delete(personas).where(eq24(personas.id, id));
+        await this.db.delete(personas).where(eq25(personas.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/representante-legal-storage.ts
-import { eq as eq25 } from "drizzle-orm";
+import { eq as eq26 } from "drizzle-orm";
 import { randomUUID as randomUUID9 } from "crypto";
 var RepresentanteLegalStorage;
 var init_representante_legal_storage = __esm({
@@ -5916,7 +6442,7 @@ var init_representante_legal_storage = __esm({
             departamentoId: personas.departamentoId,
             municipioId: personas.municipioId
           }
-        }).from(representantesLegales).leftJoin(personas, eq25(representantesLegales.personaId, personas.id)).where(eq25(representantesLegales.id, id)).limit(1);
+        }).from(representantesLegales).leftJoin(personas, eq26(representantesLegales.personaId, personas.id)).where(eq26(representantesLegales.id, id)).limit(1);
         if (!result[0]) return void 0;
         return {
           ...result[0],
@@ -5924,15 +6450,15 @@ var init_representante_legal_storage = __esm({
         };
       }
       async getRepresentantesByPersona(personaId) {
-        return this.db.select().from(representantesLegales).where(eq25(representantesLegales.personaId, personaId));
+        return this.db.select().from(representantesLegales).where(eq26(representantesLegales.personaId, personaId));
       }
       async updateRepresentante(id, updates, tx) {
         const db2 = tx ?? this.db;
-        await db2.update(representantesLegales).set(updates).where(eq25(representantesLegales.id, id));
+        await db2.update(representantesLegales).set(updates).where(eq26(representantesLegales.id, id));
         return this.getRepresentante(id);
       }
       async deleteRepresentante(id) {
-        await this.db.delete(representantesLegales).where(eq25(representantesLegales.id, id));
+        await this.db.delete(representantesLegales).where(eq26(representantesLegales.id, id));
       }
     };
   }
@@ -5940,7 +6466,7 @@ var init_representante_legal_storage = __esm({
 
 // server/storage/storeage/models/community-storage.ts
 import { randomUUID as randomUUID10 } from "crypto";
-import { eq as eq26, and as and16, desc as desc10, sql as sql11, inArray as inArray7, isNull as isNull4 } from "drizzle-orm";
+import { eq as eq27, and as and18, desc as desc10, sql as sql11, inArray as inArray7, isNull as isNull5 } from "drizzle-orm";
 var CommunityStorage;
 var init_community_storage = __esm({
   "server/storage/storeage/models/community-storage.ts"() {
@@ -5959,10 +6485,10 @@ var init_community_storage = __esm({
       // ── helpers ──────────────────────────────────────────────────────────────
       async enrichPost(row, userId2) {
         const [likeCountRow, likedRow, bookmarkedRow, postTagRows] = await Promise.all([
-          this.db.select({ c: sql11`COUNT(*)` }).from(postLikes).where(eq26(postLikes.postId, row.id)),
-          userId2 ? this.db.select().from(postLikes).where(and16(eq26(postLikes.postId, row.id), eq26(postLikes.userId, userId2))).limit(1) : Promise.resolve([]),
-          userId2 ? this.db.select().from(postBookmarks).where(and16(eq26(postBookmarks.postId, row.id), eq26(postBookmarks.userId, userId2))).limit(1) : Promise.resolve([]),
-          this.db.select({ id: tags.id, name: tags.name, slug: tags.slug }).from(postTags).innerJoin(tags, eq26(tags.id, postTags.tagId)).where(eq26(postTags.postId, row.id))
+          this.db.select({ c: sql11`COUNT(*)` }).from(postLikes).where(eq27(postLikes.postId, row.id)),
+          userId2 ? this.db.select().from(postLikes).where(and18(eq27(postLikes.postId, row.id), eq27(postLikes.userId, userId2))).limit(1) : Promise.resolve([]),
+          userId2 ? this.db.select().from(postBookmarks).where(and18(eq27(postBookmarks.postId, row.id), eq27(postBookmarks.userId, userId2))).limit(1) : Promise.resolve([]),
+          this.db.select({ id: tags.id, name: tags.name, slug: tags.slug }).from(postTags).innerJoin(tags, eq27(tags.id, postTags.tagId)).where(eq27(postTags.postId, row.id))
         ]);
         return {
           id: row.id,
@@ -5975,6 +6501,7 @@ var init_community_storage = __esm({
           city: row.city ?? null,
           viewCount: row.viewCount ?? 0,
           status: row.status ?? "open",
+          disabled: row.disabled ?? false,
           takenByLawyerId: row.takenByLawyerId ?? null,
           takenByUserId: row.takenByUserId ?? null,
           takenAt: row.takenAt ?? null,
@@ -5983,24 +6510,31 @@ var init_community_storage = __esm({
           procesoId: row.procesoId ?? null,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
-          author: row.visibility === "anonymous" ? null : { id: row.userId, name: row.authorName ?? "", email: row.authorEmail ?? "", rol: row.authorRole ?? "" },
+          author: row.visibility === "anonymous" ? null : {
+            id: row.userId,
+            name: row.authorName ?? "",
+            email: row.authorEmail ?? "",
+            rol: row.authorRole ?? "",
+            isProfessionallyVerified: Boolean(row.authorProfessionallyVerified)
+          },
           commentCount: Number(row.commentCount ?? 0),
           likeCount: Number(likeCountRow[0]?.c ?? 0),
           isLiked: likedRow.length > 0,
           isBookmarked: bookmarkedRow.length > 0,
           tags: postTagRows,
-          takenByName: row.takenByName ?? null
+          takenByName: row.takenByName ?? null,
+          takenByProfessionallyVerified: Boolean(row.takenByProfessionallyVerified)
         };
       }
       // ── Posts ─────────────────────────────────────────────────────────────────
       async createPost(data) {
         const id = randomUUID10();
         await this.db.insert(posts).values({ id, ...data });
-        const result = await this.db.select().from(posts).where(eq26(posts.id, id)).limit(1);
+        const result = await this.db.select().from(posts).where(eq27(posts.id, id)).limit(1);
         return result[0];
       }
       async getPost(id) {
-        const result = await this.db.select().from(posts).where(eq26(posts.id, id)).limit(1);
+        const result = await this.db.select().from(posts).where(and18(eq27(posts.id, id), eq27(posts.disabled, false))).limit(1);
         return result[0];
       }
       async getPosts(limit = 20, offset = 0, filter = {}, userId2) {
@@ -6015,6 +6549,7 @@ var init_community_storage = __esm({
           city: posts.city,
           viewCount: posts.viewCount,
           status: posts.status,
+          disabled: posts.disabled,
           takenByLawyerId: posts.takenByLawyerId,
           takenByUserId: posts.takenByUserId,
           takenAt: posts.takenAt,
@@ -6026,19 +6561,36 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           authorRole: roles.nombre,
-          commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq26(posts.userId, users.id)).leftJoin(roles, eq26(users.rolId, roles.id));
+          authorProfessionallyVerified: sql11`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp2
+              WHERE lp2.user_id = ${posts.userId}
+                AND lp2.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
+          commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`,
+          takenByProfessionallyVerified: sql11`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp3
+              WHERE lp3.user_id = ${posts.takenByUserId}
+                AND lp3.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`
+        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).leftJoin(roles, eq27(users.rolId, roles.id));
         let tagId = null;
         if (filter.tagSlug) {
-          const tagRow = await this.db.select().from(tags).where(eq26(tags.slug, filter.tagSlug)).limit(1);
+          const tagRow = await this.db.select().from(tags).where(eq27(tags.slug, filter.tagSlug)).limit(1);
           tagId = tagRow[0]?.id ?? null;
         }
         const conditions = [];
-        if (filter.authorId) conditions.push(eq26(posts.userId, filter.authorId));
-        if (filter.unlinkedOnly) conditions.push(isNull4(posts.procesoId));
-        if (filter.clientAccepted) conditions.push(eq26(posts.clientAccepted, 1));
+        if (!filter.includeDisabled) conditions.push(eq27(posts.disabled, false));
+        if (filter.authorId) conditions.push(eq27(posts.userId, filter.authorId));
+        if (filter.unlinkedOnly) conditions.push(isNull5(posts.procesoId));
+        if (filter.clientAccepted) conditions.push(eq27(posts.clientAccepted, 1));
         if (conditions.length > 0) {
-          query = query.where(conditions.length === 1 ? conditions[0] : and16(...conditions));
+          query = query.where(conditions.length === 1 ? conditions[0] : and18(...conditions));
         }
         const rows = await (filter.sort === "popular" ? query.orderBy(desc10(posts.viewCount)) : filter.sort === "liked" ? query.orderBy(desc10(sql11`(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = ${posts.id})`)) : query.orderBy(desc10(posts.createdAt))).limit(limit).offset(offset);
         let filtered = rows;
@@ -6053,7 +6605,7 @@ var init_community_storage = __esm({
           filtered = filtered.filter((r) => (r.city ?? "").toLowerCase() === c);
         }
         if (tagId) {
-          const taggedPostIds = await this.db.select({ postId: postTags.postId }).from(postTags).where(eq26(postTags.tagId, tagId));
+          const taggedPostIds = await this.db.select({ postId: postTags.postId }).from(postTags).where(eq27(postTags.tagId, tagId));
           const ids = new Set(taggedPostIds.map((r) => r.postId));
           filtered = filtered.filter((r) => ids.has(r.id));
         }
@@ -6075,6 +6627,7 @@ var init_community_storage = __esm({
           city: posts.city,
           viewCount: posts.viewCount,
           status: posts.status,
+          disabled: posts.disabled,
           takenByLawyerId: posts.takenByLawyerId,
           takenByUserId: posts.takenByUserId,
           takenAt: posts.takenAt,
@@ -6086,26 +6639,42 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           authorRole: roles.nombre,
+          authorProfessionallyVerified: sql11`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp2
+              WHERE lp2.user_id = ${posts.userId}
+                AND lp2.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
           takenByName: sql11`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
+          takenByProfessionallyVerified: sql11`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp3
+              WHERE lp3.user_id = ${posts.takenByUserId}
+                AND lp3.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
           commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq26(posts.userId, users.id)).leftJoin(roles, eq26(users.rolId, roles.id)).where(eq26(posts.id, id)).limit(1);
+        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).leftJoin(roles, eq27(users.rolId, roles.id)).where(and18(eq27(posts.id, id), eq27(posts.disabled, false))).limit(1);
         const row = rows[0];
         if (!row) return void 0;
         return this.enrichPost(row, userId2);
       }
       async updatePost(id, data) {
-        await this.db.update(posts).set(data).where(eq26(posts.id, id));
+        await this.db.update(posts).set(data).where(eq27(posts.id, id));
       }
       async deletePost(id) {
-        await this.db.delete(posts).where(eq26(posts.id, id));
+        await this.db.delete(posts).where(eq27(posts.id, id));
       }
       /** Link a community post to a proceso (bidirectional). */
       async setPostProceso(postId, procesoId) {
-        await this.db.update(posts).set({ procesoId }).where(eq26(posts.id, postId));
+        await this.db.update(posts).set({ procesoId }).where(eq27(posts.id, postId));
       }
       /** Atomically claim a post. Returns false if already taken or not found. */
       async takePost(postId, lawyerProfileId, lawyerUserId) {
-        const open = await this.db.select({ id: posts.id }).from(posts).where(and16(eq26(posts.id, postId), eq26(posts.status, "open"))).limit(1);
+        const open = await this.db.select({ id: posts.id }).from(posts).where(and18(eq27(posts.id, postId), eq27(posts.status, "open"), eq27(posts.disabled, false))).limit(1);
         if (open.length === 0) return false;
         const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
         await this.db.update(posts).set({
@@ -6115,15 +6684,18 @@ var init_community_storage = __esm({
           takenAt: /* @__PURE__ */ new Date(),
           takenExpiresAt: expiresAt,
           clientAccepted: null
-        }).where(and16(eq26(posts.id, postId), eq26(posts.status, "open")));
+        }).where(and18(eq27(posts.id, postId), eq27(posts.status, "open"), eq27(posts.disabled, false)));
         return true;
+      }
+      async setPostDisabled(postId, disabled) {
+        await this.db.update(posts).set({ disabled }).where(eq27(posts.id, postId));
       }
       /** Client rejects the lawyer — post goes back to open. */
       async rejectTake(postId, clientUserId) {
-        const row = await this.db.select({ id: posts.id, takenByUserId: posts.takenByUserId }).from(posts).where(and16(
-          eq26(posts.id, postId),
-          eq26(posts.userId, clientUserId),
-          eq26(posts.status, "in_progress")
+        const row = await this.db.select({ id: posts.id, takenByUserId: posts.takenByUserId }).from(posts).where(and18(
+          eq27(posts.id, postId),
+          eq27(posts.userId, clientUserId),
+          eq27(posts.status, "in_progress")
         )).limit(1);
         if (row.length === 0) return false;
         await this.db.update(posts).set({
@@ -6133,18 +6705,18 @@ var init_community_storage = __esm({
           takenAt: null,
           takenExpiresAt: null,
           clientAccepted: 0
-        }).where(eq26(posts.id, postId));
+        }).where(eq27(posts.id, postId));
         return true;
       }
       /** Client accepts — marks clientAccepted=1 (post stays in_progress). */
       async acceptTake(postId, clientUserId) {
-        const row = await this.db.select({ id: posts.id }).from(posts).where(and16(
-          eq26(posts.id, postId),
-          eq26(posts.userId, clientUserId),
-          eq26(posts.status, "in_progress")
+        const row = await this.db.select({ id: posts.id }).from(posts).where(and18(
+          eq27(posts.id, postId),
+          eq27(posts.userId, clientUserId),
+          eq27(posts.status, "in_progress")
         )).limit(1);
         if (row.length === 0) return false;
-        await this.db.update(posts).set({ clientAccepted: 1 }).where(eq26(posts.id, postId));
+        await this.db.update(posts).set({ clientAccepted: 1 }).where(eq27(posts.id, postId));
         return true;
       }
       /**
@@ -6157,8 +6729,8 @@ var init_community_storage = __esm({
           title: posts.title,
           userId: posts.userId,
           takenByUserId: posts.takenByUserId
-        }).from(posts).where(and16(
-          eq26(posts.status, "in_progress"),
+        }).from(posts).where(and18(
+          eq27(posts.status, "in_progress"),
           sql11`${posts.clientAccepted} IS NULL`,
           sql11`${posts.takenExpiresAt} < NOW()`
         ));
@@ -6176,35 +6748,35 @@ var init_community_storage = __esm({
       }
       /** Let the post author mark their own case as closed/resolved. */
       async closePost(postId, userId2) {
-        await this.db.update(posts).set({ status: "closed" }).where(and16(eq26(posts.id, postId), eq26(posts.userId, userId2)));
+        await this.db.update(posts).set({ status: "closed" }).where(and18(eq27(posts.id, postId), eq27(posts.userId, userId2)));
       }
       async incrementViewCount(id) {
-        await this.db.update(posts).set({ viewCount: sql11`view_count + 1` }).where(eq26(posts.id, id));
+        await this.db.update(posts).set({ viewCount: sql11`view_count + 1` }).where(eq27(posts.id, id));
       }
       /** Returns true if this is the first time this user views the post (view was recorded). */
       async recordUserView(postId, userId2) {
-        const existing = await this.db.select().from(postViews).where(and16(eq26(postViews.postId, postId), eq26(postViews.userId, userId2))).limit(1);
+        const existing = await this.db.select().from(postViews).where(and18(eq27(postViews.postId, postId), eq27(postViews.userId, userId2))).limit(1);
         if (existing.length > 0) return false;
         await this.db.insert(postViews).values({ postId, userId: userId2 });
-        await this.db.update(posts).set({ viewCount: sql11`view_count + 1` }).where(eq26(posts.id, postId));
+        await this.db.update(posts).set({ viewCount: sql11`view_count + 1` }).where(eq27(posts.id, postId));
         return true;
       }
       // ── Comments ──────────────────────────────────────────────────────────────
       async createComment(data) {
         const id = randomUUID10();
         await this.db.insert(comments).values({ id, ...data });
-        const result = await this.db.select().from(comments).where(eq26(comments.id, id)).limit(1);
+        const result = await this.db.select().from(comments).where(eq27(comments.id, id)).limit(1);
         return result[0];
       }
       async getComment(id) {
-        const result = await this.db.select().from(comments).where(eq26(comments.id, id)).limit(1);
+        const result = await this.db.select().from(comments).where(eq27(comments.id, id)).limit(1);
         return result[0];
       }
       async updateComment(id, content) {
-        await this.db.update(comments).set({ content }).where(eq26(comments.id, id));
+        await this.db.update(comments).set({ content }).where(eq27(comments.id, id));
       }
       async deleteComment(id) {
-        await this.db.delete(comments).where(eq26(comments.id, id));
+        await this.db.delete(comments).where(eq27(comments.id, id));
       }
       async getCommentsByPost(postId) {
         const rows = await this.db.select({
@@ -6217,8 +6789,16 @@ var init_community_storage = __esm({
           updatedAt: comments.updatedAt,
           authorName: users.name,
           authorEmail: users.email,
-          authorRole: roles.nombre
-        }).from(comments).leftJoin(users, eq26(comments.userId, users.id)).leftJoin(roles, eq26(users.rolId, roles.id)).where(eq26(comments.postId, postId)).orderBy(comments.createdAt);
+          authorRole: roles.nombre,
+          authorProfessionallyVerified: sql11`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp2
+              WHERE lp2.user_id = ${comments.userId}
+                AND lp2.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`
+        }).from(comments).leftJoin(users, eq27(comments.userId, users.id)).leftJoin(roles, eq27(users.rolId, roles.id)).where(eq27(comments.postId, postId)).orderBy(comments.createdAt);
         const all = rows.map((row) => ({
           id: row.id,
           postId: row.postId,
@@ -6227,7 +6807,13 @@ var init_community_storage = __esm({
           parentId: row.parentId ?? null,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
-          author: { id: row.userId, name: row.authorName ?? "", email: row.authorEmail ?? "", rol: row.authorRole ?? "" },
+          author: {
+            id: row.userId,
+            name: row.authorName ?? "",
+            email: row.authorEmail ?? "",
+            rol: row.authorRole ?? "",
+            isProfessionallyVerified: Boolean(row.authorProfessionallyVerified)
+          },
           replies: []
         }));
         const map = new Map(all.map((c) => [c.id, c]));
@@ -6243,27 +6829,27 @@ var init_community_storage = __esm({
       }
       // ── Likes ─────────────────────────────────────────────────────────────────
       async togglePostLike(postId, userId2) {
-        const existing = await this.db.select().from(postLikes).where(and16(eq26(postLikes.postId, postId), eq26(postLikes.userId, userId2))).limit(1);
+        const existing = await this.db.select().from(postLikes).where(and18(eq27(postLikes.postId, postId), eq27(postLikes.userId, userId2))).limit(1);
         if (existing.length > 0) {
-          await this.db.delete(postLikes).where(and16(eq26(postLikes.postId, postId), eq26(postLikes.userId, userId2)));
+          await this.db.delete(postLikes).where(and18(eq27(postLikes.postId, postId), eq27(postLikes.userId, userId2)));
         } else {
           await this.db.insert(postLikes).values({ id: randomUUID10(), postId, userId: userId2 });
         }
-        const countRow = await this.db.select({ c: sql11`COUNT(*)` }).from(postLikes).where(eq26(postLikes.postId, postId));
+        const countRow = await this.db.select({ c: sql11`COUNT(*)` }).from(postLikes).where(eq27(postLikes.postId, postId));
         return { liked: existing.length === 0, likeCount: Number(countRow[0]?.c ?? 0) };
       }
       // ── Bookmarks ─────────────────────────────────────────────────────────────
       async toggleBookmark(postId, userId2) {
-        const existing = await this.db.select().from(postBookmarks).where(and16(eq26(postBookmarks.postId, postId), eq26(postBookmarks.userId, userId2))).limit(1);
+        const existing = await this.db.select().from(postBookmarks).where(and18(eq27(postBookmarks.postId, postId), eq27(postBookmarks.userId, userId2))).limit(1);
         if (existing.length > 0) {
-          await this.db.delete(postBookmarks).where(and16(eq26(postBookmarks.postId, postId), eq26(postBookmarks.userId, userId2)));
+          await this.db.delete(postBookmarks).where(and18(eq27(postBookmarks.postId, postId), eq27(postBookmarks.userId, userId2)));
           return { bookmarked: false };
         }
         await this.db.insert(postBookmarks).values({ id: randomUUID10(), postId, userId: userId2 });
         return { bookmarked: true };
       }
       async getBookmarkedPosts(userId2) {
-        const bookmarkRows = await this.db.select({ postId: postBookmarks.postId }).from(postBookmarks).where(eq26(postBookmarks.userId, userId2)).orderBy(desc10(postBookmarks.createdAt));
+        const bookmarkRows = await this.db.select({ postId: postBookmarks.postId }).from(postBookmarks).where(eq27(postBookmarks.userId, userId2)).orderBy(desc10(postBookmarks.createdAt));
         if (bookmarkRows.length === 0) return [];
         const ids = bookmarkRows.map((r) => r.postId);
         const rows = await this.db.select({
@@ -6281,7 +6867,7 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq26(posts.userId, users.id)).where(inArray7(posts.id, ids));
+        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).where(inArray7(posts.id, ids));
         return Promise.all(rows.map((row) => this.enrichPost(row, userId2)));
       }
       // ── Tags ──────────────────────────────────────────────────────────────────
@@ -6289,7 +6875,7 @@ var init_community_storage = __esm({
         return this.db.select().from(tags).orderBy(tags.name);
       }
       async setPostTags(postId, tagIds) {
-        await this.db.delete(postTags).where(eq26(postTags.postId, postId));
+        await this.db.delete(postTags).where(eq27(postTags.postId, postId));
         if (tagIds.length > 0) {
           await this.db.insert(postTags).values(tagIds.map((tagId) => ({ postId, tagId })));
         }
@@ -6300,19 +6886,29 @@ var init_community_storage = __esm({
       }
       // ── User Profile ──────────────────────────────────────────────────────────
       async getUserProfile(userId2, viewerUserId) {
-        const userRows = await this.db.select({ id: users.id, name: users.name, email: users.email, rolId: users.rolId, rolNombre: roles.nombre }).from(users).leftJoin(roles, eq26(users.rolId, roles.id)).where(eq26(users.id, userId2)).limit(1);
+        const userRows = await this.db.select({ id: users.id, name: users.name, email: users.email, rolId: users.rolId, rolNombre: roles.nombre }).from(users).leftJoin(roles, eq27(users.rolId, roles.id)).where(eq27(users.id, userId2)).limit(1);
         const userRow = userRows[0];
         if (!userRow) return null;
         const rolNombre = userRow.rolNombre ?? "cliente";
         let lawyerInfo = null;
         let firmInfo = null;
         if (rolNombre === "abogado") {
-          const lawyerRows = await this.db.select({ specialization: lawyerProfiles.specialization, licenseNumber: lawyerProfiles.licenseNumber, firmName: firmProfiles.name }).from(lawyerProfiles).leftJoin(firmProfiles, eq26(lawyerProfiles.firmId, firmProfiles.id)).where(eq26(lawyerProfiles.userId, userId2)).limit(1);
+          const lawyerRows = await this.db.select({
+            specialization: lawyerProfiles.specialization,
+            licenseNumber: lawyerProfiles.licenseNumber,
+            firmName: firmProfiles.name,
+            professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus
+          }).from(lawyerProfiles).leftJoin(firmProfiles, eq27(lawyerProfiles.firmId, firmProfiles.id)).where(eq27(lawyerProfiles.userId, userId2)).limit(1);
           if (lawyerRows[0]) {
-            lawyerInfo = { specialization: lawyerRows[0].specialization ?? null, licenseNumber: lawyerRows[0].licenseNumber ?? null, firmName: lawyerRows[0].firmName ?? null };
+            lawyerInfo = {
+              specialization: lawyerRows[0].specialization ?? null,
+              licenseNumber: lawyerRows[0].licenseNumber ?? null,
+              firmName: lawyerRows[0].firmName ?? null,
+              professionalVerificationStatus: lawyerRows[0].professionalVerificationStatus ?? "pendiente"
+            };
           }
         } else if (rolNombre === "bufete") {
-          const firmRows = await this.db.select({ nit: firmProfiles.nit, address: firmProfiles.address, phone: firmProfiles.phone }).from(firmProfiles).where(eq26(firmProfiles.userId, userId2)).limit(1);
+          const firmRows = await this.db.select({ nit: firmProfiles.nit, address: firmProfiles.address, phone: firmProfiles.phone }).from(firmProfiles).where(eq27(firmProfiles.userId, userId2)).limit(1);
           if (firmRows[0]) {
             firmInfo = { nit: firmRows[0].nit, address: firmRows[0].address ?? null, phone: firmRows[0].phone ?? null };
           }
@@ -6332,6 +6928,7 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           status: posts.status,
+          disabled: posts.disabled,
           takenByLawyerId: posts.takenByLawyerId,
           takenByUserId: posts.takenByUserId,
           takenAt: posts.takenAt,
@@ -6339,8 +6936,16 @@ var init_community_storage = __esm({
           clientAccepted: posts.clientAccepted,
           procesoId: posts.procesoId,
           takenByName: sql11`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
+          takenByProfessionallyVerified: sql11`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp3
+              WHERE lp3.user_id = ${posts.takenByUserId}
+                AND lp3.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
           commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq26(posts.userId, users.id)).where(eq26(posts.userId, userId2)).orderBy(desc10(posts.createdAt)).limit(50);
+        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).where(and18(eq27(posts.userId, userId2), eq27(posts.disabled, false))).orderBy(desc10(posts.createdAt)).limit(50);
         const userPostDTOs = await Promise.all(userPosts.map((row) => this.enrichPost(row, viewerUserId)));
         return {
           user: { id: userRow.id, name: userRow.name ?? "", email: userRow.email },
@@ -6352,20 +6957,20 @@ var init_community_storage = __esm({
       }
       // ── Community stats for a lawyer ─────────────────────────────────────────
       async getLawyerCommunityStats(lawyerUserId) {
-        const takenRow = await this.db.select({ c: sql11`COUNT(*)` }).from(posts).where(eq26(posts.takenByUserId, lawyerUserId));
+        const takenRow = await this.db.select({ c: sql11`COUNT(*)` }).from(posts).where(eq27(posts.takenByUserId, lawyerUserId));
         const casesTaken = Number(takenRow[0]?.c ?? 0);
         const linkedRow = await this.db.select({ c: sql11`COUNT(*)` }).from(procesos).innerJoin(
           posts,
-          and16(
-            eq26(posts.procesoId, procesos.id),
-            eq26(posts.takenByUserId, lawyerUserId)
+          and18(
+            eq27(posts.procesoId, procesos.id),
+            eq27(posts.takenByUserId, lawyerUserId)
           )
         ).where(sql11`${procesos.communityPostId} IS NOT NULL`);
         const processesLinked = Number(linkedRow[0]?.c ?? 0);
         const ratingRows = await this.db.select({
           avg: sql11`AVG(${ratings.score})`,
           count: sql11`COUNT(*)`
-        }).from(ratings).where(and16(eq26(ratings.targetUserId, lawyerUserId), eq26(ratings.targetType, "lawyer")));
+        }).from(ratings).where(and18(eq27(ratings.targetUserId, lawyerUserId), eq27(ratings.targetType, "lawyer")));
         const avgRating = Math.round(Number(ratingRows[0]?.avg ?? 0) * 10) / 10;
         const ratingCount = Number(ratingRows[0]?.count ?? 0);
         const conversionRate = casesTaken > 0 ? Math.round(processesLinked / casesTaken * 100) : 0;
@@ -6382,7 +6987,7 @@ var init_community_storage = __esm({
 
 // server/storage/storeage/models/rating-storage.ts
 import { randomUUID as randomUUID11 } from "crypto";
-import { and as and17, avg, count as count3, eq as eq27, sql as sql12 } from "drizzle-orm";
+import { and as and19, avg, count as count3, eq as eq28, sql as sql12 } from "drizzle-orm";
 var RatingStorage;
 var init_rating_storage = __esm({
   "server/storage/storeage/models/rating-storage.ts"() {
@@ -6402,15 +7007,15 @@ var init_rating_storage = __esm({
       async createRating(data) {
         const id = randomUUID11();
         await this.db.insert(ratings).values({ id, ...data });
-        const result = await this.db.select().from(ratings).where(eq27(ratings.id, id)).limit(1);
+        const result = await this.db.select().from(ratings).where(eq28(ratings.id, id)).limit(1);
         return result[0];
       }
       async getRating(fromUserId, targetUserId, targetType) {
         const result = await this.db.select().from(ratings).where(
-          and17(
-            eq27(ratings.fromUserId, fromUserId),
-            eq27(ratings.targetUserId, targetUserId),
-            eq27(ratings.targetType, targetType)
+          and19(
+            eq28(ratings.fromUserId, fromUserId),
+            eq28(ratings.targetUserId, targetUserId),
+            eq28(ratings.targetType, targetType)
           )
         ).limit(1);
         return result[0];
@@ -6426,10 +7031,10 @@ var init_rating_storage = __esm({
           procesoId: ratings.procesoId,
           createdAt: ratings.createdAt,
           fromName: users.name
-        }).from(ratings).leftJoin(users, eq27(ratings.fromUserId, users.id)).where(
-          and17(
-            eq27(ratings.targetUserId, targetUserId),
-            eq27(ratings.targetType, targetType)
+        }).from(ratings).leftJoin(users, eq28(ratings.fromUserId, users.id)).where(
+          and19(
+            eq28(ratings.targetUserId, targetUserId),
+            eq28(ratings.targetType, targetType)
           )
         ).orderBy(sql12`${ratings.createdAt} DESC`);
         return rows.map((r) => ({
@@ -6449,9 +7054,9 @@ var init_rating_storage = __esm({
           avg: avg(ratings.score),
           count: count3()
         }).from(ratings).where(
-          and17(
-            eq27(ratings.targetUserId, targetUserId),
-            eq27(ratings.targetType, targetType)
+          and19(
+            eq28(ratings.targetUserId, targetUserId),
+            eq28(ratings.targetType, targetType)
           )
         );
         return {
@@ -6469,17 +7074,17 @@ var init_rating_storage = __esm({
       /** Returns the first completed procesoId linking fromUser to the target, or null */
       async findQualifyingProceso(fromUserId, targetUserId, targetType) {
         if (targetType === "lawyer") {
-          const rows2 = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq27(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq27(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq27(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(estadosProceso, eq27(procesos.estadoId, estadosProceso.id)).where(and17(
-            eq27(clientes.userId, fromUserId),
-            eq27(lawyerProfiles.userId, targetUserId),
-            eq27(estadosProceso.codigo, "finalizado")
+          const rows2 = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq28(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq28(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq28(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(estadosProceso, eq28(procesos.estadoId, estadosProceso.id)).where(and19(
+            eq28(clientes.userId, fromUserId),
+            eq28(lawyerProfiles.userId, targetUserId),
+            eq28(estadosProceso.codigo, "finalizado")
           )).limit(1);
           return rows2[0]?.id ?? null;
         }
-        const rows = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq27(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq27(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq27(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(firmProfiles, eq27(lawyerProfiles.firmId, firmProfiles.id)).innerJoin(estadosProceso, eq27(procesos.estadoId, estadosProceso.id)).where(and17(
-          eq27(clientes.userId, fromUserId),
-          eq27(firmProfiles.userId, targetUserId),
-          eq27(estadosProceso.codigo, "finalizado")
+        const rows = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq28(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq28(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq28(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(firmProfiles, eq28(lawyerProfiles.firmId, firmProfiles.id)).innerJoin(estadosProceso, eq28(procesos.estadoId, estadosProceso.id)).where(and19(
+          eq28(clientes.userId, fromUserId),
+          eq28(firmProfiles.userId, targetUserId),
+          eq28(estadosProceso.codigo, "finalizado")
         )).limit(1);
         return rows[0]?.id ?? null;
       }
@@ -6493,7 +7098,7 @@ var init_rating_storage = __esm({
 
 // server/storage/storeage/models/client-request-storage.ts
 import { randomUUID as randomUUID12 } from "crypto";
-import { eq as eq28, and as and18, desc as desc11, lt as lt2, sql as sql13 } from "drizzle-orm";
+import { eq as eq29, and as and20, desc as desc11, lt as lt2, sql as sql13 } from "drizzle-orm";
 var ClientRequestStorage;
 var init_client_request_storage = __esm({
   "server/storage/storeage/models/client-request-storage.ts"() {
@@ -6512,23 +7117,23 @@ var init_client_request_storage = __esm({
           status: "pending",
           expiresAt
         });
-        const row = await this.db.select().from(clientRequests).where(eq28(clientRequests.id, id)).limit(1);
+        const row = await this.db.select().from(clientRequests).where(eq29(clientRequests.id, id)).limit(1);
         return row[0];
       }
       async getRequestById(id) {
-        const rows = await this.db.select().from(clientRequests).where(eq28(clientRequests.id, id)).limit(1);
+        const rows = await this.db.select().from(clientRequests).where(eq29(clientRequests.id, id)).limit(1);
         return rows[0];
       }
       /** Latest request between this pair regardless of status */
       async getLatestRequest(fromUserId, toUserId) {
-        const rows = await this.db.select().from(clientRequests).where(and18(eq28(clientRequests.fromUserId, fromUserId), eq28(clientRequests.toUserId, toUserId))).orderBy(desc11(clientRequests.createdAt)).limit(1);
+        const rows = await this.db.select().from(clientRequests).where(and20(eq29(clientRequests.fromUserId, fromUserId), eq29(clientRequests.toUserId, toUserId))).orderBy(desc11(clientRequests.createdAt)).limit(1);
         return rows[0];
       }
       async getPendingRequest(fromUserId, toUserId) {
-        const rows = await this.db.select().from(clientRequests).where(and18(
-          eq28(clientRequests.fromUserId, fromUserId),
-          eq28(clientRequests.toUserId, toUserId),
-          eq28(clientRequests.status, "pending")
+        const rows = await this.db.select().from(clientRequests).where(and20(
+          eq29(clientRequests.fromUserId, fromUserId),
+          eq29(clientRequests.toUserId, toUserId),
+          eq29(clientRequests.status, "pending")
         )).limit(1);
         return rows[0];
       }
@@ -6544,19 +7149,19 @@ var init_client_request_storage = __esm({
           respondedAt: clientRequests.respondedAt,
           senderName: users.name,
           senderRole: roles.nombre
-        }).from(clientRequests).innerJoin(users, eq28(users.id, clientRequests.fromUserId)).leftJoin(roles, eq28(roles.id, users.rolId)).where(and18(
-          eq28(clientRequests.toUserId, toUserId),
-          eq28(clientRequests.status, "pending")
+        }).from(clientRequests).innerJoin(users, eq29(users.id, clientRequests.fromUserId)).leftJoin(roles, eq29(roles.id, users.rolId)).where(and20(
+          eq29(clientRequests.toUserId, toUserId),
+          eq29(clientRequests.status, "pending")
         )).orderBy(desc11(clientRequests.createdAt));
         return rows;
       }
       async respondToRequest(id, status) {
-        await this.db.update(clientRequests).set({ status, respondedAt: /* @__PURE__ */ new Date() }).where(eq28(clientRequests.id, id));
+        await this.db.update(clientRequests).set({ status, respondedAt: /* @__PURE__ */ new Date() }).where(eq29(clientRequests.id, id));
       }
       /** Bulk-expire all pending requests whose expires_at has passed */
       async expirePendingRequests() {
-        await this.db.update(clientRequests).set({ status: "expired", respondedAt: /* @__PURE__ */ new Date() }).where(and18(
-          eq28(clientRequests.status, "pending"),
+        await this.db.update(clientRequests).set({ status: "expired", respondedAt: /* @__PURE__ */ new Date() }).where(and20(
+          eq29(clientRequests.status, "pending"),
           lt2(clientRequests.expiresAt, sql13`NOW()`)
         ));
       }
@@ -6564,14 +7169,276 @@ var init_client_request_storage = __esm({
   }
 });
 
+// server/lib/timeout.ts
+function withTimeout(promise, ms, label) {
+  const timeout = new Promise(
+    (_, reject) => setTimeout(
+      () => reject(new Error(`[timeout] ${label} exceeded ${ms}ms`)),
+      ms
+    )
+  );
+  return Promise.race([promise, timeout]);
+}
+var init_timeout = __esm({
+  "server/lib/timeout.ts"() {
+    "use strict";
+  }
+});
+
+// server/services/email.service.ts
+import nodemailer from "nodemailer";
+function passwordResetHtml(code) {
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recuperar contrase\xF1a</title>
+  <style>
+    body { margin: 0; padding: 0; background: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .wrapper { max-width: 480px; margin: 40px auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: #0F2640; padding: 32px 40px; text-align: center; }
+    .header h1 { color: #fff; margin: 0; font-size: 22px; letter-spacing: -0.3px; }
+    .header p  { color: rgba(255,255,255,0.55); margin: 4px 0 0; font-size: 13px; }
+    .body { padding: 36px 40px; }
+    .body p  { color: #4A5568; font-size: 14px; line-height: 1.7; margin: 0 0 20px; }
+    .code-box {
+      background: #F0F7FF; border: 1.5px dashed #2196A6;
+      border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;
+    }
+    .code-box .label { font-size: 11px; color: #6B7B8D; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .code-box .code  { font-size: 38px; font-weight: 700; color: #0F2640; letter-spacing: 10px; }
+    .expiry { font-size: 12px; color: #9AAABB; text-align: center; margin-top: -8px; margin-bottom: 24px; }
+    .footer { background: #F4F6F8; padding: 20px 40px; text-align: center; }
+    .footer p { color: #9AAABB; font-size: 11px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <h1>${APP_NAME}</h1>
+      <p>Recuperaci\xF3n de contrase\xF1a</p>
+    </div>
+    <div class="body">
+      <p>Hemos recibido una solicitud para restablecer la contrase\xF1a de tu cuenta. Usa el siguiente c\xF3digo de verificaci\xF3n:</p>
+      <div class="code-box">
+        <div class="label">C\xF3digo de verificaci\xF3n</div>
+        <div class="code">${code}</div>
+      </div>
+      <p class="expiry">\u23F1 Este c\xF3digo expira en <strong>5 minutos</strong> y es de un solo uso.</p>
+      <p>Si no solicitaste este cambio, ignora este correo. Tu contrase\xF1a actual permanecer\xE1 sin cambios.</p>
+    </div>
+    <div class="footer">
+      <p>\xA9 ${(/* @__PURE__ */ new Date()).getFullYear()} ${APP_NAME} \xB7 Este es un mensaje autom\xE1tico, no respondas a este correo.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+function emailVerificationHtml(code) {
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verifica tu correo</title>
+  <style>
+    body { margin: 0; padding: 0; background: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .wrapper { max-width: 480px; margin: 40px auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: #0F2640; padding: 32px 40px; text-align: center; }
+    .header h1 { color: #fff; margin: 0; font-size: 22px; letter-spacing: -0.3px; }
+    .header p  { color: rgba(255,255,255,0.55); margin: 4px 0 0; font-size: 13px; }
+    .body { padding: 36px 40px; }
+    .body p  { color: #4A5568; font-size: 14px; line-height: 1.7; margin: 0 0 20px; }
+    .code-box {
+      background: #F0F7FF; border: 1.5px dashed #2196A6;
+      border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;
+    }
+    .code-box .label { font-size: 11px; color: #6B7B8D; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .code-box .code  { font-size: 38px; font-weight: 700; color: #0F2640; letter-spacing: 10px; }
+    .expiry { font-size: 12px; color: #9AAABB; text-align: center; margin-top: -8px; margin-bottom: 24px; }
+    .footer { background: #F4F6F8; padding: 20px 40px; text-align: center; }
+    .footer p { color: #9AAABB; font-size: 11px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <h1>${APP_NAME}</h1>
+      <p>Verificaci\xF3n de correo electr\xF3nico</p>
+    </div>
+    <div class="body">
+      <p>Gracias por registrarte. Usa el siguiente c\xF3digo OTP para verificar tu correo y activar tu acceso.</p>
+      <div class="code-box">
+        <div class="label">C\xF3digo de verificaci\xF3n</div>
+        <div class="code">${code}</div>
+      </div>
+      <p class="expiry">\u23F1 Este c\xF3digo expira en <strong>5 minutos</strong> y es de un solo uso.</p>
+      <p>Si no creaste esta cuenta, puedes ignorar este mensaje.</p>
+    </div>
+    <div class="footer">
+      <p>\xA9 ${(/* @__PURE__ */ new Date()).getFullYear()} ${APP_NAME} \xB7 Este es un mensaje autom\xE1tico, no respondas a este correo.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+function notificationEmailHtml(title, body, actionUrl, actionLabel) {
+  return `
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${title}</title>
+  <style>
+    body { margin: 0; padding: 0; background: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .wrapper { max-width: 560px; margin: 40px auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: #0F2640; padding: 32px 40px; }
+    .header h1 { color: #fff; margin: 0; font-size: 22px; letter-spacing: -0.3px; }
+    .header p  { color: rgba(255,255,255,0.68); margin: 6px 0 0; font-size: 13px; }
+    .body { padding: 36px 40px; }
+    .card { background: #F8FBFD; border: 1px solid #DCEAF0; border-radius: 14px; padding: 20px; }
+    .card h2 { margin: 0 0 12px; font-size: 18px; color: #0F2640; }
+    .card p { margin: 0; font-size: 14px; line-height: 1.7; color: #4A5568; white-space: pre-line; }
+    .cta-wrap { margin-top: 20px; }
+    .cta {
+      display: inline-block; background: #0F2640; color: #fff !important; text-decoration: none;
+      padding: 12px 18px; border-radius: 10px; font-size: 14px; font-weight: 600;
+    }
+    .footer { background: #F4F6F8; padding: 20px 40px; text-align: center; }
+    .footer p { color: #9AAABB; font-size: 11px; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="header">
+      <h1>${APP_NAME}</h1>
+      <p>Notificaci\xF3n de tu cuenta</p>
+    </div>
+    <div class="body">
+      <div class="card">
+        <h2>${title}</h2>
+        <p>${body}</p>
+        ${actionUrl ? `<div class="cta-wrap"><a class="cta" href="${actionUrl}">${actionLabel ?? "Ver detalle"}</a></div>` : ""}
+      </div>
+    </div>
+    <div class="footer">
+      <p>\xA9 ${(/* @__PURE__ */ new Date()).getFullYear()} ${APP_NAME} \xB7 Este es un mensaje autom\xE1tico, no respondas a este correo.</p>
+    </div>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+async function sendPasswordResetOtp(toEmail, code) {
+  await withTimeout(
+    transporter.sendMail({
+      from: FROM,
+      to: toEmail,
+      subject: `${code} es tu c\xF3digo de recuperaci\xF3n \u2014 ${APP_NAME}`,
+      html: passwordResetHtml(code),
+      text: `Tu c\xF3digo de recuperaci\xF3n de contrase\xF1a es: ${code}
+Expira en 5 minutos.
+
+Si no solicitaste este cambio, ignora este mensaje.`
+    }),
+    1e4,
+    // 10s timeout for email delivery
+    "email.sendPasswordResetOtp"
+  );
+}
+async function sendEmailVerificationOtp(toEmail, code) {
+  await withTimeout(
+    transporter.sendMail({
+      from: FROM,
+      to: toEmail,
+      subject: `${code} es tu c\xF3digo de verificaci\xF3n \u2014 ${APP_NAME}`,
+      html: emailVerificationHtml(code),
+      text: `Tu c\xF3digo de verificaci\xF3n de correo es: ${code}
+Expira en 5 minutos.
+
+Si no creaste esta cuenta, ignora este mensaje.`
+    }),
+    1e4,
+    "email.sendEmailVerificationOtp"
+  );
+}
+async function sendNotificationEmail(toEmail, title, body, options) {
+  await withTimeout(
+    transporter.sendMail({
+      from: FROM,
+      to: toEmail,
+      subject: `${title} \u2014 ${APP_NAME}`,
+      html: notificationEmailHtml(title, body, options?.actionUrl, options?.actionLabel),
+      text: `${title}
+
+${body}${options?.actionUrl ? `
+
+Ver detalle: ${options.actionUrl}` : ""}
+
+Este es un mensaje autom\xE1tico de ${APP_NAME}.`
+    }),
+    1e4,
+    "email.sendNotificationEmail"
+  );
+}
+function queueNotificationEmail(toEmail, title, body, options) {
+  if (!toEmail) return;
+  sendNotificationEmail(toEmail, title, body, options).catch((err) => {
+    console.error("[email] notification send error:", err);
+  });
+}
+var transporter, FROM, APP_NAME;
+var init_email_service = __esm({
+  "server/services/email.service.ts"() {
+    "use strict";
+    init_timeout();
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === "true",
+      // true for 465, false for 587
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS
+      }
+    });
+    FROM = process.env.SMTP_FROM || `"LexTrack" <${process.env.SMTP_USER}>`;
+    APP_NAME = "LexTrack";
+  }
+});
+
 // server/storage/storeage/models/app-notification-storage.ts
 import { randomUUID as randomUUID13 } from "crypto";
-import { eq as eq29, and as and19, isNull as isNull5, desc as desc12, count as count4 } from "drizzle-orm";
+import { eq as eq30, and as and21, isNull as isNull6, desc as desc12, count as count4 } from "drizzle-orm";
+function joinAppUrl(path4) {
+  const appUrl = process.env.APP_URL?.trim();
+  if (!appUrl) return void 0;
+  const base = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+  const nextPath = path4.startsWith("/") ? path4 : `/${path4}`;
+  return `${base}${nextPath}`;
+}
+function buildNotificationLink(data) {
+  if (!data) return {};
+  if (typeof data.postId === "string" && data.postId) {
+    return { actionUrl: joinAppUrl(`/community/${data.postId}`), actionLabel: "Ver publicaci\xF3n" };
+  }
+  if (typeof data.procesoId === "string" && data.procesoId) {
+    return { actionUrl: joinAppUrl(`/case/${data.procesoId}`), actionLabel: "Ver proceso" };
+  }
+  return {};
+}
 var AppNotificationStorage;
 var init_app_notification_storage = __esm({
   "server/storage/storeage/models/app-notification-storage.ts"() {
     "use strict";
     init_schema();
+    init_email_service();
     AppNotificationStorage = class {
       constructor(db2) {
         this.db = db2;
@@ -6579,22 +7446,24 @@ var init_app_notification_storage = __esm({
       async createNotification(userId2, type, title, body, data) {
         const id = randomUUID13();
         await this.db.insert(appNotifications).values({ id, userId: userId2, type, title, body, data: data ?? null });
-        const rows = await this.db.select().from(appNotifications).where(eq29(appNotifications.id, id)).limit(1);
+        const rows = await this.db.select().from(appNotifications).where(eq30(appNotifications.id, id)).limit(1);
+        const userRows = await this.db.select({ email: users.email }).from(users).where(eq30(users.id, userId2)).limit(1);
+        queueNotificationEmail(userRows[0]?.email, title, body, buildNotificationLink(data));
         return rows[0];
       }
       async getForUser(userId2, limit = 50) {
-        const rows = await this.db.select().from(appNotifications).where(eq29(appNotifications.userId, userId2)).orderBy(desc12(appNotifications.createdAt)).limit(limit);
+        const rows = await this.db.select().from(appNotifications).where(eq30(appNotifications.userId, userId2)).orderBy(desc12(appNotifications.createdAt)).limit(limit);
         return rows;
       }
       async getUnreadCount(userId2) {
-        const rows = await this.db.select({ n: count4() }).from(appNotifications).where(and19(eq29(appNotifications.userId, userId2), isNull5(appNotifications.readAt)));
+        const rows = await this.db.select({ n: count4() }).from(appNotifications).where(and21(eq30(appNotifications.userId, userId2), isNull6(appNotifications.readAt)));
         return rows[0]?.n ?? 0;
       }
       async markRead(id, userId2) {
-        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and19(eq29(appNotifications.id, id), eq29(appNotifications.userId, userId2)));
+        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and21(eq30(appNotifications.id, id), eq30(appNotifications.userId, userId2)));
       }
       async markAllRead(userId2) {
-        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and19(eq29(appNotifications.userId, userId2), isNull5(appNotifications.readAt)));
+        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and21(eq30(appNotifications.userId, userId2), isNull6(appNotifications.readAt)));
       }
     };
   }
@@ -6602,7 +7471,7 @@ var init_app_notification_storage = __esm({
 
 // server/storage/storeage/models/firm-clients-storage.ts
 import { randomUUID as randomUUID14 } from "crypto";
-import { eq as eq30, and as and20, desc as desc13 } from "drizzle-orm";
+import { eq as eq31, and as and22, desc as desc13 } from "drizzle-orm";
 var FirmClientsStorage;
 var init_firm_clients_storage = __esm({
   "server/storage/storeage/models/firm-clients-storage.ts"() {
@@ -6613,29 +7482,29 @@ var init_firm_clients_storage = __esm({
         this.db = db2;
       }
       async getActiveFirmClient(firmId, clientId) {
-        const rows = await this.db.select().from(firmClients).where(and20(eq30(firmClients.firmId, firmId), eq30(firmClients.clientId, clientId), eq30(firmClients.status, "active"))).limit(1);
+        const rows = await this.db.select().from(firmClients).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.clientId, clientId), eq31(firmClients.status, "active"))).limit(1);
         return rows[0];
       }
       /** Returns all active clientIds linked to a firm via firm_clients */
       async getActiveClientIdsByFirm(firmId) {
-        const rows = await this.db.select({ clientId: firmClients.clientId }).from(firmClients).where(and20(eq30(firmClients.firmId, firmId), eq30(firmClients.status, "active"))).orderBy(desc13(firmClients.createdAt));
+        const rows = await this.db.select({ clientId: firmClients.clientId }).from(firmClients).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.status, "active"))).orderBy(desc13(firmClients.createdAt));
         return rows.map((r) => r.clientId);
       }
       async createFirmClient(firmId, clientId) {
-        const existing = await this.db.select().from(firmClients).where(and20(eq30(firmClients.firmId, firmId), eq30(firmClients.clientId, clientId))).limit(1);
+        const existing = await this.db.select().from(firmClients).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.clientId, clientId))).limit(1);
         if (existing[0]) {
-          await this.db.update(firmClients).set({ status: "active" }).where(eq30(firmClients.id, existing[0].id));
-          const rows2 = await this.db.select().from(firmClients).where(eq30(firmClients.id, existing[0].id)).limit(1);
+          await this.db.update(firmClients).set({ status: "active" }).where(eq31(firmClients.id, existing[0].id));
+          const rows2 = await this.db.select().from(firmClients).where(eq31(firmClients.id, existing[0].id)).limit(1);
           return rows2[0];
         }
         const id = randomUUID14();
         await this.db.insert(firmClients).values({ id, firmId, clientId, status: "active" });
-        const rows = await this.db.select().from(firmClients).where(eq30(firmClients.id, id)).limit(1);
+        const rows = await this.db.select().from(firmClients).where(eq31(firmClients.id, id)).limit(1);
         return rows[0];
       }
       /** Soft-delete: sets status = "inactive" */
       async deactivate(firmId, clientId) {
-        await this.db.update(firmClients).set({ status: "inactive" }).where(and20(eq30(firmClients.firmId, firmId), eq30(firmClients.clientId, clientId)));
+        await this.db.update(firmClients).set({ status: "inactive" }).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.clientId, clientId)));
       }
     };
   }
@@ -6643,7 +7512,7 @@ var init_firm_clients_storage = __esm({
 
 // server/storage/storeage/models/otp-storage.ts
 import crypto2 from "crypto";
-import { and as and21, eq as eq31, lt as lt3 } from "drizzle-orm";
+import { and as and23, eq as eq32, lt as lt3 } from "drizzle-orm";
 var OTP_EXPIRES_MINUTES, MAX_ATTEMPTS, OtpStorage;
 var init_otp_storage = __esm({
   "server/storage/storeage/models/otp-storage.ts"() {
@@ -6655,12 +7524,11 @@ var init_otp_storage = __esm({
       constructor(db2) {
         this.db = db2;
       }
-      /** Generate a 6-digit code and persist it. Invalidates any prior unused OTPs for the user. */
-      async createOtp(userId2) {
-        await this.db.update(passwordResetOtps).set({ isUsed: true }).where(and21(eq31(passwordResetOtps.userId, userId2), eq31(passwordResetOtps.isUsed, false)));
+      async createOtpForTable(table, userId2) {
+        await this.db.update(table).set({ isUsed: true }).where(and23(eq32(table.userId, userId2), eq32(table.isUsed, false)));
         const code = String(Math.floor(1e5 + Math.random() * 9e5));
         const expiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1e3);
-        await this.db.insert(passwordResetOtps).values({
+        await this.db.insert(table).values({
           id: crypto2.randomUUID(),
           userId: userId2,
           code,
@@ -6670,16 +7538,13 @@ var init_otp_storage = __esm({
         });
         return code;
       }
-      /** Validate an OTP for a given userId+code.
-       *  Returns: "valid" | "invalid" | "expired" | "used" | "too_many_attempts"
-       */
-      async verifyOtp(userId2, code) {
-        const rows = await this.db.select().from(passwordResetOtps).where(
-          and21(
-            eq31(passwordResetOtps.userId, userId2),
-            eq31(passwordResetOtps.isUsed, false)
+      async verifyOtpForTable(table, userId2, code) {
+        const rows = await this.db.select().from(table).where(
+          and23(
+            eq32(table.userId, userId2),
+            eq32(table.isUsed, false)
           )
-        ).orderBy(passwordResetOtps.createdAt).limit(1);
+        ).orderBy(table.createdAt).limit(1);
         const otp = rows[rows.length - 1] ?? rows[0];
         if (!otp) return "invalid";
         if (otp.isUsed) return "used";
@@ -6689,25 +7554,43 @@ var init_otp_storage = __esm({
         const inputBuf = Buffer.from(code.padEnd(otp.code.length, "\0").slice(0, otp.code.length));
         const matches = otpBuf.length === inputBuf.length && crypto2.timingSafeEqual(otpBuf, inputBuf);
         if (!matches) {
-          await this.db.update(passwordResetOtps).set({ attempts: otp.attempts + 1 }).where(eq31(passwordResetOtps.id, otp.id));
+          await this.db.update(table).set({ attempts: otp.attempts + 1 }).where(eq32(table.id, otp.id));
           return "invalid";
         }
         return "valid";
       }
-      /** Mark the latest unused OTP for this user as used */
+      async markUsedForTable(table, userId2) {
+        await this.db.update(table).set({ isUsed: true }).where(and23(eq32(table.userId, userId2), eq32(table.isUsed, false)));
+      }
+      async createOtp(userId2) {
+        return this.createOtpForTable(passwordResetOtps, userId2);
+      }
+      async createEmailVerificationOtp(userId2) {
+        return this.createOtpForTable(emailVerificationOtps, userId2);
+      }
+      async verifyOtp(userId2, code) {
+        return this.verifyOtpForTable(passwordResetOtps, userId2, code);
+      }
+      async verifyEmailVerificationOtp(userId2, code) {
+        return this.verifyOtpForTable(emailVerificationOtps, userId2, code);
+      }
       async markUsed(userId2) {
-        await this.db.update(passwordResetOtps).set({ isUsed: true }).where(and21(eq31(passwordResetOtps.userId, userId2), eq31(passwordResetOtps.isUsed, false)));
+        await this.markUsedForTable(passwordResetOtps, userId2);
+      }
+      async markEmailVerificationUsed(userId2) {
+        await this.markUsedForTable(emailVerificationOtps, userId2);
       }
       /** Delete all expired OTPs (for cleanup cron) */
       async deleteExpired() {
         await this.db.delete(passwordResetOtps).where(lt3(passwordResetOtps.expiresAt, /* @__PURE__ */ new Date()));
+        await this.db.delete(emailVerificationOtps).where(lt3(emailVerificationOtps.expiresAt, /* @__PURE__ */ new Date()));
       }
     };
   }
 });
 
 // server/storage/storeage/models/security-events-storage.ts
-import { eq as eq32, desc as desc14 } from "drizzle-orm";
+import { eq as eq33, desc as desc14 } from "drizzle-orm";
 var SecurityEventsStorage;
 var init_security_events_storage = __esm({
   "server/storage/storeage/models/security-events-storage.ts"() {
@@ -6721,10 +7604,10 @@ var init_security_events_storage = __esm({
         await this.db.insert(securityEvents).values(data);
       }
       async getByEmail(email, limit = 50) {
-        return this.db.select().from(securityEvents).where(eq32(securityEvents.email, email)).orderBy(desc14(securityEvents.createdAt)).limit(limit);
+        return this.db.select().from(securityEvents).where(eq33(securityEvents.email, email)).orderBy(desc14(securityEvents.createdAt)).limit(limit);
       }
       async getByIp(ip, limit = 50) {
-        return this.db.select().from(securityEvents).where(eq32(securityEvents.ip, ip)).orderBy(desc14(securityEvents.createdAt)).limit(limit);
+        return this.db.select().from(securityEvents).where(eq33(securityEvents.ip, ip)).orderBy(desc14(securityEvents.createdAt)).limit(limit);
       }
     };
   }
@@ -6732,7 +7615,7 @@ var init_security_events_storage = __esm({
 
 // server/storage/storeage/models/matching-storage.ts
 import { randomUUID as randomUUID15 } from "crypto";
-import { eq as eq33, and as and22, desc as desc15, sql as sql14 } from "drizzle-orm";
+import { eq as eq34, and as and24, desc as desc15, sql as sql14 } from "drizzle-orm";
 var CASE_KEYWORDS, RELATED_KEYWORDS, MAX_MATCHES, MatchingStorage;
 var init_matching_storage = __esm({
   "server/storage/storeage/models/matching-storage.ts"() {
@@ -6769,24 +7652,24 @@ var init_matching_storage = __esm({
         const id = randomUUID15();
         try {
           await this.db.insert(communityPostMatches).values({ id, postId, lawyerId, score });
-          const rows = await this.db.select().from(communityPostMatches).where(eq33(communityPostMatches.id, id)).limit(1);
+          const rows = await this.db.select().from(communityPostMatches).where(eq34(communityPostMatches.id, id)).limit(1);
           return rows[0] ?? null;
         } catch {
           return null;
         }
       }
       async matchExists(postId, lawyerId) {
-        const rows = await this.db.select({ id: communityPostMatches.id }).from(communityPostMatches).where(and22(eq33(communityPostMatches.postId, postId), eq33(communityPostMatches.lawyerId, lawyerId))).limit(1);
+        const rows = await this.db.select({ id: communityPostMatches.id }).from(communityPostMatches).where(and24(eq34(communityPostMatches.postId, postId), eq34(communityPostMatches.lawyerId, lawyerId))).limit(1);
         return rows.length > 0;
       }
       async markNotified(postId, lawyerId) {
-        await this.db.update(communityPostMatches).set({ notified: 1 }).where(and22(eq33(communityPostMatches.postId, postId), eq33(communityPostMatches.lawyerId, lawyerId)));
+        await this.db.update(communityPostMatches).set({ notified: 1 }).where(and24(eq34(communityPostMatches.postId, postId), eq34(communityPostMatches.lawyerId, lawyerId)));
       }
       async markSeen(postId, lawyerId) {
-        await this.db.update(communityPostMatches).set({ seen: 1 }).where(and22(eq33(communityPostMatches.postId, postId), eq33(communityPostMatches.lawyerId, lawyerId)));
+        await this.db.update(communityPostMatches).set({ seen: 1 }).where(and24(eq34(communityPostMatches.postId, postId), eq34(communityPostMatches.lawyerId, lawyerId)));
       }
       async getMatchesByPost(postId) {
-        return this.db.select().from(communityPostMatches).where(eq33(communityPostMatches.postId, postId)).orderBy(desc15(communityPostMatches.score));
+        return this.db.select().from(communityPostMatches).where(eq34(communityPostMatches.postId, postId)).orderBy(desc15(communityPostMatches.score));
       }
       /** Returns post IDs matched to this lawyer, ordered by score + urgency.
        *  Joined with posts table to get isUrgent / createdAt for sorting. */
@@ -6807,7 +7690,7 @@ var init_matching_storage = __esm({
         return rows[0] ?? [];
       }
       async countMatchedPosts(lawyerId) {
-        const rows = await this.db.select({ n: sql14`COUNT(*)` }).from(communityPostMatches).where(eq33(communityPostMatches.lawyerId, lawyerId));
+        const rows = await this.db.select({ n: sql14`COUNT(*)` }).from(communityPostMatches).where(eq34(communityPostMatches.lawyerId, lawyerId));
         return Number(rows[0]?.n ?? 0);
       }
       /** Returns userId (users.id) of all lawyers matched to this post.
@@ -6950,7 +7833,7 @@ var init_recommendation_storage = __esm({
         lp.id              AS lawyerProfileId,
         lp.user_id         AS userId,
         lp.specialization,
-        lp.license_number  AS licenseNumber,
+        lp.professional_verification_status AS professionalVerificationStatus,
         TRIM(CONCAT(
           COALESCE(p.nombre,   ''),
           ' ',
@@ -6996,6 +7879,7 @@ var init_recommendation_storage = __esm({
           AND client_accepted = 1
         GROUP BY taken_by_user_id
       ) conv ON conv.taken_by_user_id = lp.user_id
+      WHERE lp.professional_verification_status = 'verificado'
     `);
         const lawyers = rows[0] ?? [];
         const keywords = caseType ? CASE_KEYWORDS2[caseType] ?? [] : [];
@@ -7029,7 +7913,7 @@ var init_recommendation_storage = __esm({
             userId: row.userId,
             name: row.fullName || "Abogado",
             specialization: row.specialization ?? null,
-            isVerified: !!row.licenseNumber,
+            isVerified: row.professionalVerificationStatus === "verificado",
             rating: { avg: rawRating, count: ratingCount },
             activeCases,
             finalScore
@@ -7056,7 +7940,7 @@ var init_recommendation_storage = __esm({
               userId: row.userId,
               name: row.fullName || "Abogado",
               specialization: row.specialization ?? null,
-              isVerified: !!row.licenseNumber,
+              isVerified: row.professionalVerificationStatus === "verificado",
               rating: { avg: rawRating, count: ratingCount },
               activeCases,
               finalScore: fallbackScore,
@@ -7073,7 +7957,7 @@ var init_recommendation_storage = __esm({
 });
 
 // server/storage/storeage/models/legal-stage-storage.ts
-import { eq as eq34, and as and23, asc, isNull as isNull6, or as or5 } from "drizzle-orm";
+import { eq as eq35, and as and25, asc, isNull as isNull7, or as or5 } from "drizzle-orm";
 var LegalStageStorage;
 var init_legal_stage_storage = __esm({
   "server/storage/storeage/models/legal-stage-storage.ts"() {
@@ -7091,12 +7975,12 @@ var init_legal_stage_storage = __esm({
        */
       async getByTipoProceso(tipoProcesoId) {
         const rows = await this.db.select().from(etapasPorTipoProceso).where(
-          and23(
-            eq34(etapasPorTipoProceso.activo, 1),
+          and25(
+            eq35(etapasPorTipoProceso.activo, 1),
             tipoProcesoId ? or5(
-              eq34(etapasPorTipoProceso.tipoProcesoId, tipoProcesoId),
-              isNull6(etapasPorTipoProceso.tipoProcesoId)
-            ) : isNull6(etapasPorTipoProceso.tipoProcesoId)
+              eq35(etapasPorTipoProceso.tipoProcesoId, tipoProcesoId),
+              isNull7(etapasPorTipoProceso.tipoProcesoId)
+            ) : isNull7(etapasPorTipoProceso.tipoProcesoId)
           )
         ).orderBy(asc(etapasPorTipoProceso.orden));
         if (!tipoProcesoId) return rows;
@@ -7130,21 +8014,25 @@ var init_legal_stage_storage = __esm({
         const currentIndex = currentStage ? etapas.findIndex((e) => e.codigo === currentStage) : -1;
         const now = /* @__PURE__ */ new Date();
         const diasRestantes = fechaVencimiento ? Math.ceil((fechaVencimiento.getTime() - now.getTime()) / (1e3 * 60 * 60 * 24)) : null;
-        const mapped = etapas.map((e, i) => ({
-          id: e.id,
-          codigo: e.codigo,
-          nombre: e.nombre,
-          descripcion: e.descripcion ?? null,
-          orden: e.orden,
-          diasLegales: e.diasLegales,
-          color: e.color,
-          completada: currentIndex >= 0 && i < currentIndex,
-          esActual: i === currentIndex,
-          fechaVencimiento: i === currentIndex ? fechaVencimiento : null,
-          diasRestantes: i === currentIndex ? diasRestantes : null
-        }));
+        const mapped = etapas.map((e, i) => {
+          const esActual = i === currentIndex || currentIndex === -1 && i === 0;
+          return {
+            id: e.id,
+            codigo: e.codigo,
+            nombre: e.nombre,
+            descripcion: e.descripcion ?? null,
+            orden: e.orden,
+            diasLegales: e.diasLegales,
+            color: e.color,
+            completada: currentIndex >= 0 && i < currentIndex,
+            esActual,
+            fechaVencimiento: esActual ? fechaVencimiento : null,
+            diasRestantes: esActual ? diasRestantes : null
+          };
+        });
         const etapaActual = mapped.find((e) => e.esActual) ?? null;
-        const siguienteEtapa = currentIndex === -1 ? mapped[0] ?? null : currentIndex < mapped.length - 1 ? mapped[currentIndex + 1] : null;
+        const currentActualIndex = mapped.findIndex((e) => e.esActual);
+        const siguienteEtapa = currentActualIndex >= 0 && currentActualIndex < mapped.length - 1 ? mapped[currentActualIndex + 1] : null;
         return { etapas: mapped, etapaActual, siguienteEtapa };
       }
       /** Valida que la transición sea hacia adelante (no retroceder) */
@@ -7161,19 +8049,19 @@ var init_legal_stage_storage = __esm({
         const result = await this.db.insert(etapasPorTipoProceso).values({ ...data, activo: 1 });
         const id = result[0]?.insertId;
         const row = await this.db.query.etapasPorTipoProceso.findFirst({
-          where: eq34(etapasPorTipoProceso.id, id)
+          where: eq35(etapasPorTipoProceso.id, id)
         });
         return row;
       }
       async update(id, data) {
-        await this.db.update(etapasPorTipoProceso).set(data).where(eq34(etapasPorTipoProceso.id, id));
+        await this.db.update(etapasPorTipoProceso).set(data).where(eq35(etapasPorTipoProceso.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/calendar-storage.ts
-import { eq as eq35, and as and24, gte as gte2, lte, sql as sql16 } from "drizzle-orm";
+import { eq as eq36, and as and26, gte as gte2, lte, sql as sql16 } from "drizzle-orm";
 import { randomUUID as randomUUID16 } from "crypto";
 function urgencyColor(diasRestantes, baseColor) {
   if (diasRestantes < 0) return "#EF4444";
@@ -7228,10 +8116,10 @@ var init_calendar_storage = __esm({
           event: calendarEvents,
           radicado: procesos.radicado,
           clienteNombre: users.name
-        }).from(calendarEvents).leftJoin(procesos, eq35(calendarEvents.procesoId, procesos.id)).leftJoin(clientes, eq35(procesos.clienteId, clientes.id)).leftJoin(users, eq35(clientes.userId, users.id)).where(
-          and24(
-            eq35(calendarEvents.lawyerId, lawyerProfileId),
-            eq35(calendarEvents.state, 1),
+        }).from(calendarEvents).leftJoin(procesos, eq36(calendarEvents.procesoId, procesos.id)).leftJoin(clientes, eq36(procesos.clienteId, clientes.id)).leftJoin(users, eq36(clientes.userId, users.id)).where(
+          and26(
+            eq36(calendarEvents.lawyerId, lawyerProfileId),
+            eq36(calendarEvents.state, 1),
             gte2(calendarEvents.fechaInicio, from),
             lte(calendarEvents.fechaInicio, to)
           )
@@ -7262,10 +8150,10 @@ var init_calendar_storage = __esm({
           procesoId: tareas.procesoId,
           radicado: procesos.radicado,
           clienteNombre: users.name
-        }).from(tareas).leftJoin(procesos, eq35(tareas.procesoId, procesos.id)).leftJoin(clientes, eq35(procesos.clienteId, clientes.id)).leftJoin(users, eq35(clientes.userId, users.id)).where(
-          and24(
-            eq35(tareas.asignadoA, lawyerProfileId),
-            eq35(tareas.state, true),
+        }).from(tareas).leftJoin(procesos, eq36(tareas.procesoId, procesos.id)).leftJoin(clientes, eq36(procesos.clienteId, clientes.id)).leftJoin(users, eq36(clientes.userId, users.id)).where(
+          and26(
+            eq36(tareas.asignadoA, lawyerProfileId),
+            eq36(tareas.state, true),
             gte2(tareas.fechaLimite, from),
             lte(tareas.fechaLimite, to)
           )
@@ -7293,9 +8181,9 @@ var init_calendar_storage = __esm({
           legalStage: procesos.legalStage,
           fechaVencimientoEtapa: procesos.fechaVencimientoEtapa,
           clienteNombre: users.name
-        }).from(procesos).leftJoin(clientes, eq35(procesos.clienteId, clientes.id)).leftJoin(users, eq35(clientes.userId, users.id)).where(
-          and24(
-            eq35(procesos.state, true),
+        }).from(procesos).leftJoin(clientes, eq36(procesos.clienteId, clientes.id)).leftJoin(users, eq36(clientes.userId, users.id)).where(
+          and26(
+            eq36(procesos.state, true),
             gte2(procesos.fechaVencimientoEtapa, from),
             lte(procesos.fechaVencimientoEtapa, to)
           )
@@ -7326,16 +8214,16 @@ var init_calendar_storage = __esm({
       async getPendingReminders() {
         const now = /* @__PURE__ */ new Date();
         return this.db.select().from(calendarEvents).where(
-          and24(
-            eq35(calendarEvents.notificado, 0),
-            eq35(calendarEvents.state, 1),
+          and26(
+            eq36(calendarEvents.notificado, 0),
+            eq36(calendarEvents.state, 1),
             sql16`DATE_SUB(${calendarEvents.fechaInicio}, INTERVAL ${calendarEvents.recordatorioMinutos} MINUTE) <= ${now}`,
             gte2(calendarEvents.fechaInicio, now)
           )
         );
       }
       async markNotificado(id) {
-        await this.db.update(calendarEvents).set({ notificado: 1 }).where(eq35(calendarEvents.id, id));
+        await this.db.update(calendarEvents).set({ notificado: 1 }).where(eq36(calendarEvents.id, id));
       }
       // ── CRUD ──────────────────────────────────────────────────────────────────
       async create(lawyerProfileId, data) {
@@ -7358,7 +8246,7 @@ var init_calendar_storage = __esm({
       }
       async findById(id) {
         return this.db.query.calendarEvents.findFirst({
-          where: eq35(calendarEvents.id, id)
+          where: eq36(calendarEvents.id, id)
         });
       }
       async update(id, data) {
@@ -7372,18 +8260,18 @@ var init_calendar_storage = __esm({
           updates.recordatorioMinutos = data.recordatorioMinutos;
           updates.notificado = 0;
         }
-        await this.db.update(calendarEvents).set(updates).where(eq35(calendarEvents.id, id));
+        await this.db.update(calendarEvents).set(updates).where(eq36(calendarEvents.id, id));
         return this.findById(id);
       }
       async softDelete(id) {
-        await this.db.update(calendarEvents).set({ state: 0 }).where(eq35(calendarEvents.id, id));
+        await this.db.update(calendarEvents).set({ state: 0 }).where(eq36(calendarEvents.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/stage-task-template-storage.ts
-import { eq as eq36, and as and25, or as or6, isNull as isNull7, asc as asc2 } from "drizzle-orm";
+import { eq as eq37, and as and27, or as or6, isNull as isNull8, asc as asc2 } from "drizzle-orm";
 function toDTO2(r) {
   return {
     id: r.id,
@@ -7408,13 +8296,13 @@ var init_stage_task_template_storage = __esm({
       }
       async getByStage(legalStageCode, tipoProcesoId) {
         const rows = await this.db.select().from(etapasTareasPlantilla).where(
-          and25(
-            eq36(etapasTareasPlantilla.legalStageCode, legalStageCode),
-            eq36(etapasTareasPlantilla.activo, 1),
+          and27(
+            eq37(etapasTareasPlantilla.legalStageCode, legalStageCode),
+            eq37(etapasTareasPlantilla.activo, 1),
             tipoProcesoId != null ? or6(
-              eq36(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
-              isNull7(etapasTareasPlantilla.tipoProcesoId)
-            ) : isNull7(etapasTareasPlantilla.tipoProcesoId)
+              eq37(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
+              isNull8(etapasTareasPlantilla.tipoProcesoId)
+            ) : isNull8(etapasTareasPlantilla.tipoProcesoId)
           )
         ).orderBy(asc2(etapasTareasPlantilla.orden));
         if (tipoProcesoId == null) return rows.map(toDTO2);
@@ -7431,15 +8319,15 @@ var init_stage_task_template_storage = __esm({
         if (tipoProcesoId != null) {
           conditions.push(
             or6(
-              eq36(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
-              isNull7(etapasTareasPlantilla.tipoProcesoId)
+              eq37(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
+              isNull8(etapasTareasPlantilla.tipoProcesoId)
             )
           );
         }
         if (legalStageCode) {
-          conditions.push(eq36(etapasTareasPlantilla.legalStageCode, legalStageCode));
+          conditions.push(eq37(etapasTareasPlantilla.legalStageCode, legalStageCode));
         }
-        const rows = await this.db.select().from(etapasTareasPlantilla).where(conditions.length > 0 ? and25(...conditions) : void 0).orderBy(asc2(etapasTareasPlantilla.orden));
+        const rows = await this.db.select().from(etapasTareasPlantilla).where(conditions.length > 0 ? and27(...conditions) : void 0).orderBy(asc2(etapasTareasPlantilla.orden));
         return rows.map(toDTO2);
       }
       async create(data) {
@@ -7454,7 +8342,7 @@ var init_stage_task_template_storage = __esm({
           activo: 1
         });
         const insertId = Number(result.insertId ?? result[0]?.insertId);
-        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq36(etapasTareasPlantilla.id, insertId));
+        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq37(etapasTareasPlantilla.id, insertId));
         return toDTO2(row);
       }
       async update(id, data) {
@@ -7465,15 +8353,15 @@ var init_stage_task_template_storage = __esm({
           ...data.requerida !== void 0 && { requerida: data.requerida ? 1 : 0 },
           ...data.orden !== void 0 && { orden: data.orden },
           ...data.activo !== void 0 && { activo: data.activo ? 1 : 0 }
-        }).where(eq36(etapasTareasPlantilla.id, id));
-        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq36(etapasTareasPlantilla.id, id));
+        }).where(eq37(etapasTareasPlantilla.id, id));
+        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq37(etapasTareasPlantilla.id, id));
         return row ? toDTO2(row) : null;
       }
       async delete(id) {
-        await this.db.update(etapasTareasPlantilla).set({ activo: 0 }).where(eq36(etapasTareasPlantilla.id, id));
+        await this.db.update(etapasTareasPlantilla).set({ activo: 0 }).where(eq37(etapasTareasPlantilla.id, id));
       }
       async getById(id) {
-        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq36(etapasTareasPlantilla.id, id));
+        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq37(etapasTareasPlantilla.id, id));
         return row ? toDTO2(row) : null;
       }
     };
@@ -7481,7 +8369,7 @@ var init_stage_task_template_storage = __esm({
 });
 
 // server/storage/storeage/models/stage-event-storage.ts
-import { eq as eq37, and as and26, asc as asc3 } from "drizzle-orm";
+import { eq as eq38, and as and28, asc as asc3, count as drizzleCount } from "drizzle-orm";
 import { randomUUID as randomUUID17 } from "crypto";
 function toDTO3(r) {
   return {
@@ -7515,25 +8403,90 @@ var init_stage_event_storage = __esm({
           metadatos: data.metadatos ?? null,
           creadoPor: data.creadoPor ?? null
         });
-        const [row] = await this.db.select().from(etapaEventos).where(eq37(etapaEventos.id, id));
+        const [row] = await this.db.select().from(etapaEventos).where(eq38(etapaEventos.id, id));
         return toDTO3(row);
       }
-      async getByStage(procesoId, legalStageCode) {
-        const rows = await this.db.select().from(etapaEventos).where(
-          and26(
-            eq37(etapaEventos.procesoId, procesoId),
-            eq37(etapaEventos.legalStageCode, legalStageCode)
-          )
-        ).orderBy(asc3(etapaEventos.createdAt));
-        return rows.map(toDTO3);
+      async getByStage(procesoId, legalStageCode, limit = 50, offset = 0) {
+        const where = and28(
+          eq38(etapaEventos.procesoId, procesoId),
+          eq38(etapaEventos.legalStageCode, legalStageCode)
+        );
+        const [rows, [{ total }]] = await Promise.all([
+          this.db.select().from(etapaEventos).where(where).orderBy(asc3(etapaEventos.createdAt)).limit(limit).offset(offset),
+          this.db.select({ total: drizzleCount() }).from(etapaEventos).where(where)
+        ]);
+        return { data: rows.map(toDTO3), total: Number(total) };
+      }
+      async getByProceso(procesoId, limit = 50, offset = 0) {
+        const where = eq38(etapaEventos.procesoId, procesoId);
+        const [rows, [{ total }]] = await Promise.all([
+          this.db.select().from(etapaEventos).where(where).orderBy(asc3(etapaEventos.createdAt)).limit(limit).offset(offset),
+          this.db.select({ total: drizzleCount() }).from(etapaEventos).where(where)
+        ]);
+        return { data: rows.map(toDTO3), total: Number(total) };
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/proceso-etapa-historial-storage.ts
+import { randomUUID as randomUUID18 } from "crypto";
+import { eq as eq39, and as and29, desc as desc16, asc as asc4 } from "drizzle-orm";
+var ProcesoEtapaHistorialStorage;
+var init_proceso_etapa_historial_storage = __esm({
+  "server/storage/storeage/models/proceso-etapa-historial-storage.ts"() {
+    "use strict";
+    init_schema();
+    ProcesoEtapaHistorialStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async createHistorial(insertData) {
+        const id = randomUUID18();
+        const newRecord = {
+          ...insertData,
+          id,
+          fecha: insertData.fecha || /* @__PURE__ */ new Date(),
+          observacion: insertData.observacion || null,
+          usuarioId: insertData.usuarioId || null,
+          createdAt: /* @__PURE__ */ new Date()
+        };
+        await this.db.insert(procesoEtapaHistorial).values(newRecord);
+        return newRecord;
+      }
+      async getHistorialByProceso(procesoId) {
+        return this.db.select().from(procesoEtapaHistorial).where(eq39(procesoEtapaHistorial.procesoId, procesoId)).orderBy(asc4(procesoEtapaHistorial.fecha), asc4(procesoEtapaHistorial.createdAt));
+      }
+      async getHistorialByProcesoYEtapa(procesoId, etapa) {
+        return this.db.select().from(procesoEtapaHistorial).where(and29(
+          eq39(procesoEtapaHistorial.procesoId, procesoId),
+          eq39(procesoEtapaHistorial.etapa, etapa)
+        )).orderBy(desc16(procesoEtapaHistorial.fecha), desc16(procesoEtapaHistorial.createdAt));
+      }
+      async getUltimoEstadoPorEtapa(procesoId) {
+        const historial = await this.db.select().from(procesoEtapaHistorial).where(eq39(procesoEtapaHistorial.procesoId, procesoId)).orderBy(desc16(procesoEtapaHistorial.fecha), desc16(procesoEtapaHistorial.createdAt));
+        const ultimoPorEtapa = {};
+        for (const registro of historial) {
+          if (!ultimoPorEtapa[registro.etapa]) {
+            ultimoPorEtapa[registro.etapa] = registro;
+          }
+        }
+        return ultimoPorEtapa;
+      }
+      async getUltimoEstado(procesoId, etapa) {
+        const historial = await this.getHistorialByProcesoYEtapa(procesoId, etapa);
+        return historial[0] || null;
+      }
+      async validarEstado(estado) {
+        return ETAPA_ESTADOS.includes(estado);
       }
     };
   }
 });
 
 // server/storage/storeage/models/tarea-extension-storage.ts
-import { eq as eq38, asc as asc4, desc as desc16 } from "drizzle-orm";
-import { randomUUID as randomUUID18 } from "crypto";
+import { eq as eq40, asc as asc5, desc as desc17 } from "drizzle-orm";
+import { randomUUID as randomUUID19 } from "crypto";
 var TareaExtensionStorage;
 var init_tarea_extension_storage = __esm({
   "server/storage/storeage/models/tarea-extension-storage.ts"() {
@@ -7545,7 +8498,7 @@ var init_tarea_extension_storage = __esm({
       }
       // ── Observaciones ─────────────────────────────────────────────────────────
       async addObservacion(tareaId, autorId, autorNombre, contenido) {
-        const id = randomUUID18();
+        const id = randomUUID19();
         await this.db.insert(tareaObservaciones).values({
           id,
           tareaId,
@@ -7562,7 +8515,7 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async getObservaciones(tareaId) {
-        const rows = await this.db.select().from(tareaObservaciones).where(eq38(tareaObservaciones.tareaId, tareaId)).orderBy(desc16(tareaObservaciones.createdAt));
+        const rows = await this.db.select().from(tareaObservaciones).where(eq40(tareaObservaciones.tareaId, tareaId)).orderBy(desc17(tareaObservaciones.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -7573,8 +8526,8 @@ var init_tarea_extension_storage = __esm({
       }
       // ── Subtareas ──────────────────────────────────────────────────────────────
       async addSubtarea(tareaId, dto, creadoPorId, creadoPorNombre) {
-        const id = randomUUID18();
-        const existing = await this.db.select({ id: tareaSubtareas.id }).from(tareaSubtareas).where(eq38(tareaSubtareas.tareaId, tareaId));
+        const id = randomUUID19();
+        const existing = await this.db.select({ id: tareaSubtareas.id }).from(tareaSubtareas).where(eq40(tareaSubtareas.tareaId, tareaId));
         await this.db.insert(tareaSubtareas).values({
           id,
           tareaId,
@@ -7602,7 +8555,7 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async getSubtareas(tareaId) {
-        const rows = await this.db.select().from(tareaSubtareas).where(eq38(tareaSubtareas.tareaId, tareaId)).orderBy(asc4(tareaSubtareas.orden), asc4(tareaSubtareas.createdAt));
+        const rows = await this.db.select().from(tareaSubtareas).where(eq40(tareaSubtareas.tareaId, tareaId)).orderBy(asc5(tareaSubtareas.orden), asc5(tareaSubtareas.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -7633,10 +8586,10 @@ var init_tarea_extension_storage = __esm({
           }
         }
         if (Object.keys(updates).length > 0) {
-          await this.db.update(tareaSubtareas).set(updates).where(eq38(tareaSubtareas.id, subtareaId));
+          await this.db.update(tareaSubtareas).set(updates).where(eq40(tareaSubtareas.id, subtareaId));
         }
         const row = await this.db.query.tareaSubtareas.findFirst({
-          where: eq38(tareaSubtareas.id, subtareaId)
+          where: eq40(tareaSubtareas.id, subtareaId)
         });
         if (!row) return null;
         return {
@@ -7654,10 +8607,10 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async deleteSubtarea(subtareaId) {
-        await this.db.delete(tareaSubtareas).where(eq38(tareaSubtareas.id, subtareaId));
+        await this.db.delete(tareaSubtareas).where(eq40(tareaSubtareas.id, subtareaId));
       }
       async countSubtareas(tareaId) {
-        const rows = await this.db.select({ estado: tareaSubtareas.estado }).from(tareaSubtareas).where(eq38(tareaSubtareas.tareaId, tareaId));
+        const rows = await this.db.select({ estado: tareaSubtareas.estado }).from(tareaSubtareas).where(eq40(tareaSubtareas.tareaId, tareaId));
         return {
           total: rows.length,
           completadas: rows.filter((r) => r.estado === "completada").length
@@ -7666,7 +8619,7 @@ var init_tarea_extension_storage = __esm({
       // ── Historial ──────────────────────────────────────────────────────────────
       async addHistorial(tareaId, usuarioId, usuarioNombre, accion, detalle) {
         await this.db.insert(tareaHistorial).values({
-          id: randomUUID18(),
+          id: randomUUID19(),
           tareaId,
           usuarioId,
           usuarioNombre,
@@ -7675,7 +8628,7 @@ var init_tarea_extension_storage = __esm({
         });
       }
       async getHistorial(tareaId) {
-        const rows = await this.db.select().from(tareaHistorial).where(eq38(tareaHistorial.tareaId, tareaId)).orderBy(desc16(tareaHistorial.createdAt));
+        const rows = await this.db.select().from(tareaHistorial).where(eq40(tareaHistorial.tareaId, tareaId)).orderBy(desc17(tareaHistorial.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -7687,7 +8640,7 @@ var init_tarea_extension_storage = __esm({
       }
       // ── Archivos ───────────────────────────────────────────────────────────────
       async addArchivo(tareaId, nombre, url2, mimeType, tamano, subidoPorId) {
-        const id = randomUUID18();
+        const id = randomUUID19();
         await this.db.insert(tareaArchivos).values({ id, tareaId, nombre, url: url2, mimeType, tamano, subidoPorId });
         return {
           id,
@@ -7702,7 +8655,7 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async getArchivos(tareaId) {
-        const rows = await this.db.select().from(tareaArchivos).where(eq38(tareaArchivos.tareaId, tareaId)).orderBy(desc16(tareaArchivos.createdAt));
+        const rows = await this.db.select().from(tareaArchivos).where(eq40(tareaArchivos.tareaId, tareaId)).orderBy(desc17(tareaArchivos.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -7716,11 +8669,11 @@ var init_tarea_extension_storage = __esm({
         }));
       }
       async deleteArchivo(archivoId) {
-        await this.db.delete(tareaArchivos).where(eq38(tareaArchivos.id, archivoId));
+        await this.db.delete(tareaArchivos).where(eq40(tareaArchivos.id, archivoId));
       }
       async findArchivo(archivoId) {
         const row = await this.db.query.tareaArchivos.findFirst({
-          where: eq38(tareaArchivos.id, archivoId)
+          where: eq40(tareaArchivos.id, archivoId)
         });
         if (!row) return null;
         return {
@@ -7740,8 +8693,8 @@ var init_tarea_extension_storage = __esm({
 });
 
 // server/storage/storeage/models/proceso-ownership-storage.ts
-import { eq as eq39, and as and27, desc as desc17, isNull as isNull8, inArray as inArray9 } from "drizzle-orm";
-import { randomUUID as randomUUID19 } from "crypto";
+import { eq as eq41, and as and30, desc as desc18, isNull as isNull9, inArray as inArray9 } from "drizzle-orm";
+import { randomUUID as randomUUID20 } from "crypto";
 var ProcesoOwnershipStorage;
 var init_proceso_ownership_storage = __esm({
   "server/storage/storeage/models/proceso-ownership-storage.ts"() {
@@ -7753,18 +8706,18 @@ var init_proceso_ownership_storage = __esm({
       }
       /** Ownership activo de un proceso (activo_unique = 1). */
       async getActive(procesoId) {
-        const row = await this.db.select().from(procesoOwnership).where(and27(
-          eq39(procesoOwnership.procesoId, procesoId),
-          eq39(procesoOwnership.activoUnique, 1)
+        const row = await this.db.select().from(procesoOwnership).where(and30(
+          eq41(procesoOwnership.procesoId, procesoId),
+          eq41(procesoOwnership.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         return row ? this.toDTO(row) : null;
       }
       /** Fetch active ownership for multiple procesosIds in a single query. */
       async getActiveBatch(procesoIds) {
         if (procesoIds.length === 0) return /* @__PURE__ */ new Map();
-        const rows = await this.db.select().from(procesoOwnership).where(and27(
+        const rows = await this.db.select().from(procesoOwnership).where(and30(
           inArray9(procesoOwnership.procesoId, procesoIds),
-          eq39(procesoOwnership.activoUnique, 1)
+          eq41(procesoOwnership.activoUnique, 1)
         ));
         const map = /* @__PURE__ */ new Map();
         for (const row of rows) {
@@ -7774,7 +8727,7 @@ var init_proceso_ownership_storage = __esm({
       }
       /** Historial completo de ownership de un proceso (más reciente primero). */
       async getHistory(procesoId) {
-        const rows = await this.db.select().from(procesoOwnership).where(eq39(procesoOwnership.procesoId, procesoId)).orderBy(desc17(procesoOwnership.fechaInicio));
+        const rows = await this.db.select().from(procesoOwnership).where(eq41(procesoOwnership.procesoId, procesoId)).orderBy(desc18(procesoOwnership.fechaInicio));
         return rows.map((r) => this.toDTO(r));
       }
       /**
@@ -7782,11 +8735,11 @@ var init_proceso_ownership_storage = __esm({
        * Cierra el registro activo y abre uno nuevo.
        */
       async transfer(procesoId, dto, creadoPor) {
-        const id = randomUUID19();
+        const id = randomUUID20();
         await this.db.transaction(async (tx) => {
-          await tx.update(procesoOwnership).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and27(
-            eq39(procesoOwnership.procesoId, procesoId),
-            eq39(procesoOwnership.activoUnique, 1)
+          await tx.update(procesoOwnership).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and30(
+            eq41(procesoOwnership.procesoId, procesoId),
+            eq41(procesoOwnership.activoUnique, 1)
           ));
           await tx.insert(procesoOwnership).values({
             id,
@@ -7815,7 +8768,7 @@ var init_proceso_ownership_storage = __esm({
        * Solo usar si no existe ningún ownership para el proceso.
        */
       async create(procesoId, ownerType, ownerId, creadoPor, razon) {
-        const id = randomUUID19();
+        const id = randomUUID20();
         await this.db.insert(procesoOwnership).values({
           id,
           procesoId,
@@ -7841,10 +8794,10 @@ var init_proceso_ownership_storage = __esm({
        * Todos los procesoIds donde owner_type + owner_id tienen ownership activo.
        */
       async getProcesoIdsByOwner(ownerType, ownerId) {
-        const rows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and27(
-          eq39(procesoOwnership.ownerType, ownerType),
-          ownerId !== null ? eq39(procesoOwnership.ownerId, ownerId) : isNull8(procesoOwnership.ownerId),
-          eq39(procesoOwnership.activoUnique, 1)
+        const rows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and30(
+          eq41(procesoOwnership.ownerType, ownerType),
+          ownerId !== null ? eq41(procesoOwnership.ownerId, ownerId) : isNull9(procesoOwnership.ownerId),
+          eq41(procesoOwnership.activoUnique, 1)
         ));
         return rows.map((r) => r.procesoId);
       }
@@ -7852,9 +8805,9 @@ var init_proceso_ownership_storage = __esm({
       async getPendingReassignmentIds(bufeteId) {
         const ownedIds = await this.getProcesoIdsByOwner("bufete", bufeteId);
         if (ownedIds.length === 0) return [];
-        const assigned = await this.db.selectDistinct({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and27(
+        const assigned = await this.db.selectDistinct({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and30(
           inArray9(procesoLawyers.procesoId, ownedIds),
-          eq39(procesoLawyers.status, "activo")
+          eq41(procesoLawyers.status, "activo")
         ));
         const assignedSet = new Set(assigned.map((r) => r.procesoId));
         return ownedIds.filter((id) => !assignedSet.has(id));
@@ -7877,8 +8830,8 @@ var init_proceso_ownership_storage = __esm({
 });
 
 // server/storage/storeage/models/proceso-sharing-storage.ts
-import { eq as eq40, and as and28, desc as desc18 } from "drizzle-orm";
-import { randomUUID as randomUUID20 } from "crypto";
+import { eq as eq42, and as and31, desc as desc19 } from "drizzle-orm";
+import { randomUUID as randomUUID21 } from "crypto";
 var ProcesoSharingStorage;
 var init_proceso_sharing_storage = __esm({
   "server/storage/storeage/models/proceso-sharing-storage.ts"() {
@@ -7890,24 +8843,24 @@ var init_proceso_sharing_storage = __esm({
       }
       /** Sharing activo de un proceso (todos los receptores). */
       async getActive(procesoId) {
-        const rows = await this.db.select().from(procesoSharing).where(and28(
-          eq40(procesoSharing.procesoId, procesoId),
-          eq40(procesoSharing.activoUnique, 1)
+        const rows = await this.db.select().from(procesoSharing).where(and31(
+          eq42(procesoSharing.procesoId, procesoId),
+          eq42(procesoSharing.activoUnique, 1)
         ));
         return rows.map((r) => this.toDTO(r));
       }
       /** Historial completo de sharing de un proceso. */
       async getHistory(procesoId) {
-        const rows = await this.db.select().from(procesoSharing).where(eq40(procesoSharing.procesoId, procesoId)).orderBy(desc18(procesoSharing.fechaInicio));
+        const rows = await this.db.select().from(procesoSharing).where(eq42(procesoSharing.procesoId, procesoId)).orderBy(desc19(procesoSharing.fechaInicio));
         return rows.map((r) => this.toDTO(r));
       }
       /** Sharing activo para una entidad específica (para assertProcesoAccess). */
       async findActive(procesoId, sharedWithType, sharedWithId) {
-        const row = await this.db.select().from(procesoSharing).where(and28(
-          eq40(procesoSharing.procesoId, procesoId),
-          eq40(procesoSharing.sharedWithType, sharedWithType),
-          eq40(procesoSharing.sharedWithId, sharedWithId),
-          eq40(procesoSharing.activoUnique, 1)
+        const row = await this.db.select().from(procesoSharing).where(and31(
+          eq42(procesoSharing.procesoId, procesoId),
+          eq42(procesoSharing.sharedWithType, sharedWithType),
+          eq42(procesoSharing.sharedWithId, sharedWithId),
+          eq42(procesoSharing.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         return row ? this.toDTO(row) : null;
       }
@@ -7922,13 +8875,13 @@ var init_proceso_sharing_storage = __esm({
             `Permiso '${dto.permission}' no permitido para '${dto.sharedWithType}'. M\xE1ximo: ${allowed.join(", ")}`
           );
         }
-        const id = randomUUID20();
+        const id = randomUUID21();
         await this.db.transaction(async (tx) => {
-          await tx.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and28(
-            eq40(procesoSharing.procesoId, procesoId),
-            eq40(procesoSharing.sharedWithType, dto.sharedWithType),
-            eq40(procesoSharing.sharedWithId, dto.sharedWithId),
-            eq40(procesoSharing.activoUnique, 1)
+          await tx.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and31(
+            eq42(procesoSharing.procesoId, procesoId),
+            eq42(procesoSharing.sharedWithType, dto.sharedWithType),
+            eq42(procesoSharing.sharedWithId, dto.sharedWithId),
+            eq42(procesoSharing.activoUnique, 1)
           ));
           await tx.insert(procesoSharing).values({
             id,
@@ -7956,10 +8909,10 @@ var init_proceso_sharing_storage = __esm({
       }
       /** Revocar sharing por ID del registro. */
       async revoke(shareId, procesoId) {
-        await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and28(
-          eq40(procesoSharing.id, shareId),
-          eq40(procesoSharing.procesoId, procesoId),
-          eq40(procesoSharing.activoUnique, 1)
+        await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and31(
+          eq42(procesoSharing.id, shareId),
+          eq42(procesoSharing.procesoId, procesoId),
+          eq42(procesoSharing.activoUnique, 1)
         ));
       }
       /**
@@ -7969,20 +8922,20 @@ var init_proceso_sharing_storage = __esm({
       async revokeAllForEntity(sharedWithType, sharedWithId, procesoIds) {
         if (procesoIds.length === 0) return;
         for (const procesoId of procesoIds) {
-          await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and28(
-            eq40(procesoSharing.procesoId, procesoId),
-            eq40(procesoSharing.sharedWithType, sharedWithType),
-            eq40(procesoSharing.sharedWithId, sharedWithId),
-            eq40(procesoSharing.activoUnique, 1)
+          await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and31(
+            eq42(procesoSharing.procesoId, procesoId),
+            eq42(procesoSharing.sharedWithType, sharedWithType),
+            eq42(procesoSharing.sharedWithId, sharedWithId),
+            eq42(procesoSharing.activoUnique, 1)
           ));
         }
       }
       /** ProcesoIds con sharing activo para una entidad. */
       async getProcesoIdsBySharedWith(sharedWithType, sharedWithId) {
-        const rows = await this.db.select({ procesoId: procesoSharing.procesoId }).from(procesoSharing).where(and28(
-          eq40(procesoSharing.sharedWithType, sharedWithType),
-          eq40(procesoSharing.sharedWithId, sharedWithId),
-          eq40(procesoSharing.activoUnique, 1)
+        const rows = await this.db.select({ procesoId: procesoSharing.procesoId }).from(procesoSharing).where(and31(
+          eq42(procesoSharing.sharedWithType, sharedWithType),
+          eq42(procesoSharing.sharedWithId, sharedWithId),
+          eq42(procesoSharing.activoUnique, 1)
         ));
         return rows.map((r) => r.procesoId);
       }
@@ -8005,8 +8958,8 @@ var init_proceso_sharing_storage = __esm({
 });
 
 // server/storage/storeage/models/cliente-ownership-storage.ts
-import { eq as eq41, and as and29, desc as desc19 } from "drizzle-orm";
-import { randomUUID as randomUUID21 } from "crypto";
+import { eq as eq43, and as and32, desc as desc20 } from "drizzle-orm";
+import { randomUUID as randomUUID22 } from "crypto";
 var ClienteOwnershipStorage;
 var init_cliente_ownership_storage = __esm({
   "server/storage/storeage/models/cliente-ownership-storage.ts"() {
@@ -8018,20 +8971,20 @@ var init_cliente_ownership_storage = __esm({
       }
       /** Ownership activo de un cliente (activo_unique = 1). */
       async getActive(clienteId) {
-        const row = await this.db.select().from(clienteOwnership).where(and29(
-          eq41(clienteOwnership.clienteId, clienteId),
-          eq41(clienteOwnership.activoUnique, 1)
+        const row = await this.db.select().from(clienteOwnership).where(and32(
+          eq43(clienteOwnership.clienteId, clienteId),
+          eq43(clienteOwnership.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         return row ? this.toDTO(row) : null;
       }
       /** Historial completo de ownership de un cliente (más reciente primero). */
       async getHistory(clienteId) {
-        const rows = await this.db.select().from(clienteOwnership).where(eq41(clienteOwnership.clienteId, clienteId)).orderBy(desc19(clienteOwnership.fechaInicio));
+        const rows = await this.db.select().from(clienteOwnership).where(eq43(clienteOwnership.clienteId, clienteId)).orderBy(desc20(clienteOwnership.fechaInicio));
         return rows.map((r) => this.toDTO(r));
       }
       /** Crear ownership inicial (para cliente recién creado). */
       async create(clienteId, ownerType, ownerId, creadoPor, razon) {
-        const id = randomUUID21();
+        const id = randomUUID22();
         await this.db.insert(clienteOwnership).values({
           id,
           clienteId,
@@ -8055,10 +9008,10 @@ var init_cliente_ownership_storage = __esm({
       }
       /** IDs de clientes donde owner_type + owner_id tienen ownership activo. */
       async getClienteIdsByOwner(ownerType, ownerId) {
-        const rows = await this.db.select({ clienteId: clienteOwnership.clienteId }).from(clienteOwnership).where(and29(
-          eq41(clienteOwnership.ownerType, ownerType),
-          eq41(clienteOwnership.ownerId, ownerId),
-          eq41(clienteOwnership.activoUnique, 1)
+        const rows = await this.db.select({ clienteId: clienteOwnership.clienteId }).from(clienteOwnership).where(and32(
+          eq43(clienteOwnership.ownerType, ownerType),
+          eq43(clienteOwnership.ownerId, ownerId),
+          eq43(clienteOwnership.activoUnique, 1)
         ));
         return rows.map((r) => r.clienteId);
       }
@@ -8080,8 +9033,8 @@ var init_cliente_ownership_storage = __esm({
 });
 
 // server/storage/storeage/models/firm-settings-storage.ts
-import { eq as eq42 } from "drizzle-orm";
-import { randomUUID as randomUUID22 } from "crypto";
+import { eq as eq44 } from "drizzle-orm";
+import { randomUUID as randomUUID23 } from "crypto";
 var DEFAULTS, FirmSettingsStorage;
 var init_firm_settings_storage = __esm({
   "server/storage/storeage/models/firm-settings-storage.ts"() {
@@ -8099,18 +9052,18 @@ var init_firm_settings_storage = __esm({
       }
       /** Obtiene settings del bufete. Si no existen, devuelve los defaults sin persistir. */
       async get(firmId) {
-        const row = await this.db.select().from(firmSettings).where(eq42(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
+        const row = await this.db.select().from(firmSettings).where(eq44(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
         if (!row) return { firmId, ...DEFAULTS };
         return this.toDTO(row);
       }
       /** Crea o actualiza los settings de un bufete. */
       async upsert(firmId, updates) {
-        const existing = await this.db.select().from(firmSettings).where(eq42(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
+        const existing = await this.db.select().from(firmSettings).where(eq44(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
         if (existing) {
-          await this.db.update(firmSettings).set(updates).where(eq42(firmSettings.firmId, firmId));
+          await this.db.update(firmSettings).set(updates).where(eq44(firmSettings.firmId, firmId));
           return this.toDTO({ ...existing, ...updates });
         }
-        const id = randomUUID22();
+        const id = randomUUID23();
         const newRow = { id, firmId, ...DEFAULTS, ...updates };
         await this.db.insert(firmSettings).values(newRow);
         return this.toDTO(newRow);
@@ -8123,6 +9076,501 @@ var init_firm_settings_storage = __esm({
           defaultClienteEsCompartido: row.defaultClienteEsCompartido,
           defaultProcesoEsCompartido: row.defaultProcesoEsCompartido
         };
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/feature-storage.ts
+import { eq as eq45, and as and33 } from "drizzle-orm";
+var FeatureStorage;
+var init_feature_storage = __esm({
+  "server/storage/storeage/models/feature-storage.ts"() {
+    "use strict";
+    init_schema();
+    FeatureStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getAll() {
+        return this.db.select().from(features).where(eq45(features.state, true));
+      }
+      async getByPlan(planId) {
+        const rows = await this.db.select({
+          code: planFeatures.featureCode,
+          nombre: features.nombre,
+          value: planFeatures.value
+        }).from(planFeatures).innerJoin(features, eq45(planFeatures.featureCode, features.code)).where(and33(eq45(planFeatures.planId, planId), eq45(features.state, true)));
+        return rows;
+      }
+      async hasFeature(planId, featureCode) {
+        const row = await this.db.select().from(planFeatures).where(and33(eq45(planFeatures.planId, planId), eq45(planFeatures.featureCode, featureCode))).limit(1).then((r) => r[0] ?? null);
+        if (!row) return { has: false, value: "false" };
+        return { has: row.value !== "false" && row.value !== "0", value: row.value };
+      }
+      async upsertFeature(planId, featureCode, value) {
+        const existing = await this.db.select().from(planFeatures).where(and33(eq45(planFeatures.planId, planId), eq45(planFeatures.featureCode, featureCode))).limit(1).then((r) => r[0] ?? null);
+        if (existing) {
+          await this.db.update(planFeatures).set({ value }).where(and33(eq45(planFeatures.planId, planId), eq45(planFeatures.featureCode, featureCode)));
+        } else {
+          await this.db.insert(planFeatures).values({ planId, featureCode, value });
+        }
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/suscripcion-storage.ts
+import { eq as eq46, and as and34 } from "drizzle-orm";
+import { randomUUID as randomUUID24 } from "crypto";
+var SuscripcionStorage;
+var init_suscripcion_storage = __esm({
+  "server/storage/storeage/models/suscripcion-storage.ts"() {
+    "use strict";
+    init_schema();
+    SuscripcionStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getActive(userId2) {
+        const row = await this.db.select().from(suscripciones).where(and34(eq46(suscripciones.userId, userId2), eq46(suscripciones.estado, "activa"))).limit(1).then((r) => r[0] ?? null);
+        return row;
+      }
+      async getById(id) {
+        return this.db.select().from(suscripciones).where(eq46(suscripciones.id, id)).limit(1).then((r) => r[0] ?? null);
+      }
+      async getByUserId(userId2) {
+        return this.db.select().from(suscripciones).where(eq46(suscripciones.userId, userId2));
+      }
+      async create(data) {
+        const id = randomUUID24();
+        await this.db.insert(suscripciones).values({ ...data, id });
+        return await this.getById(id);
+      }
+      async updateEstado(id, estado, fechaCancelacion) {
+        const updates = { estado };
+        if (fechaCancelacion) updates.fechaCancelacion = fechaCancelacion;
+        await this.db.update(suscripciones).set(updates).where(eq46(suscripciones.id, id));
+      }
+      async cancelAutoRenovacion(id) {
+        await this.db.update(suscripciones).set({ autoRenovacion: false, fechaCancelacion: /* @__PURE__ */ new Date() }).where(eq46(suscripciones.id, id));
+      }
+      /** Suscripciones activas cuyo vencimiento es en <= diasAntes días (para cron) */
+      async getProximasAVencer(diasAntes) {
+        const limite = /* @__PURE__ */ new Date();
+        limite.setDate(limite.getDate() + diasAntes);
+        const ahora = /* @__PURE__ */ new Date();
+        const { sql: sql28 } = await import("drizzle-orm");
+        return this.db.select().from(suscripciones).where(
+          and34(
+            eq46(suscripciones.estado, "activa"),
+            sql28`${suscripciones.fechaVencimiento} BETWEEN ${ahora} AND ${limite}`
+          )
+        );
+      }
+      /** Suscripciones activas que ya vencieron (para degradar a gratis) */
+      async getVencidas() {
+        const ahora = /* @__PURE__ */ new Date();
+        const { sql: sql28 } = await import("drizzle-orm");
+        return this.db.select().from(suscripciones).where(
+          and34(
+            eq46(suscripciones.estado, "activa"),
+            sql28`${suscripciones.fechaVencimiento} < ${ahora}`
+          )
+        );
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/pago-storage.ts
+import { eq as eq47 } from "drizzle-orm";
+import { randomUUID as randomUUID25 } from "crypto";
+var PagoStorage;
+var init_pago_storage = __esm({
+  "server/storage/storeage/models/pago-storage.ts"() {
+    "use strict";
+    init_schema();
+    PagoStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async create(data) {
+        const id = randomUUID25();
+        await this.db.insert(pagos).values({ ...data, id });
+        return await this.getById(id);
+      }
+      async getById(id) {
+        return this.db.select().from(pagos).where(eq47(pagos.id, id)).limit(1).then((r) => r[0] ?? null);
+      }
+      async getByReference(reference) {
+        return this.db.select().from(pagos).where(eq47(pagos.wompiReference, reference)).limit(1).then((r) => r[0] ?? null);
+      }
+      async updateEstado(id, estado, wompiTransactionId, metodoPago) {
+        const updates = { estado };
+        if (wompiTransactionId) updates.wompiTransactionId = wompiTransactionId;
+        if (metodoPago) updates.metodoPago = metodoPago;
+        await this.db.update(pagos).set(updates).where(eq47(pagos.id, id));
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/usage-tracking-storage.ts
+import { eq as eq48, sql as sql17 } from "drizzle-orm";
+import { randomUUID as randomUUID26 } from "crypto";
+var CAMPO, UsageTrackingStorage;
+var init_usage_tracking_storage = __esm({
+  "server/storage/storeage/models/usage-tracking-storage.ts"() {
+    "use strict";
+    init_schema();
+    CAMPO = {
+      procesos: "procesosUsados",
+      clientes: "clientesUsados",
+      storage: "storageUsadoMb"
+    };
+    UsageTrackingStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getByUserId(userId2) {
+        return this.db.select().from(usageTracking).where(eq48(usageTracking.userId, userId2)).limit(1).then((r) => r[0] ?? null);
+      }
+      async initForUser(userId2, suscripcionId) {
+        const existing = await this.getByUserId(userId2);
+        if (existing) {
+          await this.db.update(usageTracking).set({ suscripcionId }).where(eq48(usageTracking.userId, userId2));
+          return;
+        }
+        await this.db.insert(usageTracking).values({
+          id: randomUUID26(),
+          userId: userId2,
+          suscripcionId,
+          procesosUsados: 0,
+          clientesUsados: 0,
+          storageUsadoMb: 0
+        });
+      }
+      async increment(userId2, tipo, cantidad = 1) {
+        const col = CAMPO[tipo];
+        await this.db.update(usageTracking).set({ [col]: sql17`${usageTracking[col]} + ${cantidad}` }).where(eq48(usageTracking.userId, userId2));
+      }
+      async decrement(userId2, tipo, cantidad = 1) {
+        const col = CAMPO[tipo];
+        await this.db.update(usageTracking).set({ [col]: sql17`GREATEST(0, ${usageTracking[col]} - ${cantidad})` }).where(eq48(usageTracking.userId, userId2));
+      }
+      async reset(userId2) {
+        await this.db.update(usageTracking).set({ procesosUsados: 0, clientesUsados: 0, storageUsadoMb: 0 }).where(eq48(usageTracking.userId, userId2));
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/admin-profile.storage.ts
+import { eq as eq49 } from "drizzle-orm";
+var AdminProfileStorage;
+var init_admin_profile_storage = __esm({
+  "server/storage/storeage/models/admin-profile.storage.ts"() {
+    "use strict";
+    init_schema();
+    AdminProfileStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getAdminProfileById(id) {
+        const result = await this.db.select().from(adminProfiles).where(eq49(adminProfiles.id, id)).limit(1);
+        return result[0];
+      }
+      async getAdminProfileByUserId(userId2) {
+        const result = await this.db.select().from(adminProfiles).where(eq49(adminProfiles.userId, userId2)).limit(1);
+        return result[0];
+      }
+      async createAdminProfile(data) {
+        const newProfile = {
+          ...data,
+          createdAt: /* @__PURE__ */ new Date(),
+          updatedAt: /* @__PURE__ */ new Date()
+        };
+        await this.db.insert(adminProfiles).values(newProfile);
+        const created = await this.getAdminProfileByUserId(data.userId);
+        if (!created) {
+          throw new Error("No se pudo crear el perfil de administrador");
+        }
+        return created;
+      }
+      async updateAdminProfile(id, updates) {
+        const { createdAt, ...safeUpdates } = updates;
+        await this.db.update(adminProfiles).set({
+          ...safeUpdates,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq49(adminProfiles.id, id));
+        return this.getAdminProfileById(id);
+      }
+    };
+  }
+});
+
+// server/admin/storage/admin-stats.storage.ts
+import { sql as sql18, inArray as inArray10, eq as eq50, and as and35, gte as gte3 } from "drizzle-orm";
+var USER_ROLES, AdminStatsStorage;
+var init_admin_stats_storage = __esm({
+  "server/admin/storage/admin-stats.storage.ts"() {
+    "use strict";
+    init_schema();
+    USER_ROLES = ["abogado", "bufete", "cliente"];
+    AdminStatsStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getStats() {
+        const now = /* @__PURE__ */ new Date();
+        const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 0, 0, 0, 0));
+        const userRoleRows = await this.db.select({ id: roles.id }).from(roles).where(inArray10(roles.nombre, [...USER_ROLES]));
+        const userRoleIds = userRoleRows.map((r) => r.id);
+        const [
+          usuariosResult,
+          suscripcionesResult,
+          ingresosResult,
+          procesosResult,
+          nuevosResult
+        ] = await Promise.all([
+          // Total usuarios finales
+          userRoleIds.length > 0 ? this.db.select({ total: sql18`COUNT(*)` }).from(users).where(inArray10(users.rolId, userRoleIds)) : Promise.resolve([{ total: 0 }]),
+          // Suscripciones activas
+          this.db.select({ total: sql18`COUNT(*)` }).from(suscripciones).where(eq50(suscripciones.estado, "activa")),
+          // Ingresos estimados COP (normalizados a mensual)
+          this.db.select({
+            total: sql18`
+            SUM(
+              CASE ${suscripciones.ciclo}
+                WHEN 'mensual' THEN CAST(${planes.precioMensualCop} AS DECIMAL(14,2))
+                WHEN 'anual'   THEN CAST(${planes.precioAnualCop}   AS DECIMAL(14,2)) / 12
+                ELSE 0
+              END
+            )
+          `
+          }).from(suscripciones).innerJoin(planes, eq50(planes.id, suscripciones.planId)).where(eq50(suscripciones.estado, "activa")),
+          // Total procesos activos
+          this.db.select({ total: sql18`COUNT(*)` }).from(procesos).where(eq50(procesos.state, true)),
+          // Nuevos usuarios este mes (solo roles finales)
+          userRoleIds.length > 0 ? this.db.select({ total: sql18`COUNT(*)` }).from(users).where(
+            and35(
+              inArray10(users.rolId, userRoleIds),
+              gte3(users.createdAt, startOfMonth)
+            )
+          ) : Promise.resolve([{ total: 0 }])
+        ]);
+        return {
+          totalUsuarios: Number(usuariosResult[0]?.total ?? 0),
+          suscripcionesActivas: Number(suscripcionesResult[0]?.total ?? 0),
+          ingresosEstimadosCop: Number(ingresosResult[0]?.total ?? 0),
+          totalProcesos: Number(procesosResult[0]?.total ?? 0),
+          nuevosEsteMes: Number(nuevosResult[0]?.total ?? 0)
+        };
+      }
+    };
+  }
+});
+
+// server/admin/storage/admin-audit.storage.ts
+import { sql as sql19, eq as eq51, and as and36, desc as desc21 } from "drizzle-orm";
+var AdminAuditStorage;
+var init_admin_audit_storage = __esm({
+  "server/admin/storage/admin-audit.storage.ts"() {
+    "use strict";
+    init_schema();
+    AdminAuditStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async log(entry) {
+        await this.db.insert(adminAuditLog).values({
+          adminId: entry.adminId,
+          accion: entry.accion,
+          targetId: entry.targetId ?? null,
+          detalle: entry.detalle ?? null
+        });
+      }
+      async getLog(params) {
+        const page = Math.max(params.page ?? 1, 1);
+        const limit = Math.min(params.limit ?? 20, 100);
+        const offset = (page - 1) * limit;
+        const conditions = [];
+        if (params.adminId) conditions.push(eq51(adminAuditLog.adminId, params.adminId));
+        if (params.accion) conditions.push(eq51(adminAuditLog.accion, params.accion));
+        const where = conditions.length > 0 ? and36(...conditions) : void 0;
+        const [countRow] = await this.db.select({ total: sql19`COUNT(*)` }).from(adminAuditLog).where(where);
+        const rows = await this.db.select().from(adminAuditLog).where(where).orderBy(desc21(adminAuditLog.createdAt)).limit(limit).offset(offset);
+        return {
+          data: rows,
+          meta: { total: Number(countRow?.total ?? 0), page, limit }
+        };
+      }
+    };
+  }
+});
+
+// server/admin/storage/admin-users.storage.ts
+import { sql as sql20, eq as eq52, and as and37, or as or7, like as like6, desc as desc22 } from "drizzle-orm";
+var AdminUsersStorage;
+var init_admin_users_storage = __esm({
+  "server/admin/storage/admin-users.storage.ts"() {
+    "use strict";
+    init_schema();
+    AdminUsersStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async list(params) {
+        const page = Math.max(params.page ?? 1, 1);
+        const limit = Math.min(params.limit ?? 20, 100);
+        const offset = (page - 1) * limit;
+        let rolIdFiltro;
+        if (params.tipo) {
+          const [roleRow] = await this.db.select({ id: roles.id }).from(roles).where(eq52(roles.nombre, params.tipo)).limit(1);
+          rolIdFiltro = roleRow?.id;
+        }
+        const conditions = [];
+        if (rolIdFiltro !== void 0) conditions.push(eq52(users.rolId, rolIdFiltro));
+        if (params.estado === "activo") conditions.push(eq52(users.isActive, true));
+        if (params.estado === "suspendido") conditions.push(eq52(users.isActive, false));
+        if (params.search) {
+          const pattern = `%${params.search}%`;
+          conditions.push(
+            or7(
+              like6(users.name, pattern),
+              like6(users.email, pattern)
+            )
+          );
+        }
+        const where = conditions.length > 0 ? and37(...conditions) : void 0;
+        const [countRow] = await this.db.select({ total: sql20`COUNT(*)` }).from(users).where(where);
+        const rows = await this.db.select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          isActive: users.isActive,
+          emailVerified: users.emailVerified,
+          createdAt: users.createdAt,
+          rolNombre: roles.nombre,
+          planNombre: sql20`(
+          SELECT p.nombre FROM suscripciones s
+          JOIN planes p ON p.id = s.plan_id
+          WHERE s.user_id = ${users.id} AND s.estado = 'activa'
+          LIMIT 1
+        )`
+        }).from(users).leftJoin(roles, eq52(roles.id, users.rolId)).where(where).orderBy(desc22(users.createdAt)).limit(limit).offset(offset);
+        return {
+          data: rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            email: r.email,
+            isActive: r.isActive ?? false,
+            emailVerified: r.emailVerified ?? false,
+            createdAt: r.createdAt?.toISOString() ?? "",
+            rol: { nombre: r.rolNombre ?? "" },
+            plan: r.planNombre ? { nombre: r.planNombre } : null
+          })),
+          meta: { total: Number(countRow?.total ?? 0), page, limit }
+        };
+      }
+      async getById(id) {
+        const [row] = await this.db.select({
+          id: users.id,
+          name: users.name,
+          email: users.email,
+          isActive: users.isActive,
+          emailVerified: users.emailVerified,
+          createdAt: users.createdAt,
+          rolNombre: roles.nombre,
+          firmId: firmProfiles.id,
+          firmNombre: firmProfiles.name,
+          lawyerProfileId: lawyerProfiles.id,
+          licenseNumber: lawyerProfiles.licenseNumber,
+          lawyerVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+          lawyerReviewedAt: lawyerProfiles.professionalReviewedAt,
+          lawyerReviewedBy: lawyerProfiles.professionalReviewedBy,
+          lawyerReviewNotes: lawyerProfiles.professionalReviewNotes
+        }).from(users).leftJoin(roles, eq52(roles.id, users.rolId)).leftJoin(lawyerProfiles, eq52(lawyerProfiles.userId, users.id)).leftJoin(firmProfiles, eq52(firmProfiles.id, lawyerProfiles.firmId)).where(eq52(users.id, id)).limit(1);
+        if (!row) return null;
+        const firma = row.firmId && row.firmNombre ? { id: row.firmId, nombre: row.firmNombre } : null;
+        const susRows = await this.db.select({
+          id: suscripciones.id,
+          planNombre: planes.nombre,
+          ciclo: suscripciones.ciclo,
+          estado: suscripciones.estado,
+          fechaInicio: suscripciones.fechaInicio,
+          fechaVencimiento: suscripciones.fechaVencimiento
+        }).from(suscripciones).leftJoin(planes, eq52(planes.id, suscripciones.planId)).where(eq52(suscripciones.userId, id)).orderBy(desc22(suscripciones.fechaInicio));
+        const historial = susRows.map((s) => ({
+          id: s.id,
+          planNombre: s.planNombre ?? "",
+          ciclo: s.ciclo,
+          estado: s.estado,
+          fechaInicio: s.fechaInicio instanceof Date ? s.fechaInicio.toISOString() : String(s.fechaInicio),
+          fechaFin: s.fechaVencimiento instanceof Date ? s.fechaVencimiento.toISOString() : String(s.fechaVencimiento)
+        }));
+        const suscripcionActiva = historial.find((s) => s.estado === "activa") ?? null;
+        return {
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          isActive: row.isActive ?? false,
+          emailVerified: row.emailVerified ?? false,
+          createdAt: row.createdAt?.toISOString() ?? "",
+          rol: { nombre: row.rolNombre ?? "" },
+          plan: suscripcionActiva ? { nombre: suscripcionActiva.planNombre } : null,
+          firma,
+          suscripcionActiva,
+          historialSuscripciones: historial,
+          lawyerVerification: row.lawyerProfileId ? {
+            profileId: row.lawyerProfileId,
+            licenseNumber: row.licenseNumber ?? null,
+            status: row.lawyerVerificationStatus ?? "pendiente",
+            reviewedAt: row.lawyerReviewedAt instanceof Date ? row.lawyerReviewedAt.toISOString() : null,
+            reviewedBy: row.lawyerReviewedBy ?? null,
+            reviewNotes: row.lawyerReviewNotes ?? null
+          } : null
+        };
+      }
+      async listLawyerVerifications(status = "pendiente") {
+        const rows = await this.db.select({
+          profileId: lawyerProfiles.id,
+          userId: users.id,
+          name: users.name,
+          email: users.email,
+          licenseNumber: lawyerProfiles.licenseNumber,
+          specialization: lawyerProfiles.specialization,
+          createdAt: lawyerProfiles.createdAt,
+          status: lawyerProfiles.professionalVerificationStatus,
+          emailVerified: users.emailVerified
+        }).from(lawyerProfiles).innerJoin(users, eq52(users.id, lawyerProfiles.userId)).where(eq52(lawyerProfiles.professionalVerificationStatus, status)).orderBy(desc22(lawyerProfiles.createdAt));
+        return rows.map((row) => ({
+          ...row,
+          createdAt: row.createdAt?.toISOString() ?? "",
+          status: row.status ?? "pendiente",
+          emailVerified: row.emailVerified ?? false
+        }));
+      }
+      async updateLawyerVerification(lawyerProfileId, payload) {
+        await this.db.update(lawyerProfiles).set({
+          professionalVerificationStatus: payload.status,
+          professionalReviewedAt: /* @__PURE__ */ new Date(),
+          professionalReviewedBy: payload.reviewedBy,
+          professionalReviewNotes: payload.reviewNotes ?? null,
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq52(lawyerProfiles.id, lawyerProfileId));
+      }
+      async updateEstado(id, isActive) {
+        await this.db.update(users).set({ isActive, updatedAt: /* @__PURE__ */ new Date() }).where(eq52(users.id, id));
+      }
+      async updatePlan(id, planId) {
+        await this.db.update(suscripciones).set({ planId }).where(
+          and37(
+            eq52(suscripciones.userId, id),
+            eq52(suscripciones.estado, "activa")
+          )
+        );
       }
     };
   }
@@ -8174,11 +9622,20 @@ var init_database_storage = __esm({
     init_calendar_storage();
     init_stage_task_template_storage();
     init_stage_event_storage();
+    init_proceso_etapa_historial_storage();
     init_tarea_extension_storage();
     init_proceso_ownership_storage();
     init_proceso_sharing_storage();
     init_cliente_ownership_storage();
     init_firm_settings_storage();
+    init_feature_storage();
+    init_suscripcion_storage();
+    init_pago_storage();
+    init_usage_tracking_storage();
+    init_admin_profile_storage();
+    init_admin_stats_storage();
+    init_admin_audit_storage();
+    init_admin_users_storage();
     DatabaseStorage = class {
       constructor(databaseUrl) {
         const dbUrl = databaseUrl || process.env.DATABASE_URL;
@@ -8227,11 +9684,20 @@ var init_database_storage = __esm({
         this.calendar = new CalendarStorage(this.db);
         this.stageTemplates = new StageTaskTemplateStorage(this.db);
         this.stageEvents = new StageEventStorage(this.db);
+        this.procesoEtapaHistorial = new ProcesoEtapaHistorialStorage(this.db);
         this.tareaExtensions = new TareaExtensionStorage(this.db);
         this.procesoOwnership = new ProcesoOwnershipStorage(this.db);
         this.procesoSharing = new ProcesoSharingStorage(this.db);
         this.clienteOwnership = new ClienteOwnershipStorage(this.db);
         this.firmSettings = new FirmSettingsStorage(this.db);
+        this.featureStorage = new FeatureStorage(this.db);
+        this.suscripciones = new SuscripcionStorage(this.db);
+        this.pagosStorage = new PagoStorage(this.db);
+        this.usageTracking = new UsageTrackingStorage(this.db);
+        this.adminProfiles = new AdminProfileStorage(this.db);
+        this.adminStats = new AdminStatsStorage(this.db);
+        this.adminAudit = new AdminAuditStorage(this.db);
+        this.adminUsers = new AdminUsersStorage(this.db);
         setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1e3);
         setInterval(() => this.otps.deleteExpired(), 60 * 60 * 1e3);
       }
@@ -8267,7 +9733,6 @@ var init_database_storage = __esm({
           correo: user.email,
           despacho: "",
           telefono: lawyer.phone || "",
-          planId: lawyer.firmId || "free",
           rolId: 1,
           activo: user.isActive,
           fechaRegistro: lawyer.createdAt,
@@ -8471,6 +9936,12 @@ var init_database_storage = __esm({
       async updateFirmProfile(id, updates) {
         return this.firmProfiles.updateFirmProfile(id, updates);
       }
+      async getAdminProfileByUserId(userId2) {
+        return this.adminProfiles.getAdminProfileByUserId(userId2);
+      }
+      async createAdminProfile(data) {
+        return this.adminProfiles.createAdminProfile(data);
+      }
       async addLawyerToProceso(procesoId, lawyerId, options = {}) {
         return this.procesos.addLawyerToProceso(procesoId, lawyerId, options);
       }
@@ -8526,6 +9997,11 @@ var init_database_storage = __esm({
       async getUserProfile(userId2, rolNombre) {
         console.log(rolNombre, "rolNombre", userId2, "userId");
         switch (rolNombre) {
+          case "admin":
+          case "admin_super":
+          case "admin_soporte":
+          case "admin_finanzas":
+            return this.adminProfiles.getAdminProfileByUserId(userId2);
           case "abogado": {
             const bare = await this.abogados.getLawyerByUserId(userId2);
             if (!bare) return null;
@@ -8575,7 +10051,7 @@ __export(auth_exports, {
 });
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomUUID as randomUUID24 } from "crypto";
+import { randomUUID as randomUUID28 } from "crypto";
 function getCookieOptions(isProduction2) {
   return {
     httpOnly: true,
@@ -8603,7 +10079,7 @@ function getRefreshCookieOptions(isProduction2) {
   };
 }
 function generateRefreshToken() {
-  return randomUUID24().replace(/-/g, "") + randomUUID24().replace(/-/g, "");
+  return randomUUID28().replace(/-/g, "") + randomUUID28().replace(/-/g, "");
 }
 async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -8616,7 +10092,7 @@ async function verifyPassword(password, hash) {
   }
 }
 function generateToken(payload) {
-  const jti = randomUUID24();
+  const jti = randomUUID28();
   const token = jwt.sign({ ...payload, jti }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
   return { token, jti };
 }
@@ -8638,6 +10114,9 @@ function extractToken(req) {
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith("Bearer ")) {
     return authHeader.substring(7);
+  }
+  if (req.body?.token) {
+    return req.body.token;
   }
   return req.cookies?.[COOKIE_NAME] ?? null;
 }
@@ -8760,7 +10239,7 @@ __export(s3_storage_exports, {
 });
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { randomUUID as randomUUID27 } from "crypto";
+import { randomUUID as randomUUID31 } from "crypto";
 import fs from "fs";
 import path from "path";
 function validateFileSize(buffer) {
@@ -8770,7 +10249,7 @@ function validateFileSize(buffer) {
 }
 function generateS3Key(clienteId, procesoId, filename) {
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
-  const uniqueFilename = `${randomUUID27()}-${sanitizedFilename}`;
+  const uniqueFilename = `${randomUUID31()}-${sanitizedFilename}`;
   return `${clienteId}/${procesoId}/${uniqueFilename}`;
 }
 async function uploadDocumentToS3(buffer, clienteId, procesoId, filename, contentType) {
@@ -8920,7 +10399,7 @@ import { createServer } from "http";
 import cookieParser from "cookie-parser";
 
 // server/services/login-security.service.ts
-import { randomUUID as randomUUID23 } from "crypto";
+import { randomUUID as randomUUID27 } from "crypto";
 
 // server/lib/redis.ts
 import Redis from "ioredis";
@@ -9126,7 +10605,7 @@ async function recordSuccess(ip, email) {
 async function auditLog(params) {
   try {
     await storage.securityEvents.create({
-      id: randomUUID23(),
+      id: randomUUID27(),
       email: params.email,
       ip: params.ip,
       userAgent: params.userAgent ?? null,
@@ -9252,12 +10731,12 @@ var db = drizzle2(connection, {
 });
 
 // server/routes/health.ts
-import { sql as sql17 } from "drizzle-orm";
+import { sql as sql21 } from "drizzle-orm";
 var router = Router();
 router.get("/health", async (_req, res) => {
   const checks = {};
   try {
-    await db.execute(sql17`SELECT 1`);
+    await db.execute(sql21`SELECT 1`);
     checks.db = "ok";
   } catch {
     checks.db = "error";
@@ -9378,7 +10857,102 @@ var validateProcesoFilter = validate(procesoFilterSchema, "query");
 var validatePagination = validate(paginationSchema, "query");
 var validateUuid = validate(uuidSchema, "params");
 
+// server/services/subscription.service.ts
+init_database_storage();
+var SubscriptionService = class {
+  // ── Plan activo ───────────────────────────────────────────────────────────
+  async getActivePlan(userId2) {
+    const suscripcion = await storage.suscripciones.getActive(userId2);
+    if (!suscripcion) return null;
+    const plan = await storage.planes.getPlan(suscripcion.planId);
+    return plan ?? null;
+  }
+  // ── Verificar límite de recursos ──────────────────────────────────────────
+  async checkLimit(userId2, tipo, mbExtra) {
+    const plan = await this.getActivePlan(userId2);
+    const usage = await storage.usageTracking.getByUserId(userId2);
+    const maxProcesos = plan?.maxProcesos ?? 5;
+    const maxClientes = plan?.maxClientes ?? 10;
+    const maxStorage = (plan?.maxStorageGb ?? 0) * 1024;
+    const actual = usage ? tipo === "procesos" ? usage.procesosUsados : tipo === "clientes" ? usage.clientesUsados : usage.storageUsadoMb : 0;
+    const maximo = tipo === "procesos" ? maxProcesos : tipo === "clientes" ? maxClientes : maxStorage;
+    if (maximo === -1) {
+      return { permitido: true, actual, maximo: -1, porcentaje: 0 };
+    }
+    const efectivo = tipo === "storage" ? actual + (mbExtra ?? 0) : actual + 1;
+    const permitido = maximo === 0 ? false : efectivo <= maximo;
+    const porcentaje = maximo === 0 ? 100 : Math.min(100, Math.round(actual / maximo * 100));
+    return { permitido, actual, maximo, porcentaje };
+  }
+  // ── Verificar feature ─────────────────────────────────────────────────────
+  async hasFeature(userId2, featureCode) {
+    const suscripcion = await storage.suscripciones.getActive(userId2);
+    if (!suscripcion) return false;
+    const { has } = await storage.featureStorage.hasFeature(suscripcion.planId, featureCode);
+    return has;
+  }
+  async getFeatureValue(userId2, featureCode) {
+    const suscripcion = await storage.suscripciones.getActive(userId2);
+    if (!suscripcion) return null;
+    const { has, value } = await storage.featureStorage.hasFeature(suscripcion.planId, featureCode);
+    return has ? value : null;
+  }
+  // ── Actualizar uso ────────────────────────────────────────────────────────
+  async incrementUsage(userId2, tipo, cantidad = 1) {
+    await storage.usageTracking.increment(userId2, tipo, cantidad);
+  }
+  async decrementUsage(userId2, tipo, cantidad = 1) {
+    await storage.usageTracking.decrement(userId2, tipo, cantidad);
+  }
+  // ── Activar suscripción (llamado desde webhook Wompi) ─────────────────────
+  async activateSuscripcion(userId2, planId, ciclo, extraUsers, pagoId) {
+    const existing = await storage.suscripciones.getActive(userId2);
+    if (existing) {
+      await storage.suscripciones.updateEstado(existing.id, "cancelada", /* @__PURE__ */ new Date());
+    }
+    const fechaInicio = /* @__PURE__ */ new Date();
+    const fechaVencimiento = new Date(fechaInicio);
+    if (ciclo === "mensual") {
+      fechaVencimiento.setMonth(fechaVencimiento.getMonth() + 1);
+    } else {
+      fechaVencimiento.setFullYear(fechaVencimiento.getFullYear() + 1);
+    }
+    const nueva = await storage.suscripciones.create({
+      userId: userId2,
+      planId,
+      ciclo,
+      estado: "activa",
+      fechaInicio,
+      fechaVencimiento,
+      autoRenovacion: true,
+      extraUsers
+    });
+    await storage.usageTracking.initForUser(userId2, nueva.id);
+  }
+  // ── Activar plan gratis (al registrarse) ──────────────────────────────────
+  async activatePlanGratis(userId2, tipo = "abogado") {
+    const existing = await storage.suscripciones.getActive(userId2);
+    if (existing) return;
+    const planId = tipo === "bufete" ? "plan-bufete-gratis" : "plan-abogado-gratis";
+    const fechaInicio = /* @__PURE__ */ new Date();
+    const fechaVencimiento = /* @__PURE__ */ new Date("2099-12-31T23:59:59");
+    const nueva = await storage.suscripciones.create({
+      userId: userId2,
+      planId,
+      ciclo: "mensual",
+      estado: "activa",
+      fechaInicio,
+      fechaVencimiento,
+      autoRenovacion: false,
+      extraUsers: 0
+    });
+    await storage.usageTracking.initForUser(userId2, nueva.id);
+  }
+};
+var subscriptionService = new SubscriptionService();
+
 // server/routes/auth.ts
+init_email_service();
 init_user_schema();
 var lawyerRegisterSchema = z3.object({
   email: z3.string().email("Correo electr\xF3nico inv\xE1lido"),
@@ -9403,7 +10977,6 @@ var firmRegisterSchema = z3.object({
   nit: z3.string().min(1, "El NIT es requerido"),
   address: z3.string().optional(),
   phone: z3.string().optional(),
-  planId: z3.string().optional(),
   // representante legal (opcional)
   repNombre: z3.string().optional(),
   repApellido: z3.string().optional(),
@@ -9421,6 +10994,19 @@ var loginSchema = z3.object({
   correo: z3.string().min(1, "El correo es requerido"),
   password: z3.string().min(1, "La contrase\xF1a es requerida")
 });
+var emailVerificationRequestSchema = z3.object({
+  email: z3.string().email("Correo electr\xF3nico inv\xE1lido")
+});
+var emailVerificationVerifySchema = z3.object({
+  email: z3.string().email("Correo electr\xF3nico inv\xE1lido"),
+  code: z3.string().length(6, "El c\xF3digo debe tener 6 d\xEDgitos")
+});
+async function queueEmailVerification(email, userId2) {
+  const code = await storage.otps.createEmailVerificationOtp(userId2);
+  sendEmailVerificationOtp(email, code).catch((err) => {
+    console.error("[email-verification] email send error:", err);
+  });
+}
 router2.post("/login", loginRateLimiter, async (req, res, next) => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
   const userAgent = req.headers["user-agent"] ?? null;
@@ -9444,6 +11030,13 @@ router2.post("/login", loginRateLimiter, async (req, res, next) => {
       auditLog({ email, ip, userAgent, eventType: "login_fail", success: false }).catch(() => {
       });
       return res.status(401).json({ error: "Credenciales inv\xE1lidas" });
+    }
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        error: "Debes verificar tu correo electr\xF3nico antes de ingresar.",
+        code: "EMAIL_NOT_VERIFIED",
+        requiresEmailVerification: true
+      });
     }
     const role = await storage.getRol(user.rolId ?? 0);
     if (!role) throw new Error("El usuario no tiene rol asignado");
@@ -9514,23 +11107,22 @@ router2.post(
         });
       }
       const hashedPassword = await hashPassword(password);
-      const defaultPlan = await storage.getPlan("free-plan");
-      const planId = defaultPlan ? "free-plan" : (await storage.getPlanes())[0]?.id;
       const lawyer = await storage.createLawyerWithUser(
         {
           id: crypto.randomUUID(),
           email,
           passwordHash: hashedPassword,
-          planId: planId || "free-plan",
           rolId: EnumRol.ABOGADO.id,
-          name: `${firstName} ${lastName}`
+          name: `${firstName} ${lastName}`,
+          emailVerified: false
         },
         {
           id: crypto.randomUUID(),
           specialization: specialty ?? null,
           licenseNumber,
           isIndependent: isIndependent ?? true,
-          firmId: firmId || null
+          firmId: firmId || null,
+          professionalVerificationStatus: "pendiente"
         },
         {
           nombre: firstName,
@@ -9543,8 +11135,13 @@ router2.post(
           municipioId: municipioId ?? null
         }
       );
+      await subscriptionService.activatePlanGratis(lawyer.userId, "abogado");
+      await queueEmailVerification(email, lawyer.userId);
       return res.status(201).json({
-        message: "Abogado creado exitosamente",
+        message: "Abogado creado exitosamente. Verifica tu correo para activar el acceso.",
+        requiresEmailVerification: true,
+        email,
+        professionalVerificationStatus: "pendiente",
         data: lawyer
       });
     } catch (error) {
@@ -9565,7 +11162,6 @@ router2.post(
         nit,
         address,
         phone,
-        planId,
         repNombre,
         repApellido,
         repDocumento,
@@ -9584,8 +11180,6 @@ router2.post(
         });
       }
       const hashedPassword = await hashPassword(password);
-      const defaultPlan = await storage.getPlan(planId || "free-plan");
-      const userPlanId = defaultPlan ? planId || "free-plan" : (await storage.getPlanes())[0]?.id || "free-plan";
       const repData = repNombre && repDocumento ? {
         persona: {
           nombre: repNombre,
@@ -9607,22 +11201,25 @@ router2.post(
           id: crypto.randomUUID(),
           email,
           passwordHash: hashedPassword,
-          planId: userPlanId,
           rolId: 5,
-          name
+          name,
+          emailVerified: false
         },
         {
           id: crypto.randomUUID(),
           name,
           nit,
           address,
-          phone,
-          planId: userPlanId
+          phone
         },
         repData
       );
+      await subscriptionService.activatePlanGratis(firm.userId, "bufete");
+      await queueEmailVerification(email, firm.userId);
       return res.status(201).json({
-        message: "Firma creada exitosamente",
+        message: "Firma creada exitosamente. Verifica tu correo para activar el acceso.",
+        requiresEmailVerification: true,
+        email,
         data: firm
       });
     } catch (error) {
@@ -9772,6 +11369,45 @@ router2.put("/auth/change-password", authenticate, async (req, res, next) => {
     next(err);
   }
 });
+router2.post("/auth/request-email-verification", registerRateLimiter, async (req, res, next) => {
+  try {
+    const { email } = emailVerificationRequestSchema.parse(req.body);
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
+    if (user && user.isActive && !user.emailVerified) {
+      await queueEmailVerification(user.email, user.id);
+    }
+    return res.json({
+      message: "Si el correo existe y a\xFAn no est\xE1 verificado, recibir\xE1s un c\xF3digo en breve."
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router2.post("/auth/verify-email", registerRateLimiter, async (req, res, next) => {
+  try {
+    const { email, code } = emailVerificationVerifySchema.parse(req.body);
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
+    const GENERIC_ERROR = "C\xF3digo inv\xE1lido o expirado.";
+    if (!user || !user.isActive) {
+      return res.status(400).json({ error: GENERIC_ERROR });
+    }
+    if (user.emailVerified) {
+      return res.json({ message: "El correo ya estaba verificado." });
+    }
+    const result = await storage.otps.verifyEmailVerificationOtp(user.id, code);
+    if (result === "too_many_attempts") {
+      return res.status(429).json({ error: "Demasiados intentos fallidos. Solicita un nuevo c\xF3digo." });
+    }
+    if (result !== "valid") {
+      return res.status(400).json({ error: GENERIC_ERROR });
+    }
+    await storage.otps.markEmailVerificationUsed(user.id);
+    await storage.users.updateUser(user.id, { emailVerified: true });
+    return res.json({ message: "Correo verificado correctamente." });
+  } catch (err) {
+    next(err);
+  }
+});
 router2.get("/permisos", authenticate, async (req, res, next) => {
   try {
     const user = req.user;
@@ -9790,28 +11426,28 @@ import { Router as Router3 } from "express";
 import { z as z4 } from "zod";
 
 // server/services/lawyer-profile.service.ts
-import { eq as eq43 } from "drizzle-orm";
+import { eq as eq53 } from "drizzle-orm";
 init_lawyer_profile_schema();
 init_user_schema();
 init_auth();
 init_database_storage();
-import { randomUUID as randomUUID25 } from "node:crypto";
+import { randomUUID as randomUUID29 } from "node:crypto";
 var LawyerProfileService = class {
   async getAll() {
     return db.select().from(lawyerProfiles);
   }
   async getById(id) {
-    const result = await db.select().from(lawyerProfiles).where(eq43(lawyerProfiles.id, id));
+    const result = await db.select().from(lawyerProfiles).where(eq53(lawyerProfiles.id, id));
     return result[0];
   }
   async getByEmail(email) {
-    const userResult = await db.select().from(users).where(eq43(users.email, email));
+    const userResult = await db.select().from(users).where(eq53(users.email, email));
     if (!userResult[0]) return null;
-    const result = await db.select().from(lawyerProfiles).where(eq43(lawyerProfiles.userId, userResult[0].id));
+    const result = await db.select().from(lawyerProfiles).where(eq53(lawyerProfiles.userId, userResult[0].id));
     return result[0];
   }
   async getByUserId(userId2) {
-    const result = await db.select().from(lawyerProfiles).where(eq43(lawyerProfiles.userId, userId2));
+    const result = await db.select().from(lawyerProfiles).where(eq53(lawyerProfiles.userId, userId2));
     return result[0];
   }
   async create(data) {
@@ -9820,20 +11456,19 @@ var LawyerProfileService = class {
   }
   async update(id, data) {
     const { createdAt, ...updateData } = data;
-    await db.update(lawyerProfiles).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq43(lawyerProfiles.id, id));
+    await db.update(lawyerProfiles).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq53(lawyerProfiles.id, id));
     return this.getById(id);
   }
   async delete(id) {
-    await db.delete(lawyerProfiles).where(eq43(lawyerProfiles.id, id));
+    await db.delete(lawyerProfiles).where(eq53(lawyerProfiles.id, id));
   }
   async createAbogado(insertCliente, password, lawyerId) {
     const hashedPassword = await hashPassword(password);
     const cliente = await storage.createLawyerWithUser(
       {
-        id: randomUUID25(),
+        id: randomUUID29(),
         email: insertCliente.correo,
         passwordHash: hashedPassword,
-        planId: "",
         rolId: 4
       },
       {
@@ -9847,8 +11482,8 @@ var lawyerProfileService = new LawyerProfileService();
 
 // server/services/cliente.service.ts
 init_schema();
-import { eq as eq44, and as and30, or as or7, like as like6, inArray as inArray10 } from "drizzle-orm";
-import { randomUUID as randomUUID26 } from "crypto";
+import { eq as eq54, or as or8, like as like7 } from "drizzle-orm";
+import { randomUUID as randomUUID30 } from "crypto";
 init_auth();
 init_database_storage();
 
@@ -9914,6 +11549,10 @@ var OwnershipPolicyService = class {
   async validateConsistenciaClienteProceso(clienteId, procesoEsPrivado) {
     const ownership = await storage.clienteOwnership.getActive(clienteId);
     if (!ownership) return;
+    if (ownership.ownerType === "abogado") {
+      const firmId = await this.getFirmId(ownership.ownerId);
+      if (!firmId) return;
+    }
     const clienteEsPrivado = ownership.ownerType === "abogado";
     if (clienteEsPrivado && !procesoEsPrivado) {
       throw new Error(
@@ -9952,19 +11591,7 @@ var ClientesService = class {
   // LIST — firma
   // ----------------------------------------------------------------
   async getClientesByFirm(firmId, limit, offset, filter) {
-    const lawyers = await storage.abogados.getLawyersByFirm(firmId);
-    const lawyerIds = lawyers.map((l) => l.id);
-    const allIds = [.../* @__PURE__ */ new Set([...lawyerIds, firmId])];
-    const [lawyerRelations, firmClientIds] = await Promise.all([
-      db.select({ clientId: lawyerClients.clientId }).from(lawyerClients).where(and30(inArray10(lawyerClients.lawyerId, allIds), eq44(lawyerClients.status, "active"))),
-      storage.firmClients.getActiveClientIdsByFirm(firmId)
-    ]);
-    const clientIds = [
-      .../* @__PURE__ */ new Set([
-        ...lawyerRelations.map((r) => r.clientId),
-        ...firmClientIds
-      ])
-    ];
+    const clientIds = await storage.clienteOwnership.getClienteIdsByOwner("bufete", firmId);
     if (clientIds.length === 0) return [];
     const results = [];
     for (const id of clientIds.slice(offset, offset + limit)) {
@@ -9990,10 +11617,9 @@ var ClientesService = class {
     const displayName = insertCliente.tipo === "natural" ? `${insertCliente.nombre} ${insertCliente.apellido}` : insertCliente.razonSocial;
     const cliente = await db.transaction(async (tx) => {
       const user = await storage.users.createUser({
-        id: randomUUID26(),
+        id: randomUUID30(),
         email,
         passwordHash: hashedPassword,
-        planId: "",
         rolId: 4,
         name: displayName
       }, tx);
@@ -10020,9 +11646,17 @@ var ClientesService = class {
     });
     if (ownershipDecision.ownerType === "bufete") {
       await storage.firmClients.createFirmClient(ownershipDecision.ownerId, cliente.id);
+      if (rolNombre === "abogado" && actorId) {
+        await storage.lawyerClients.createLawyerClient({
+          id: randomUUID30(),
+          lawyerId: actorId,
+          clientId: cliente.id,
+          status: "active"
+        });
+      }
     } else if (ownershipDecision.ownerType === "abogado") {
       await storage.lawyerClients.createLawyerClient({
-        id: randomUUID26(),
+        id: randomUUID30(),
         lawyerId: ownershipDecision.ownerId,
         clientId: cliente.id,
         status: "active"
@@ -10056,14 +11690,14 @@ var ClientesService = class {
   _applyFilters(conditions, filter) {
     if (filter?.search) {
       const s = `${filter.search}%`;
-      conditions.push(or7(
-        like6(personas.nombre, s),
-        like6(personas.documento, s),
-        like6(clientesEmpresa.razonSocial, s)
+      conditions.push(or8(
+        like7(personas.nombre, s),
+        like7(personas.documento, s),
+        like7(clientesEmpresa.razonSocial, s)
       ));
     }
     if (filter?.activo !== void 0) {
-      conditions.push(eq44(clientes.activo, filter.activo));
+      conditions.push(eq54(clientes.activo, filter.activo));
     }
   }
 };
@@ -10079,37 +11713,87 @@ import jwt2 from "jsonwebtoken";
 // server/services/chat.service.ts
 init_database_storage();
 init_s3_storage();
-import { randomUUID as randomUUID28 } from "crypto";
+import { randomUUID as randomUUID32 } from "crypto";
+import { and as and39, asc as asc6, eq as eq55, inArray as inArray11, sql as sql22 } from "drizzle-orm";
+init_schema();
 var ChatService = class {
+  async resolveSupportAgentUserId(requesterId) {
+    const db2 = storage.db;
+    const rows = await db2.select({ id: users.id }).from(users).innerJoin(roles, eq55(users.rolId, roles.id)).where(
+      and39(
+        eq55(users.isActive, true),
+        inArray11(roles.nombre, ["admin_soporte", "admin_super", "admin_finanzas"])
+      )
+    ).orderBy(
+      sql22`CASE ${roles.nombre}
+          WHEN 'admin_soporte' THEN 0
+          WHEN 'admin_super' THEN 1
+          WHEN 'admin_finanzas' THEN 2
+          ELSE 9
+        END`,
+      asc6(users.createdAt)
+    );
+    const supportAgent = rows.find((row) => row.id !== requesterId) ?? rows[0];
+    if (!supportAgent) {
+      throw new Error("NO_SUPPORT_ADMIN");
+    }
+    return supportAgent.id;
+  }
+  async assertConversationAccess(user, conversationId) {
+    const conversation = await storage.chat.getConversation(conversationId);
+    if (!conversation) throw new Error("NotFound");
+    const isMember = await storage.chat.isParticipant(conversationId, user.id);
+    if (!isMember) throw new Error("Forbidden");
+    if (conversation.type === "admin_support" || user.rol?.nombre === "cliente") {
+      return { id: conversation.id, type: conversation.type };
+    }
+    const hasChat = await subscriptionService.hasFeature(user.id, "chat");
+    if (!hasChat) throw new Error("FeatureUnavailable");
+    return { id: conversation.id, type: conversation.type };
+  }
   /**
    * Get or create a direct (1-to-1) conversation between two users.
    * userIdA must already be validated as the authenticated caller.
    */
   async getOrCreateConversation(userIdA, userIdB, type) {
-    const existing = await storage.chat.findDirectConversation(userIdA, userIdB);
+    const existing = await storage.chat.findTwoPartyConversation(userIdA, userIdB, type);
     if (existing) {
       const dtos2 = await storage.chat.getConversationsForUser(userIdA);
       return dtos2.find((c) => c.id === existing.id);
     }
-    const convId = randomUUID28();
-    await storage.chat.createConversation({ id: convId, type });
+    const convId = randomUUID32();
+    await storage.chat.createConversation({
+      id: convId,
+      type,
+      name: type === "admin_support" ? "Soporte LexTrack" : null
+    });
     await storage.chat.addParticipant({
-      id: randomUUID28(),
+      id: randomUUID32(),
       conversationId: convId,
       userId: userIdA
     });
     await storage.chat.addParticipant({
-      id: randomUUID28(),
+      id: randomUUID32(),
       conversationId: convId,
       userId: userIdB
     });
     const dtos = await storage.chat.getConversationsForUser(userIdA);
     return dtos.find((c) => c.id === convId);
   }
-  async getConversations(userId2, limit = 20, offset = 0) {
-    const conversations2 = await storage.chat.getConversationsForUser(userId2, limit, offset);
-    const total = await storage.chat.getConversationsCount(userId2);
+  async getOrCreateSupportConversationForUser(userId2) {
+    const supportAgentId = await this.resolveSupportAgentUserId(userId2);
+    return this.getOrCreateConversation(userId2, supportAgentId, "admin_support");
+  }
+  async getOrCreateSupportConversationForAdmin(adminUserId, targetUserId) {
+    return this.getOrCreateConversation(adminUserId, targetUserId, "admin_support");
+  }
+  async getConversations(userId2, limit = 20, offset = 0, type) {
+    const conversations2 = await storage.chat.getConversationsForUser(userId2, limit, offset, type);
+    const total = await storage.chat.getConversationsCount(userId2, type);
     return { conversations: conversations2, total };
+  }
+  async getUnreadCount(userId2) {
+    return storage.chat.getTotalUnreadCount(userId2);
   }
   async getMessages(conversationId, userId2, limit = 50, offset = 0) {
     const isMember = await storage.chat.isParticipant(conversationId, userId2);
@@ -10121,7 +11805,7 @@ var ChatService = class {
     const isMember = await storage.chat.isParticipant(conversationId, senderId);
     if (!isMember) throw new Error("Forbidden");
     return storage.chat.createMessage({
-      id: randomUUID28(),
+      id: randomUUID32(),
       conversationId,
       senderId,
       content,
@@ -10138,10 +11822,10 @@ var ChatService = class {
   async getOrCreateCommunityConversation(initiatorId, authorId, sourcePostId) {
     const existing = await storage.chat.findConversationByPost(initiatorId, authorId, sourcePostId);
     if (existing) return { id: existing.id };
-    const convId = randomUUID28();
+    const convId = randomUUID32();
     await storage.chat.createConversation({ id: convId, type: "community", sourcePostId });
-    await storage.chat.addParticipant({ id: randomUUID28(), conversationId: convId, userId: initiatorId });
-    await storage.chat.addParticipant({ id: randomUUID28(), conversationId: convId, userId: authorId });
+    await storage.chat.addParticipant({ id: randomUUID32(), conversationId: convId, userId: initiatorId });
+    await storage.chat.addParticipant({ id: randomUUID32(), conversationId: convId, userId: authorId });
     return { id: convId };
   }
   async getParticipantUserIds(conversationId) {
@@ -10159,7 +11843,7 @@ var ChatService = class {
     const isMember = await storage.chat.isParticipant(params.conversationId, params.senderId);
     if (!isMember) throw new Error("Forbidden");
     return storage.chat.createMessage({
-      id: randomUUID28(),
+      id: randomUUID32(),
       conversationId: params.conversationId,
       senderId: params.senderId,
       content: null,
@@ -10219,9 +11903,9 @@ var userSockets = /* @__PURE__ */ new Map();
 var rateLimits = /* @__PURE__ */ new Map();
 var cleanupInterval = null;
 function log(level, message, meta) {
-  const timestamp44 = (/* @__PURE__ */ new Date()).toISOString();
+  const timestamp50 = (/* @__PURE__ */ new Date()).toISOString();
   const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
-  console.log(`[WebSocket][${timestamp44}][${level}] ${message}${metaStr}`);
+  console.log(`[WebSocket][${timestamp50}][${level}] ${message}${metaStr}`);
 }
 function send(socket, payload) {
   if (socket.ws.readyState === WebSocket.OPEN) {
@@ -10624,6 +12308,14 @@ process.on("exit", () => {
 });
 
 // server/services/notificacion.service.ts
+init_email_service();
+function joinAppUrl2(path4) {
+  const appUrl = process.env.APP_URL?.trim();
+  if (!appUrl) return void 0;
+  const base = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+  const nextPath = path4.startsWith("/") ? path4 : `/${path4}`;
+  return `${base}${nextPath}`;
+}
 var NotificacionesService = class {
   async createNotificacion(data) {
     return storage.notificaciones.createNotificacion(data);
@@ -10643,6 +12335,10 @@ var NotificacionesService = class {
       if (lawyer?.userId) {
         broadcastToUser(lawyer.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
       }
+      queueNotificationEmail(lawyer?.user?.email, titulo, mensaje, {
+        actionUrl: joinAppUrl2(`/case/${procesoId}`),
+        actionLabel: "Ver proceso"
+      });
     } catch (err) {
       console.error("[notificaciones] notifyLawyer error:", err);
     }
@@ -10661,6 +12357,10 @@ var NotificacionesService = class {
       if (cliente?.userId) {
         broadcastToUser(cliente.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
       }
+      queueNotificationEmail(cliente?.user?.email, titulo, mensaje, {
+        actionUrl: joinAppUrl2(`/portal/case?id=${encodeURIComponent(procesoId)}`),
+        actionLabel: "Ver proceso"
+      });
     } catch (err) {
       console.error("[notificaciones] notifyCliente error:", err);
     }
@@ -10679,6 +12379,11 @@ var NotificacionesService = class {
       if (firm?.userId) {
         broadcastToUser(firm.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
       }
+      const firmUser = firm?.userId ? await storage.users.getUserById(firm.userId) : void 0;
+      queueNotificationEmail(firmUser?.email, titulo, mensaje, {
+        actionUrl: joinAppUrl2(`/case/${procesoId}`),
+        actionLabel: "Ver proceso"
+      });
     } catch (err) {
       console.error("[notificaciones] notifyFirm error:", err);
     }
@@ -10910,7 +12615,7 @@ var ProcesosService = class {
 var procesosService = new ProcesosService();
 
 // server/services/auth.service.ts
-import { eq as eq45 } from "drizzle-orm";
+import { eq as eq56 } from "drizzle-orm";
 init_schema();
 var permisosCache2 = /* @__PURE__ */ new Map();
 var AuthService = class {
@@ -10918,23 +12623,23 @@ var AuthService = class {
     return db.query.roles.findMany();
   }
   async getRol(id) {
-    return db.query.roles.findFirst({ where: eq45(roles.id, id) });
+    return db.query.roles.findFirst({ where: eq56(roles.id, id) });
   }
   async getRolByNombre(nombre) {
-    return db.query.roles.findFirst({ where: eq45(roles.nombre, nombre) });
+    return db.query.roles.findFirst({ where: eq56(roles.nombre, nombre) });
   }
   async createRol(rol) {
     await db.insert(roles).values(rol);
     const created = await db.query.roles.findFirst({
-      where: eq45(roles.nombre, rol.nombre)
+      where: eq56(roles.nombre, rol.nombre)
     });
     if (!created) throw new Error("Failed to create role");
     return created;
   }
   async deleteRol(id) {
     await db.transaction(async (tx) => {
-      await tx.delete(rolesPermisos).where(eq45(rolesPermisos.rolId, id));
-      await tx.delete(roles).where(eq45(roles.id, id));
+      await tx.delete(rolesPermisos).where(eq56(rolesPermisos.rolId, id));
+      await tx.delete(roles).where(eq56(roles.id, id));
     });
   }
   async getPermisos() {
@@ -10958,7 +12663,7 @@ var AuthService = class {
       return permisosCache2.get(cacheKey);
     }
     const result = await db.query.rolesPermisos.findMany({
-      where: eq45(rolesPermisos.rolId, rolId),
+      where: eq56(rolesPermisos.rolId, rolId),
       with: { permiso: true }
     });
     const permisosList = result.filter((rp) => rp.permiso.activo).map((rp) => rp.permiso.codigo);
@@ -10969,6 +12674,7 @@ var AuthService = class {
 var authService = new AuthService();
 
 // server/routes/clientes.ts
+init_email_service();
 var registerClienteNaturalSchema = z4.object({
   correo: z4.string().email("Correo inv\xE1lido"),
   password: z4.string().min(8, "Contrase\xF1a m\xEDnimo 8 caracteres"),
@@ -10999,6 +12705,12 @@ var registerEmpresaSchema = z4.object({
   repTelefono: z4.string().max(30).optional()
 });
 var router3 = Router3();
+async function queueEmailVerification2(email, userId2) {
+  const code = await storage.otps.createEmailVerificationOtp(userId2);
+  sendEmailVerificationOtp(email, code).catch((err) => {
+    console.error("[email-verification] email send error:", err);
+  });
+}
 router3.get("/clientes", authenticate, requirePermission("clientes.ver"), async (req, res, next) => {
   try {
     const user = req.user;
@@ -11023,8 +12735,8 @@ router3.get("/clientes/:id", authenticate, requirePermission("clientes.ver"), as
     const rol = user?.rol?.nombre;
     const idProfile = user?.idProfile;
     if (rol === "abogado") {
-      const relations36 = await storage.lawyerClients.getClientLawyers(clienteId);
-      const hasAccess = relations36.some((r) => r.lawyerId === idProfile);
+      const relations38 = await storage.lawyerClients.getClientLawyers(clienteId);
+      const hasAccess = relations38.some((r) => r.lawyerId === idProfile);
       if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este cliente" });
     } else if (rol === "bufete") {
       const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(idProfile);
@@ -11081,6 +12793,16 @@ router3.post("/clientes", authenticate, requirePermission("clientes.crear"), asy
       });
       representanteLegalId = rep.id;
     }
+    const limitCheck = await subscriptionService.checkLimit(user.id, "clientes");
+    if (!limitCheck.permitido) {
+      return res.status(402).json({
+        error: "LIMIT_REACHED",
+        tipo: "clientes",
+        actual: limitCheck.actual,
+        maximo: limitCheck.maximo,
+        mensaje: "Has alcanzado el l\xEDmite de clientes de tu plan. Actualiza para continuar."
+      });
+    }
     const newCliente = await clientesService.createCliente(
       {
         ...rest,
@@ -11103,6 +12825,7 @@ router3.post("/clientes", authenticate, requirePermission("clientes.crear"), asy
         userId: user?.id
       }
     );
+    await subscriptionService.incrementUsage(user.id, "clientes");
     res.status(201).json(newCliente);
   } catch (err) {
     next(err);
@@ -11246,8 +12969,8 @@ router3.put("/clientes/:id", authenticate, requirePermission("clientes.editar"),
     const idProfile = user?.idProfile;
     const rol = user?.rol?.nombre;
     if (rol === "abogado") {
-      const relations36 = await storage.lawyerClients.getClientLawyers(id);
-      const hasAccess = relations36.some((r) => r.lawyerId === idProfile);
+      const relations38 = await storage.lawyerClients.getClientLawyers(id);
+      const hasAccess = relations38.some((r) => r.lawyerId === idProfile);
       if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este cliente" });
     } else if (rol === "bufete") {
       const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(idProfile);
@@ -11346,7 +13069,14 @@ router3.post("/register/cliente", registerRateLimiter, validate(registerClienteN
       correo,
       abogadoId
     );
-    res.status(201).json({ message: "Cliente creado exitosamente", data: cliente });
+    await storage.users.updateUser(cliente.userId, { emailVerified: false });
+    await queueEmailVerification2(correo, cliente.userId);
+    res.status(201).json({
+      message: "Cliente creado exitosamente. Verifica tu correo para activar el acceso.",
+      requiresEmailVerification: true,
+      email: correo,
+      data: cliente
+    });
   } catch (error) {
     next(error);
   }
@@ -11403,7 +13133,14 @@ router3.post("/register/empresa", registerRateLimiter, validate(registerEmpresaS
       correo,
       abogadoId
     );
-    res.status(201).json({ message: "Empresa registrada exitosamente", data: cliente });
+    await storage.users.updateUser(cliente.userId, { emailVerified: false });
+    await queueEmailVerification2(correo, cliente.userId);
+    res.status(201).json({
+      message: "Empresa registrada exitosamente. Verifica tu correo para activar el acceso.",
+      requiresEmailVerification: true,
+      email: correo,
+      data: cliente
+    });
   } catch (error) {
     next(error);
   }
@@ -11447,39 +13184,21 @@ init_auth();
 init_database_storage();
 init_tipo_asignacion_schema();
 import { Router as Router4 } from "express";
+import { randomUUID as randomUUID33 } from "crypto";
 
 // server/services/tarea.service.ts
 init_database_storage();
-
-// server/middleware/http-exception.ts
-var HttpException = class _HttpException extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-    this.name = "HttpException";
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-  static badRequest(message) {
-    return new _HttpException(400, message);
-  }
-  static unauthorized(message = "No autenticado") {
-    return new _HttpException(401, message);
-  }
-  static forbidden(message = "Sin permisos para esta acci\xF3n") {
-    return new _HttpException(403, message);
-  }
-  static notFound(message = "Recurso no encontrado") {
-    return new _HttpException(404, message);
-  }
-  static conflict(message) {
-    return new _HttpException(409, message);
-  }
-  static unprocessable(message) {
-    return new _HttpException(422, message);
+init_http_exception();
+var TaskSubtasksPendingError = class extends Error {
+  constructor(tareaTitulo, subtareasPendientes) {
+    super("No se puede completar la tarea mientras existan subtareas pendientes");
+    this.tareaTitulo = tareaTitulo;
+    this.subtareasPendientes = subtareasPendientes;
+    this.status = 422;
+    this.code = "SUBTASKS_PENDING";
+    this.name = "TaskSubtasksPendingError";
   }
 };
-
-// server/services/tarea.service.ts
 var ALLOWED_TRANSITIONS = {
   pendiente: ["en_progreso", "completada", "cancelada"],
   en_progreso: ["pendiente", "completada", "cancelada"],
@@ -11675,6 +13394,20 @@ var TareaService = class {
       if (caller.id !== tarea.asignadoA) {
         throw HttpException.unprocessable(
           `No se puede completar la tarea ya que no esta asignada a usted, la tarea pertenece a ${tarea.asignadoANombre}`
+        );
+      }
+    }
+    if (dto.estado === "completada") {
+      const subtareas = await storage.tareaExtensions.getSubtareas(tareaId);
+      const subtareasPendientes = subtareas.filter((sub) => sub.estado !== "completada");
+      if (subtareasPendientes.length > 0) {
+        throw new TaskSubtasksPendingError(
+          tarea.titulo,
+          subtareasPendientes.map((sub) => ({
+            id: sub.id,
+            titulo: sub.titulo,
+            estado: sub.estado
+          }))
         );
       }
     }
@@ -11911,6 +13644,9 @@ async function assertProcesoAccess2(req, res, procesoId) {
       updateBest("owner", "editar");
     }
   }
+  if (rol === "cliente" && proceso.clienteId === idProfile) {
+    updateBest("shared", "ver");
+  }
   if (rol === "bufete" || rol === "corporacion" || rol === "cliente") {
     const sharedWithType = rol;
     const sharing = await storage.procesoSharing.findActive(procesoId, sharedWithType, idProfile);
@@ -11957,16 +13693,18 @@ router4.get("/procesos", authenticate, requirePermission("procesos.ver"), async 
     const user = req.user;
     const idProfile = user.idProfile;
     const rol = user.rol.nombre;
-    const { limit, offset, estadoCodigo, search, hasResponsable } = req.query;
+    const { limit, offset, estadoCodigo, search, hasResponsable, clienteId } = req.query;
     const limitNum = Math.min(Math.max(limit ? parseInt(limit, 10) : 10, 1), 100);
     const offsetNum = Math.max(offset ? parseInt(offset, 10) : 0, 0);
     const filter = {
       estadoCodigo,
       search,
-      hasResponsable: hasResponsable !== void 0 ? hasResponsable === "true" : void 0
+      hasResponsable: hasResponsable !== void 0 ? hasResponsable === "true" : void 0,
+      clienteId
     };
     if (!idProfile) return res.status(400).json({ error: "idProfile requerido" });
     let procesos2;
+    let totalCount = 0;
     switch (rol) {
       case "abogado": {
         const ownedIds = await storage.procesoOwnership.getProcesoIdsByOwner("abogado", idProfile);
@@ -11982,6 +13720,7 @@ router4.get("/procesos", authenticate, requirePermission("procesos.ver"), async 
         }
         const allIds = [.../* @__PURE__ */ new Set([...ownedIds, ...validAssignedIds])];
         procesos2 = await storage.getProcesosByIds(allIds, filter);
+        totalCount = procesos2.length;
         break;
       }
       case "bufete": {
@@ -11989,22 +13728,25 @@ router4.get("/procesos", authenticate, requirePermission("procesos.ver"), async 
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("bufete", idProfile);
         const allIds = [.../* @__PURE__ */ new Set([...ownedIds, ...sharedIds])];
         procesos2 = await storage.getProcesosByIds(allIds, filter);
+        totalCount = procesos2.length;
         break;
       }
       case "corporacion": {
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("corporacion", idProfile);
         procesos2 = await storage.getProcesosByIds(sharedIds, filter);
+        totalCount = procesos2.length;
         break;
       }
       case "cliente": {
-        const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("cliente", idProfile);
-        procesos2 = await storage.getProcesosByIds(sharedIds, filter);
+        const result2 = await storage.getProcesosByClienteId(idProfile, limitNum, offsetNum, filter);
+        procesos2 = result2.data;
+        totalCount = result2.total;
         break;
       }
       default:
         return res.status(403).json({ error: "Rol no autorizado" });
     }
-    const result = { data: procesos2, total: procesos2.length };
+    const result = { data: procesos2, total: totalCount };
     return res.json(await withTareas(result));
   } catch (err) {
     next(err);
@@ -12075,6 +13817,16 @@ router4.post("/procesos", authenticate, requirePermission("procesos.crear"), asy
     const { rol, idProfile, id: userId2, UserName } = tokenPayload;
     if (!rol) return res.status(400).json({ error: "rol is required" });
     if (!idProfile || typeof idProfile !== "string") return res.status(400).json({ error: "idProfile is required" });
+    const limitCheck = await subscriptionService.checkLimit(userId2, "procesos");
+    if (!limitCheck.permitido) {
+      return res.status(402).json({
+        error: "LIMIT_REACHED",
+        tipo: "procesos",
+        actual: limitCheck.actual,
+        maximo: limitCheck.maximo,
+        mensaje: "Has alcanzado el l\xEDmite de procesos de tu plan. Actualiza para continuar."
+      });
+    }
     const newProceso = await storage.createProceso(req.body);
     if (!newProceso) {
       return res.status(500).json({ error: "Error al crear el proceso" });
@@ -12121,6 +13873,10 @@ router4.post("/procesos", authenticate, requirePermission("procesos.crear"), asy
           razonAsignacion: "Abogado creador del proceso",
           asignadoPor: userId2
         });
+        await storage.setResponsable(newProceso.id, idProfile, {
+          asignadoPorNombre: UserName ?? null,
+          razon: "Responsable inicial (abogado creador)"
+        });
         break;
       case "bufete":
         if (!req.body.lawyerId) return res.status(400).json({ error: "lawyerId is required para bufete" });
@@ -12130,6 +13886,10 @@ router4.post("/procesos", authenticate, requirePermission("procesos.crear"), asy
           razonAsignacion: `Asignado por bufete ${UserName}`,
           asignadoPor: userId2
         });
+        await storage.setResponsable(newProceso.id, req.body.lawyerId, {
+          asignadoPorNombre: UserName ?? null,
+          razon: `Responsable inicial asignado por bufete ${UserName}`
+        });
         break;
       case "corporacion":
         if (!req.body.lawyerId) return res.status(400).json({ error: "lawyerId is required para corporacion" });
@@ -12138,6 +13898,10 @@ router4.post("/procesos", authenticate, requirePermission("procesos.crear"), asy
           tipoAsignacionId: TIPO_ASIGNACION_IDS.SOLICITUD_CLIENTE,
           razonAsignacion: `Contratado por corporaci\xF3n ${UserName}`,
           asignadoPor: userId2
+        });
+        await storage.setResponsable(newProceso.id, req.body.lawyerId, {
+          asignadoPorNombre: UserName ?? null,
+          razon: `Responsable inicial asignado por corporaci\xF3n ${UserName}`
         });
         break;
       case "cliente":
@@ -12152,6 +13916,7 @@ router4.post("/procesos", authenticate, requirePermission("procesos.crear"), asy
       await storage.community.setPostProceso(communityPostId, newProceso.id).catch(() => {
       });
     }
+    await subscriptionService.incrementUsage(userId2, "procesos");
     res.status(201).json(newProceso);
   } catch (err) {
     next(err);
@@ -12188,6 +13953,8 @@ router4.delete("/procesos/:id", authenticate, requirePermission("procesos.elimin
     const { role } = access;
     if (role !== "owner") return res.status(403).json({ error: "Solo el propietario puede eliminar el proceso" });
     await procesosService.deleteProceso(id);
+    const user = req.user;
+    await subscriptionService.decrementUsage(user.id, "procesos");
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -12306,7 +14073,7 @@ router4.post("/tipos-proceso", authenticate, requirePermission("procesos.crear")
 });
 router4.put("/tipos-proceso/:id", authenticate, requirePermission("procesos.editar"), async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = Array.isArray(req.params.id) ? parseInt(req.params.id[0]) : parseInt(req.params.id);
     if (isNaN(id)) {
       return res.status(400).json({ error: "ID inv\xE1lido" });
     }
@@ -12322,7 +14089,7 @@ router4.put("/tipos-proceso/:id", authenticate, requirePermission("procesos.edit
 });
 router4.delete("/tipos-proceso/:id", authenticate, requirePermission("procesos.eliminar"), async (req, res, next) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = Array.isArray(req.params.id) ? parseInt(req.params.id[0]) : parseInt(req.params.id);
     if (isNaN(id)) {
       return res.status(400).json({ error: "ID inv\xE1lido" });
     }
@@ -12365,11 +14132,11 @@ router4.post("/actualizaciones", authenticate, requirePermission("actualizacione
 });
 router4.delete("/actualizaciones/:id", authenticate, requirePermission("actualizaciones.eliminar"), async (req, res, next) => {
   try {
-    const actualizacion = await storage.getActualizacion(req.params.id);
+    const actualizacion = await storage.getActualizacion(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
     if (!actualizacion) return res.status(404).json({ error: "Actualizaci\xF3n no encontrada" });
     const access = await assertProcesoAccess2(req, res, actualizacion.procesoId);
     if (!access) return;
-    await procesosService.deleteActualizacion(req.params.id);
+    await procesosService.deleteActualizacion(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -12440,7 +14207,26 @@ router4.get("/legal-stages", authenticate, async (req, res, next) => {
     if (procesoId) {
       const proceso = await storage.getProceso(procesoId);
       if (proceso) {
-        currentStage = proceso.legalStage ?? null;
+        try {
+          const ultimosEstados = await storage.procesoEtapaHistorial.getUltimoEstadoPorEtapa(procesoId);
+          const etapasValidas = await storage.legalStages.getByTipoProceso(proceso.tipoProcesoId ?? null);
+          const codigosValidos = new Set(etapasValidas.map((e) => e.codigo));
+          const estadosFinales = ["COMPLETADA", "CANCELADA", "SUSPENDIDA"];
+          let etapaMasReciente = null;
+          let fechaMasReciente = null;
+          for (const [etapa, registro] of Object.entries(ultimosEstados)) {
+            if (codigosValidos.has(etapa) && !estadosFinales.includes(registro.estado)) {
+              const fechaRegistro = new Date(registro.fecha);
+              if (!fechaMasReciente || fechaRegistro > fechaMasReciente) {
+                fechaMasReciente = fechaRegistro;
+                etapaMasReciente = etapa;
+              }
+            }
+          }
+          currentStage = etapaMasReciente ?? proceso.legalStage ?? null;
+        } catch {
+          currentStage = proceso.legalStage ?? null;
+        }
         fechaVencimiento = proceso.fechaVencimientoEtapa ?? null;
       }
     }
@@ -12486,22 +14272,6 @@ router4.patch("/procesos/:id/legal-stage", authenticate, async (req, res, next) 
         return;
       }
     }
-    if (oldStage) {
-      const bloqueantes = await storage.tareas.getRequiredPendingByStage(procesoId, oldStage);
-      if (bloqueantes.length > 0) {
-        res.status(422).json({
-          error: "STAGE_BLOCKED",
-          message: "Hay tareas requeridas sin completar en esta etapa",
-          tareasBloqueantes: bloqueantes.map((t) => ({
-            id: t.id,
-            titulo: t.titulo,
-            estado: t.estado,
-            prioridad: t.prioridad
-          }))
-        });
-        return;
-      }
-    }
     let fechaVencimiento = fechaManual ? new Date(fechaManual) : null;
     if (!fechaVencimiento) {
       const etapa = await storage.legalStages.getByCodigoYTipo(
@@ -12515,6 +14285,30 @@ router4.patch("/procesos/:id/legal-stage", authenticate, async (req, res, next) 
       }
     }
     await storage.procesos.updateLegalStage(procesoId, legalStage, fechaVencimiento);
+    try {
+      if (oldStage && oldStage !== legalStage) {
+        await storage.procesoEtapaHistorial.createHistorial({
+          id: randomUUID33(),
+          procesoId,
+          etapa: oldStage,
+          estado: "COMPLETADA",
+          fecha: /* @__PURE__ */ new Date(),
+          observacion: `Etapa cerrada al avanzar a ${legalStage}`,
+          usuarioId: idProfile || null
+        });
+      }
+      await storage.procesoEtapaHistorial.createHistorial({
+        id: randomUUID33(),
+        procesoId,
+        etapa: legalStage,
+        estado: "INICIADA",
+        fecha: /* @__PURE__ */ new Date(),
+        observacion: fechaVencimiento ? `Avanzada con fecha de vencimiento: ${fechaVencimiento.toLocaleDateString("es-ES")}` : "Avanzada a nueva etapa",
+        usuarioId: idProfile || null
+      });
+    } catch (error) {
+      console.error("Error registering etapa historial:", error);
+    }
     const descripcionAct = fechaVencimiento ? `Vencimiento: ${fechaVencimiento.toLocaleDateString("es-CO")}` : "Sin fecha de vencimiento";
     await procesosService.createActualizacion({
       procesoId,
@@ -12624,37 +14418,43 @@ async function assertProcesoDocumentoAccess(payload, procesoId, res) {
     return false;
   }
   const rol = payload.rol?.nombre;
-  console.log(rol);
+  const actorId = payload.idProfile;
   if (rol === EnumRol.CLIENTE.nombre) {
-    if (proceso.clienteId !== payload.idProfile) {
+    if (proceso.clienteId !== actorId) {
       res.status(403).json({ error: "No tienes acceso a este documento" });
       return false;
     }
-  } else if (rol === EnumRol.ABOGADO.nombre) {
-    const relations36 = await storage.lawyerClients.getClientLawyers(proceso.clienteId);
-    const hasAccess = relations36.some((r) => r.lawyerId === payload.idProfile);
-    if (!hasAccess) {
-      res.status(403).json({ error: "No tienes acceso a este documento" });
-      return false;
-    }
-  } else if (rol === EnumRol.BUFETE.nombre) {
-    const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(payload.idProfile);
-    const clienteInFirm = firmClientIds.includes(proceso.clienteId);
-    let firmManagesProceso = false;
-    if (!clienteInFirm) {
-      const procesoLawyers2 = await storage.getProcesoLawyers(procesoId);
-      firmManagesProceso = procesoLawyers2.some((pl) => pl.lawyerId === payload.idProfile);
-    }
-    if (!clienteInFirm && !firmManagesProceso) {
-      res.status(403).json({ error: "No tienes acceso a este documento" });
-      return false;
-    }
+    return true;
   }
-  return true;
+  if (rol === EnumRol.ABOGADO.nombre) {
+    const ownership = await storage.procesoOwnership.getActive(procesoId);
+    if (ownership?.ownerType === "abogado" && ownership.ownerId === actorId) {
+      return true;
+    }
+    const procesoLawyers2 = await storage.getProcesoLawyers(procesoId);
+    if (procesoLawyers2.some((pl) => pl.lawyerId === actorId)) {
+      return true;
+    }
+    if (proceso.responsable?.id === actorId) {
+      return true;
+    }
+    res.status(403).json({ error: "No tienes acceso a este documento" });
+    return false;
+  }
+  if (rol === EnumRol.BUFETE.nombre) {
+    const ownership = await storage.procesoOwnership.getActive(procesoId);
+    if (ownership?.ownerType === "bufete" && ownership.ownerId === actorId) {
+      return true;
+    }
+    res.status(403).json({ error: "No tienes acceso a este documento" });
+    return false;
+  }
+  res.status(403).json({ error: "No tienes acceso a este documento" });
+  return false;
 }
 router5.get("/documentos", authenticate, requirePermission("documentos.ver"), async (req, res, next) => {
   try {
-    const { procesoId } = req.query;
+    const { procesoId, tipoDocumento } = req.query;
     if (!procesoId || typeof procesoId !== "string") {
       return res.status(400).json({ error: "procesoId is required" });
     }
@@ -12662,7 +14462,10 @@ router5.get("/documentos", authenticate, requirePermission("documentos.ver"), as
     const allowed = await assertProcesoDocumentoAccess(payload, procesoId, res);
     if (!allowed) return;
     const stage = req.query.stage;
-    const documentos2 = await storage.getDocumentos(procesoId, stage);
+    let documentos2 = await storage.getDocumentos(procesoId, stage);
+    if (tipoDocumento && typeof tipoDocumento === "string") {
+      documentos2 = documentos2.filter((doc) => doc.tipoDocumento === tipoDocumento);
+    }
     res.json(documentos2);
   } catch (err) {
     next(err);
@@ -12709,29 +14512,8 @@ router5.get("/documentos/:id/download", async (req, res, next) => {
       return res.status(404).json({ error: "Documento no encontrado" });
     }
     if (documento.procesoId) {
-      const proceso = await storage.getProceso(documento.procesoId);
-      if (!proceso) return res.status(404).json({ error: "Proceso no encontrado" });
-      const rol = payload.rol?.nombre;
-      if (rol === "cliente") {
-        if (proceso.clienteId !== payload.idProfile) {
-          return res.status(403).json({ error: "No tienes acceso a este documento" });
-        }
-      } else if (rol === "abogado") {
-        const relations36 = await storage.lawyerClients.getClientLawyers(proceso.clienteId);
-        const hasAccess = relations36.some((r) => r.lawyerId === payload.idProfile);
-        if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este documento" });
-      } else if (rol === "bufete") {
-        const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(payload.idProfile);
-        const clienteInFirm = firmClientIds.includes(proceso.clienteId);
-        let firmManagesProceso = false;
-        if (!clienteInFirm) {
-          const procesoLawyersList = await storage.getProcesoLawyers(proceso.id);
-          firmManagesProceso = procesoLawyersList.some((pl) => pl.lawyerId === payload.idProfile);
-        }
-        if (!clienteInFirm && !firmManagesProceso) {
-          return res.status(403).json({ error: "No tienes acceso a este documento" });
-        }
-      }
+      const allowed = await assertProcesoDocumentoAccess(payload, documento.procesoId, res);
+      if (!allowed) return;
     }
     const fileUri = documento.url;
     if (fileUri && fileUri.includes("/") && !fileUri.startsWith("/") && !fileUri.includes(":\\")) {
@@ -12759,12 +14541,22 @@ router5.post(
   async (req, res, next) => {
     try {
       const file = req.file;
-      const { procesoId, nombre, tipo, tamano, descripcion, legalStage } = req.body;
+      const { procesoId, nombre, tipo, tipoDocumento, tamano, descripcion, legalStage } = req.body;
       if (!file && !nombre) {
         return res.status(400).json({ error: "No se proporcion\xF3 archivo" });
       }
       let url2 = "";
       if (file) {
+        const uid = req.user?.id;
+        const fileSizeMb = file.size / (1024 * 1024);
+        const storageCheck = await subscriptionService.checkLimit(uid, "storage", fileSizeMb);
+        if (!storageCheck.permitido) {
+          return res.status(402).json({
+            error: "Has alcanzado el l\xEDmite de almacenamiento de tu plan. Actualiza para continuar.",
+            usado: storageCheck.actual,
+            maximo: storageCheck.maximo
+          });
+        }
         const detectedMime = detectMimeFromBuffer(file.buffer);
         if (detectedMime !== null) {
           const isZipBased = file.mimetype.includes("wordprocessingml") || file.mimetype.includes("spreadsheetml");
@@ -12787,12 +14579,15 @@ router5.post(
           file.mimetype
         );
         url2 = s3Key;
+        await subscriptionService.incrementUsage(uid, "storage", Math.ceil(fileSizeMb * 10) / 10).catch(() => {
+        });
       }
       const docData = {
         procesoId,
         nombre: nombre || file?.originalname || "Documento sin nombre",
         url: url2,
         tipo: file?.mimetype || tipo,
+        tipoDocumento: tipoDocumento || "PROCESAL",
         tamano: file?.size || tamano,
         descripcion: descripcion || null,
         legalStage: legalStage && legalStage !== "__general__" ? legalStage : null
@@ -12896,10 +14691,10 @@ router6.get("/roles/:id", authenticate, requirePermission("configuracion.ver"), 
 });
 router6.post("/roles", authenticate, requirePermission("configuracion.editar"), async (req, res, next) => {
   try {
-    const { z: z16 } = await import("zod");
-    const createRolSchema2 = z16.object({
-      nombre: z16.string().min(1).max(100),
-      descripcion: z16.string().max(500).optional()
+    const { z: z22 } = await import("zod");
+    const createRolSchema2 = z22.object({
+      nombre: z22.string().min(1).max(100),
+      descripcion: z22.string().max(500).optional()
     });
     const parsed2 = createRolSchema2.safeParse(req.body);
     if (!parsed2.success) {
@@ -12952,7 +14747,7 @@ router6.get("/permisos/all", authenticate, requirePermission("configuracion.ver"
     next(err);
   }
 });
-router6.get("/planes", authenticate, requirePermission("configuracion.ver"), async (req, res, next) => {
+router6.get("/admin/planes", authenticate, requirePermission("configuracion.ver"), async (req, res, next) => {
   try {
     const planes2 = await storage.getPlanes();
     res.json(planes2);
@@ -13148,7 +14943,6 @@ var updateFirmProfileSchema = z5.object({
   nit: z5.string().optional(),
   address: z5.string().optional(),
   phone: z5.string().optional(),
-  planId: z5.string().optional(),
   // Representante legal
   repNombre: z5.string().optional(),
   repApellido: z5.string().optional(),
@@ -13603,6 +15397,16 @@ router12.post("/lawyer-firma-history/:id/retire", authenticate, async (req, res,
     const bufeteProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", bufeteId);
     await storage.removeAbogadoFromProcesos(lawyerId, bufeteProcesoIds);
     await storage.desactivarResponsable(lawyerId, bufeteProcesoIds);
+    const bufeteClientIds = await storage.firmClients.getActiveClientIdsByFirm(bufeteId);
+    const abogadoActiveClients = await storage.lawyerClients.getActiveClientsByLawyer(lawyerId);
+    const abogadoClientIds = abogadoActiveClients.map((lc) => lc.clientId);
+    const clientsToDeactivate = abogadoClientIds.filter((clientId) => bufeteClientIds.includes(clientId));
+    for (const clientId of clientsToDeactivate) {
+      const relation = abogadoActiveClients.find((lc) => lc.clientId === clientId);
+      if (relation) {
+        await storage.lawyerClients.terminateRelationship(relation.id);
+      }
+    }
     res.json(record);
   } catch (err) {
     next(err);
@@ -13625,6 +15429,16 @@ router12.delete("/lawyer-firma/leave", authenticate, async (req, res, next) => {
     const bufeteProcesoIds = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", bufeteId);
     await storage.removeAbogadoFromProcesos(lawyerId, bufeteProcesoIds);
     await storage.desactivarResponsable(lawyerId, bufeteProcesoIds);
+    const bufeteClientIds = await storage.firmClients.getActiveClientIdsByFirm(bufeteId);
+    const abogadoActiveClients = await storage.lawyerClients.getActiveClientsByLawyer(lawyerId);
+    const abogadoClientIds = abogadoActiveClients.map((lc) => lc.clientId);
+    const clientsToDeactivate = abogadoClientIds.filter((clientId) => bufeteClientIds.includes(clientId));
+    for (const clientId of clientsToDeactivate) {
+      const relation = abogadoActiveClients.find((lc) => lc.clientId === clientId);
+      if (relation) {
+        await storage.lawyerClients.terminateRelationship(relation.id);
+      }
+    }
     const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(lawyerId);
     if (activeHistory) {
       await storage.lawyerFirmaHistory.retireLawyer(activeHistory.id, "Salida voluntaria del abogado");
@@ -14236,7 +16050,67 @@ import path2 from "path";
 import crypto3 from "crypto";
 import { Router as Router16 } from "express";
 import multer2 from "multer";
+
+// server/middleware/require-feature.ts
+function requireFeature(featureCode) {
+  return async (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user?.id) {
+        res.status(401).json({ error: "No autenticado" });
+        return;
+      }
+      if (user.rol?.nombre === "cliente") {
+        next();
+        return;
+      }
+      const has = await subscriptionService.hasFeature(user.id, featureCode);
+      if (!has) {
+        res.status(402).json({
+          error: "FEATURE_NOT_AVAILABLE",
+          feature: featureCode,
+          mensaje: "Esta funcionalidad no est\xE1 disponible en tu plan actual. Actualiza para acceder."
+        });
+        return;
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+// server/routes/chat.ts
 init_s3_storage();
+
+// server/admin/middleware/require-admin.ts
+var ADMIN_ROLES = ["admin_super", "admin_soporte", "admin_finanzas"];
+function requireAdmin(req, res, next) {
+  const user = req.user;
+  if (!user?.id) {
+    res.status(401).json({ error: "No autenticado" });
+    return;
+  }
+  if (!ADMIN_ROLES.includes(user.rol?.nombre)) {
+    res.status(403).json({ error: "Acceso denegado: se requiere rol de administrador" });
+    return;
+  }
+  next();
+}
+function requireAdminRole(...roles2) {
+  return (req, res, next) => {
+    const user = req.user;
+    if (!roles2.includes(user?.rol?.nombre)) {
+      res.status(403).json({
+        error: `Acceso denegado: se requiere ${roles2.join(" o ")}`
+      });
+      return;
+    }
+    next();
+  };
+}
+
+// server/routes/chat.ts
 var router16 = Router16();
 var upload2 = multer2({
   storage: multer2.memoryStorage(),
@@ -14261,9 +16135,46 @@ function detectMimeFromBuffer2(buf) {
 }
 var IMAGE_MAX = 5 * 1024 * 1024;
 var DOC_MAX = 10 * 1024 * 1024;
+async function ensureConversationAccess(req, res, conversationId) {
+  try {
+    const user = req.user;
+    await chatService.assertConversationAccess(user, conversationId);
+    return true;
+  } catch (err) {
+    const msg = err.message;
+    if (msg === "Forbidden") {
+      return res.status(403).json({ error: "No autorizado" });
+    }
+    if (msg === "FeatureUnavailable") {
+      return res.status(402).json({
+        error: "FEATURE_NOT_AVAILABLE",
+        feature: "chat",
+        mensaje: "Esta funcionalidad no est\xE1 disponible en tu plan actual. Actualiza para acceder."
+      });
+    }
+    if (msg === "NotFound") {
+      return res.status(404).json({ error: "CONVERSATION_NOT_FOUND" });
+    }
+    throw err;
+  }
+}
+router16.get(
+  "/chat/unread-count",
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const userId2 = req.user?.id;
+      const count5 = await chatService.getUnreadCount(userId2);
+      res.json({ count: count5 });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 router16.get(
   "/chat/conversations",
   authenticate,
+  requireFeature("chat"),
   async (req, res, next) => {
     try {
       const userId2 = req.user?.id;
@@ -14279,6 +16190,7 @@ router16.get(
 router16.post(
   "/chat/conversations",
   authenticate,
+  requireFeature("chat"),
   async (req, res, next) => {
     try {
       const userId2 = req.user?.id;
@@ -14286,9 +16198,32 @@ router16.post(
       if (!targetUserId || !type) {
         return res.status(400).json({ error: "targetUserId y type son requeridos" });
       }
+      if (type === "admin_support") {
+        return res.status(403).json({ error: "Usa el endpoint dedicado de soporte" });
+      }
       const conversation = await chatService.getOrCreateConversation(userId2, targetUserId, type);
       res.status(201).json(conversation);
     } catch (err) {
+      next(err);
+    }
+  }
+);
+router16.post(
+  "/chat/support-conversation",
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const user = req.user;
+      const targetUserId = typeof req.body?.targetUserId === "string" ? req.body.targetUserId : void 0;
+      if (targetUserId && !ADMIN_ROLES.includes(user.rol?.nombre ?? "")) {
+        return res.status(403).json({ error: "No autorizado" });
+      }
+      const conversation = targetUserId ? await chatService.getOrCreateSupportConversationForAdmin(user.id, targetUserId) : await chatService.getOrCreateSupportConversationForUser(user.id);
+      res.status(201).json(conversation);
+    } catch (err) {
+      if (err.message === "NO_SUPPORT_ADMIN") {
+        return res.status(503).json({ error: "SUPPORT_NOT_AVAILABLE" });
+      }
       next(err);
     }
   }
@@ -14302,6 +16237,8 @@ router16.get(
       const id = req.params.id;
       const limit = req.query.limit ? parseInt(req.query.limit, 10) : 50;
       const offset = req.query.offset ? parseInt(req.query.offset, 10) : 0;
+      const access = await ensureConversationAccess(req, res, id);
+      if (access !== true) return access;
       const msgs = await chatService.getMessages(id, userId2, limit, offset);
       res.json(msgs);
     } catch (err) {
@@ -14320,6 +16257,8 @@ router16.post(
       const userId2 = req.user?.id;
       const id = req.params.id;
       const { content } = req.body;
+      const access = await ensureConversationAccess(req, res, id);
+      if (access !== true) return access;
       if (!content?.trim()) {
         return res.status(400).json({ error: "El contenido no puede estar vac\xEDo" });
       }
@@ -14335,8 +16274,8 @@ router16.post(
 );
 router16.post(
   "/chat/conversations/:conversationId/upload",
-  authenticate,
   upload2.single("file"),
+  authenticate,
   async (req, res, next) => {
     try {
       const userId2 = req.user?.id;
@@ -14346,6 +16285,8 @@ router16.post(
       if (!req.file) {
         return res.status(400).json({ error: "FILE_MISSING" });
       }
+      const access = await ensureConversationAccess(req, res, conversationId);
+      if (access !== true) return access;
       const isMember = await chatService.getParticipantUserIds(conversationId).then((ids) => ids.includes(userId2));
       if (!isMember) {
         return res.status(403).json({ error: "NOT_PARTICIPANT" });
@@ -14415,6 +16356,8 @@ router16.post(
     try {
       const userId2 = req.user?.id;
       const id = req.params.id;
+      const access = await ensureConversationAccess(req, res, id);
+      if (access !== true) return access;
       await chatService.markRead(id, userId2);
       res.json({ ok: true });
     } catch (err) {
@@ -14616,6 +16559,14 @@ router17.patch(
       const tarea = await tareaService.cambiarEstado(tareaId, req.body, userId(req));
       res.json(tarea);
     } catch (err) {
+      if (err?.code === "SUBTASKS_PENDING") {
+        return res.status(422).json({
+          error: "SUBTASKS_PENDING",
+          message: err.message,
+          tareaTitulo: err.tareaTitulo,
+          subtareasPendientes: err.subtareasPendientes ?? []
+        });
+      }
       next(err);
     }
   }
@@ -14632,6 +16583,14 @@ router17.patch(
       const tarea = await tareaService.completarTarea(tareaId, userId(req));
       res.json(tarea);
     } catch (err) {
+      if (err?.code === "SUBTASKS_PENDING") {
+        return res.status(422).json({
+          error: "SUBTASKS_PENDING",
+          message: err.message,
+          tareaTitulo: err.tareaTitulo,
+          subtareasPendientes: err.subtareasPendientes ?? []
+        });
+      }
       next(err);
     }
   }
@@ -14769,6 +16728,16 @@ router17.post(
       const tareaId = req.params.id;
       const file = req.file;
       if (!file) return res.status(400).json({ error: "No se proporcion\xF3 archivo" });
+      const uid = req.user?.id;
+      const fileSizeMb = file.size / (1024 * 1024);
+      const storageCheck = await subscriptionService.checkLimit(uid, "storage", fileSizeMb);
+      if (!storageCheck.permitido) {
+        return res.status(402).json({
+          error: "Has alcanzado el l\xEDmite de almacenamiento de tu plan. Actualiza para continuar.",
+          usado: storageCheck.actual,
+          maximo: storageCheck.maximo
+        });
+      }
       const tarea = await storage.tareas.findRawById(tareaId);
       if (!tarea) return res.status(404).json({ error: "Tarea no encontrada" });
       const proceso = await storage.getProceso(tarea.procesoId);
@@ -14791,6 +16760,8 @@ router17.post(
         file.size,
         userId(req)
       );
+      await subscriptionService.incrementUsage(uid, "storage", Math.ceil(fileSizeMb * 10) / 10).catch(() => {
+      });
       res.status(201).json(result);
     } catch (err) {
       next(err);
@@ -14840,7 +16811,7 @@ import { z as z11 } from "zod";
 
 // server/services/community.service.ts
 init_database_storage();
-import { randomUUID as randomUUID29 } from "crypto";
+import { randomUUID as randomUUID34 } from "crypto";
 
 // server/services/matching.service.ts
 init_database_storage();
@@ -15239,7 +17210,7 @@ var CommunityService = class {
         const exists = await storage.lawyerClients.getActiveLawyerClient(lawyerProfile.id, clientRecord.id);
         if (!exists) {
           await storage.lawyerClients.createLawyerClient({
-            id: randomUUID29(),
+            id: randomUUID34(),
             lawyerId: lawyerProfile.id,
             clientId: clientRecord.id,
             createdBy: post.takenByUserId
@@ -15376,7 +17347,7 @@ router18.get("/posts/:id", authenticateOptional, async (req, res, next) => {
     next(e);
   }
 });
-router18.post("/posts", authenticate, writeLimiter, async (req, res, next) => {
+router18.post("/posts", authenticate, requireFeature("comunidad"), writeLimiter, async (req, res, next) => {
   try {
     const parsed2 = createPostSchema.safeParse(req.body);
     if (!parsed2.success) return res.status(400).json({ error: parsed2.error.errors[0].message });
@@ -15385,7 +17356,7 @@ router18.post("/posts", authenticate, writeLimiter, async (req, res, next) => {
     next(e);
   }
 });
-router18.put("/posts/:id", authenticate, async (req, res, next) => {
+router18.put("/posts/:id", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     const parsed2 = updatePostSchema.safeParse(req.body);
     if (!parsed2.success) return res.status(400).json({ error: parsed2.error.errors[0].message });
@@ -15394,7 +17365,7 @@ router18.put("/posts/:id", authenticate, async (req, res, next) => {
     next(e);
   }
 });
-router18.delete("/posts/:id", authenticate, async (req, res, next) => {
+router18.delete("/posts/:id", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     await communityService.deletePost(str(req.params.id), req.user.id);
     res.json({ ok: true });
@@ -15410,7 +17381,7 @@ router18.get("/posts/:id/comments", async (req, res, next) => {
     next(e);
   }
 });
-router18.post("/posts/:id/comments", authenticate, writeLimiter, async (req, res, next) => {
+router18.post("/posts/:id/comments", authenticate, requireFeature("comunidad"), writeLimiter, async (req, res, next) => {
   try {
     const parsed2 = createCommentSchema.safeParse(req.body);
     if (!parsed2.success) return res.status(400).json({ error: parsed2.error.errors[0].message });
@@ -15425,7 +17396,7 @@ router18.post("/posts/:id/comments", authenticate, writeLimiter, async (req, res
 var updateCommentSchema = z11.object({
   content: z11.string().min(1).max(5e3)
 });
-router18.put("/comments/:id", authenticate, async (req, res, next) => {
+router18.put("/comments/:id", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     const parsed2 = updateCommentSchema.safeParse(req.body);
     if (!parsed2.success) return res.status(400).json({ error: parsed2.error.errors[0].message });
@@ -15435,7 +17406,7 @@ router18.put("/comments/:id", authenticate, async (req, res, next) => {
     next(e);
   }
 });
-router18.delete("/comments/:id", authenticate, async (req, res, next) => {
+router18.delete("/comments/:id", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     await communityService.deleteComment(str(req.params.id), req.user.id);
     res.json({ ok: true });
@@ -15443,28 +17414,28 @@ router18.delete("/comments/:id", authenticate, async (req, res, next) => {
     next(e);
   }
 });
-router18.post("/posts/:id/like", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/like", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     res.json(await communityService.toggleLike(str(req.params.id), req.user.id));
   } catch (e) {
     next(e);
   }
 });
-router18.post("/posts/:id/bookmark", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/bookmark", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     res.json(await communityService.toggleBookmark(str(req.params.id), req.user.id));
   } catch (e) {
     next(e);
   }
 });
-router18.get("/bookmarks", authenticate, async (req, res, next) => {
+router18.get("/bookmarks", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     res.json(await communityService.getBookmarks(req.user.id));
   } catch (e) {
     next(e);
   }
 });
-router18.post("/posts/:id/report", authenticate, writeLimiter, async (req, res, next) => {
+router18.post("/posts/:id/report", authenticate, requireFeature("comunidad"), writeLimiter, async (req, res, next) => {
   try {
     const parsed2 = reportSchema.safeParse(req.body);
     if (!parsed2.success) return res.status(400).json({ error: parsed2.error.errors[0].message });
@@ -15474,7 +17445,7 @@ router18.post("/posts/:id/report", authenticate, writeLimiter, async (req, res, 
     next(e);
   }
 });
-router18.post("/comments/:id/report", authenticate, writeLimiter, async (req, res, next) => {
+router18.post("/comments/:id/report", authenticate, requireFeature("comunidad"), writeLimiter, async (req, res, next) => {
   try {
     const parsed2 = reportSchema.safeParse(req.body);
     if (!parsed2.success) return res.status(400).json({ error: parsed2.error.errors[0].message });
@@ -15484,7 +17455,7 @@ router18.post("/comments/:id/report", authenticate, writeLimiter, async (req, re
     next(e);
   }
 });
-router18.post("/posts/:id/start-chat", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/start-chat", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     res.json(await communityService.startChat(str(req.params.id), req.user.id));
   } catch (e) {
@@ -15517,7 +17488,7 @@ router18.get("/community/recommended-lawyers", authenticateOptional, async (req,
     next(e);
   }
 });
-router18.get("/community/lawyer-feed", authenticate, async (req, res, next) => {
+router18.get("/community/lawyer-feed", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     const userId2 = req.user.id;
     const lawyerProfile = await storage.abogados.getLawyerByUserId(userId2);
@@ -15534,7 +17505,7 @@ router18.get("/community/lawyer-feed", authenticate, async (req, res, next) => {
     next(e);
   }
 });
-router18.post("/posts/:id/seen", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/seen", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     const userId2 = req.user.id;
     const lawyerProfile = await storage.abogados.getLawyerByUserId(userId2);
@@ -15545,12 +17516,18 @@ router18.post("/posts/:id/seen", authenticate, async (req, res, next) => {
     next(e);
   }
 });
-router18.post("/posts/:id/take", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/take", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     const userId2 = req.user.id;
     const lawyerProfile = await storage.abogados.getLawyerByUserId(userId2);
     if (!lawyerProfile) {
       return res.status(403).json({ error: "Solo abogados pueden tomar casos" });
+    }
+    if (lawyerProfile.professionalVerificationStatus !== "verificado") {
+      return res.status(403).json({
+        error: "Debes tener tu tarjeta profesional verificada para tomar casos de comunidad.",
+        code: "LAWYER_PROFESSIONAL_VERIFICATION_REQUIRED"
+      });
     }
     const user = await storage.users.getUserById(userId2);
     const lawyerName = user?.name ?? "Abogado";
@@ -15562,7 +17539,7 @@ router18.post("/posts/:id/take", authenticate, async (req, res, next) => {
     next(e);
   }
 });
-router18.post("/posts/:id/accept-take", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/accept-take", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     communityService.runExpiry().catch(() => {
     });
@@ -15575,7 +17552,7 @@ router18.post("/posts/:id/accept-take", authenticate, async (req, res, next) => 
     next(e);
   }
 });
-router18.post("/posts/:id/reject-take", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/reject-take", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     communityService.runExpiry().catch(() => {
     });
@@ -15588,7 +17565,7 @@ router18.post("/posts/:id/reject-take", authenticate, async (req, res, next) => 
     next(e);
   }
 });
-router18.post("/posts/:id/close", authenticate, async (req, res, next) => {
+router18.post("/posts/:id/close", authenticate, requireFeature("comunidad"), async (req, res, next) => {
   try {
     const post = await communityService.closePost(str(req.params.id), req.user.id);
     res.json(post);
@@ -15880,9 +17857,9 @@ var clientRequestService = {
           if (lawyer) {
             const exists = await storage.lawyerClients.getActiveLawyerClient(lawyer.id, client.id);
             if (!exists) {
-              const { randomUUID: randomUUID30 } = await import("crypto");
+              const { randomUUID: randomUUID38 } = await import("crypto");
               await storage.lawyerClients.createLawyerClient({
-                id: randomUUID30(),
+                id: randomUUID38(),
                 lawyerId: lawyer.id,
                 clientId: client.id,
                 createdBy: req.fromUserId
@@ -16006,106 +17983,10 @@ var client_requests_default = router20;
 // server/routes/password-reset.ts
 init_database_storage();
 init_auth();
+init_email_service();
 import { Router as Router21 } from "express";
 import jwt3 from "jsonwebtoken";
 import { z as z13 } from "zod";
-
-// server/services/email.service.ts
-import nodemailer from "nodemailer";
-
-// server/lib/timeout.ts
-function withTimeout(promise, ms, label) {
-  const timeout = new Promise(
-    (_, reject) => setTimeout(
-      () => reject(new Error(`[timeout] ${label} exceeded ${ms}ms`)),
-      ms
-    )
-  );
-  return Promise.race([promise, timeout]);
-}
-
-// server/services/email.service.ts
-var transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT ?? 587),
-  secure: process.env.SMTP_SECURE === "true",
-  // true for 465, false for 587
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
-  }
-});
-var FROM = process.env.SMTP_FROM || `"LexTrack" <${process.env.SMTP_USER}>`;
-var APP_NAME = "LexTrack";
-function passwordResetHtml(code) {
-  return `
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Recuperar contrase\xF1a</title>
-  <style>
-    body { margin: 0; padding: 0; background: #F4F6F8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    .wrapper { max-width: 480px; margin: 40px auto; background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
-    .header { background: #0F2640; padding: 32px 40px; text-align: center; }
-    .header h1 { color: #fff; margin: 0; font-size: 22px; letter-spacing: -0.3px; }
-    .header p  { color: rgba(255,255,255,0.55); margin: 4px 0 0; font-size: 13px; }
-    .body { padding: 36px 40px; }
-    .body p  { color: #4A5568; font-size: 14px; line-height: 1.7; margin: 0 0 20px; }
-    .code-box {
-      background: #F0F7FF; border: 1.5px dashed #2196A6;
-      border-radius: 12px; padding: 24px; text-align: center; margin: 0 0 24px;
-    }
-    .code-box .label { font-size: 11px; color: #6B7B8D; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
-    .code-box .code  { font-size: 38px; font-weight: 700; color: #0F2640; letter-spacing: 10px; }
-    .expiry { font-size: 12px; color: #9AAABB; text-align: center; margin-top: -8px; margin-bottom: 24px; }
-    .footer { background: #F4F6F8; padding: 20px 40px; text-align: center; }
-    .footer p { color: #9AAABB; font-size: 11px; margin: 0; }
-  </style>
-</head>
-<body>
-  <div class="wrapper">
-    <div class="header">
-      <h1>${APP_NAME}</h1>
-      <p>Recuperaci\xF3n de contrase\xF1a</p>
-    </div>
-    <div class="body">
-      <p>Hemos recibido una solicitud para restablecer la contrase\xF1a de tu cuenta. Usa el siguiente c\xF3digo de verificaci\xF3n:</p>
-      <div class="code-box">
-        <div class="label">C\xF3digo de verificaci\xF3n</div>
-        <div class="code">${code}</div>
-      </div>
-      <p class="expiry">\u23F1 Este c\xF3digo expira en <strong>5 minutos</strong> y es de un solo uso.</p>
-      <p>Si no solicitaste este cambio, ignora este correo. Tu contrase\xF1a actual permanecer\xE1 sin cambios.</p>
-    </div>
-    <div class="footer">
-      <p>\xA9 ${(/* @__PURE__ */ new Date()).getFullYear()} ${APP_NAME} \xB7 Este es un mensaje autom\xE1tico, no respondas a este correo.</p>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
-}
-async function sendPasswordResetOtp(toEmail, code) {
-  await withTimeout(
-    transporter.sendMail({
-      from: FROM,
-      to: toEmail,
-      subject: `${code} es tu c\xF3digo de recuperaci\xF3n \u2014 ${APP_NAME}`,
-      html: passwordResetHtml(code),
-      text: `Tu c\xF3digo de recuperaci\xF3n de contrase\xF1a es: ${code}
-Expira en 5 minutos.
-
-Si no solicitaste este cambio, ignora este mensaje.`
-    }),
-    1e4,
-    // 10s timeout for email delivery
-    "email.sendPasswordResetOtp"
-  );
-}
-
-// server/routes/password-reset.ts
 var router21 = Router21();
 var JWT_SECRET2 = process.env.JWT_SECRET;
 var RESET_TOKEN_EXPIRES = "15m";
@@ -16269,8 +18150,8 @@ var firm_clients_default = router22;
 
 // server/routes/calendar.ts
 init_auth();
-init_database_storage();
 import { Router as Router23 } from "express";
+init_database_storage();
 var router23 = Router23();
 function getLawyerProfile(req, res) {
   const user = req.user;
@@ -16284,7 +18165,7 @@ function getLawyerProfile(req, res) {
   }
   return user.idProfile;
 }
-router23.get("/calendar", authenticate, async (req, res, next) => {
+router23.get("/calendar", authenticate, requireFeature("calendario"), async (req, res, next) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -16301,7 +18182,7 @@ router23.get("/calendar", authenticate, async (req, res, next) => {
     next(err);
   }
 });
-router23.post("/calendar", authenticate, async (req, res, next) => {
+router23.post("/calendar", authenticate, requireFeature("calendario"), async (req, res, next) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -16316,7 +18197,7 @@ router23.post("/calendar", authenticate, async (req, res, next) => {
     next(err);
   }
 });
-router23.put("/calendar/:id", authenticate, async (req, res, next) => {
+router23.put("/calendar/:id", authenticate, requireFeature("calendario"), async (req, res, next) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -16337,7 +18218,7 @@ router23.put("/calendar/:id", authenticate, async (req, res, next) => {
     next(err);
   }
 });
-router23.delete("/calendar/:id", authenticate, async (req, res, next) => {
+router23.delete("/calendar/:id", authenticate, requireFeature("calendario"), async (req, res, next) => {
   try {
     const lawyerId = getLawyerProfile(req, res);
     if (!lawyerId) return;
@@ -16483,10 +18364,8 @@ router25.get(
       const idProfile = user.idProfile;
       const procesoId = req.params.procesoId;
       const stage = req.query.stage;
-      if (!stage) {
-        res.status(400).json({ error: "Par\xE1metro stage es requerido" });
-        return;
-      }
+      const limit = Math.min(Math.max(parseInt(req.query.limit || "50", 10), 1), 200);
+      const offset = Math.max(parseInt(req.query.offset || "0", 10), 0);
       if (!idProfile) {
         res.status(400).json({ error: "idProfile requerido" });
         return;
@@ -16512,8 +18391,8 @@ router25.get(
         res.status(404).json({ error: "Proceso no encontrado o sin acceso" });
         return;
       }
-      const events = await storage.stageEvents.getByStage(procesoId, stage);
-      res.json(events);
+      const result = stage ? await storage.stageEvents.getByStage(procesoId, stage, limit, offset) : await storage.stageEvents.getByProceso(procesoId, limit, offset);
+      res.json(result);
     } catch (err) {
       next(err);
     }
@@ -16546,12 +18425,111 @@ router25.post(
 );
 var stage_events_default = router25;
 
-// server/routes/proceso-ownership.ts
+// server/routes/proceso-etapa-historial.ts
 init_auth();
 init_database_storage();
 import { Router as Router26 } from "express";
-import { z as z14 } from "zod";
+import { randomUUID as randomUUID35 } from "crypto";
 var router26 = Router26();
+router26.post("/procesos/:procesoId/etapas", authenticate, requirePermission("procesos.editar"), async (req, res, next) => {
+  try {
+    const { procesoId } = req.params;
+    const procesoIdStr = Array.isArray(procesoId) ? procesoId[0] : procesoId;
+    const { etapa, estado, observacion } = req.body;
+    const user = req.user;
+    const usuarioId = user.id;
+    if (!etapa || !estado) {
+      return res.status(400).json({ error: "etapa y estado son requeridos" });
+    }
+    const estadoValido = await storage.procesoEtapaHistorial.validarEstado(estado);
+    if (!estadoValido) {
+      return res.status(400).json({ error: "estado no v\xE1lido" });
+    }
+    const proceso = await storage.procesos.getProceso(procesoIdStr);
+    if (!proceso) {
+      return res.status(404).json({ error: "Proceso no encontrado" });
+    }
+    const etapaValida = await storage.legalStages.getByCodigoYTipo(
+      etapa,
+      proceso.tipoProcesoId ?? null
+    );
+    if (!etapaValida) {
+      return res.status(400).json({ error: "etapa no v\xE1lida para este tipo de proceso" });
+    }
+    const historial = await storage.procesoEtapaHistorial.createHistorial({
+      id: randomUUID35(),
+      procesoId: procesoIdStr,
+      etapa,
+      estado,
+      fecha: /* @__PURE__ */ new Date(),
+      observacion: observacion || null,
+      usuarioId: usuarioId || null
+    });
+    await updateEtapaActualFromHistorial(procesoIdStr);
+    res.status(201).json(historial);
+  } catch (err) {
+    next(err);
+  }
+});
+router26.get("/procesos/:procesoId/etapas", authenticate, requirePermission("procesos.ver"), async (req, res, next) => {
+  try {
+    const { procesoId } = req.params;
+    const procesoIdStr = Array.isArray(procesoId) ? procesoId[0] : procesoId;
+    const proceso = await storage.procesos.getProceso(procesoIdStr);
+    if (!proceso) {
+      return res.status(404).json({ error: "Proceso no encontrado" });
+    }
+    const historial = await storage.procesoEtapaHistorial.getHistorialByProceso(procesoIdStr);
+    res.json(historial);
+  } catch (err) {
+    next(err);
+  }
+});
+router26.get("/procesos/:procesoId/etapas/ultimos-estados", authenticate, requirePermission("procesos.ver"), async (req, res, next) => {
+  try {
+    const { procesoId } = req.params;
+    const procesoIdStr = Array.isArray(procesoId) ? procesoId[0] : procesoId;
+    const proceso = await storage.procesos.getProceso(procesoIdStr);
+    if (!proceso) {
+      return res.status(404).json({ error: "Proceso no encontrado" });
+    }
+    const ultimosEstados = await storage.procesoEtapaHistorial.getUltimoEstadoPorEtapa(procesoIdStr);
+    res.json(ultimosEstados);
+  } catch (err) {
+    next(err);
+  }
+});
+async function updateEtapaActualFromHistorial(procesoId) {
+  const procesoIdStr = Array.isArray(procesoId) ? procesoId[0] : procesoId;
+  try {
+    const ultimosEstados = await storage.procesoEtapaHistorial.getUltimoEstadoPorEtapa(procesoIdStr);
+    let etapaActual = null;
+    let fechaMasReciente = null;
+    for (const [etapa, registro] of Object.entries(ultimosEstados)) {
+      const estadosFinales = ["COMPLETADA", "CANCELADA", "SUSPENDIDA"];
+      if (!estadosFinales.includes(registro.estado)) {
+        const fechaRegistro = new Date(registro.fecha);
+        if (!fechaMasReciente || fechaRegistro > fechaMasReciente) {
+          fechaMasReciente = fechaRegistro;
+          etapaActual = etapa;
+        }
+      }
+    }
+    if (etapaActual) {
+      await storage.procesos.updateLegalStage(procesoIdStr, etapaActual, null);
+    }
+  } catch (error) {
+    console.error("Error updating etapa actual from historial:", error);
+  }
+}
+var proceso_etapa_historial_default = router26;
+
+// server/routes/proceso-ownership.ts
+init_auth();
+init_database_storage();
+import { Router as Router27 } from "express";
+import { z as z14 } from "zod";
+var router27 = Router27();
 function getUserId(req) {
   return req.user.id ?? "";
 }
@@ -16566,7 +18544,7 @@ var shareSchema = z14.object({
   permission: z14.enum(["ver", "comentar", "editar"]),
   razon: z14.string().max(500).optional()
 });
-router26.post(
+router27.post(
   "/procesos/:id/ownership/transfer",
   authenticate,
   async (req, res, next) => {
@@ -16582,7 +18560,7 @@ router26.post(
     }
   }
 );
-router26.get(
+router27.get(
   "/procesos/:id/ownership/history",
   authenticate,
   async (req, res, next) => {
@@ -16594,7 +18572,7 @@ router26.get(
     }
   }
 );
-router26.post(
+router27.post(
   "/procesos/:id/sharing",
   authenticate,
   async (req, res, next) => {
@@ -16610,7 +18588,7 @@ router26.post(
     }
   }
 );
-router26.delete(
+router27.delete(
   "/procesos/:id/sharing/:shareId",
   authenticate,
   async (req, res, next) => {
@@ -16622,7 +18600,7 @@ router26.delete(
     }
   }
 );
-router26.get(
+router27.get(
   "/procesos/:id/sharing",
   authenticate,
   async (req, res, next) => {
@@ -16642,7 +18620,7 @@ var batchDecisionSchema = z14.object({
     permission: z14.enum(["ver", "comentar", "editar"]).optional()
   }))
 });
-router26.post(
+router27.post(
   "/procesos/batch-decisions",
   authenticate,
   async (req, res, next) => {
@@ -16690,7 +18668,7 @@ router26.post(
     }
   }
 );
-router26.get(
+router27.get(
   "/firm/:firmId/pending-reassignments",
   authenticate,
   async (req, res, next) => {
@@ -16711,21 +18689,21 @@ router26.get(
     }
   }
 );
-var proceso_ownership_default = router26;
+var proceso_ownership_default = router27;
 
 // server/routes/firm-settings.ts
 init_auth();
 init_database_storage();
-import { Router as Router27 } from "express";
+import { Router as Router28 } from "express";
 import { z as z15 } from "zod";
-var router27 = Router27();
+var router28 = Router28();
 var updateFirmSettingsSchema = z15.object({
   allowPrivateClientes: z15.boolean().optional(),
   allowPrivateProcesos: z15.boolean().optional(),
   defaultClienteEsCompartido: z15.boolean().optional(),
   defaultProcesoEsCompartido: z15.boolean().optional()
 });
-router27.get(
+router28.get(
   "/firm/settings",
   authenticate,
   async (req, res, next) => {
@@ -16743,7 +18721,7 @@ router27.get(
     }
   }
 );
-router27.patch(
+router28.patch(
   "/firm/settings",
   authenticate,
   validate(updateFirmSettingsSchema),
@@ -16762,7 +18740,1171 @@ router27.patch(
     }
   }
 );
-var firm_settings_default = router27;
+router28.get(
+  "/firm/settings/my-firm",
+  authenticate,
+  async (req, res, next) => {
+    try {
+      const user = req.user;
+      if (user?.rol?.nombre !== "abogado") {
+        return res.status(403).json({
+          error: "Solo los abogados pueden usar este endpoint"
+        });
+      }
+      const lawyer = await storage.lawyerProfiles.getLawyer(user.idProfile);
+      if (!lawyer?.firmId) {
+        return res.json(null);
+      }
+      const settings = await storage.firmSettings.get(lawyer.firmId);
+      res.json(settings);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+var firm_settings_default = router28;
+
+// server/routes/suscripciones.ts
+init_auth();
+init_database_storage();
+import { Router as Router29 } from "express";
+import { randomUUID as randomUUID36 } from "crypto";
+var router29 = Router29();
+var WOMPI_BASE = process.env.WOMPI_BASE_URL ?? "https://sandbox.wompi.co/v1";
+router29.get("/planes", async (req, res, next) => {
+  try {
+    const tipo = req.query.tipo;
+    const list = await storage.planes.getPlanesPublicos(tipo);
+    res.json(list);
+  } catch (err) {
+    next(err);
+  }
+});
+router29.get("/suscripciones/me", authenticate, async (req, res, next) => {
+  try {
+    const user = req.user;
+    const suscripcion = await storage.suscripciones.getActive(user.id);
+    if (!suscripcion) {
+      res.status(404).json({ error: "Sin suscripci\xF3n activa" });
+      return;
+    }
+    const plan = await storage.planes.getPlanesPublicos().then((list) => list.find((p) => p.id === suscripcion.planId));
+    const usage = await storage.usageTracking.getByUserId(user.id);
+    res.json({
+      suscripcion,
+      plan: plan ?? null,
+      uso: usage ? {
+        procesosUsados: usage.procesosUsados,
+        procesosMax: plan?.maxProcesos ?? 5,
+        clientesUsados: usage.clientesUsados,
+        clientesMax: plan?.maxClientes ?? 10,
+        storageUsadoMb: usage.storageUsadoMb,
+        storageMaxMb: (plan?.maxStorageGb ?? 0) * 1024
+      } : null
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router29.post("/suscripciones/checkout", authenticate, async (req, res, next) => {
+  try {
+    const user = req.user;
+    const { planId, ciclo, extraUsers = 0, currency = "COP" } = req.body;
+    if (!planId || !ciclo) {
+      res.status(400).json({ error: "planId y ciclo son requeridos" });
+      return;
+    }
+    const plan = await storage.planes.getPlan(planId);
+    if (!plan || !plan.state) {
+      res.status(404).json({ error: "Plan no encontrado" });
+      return;
+    }
+    const precioBase = ciclo === "mensual" ? { cop: parseFloat(plan.precioMensualCop), usd: parseFloat(plan.precioMensualUsd) } : { cop: parseFloat(plan.precioAnualCop), usd: parseFloat(plan.precioAnualUsd) };
+    const extra = Math.max(0, extraUsers - plan.includedUsers);
+    const precioExtraCop = parseFloat(plan.precioUsuarioExtraCop ?? "0");
+    const precioExtraUsd = parseFloat(plan.precioUsuarioExtraUsd ?? "0");
+    let montoCop;
+    let montoUsd;
+    if (ciclo === "mensual") {
+      montoCop = precioBase.cop + extra * precioExtraCop;
+      montoUsd = precioBase.usd + extra * precioExtraUsd;
+    } else {
+      montoCop = precioBase.cop + extra * precioExtraCop * 10;
+      montoUsd = precioBase.usd + extra * precioExtraUsd * 10;
+    }
+    if (montoCop === 0 && montoUsd === 0) {
+      await subscriptionService.activatePlanGratis(user.id);
+      res.json({ activated: true, payment_url: null });
+      return;
+    }
+    const wompiReference = randomUUID36();
+    const suscripcionTemp = await storage.suscripciones.getActive(user.id);
+    const suscripcionId = suscripcionTemp?.id ?? randomUUID36();
+    const pago = await storage.pagosStorage.create({
+      suscripcionId,
+      userId: user.id,
+      amountCop: currency === "COP" ? montoCop.toFixed(2) : null,
+      amountUsd: currency === "USD" ? montoUsd.toFixed(2) : null,
+      currency,
+      estado: "pendiente",
+      wompiReference,
+      concepto: `Suscripci\xF3n ${plan.nombre} - ${ciclo}`
+    });
+    const amountInCents = currency === "COP" ? Math.round(montoCop * 100) : Math.round(montoUsd * 100);
+    const expiresAt = /* @__PURE__ */ new Date();
+    expiresAt.setHours(expiresAt.getHours() + 2);
+    const wompiRes = await fetch(`${WOMPI_BASE}/payment_links`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.WOMPI_PRIVATE_KEY}`
+      },
+      body: JSON.stringify({
+        name: `Suscripci\xF3n ${plan.nombre}`,
+        description: `${ciclo === "mensual" ? "Mensual" : "Anual"} \u2014 ${plan.nombre}`,
+        single_use: true,
+        collect_shipping: false,
+        amount_in_cents: amountInCents,
+        currency,
+        redirect_url: process.env.WOMPI_REDIRECT_URL ?? "exp://localhost:8081/--/checkout/result",
+        expires_at: expiresAt.toISOString(),
+        reference: wompiReference
+      })
+    });
+    if (!wompiRes.ok) {
+      const err = await wompiRes.json();
+      console.error("[checkout] Error Wompi:", err);
+      res.status(502).json({ error: "Error al crear el link de pago. Intenta de nuevo." });
+      return;
+    }
+    const wompiData = await wompiRes.json();
+    res.json({
+      payment_url: wompiData.data.payment_link,
+      reference: wompiReference,
+      pagoId: pago.id,
+      monto: currency === "COP" ? montoCop : montoUsd,
+      currency,
+      planNombre: plan.nombre
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router29.post("/suscripciones/cancelar", authenticate, async (req, res, next) => {
+  try {
+    const user = req.user;
+    const suscripcion = await storage.suscripciones.getActive(user.id);
+    if (!suscripcion) {
+      res.status(404).json({ error: "Sin suscripci\xF3n activa" });
+      return;
+    }
+    if (suscripcion.planId === "plan-abogado-gratis") {
+      res.status(400).json({ error: "No puedes cancelar el plan gratuito" });
+      return;
+    }
+    await storage.suscripciones.cancelAutoRenovacion(suscripcion.id);
+    res.json({
+      mensaje: "Renovaci\xF3n cancelada. Tu plan sigue activo hasta el vencimiento.",
+      fechaVencimiento: suscripcion.fechaVencimiento
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router29.get("/pagos/:pagoId/estado", authenticate, async (req, res, next) => {
+  try {
+    const user = req.user;
+    const { pagoId } = req.params;
+    const pago = await storage.pagosStorage.getById(pagoId);
+    if (!pago || pago.userId !== user.id) {
+      res.status(404).json({ error: "Pago no encontrado" });
+      return;
+    }
+    res.json({
+      estado: pago.estado,
+      wompiTransactionId: pago.wompiTransactionId,
+      metodoPago: pago.metodoPago
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+var suscripciones_default = router29;
+
+// server/routes/webhooks.ts
+init_database_storage();
+import { Router as Router30 } from "express";
+import { createHash } from "crypto";
+var router30 = Router30();
+function verifyWompiSignature(event, integritySecret) {
+  try {
+    const { checksum, properties } = event.signature ?? {};
+    if (!checksum || !Array.isArray(properties)) return false;
+    const data = event.data ?? {};
+    const toHash = properties.map((prop) => {
+      const value = prop.split(".").reduce((obj, key) => obj?.[key], data);
+      return value ?? "";
+    }).join("") + integritySecret;
+    const expected = createHash("sha256").update(toHash).digest("hex");
+    return expected === checksum;
+  } catch {
+    return false;
+  }
+}
+router30.post("/webhooks/wompi", async (req, res, next) => {
+  try {
+    const integritySecret = process.env.WOMPI_EVENTS_SECRET;
+    if (!integritySecret) {
+      console.error("[webhook:wompi] WOMPI_EVENTS_SECRET no configurado");
+      res.status(500).json({ error: "Configuraci\xF3n incompleta" });
+      return;
+    }
+    const event = req.body;
+    if (!verifyWompiSignature(event, integritySecret)) {
+      console.warn("[webhook:wompi] Firma inv\xE1lida \u2014 posible intento de fraude");
+      res.status(401).json({ error: "Firma inv\xE1lida" });
+      return;
+    }
+    if (event.event !== "transaction.updated") {
+      res.status(200).json({ received: true });
+      return;
+    }
+    const tx = event.data?.transaction;
+    if (!tx) {
+      res.status(400).json({ error: "Datos de transacci\xF3n faltantes" });
+      return;
+    }
+    const { id: wompiTxId, status, reference, payment_method_type } = tx;
+    const pago = await storage.pagosStorage.getByReference(reference);
+    if (!pago) {
+      console.warn(`[webhook:wompi] Pago con referencia ${reference} no encontrado`);
+      res.status(200).json({ received: true });
+      return;
+    }
+    const metodoPagoMap = {
+      CARD: "card",
+      PSE: "pse",
+      NEQUI: "nequi",
+      BANCOLOMBIA_TRANSFER: "bancolombia_transfer"
+    };
+    const metodoPago = metodoPagoMap[payment_method_type] ?? "otro";
+    if (status === "APPROVED") {
+      await storage.pagosStorage.updateEstado(pago.id, "aprobado", wompiTxId, metodoPago);
+      const suscripciones2 = await storage.suscripciones.getByUserId(pago.userId);
+      const ultima = suscripciones2.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+      const planId = ultima?.planId ?? "plan-abogado-esencial";
+      const ciclo = ultima?.ciclo ?? "mensual";
+      const extraUsers = ultima?.extraUsers ?? 0;
+      await subscriptionService.activateSuscripcion(pago.userId, planId, ciclo, extraUsers, pago.id);
+      await storage.appNotifications.createNotification(
+        pago.userId,
+        "subscription_activated",
+        "\xA1Suscripci\xF3n activada!",
+        "Tu plan ha sido activado exitosamente.",
+        { pagoId: pago.id }
+      );
+      console.log(`[webhook:wompi] Suscripci\xF3n activada para usuario ${pago.userId}`);
+    } else if (status === "DECLINED" || status === "ERROR" || status === "VOIDED") {
+      await storage.pagosStorage.updateEstado(pago.id, "rechazado", wompiTxId, metodoPago);
+      console.log(`[webhook:wompi] Pago rechazado para usuario ${pago.userId}: ${status}`);
+    }
+    res.status(200).json({ received: true });
+  } catch (err) {
+    console.error("[webhook:wompi] Error:", err);
+    res.status(200).json({ received: true });
+  }
+});
+var webhooks_default = router30;
+
+// server/admin/routes/index.ts
+import { Router as Router39 } from "express";
+
+// server/admin/routes/admin-stats.routes.ts
+init_auth();
+import { Router as Router31 } from "express";
+
+// server/admin/services/admin-stats.service.ts
+init_database_storage();
+var adminStatsService = {
+  async getStats() {
+    return storage.adminStats.getStats();
+  }
+};
+
+// server/admin/controllers/admin-stats.controller.ts
+async function getStats(req, res, next) {
+  try {
+    const stats = await adminStatsService.getStats();
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// server/admin/routes/admin-stats.routes.ts
+var router31 = Router31();
+router31.use(authenticate, requireAdmin);
+router31.get("/", getStats);
+var admin_stats_routes_default = router31;
+
+// server/admin/routes/admin-users.routes.ts
+init_auth();
+import { Router as Router32 } from "express";
+
+// server/admin/controllers/admin-users.controller.ts
+import { z as z16 } from "zod";
+
+// server/admin/services/admin-users.service.ts
+init_database_storage();
+var adminUsersService = {
+  async list(params) {
+    return storage.adminUsers.list(params);
+  },
+  async getById(id) {
+    return storage.adminUsers.getById(id);
+  },
+  async updateEstado(id, isActive) {
+    return storage.adminUsers.updateEstado(id, isActive);
+  },
+  async updatePlan(id, planId) {
+    return storage.adminUsers.updatePlan(id, planId);
+  },
+  async listLawyerVerifications(status) {
+    return storage.adminUsers.listLawyerVerifications(status);
+  },
+  async updateLawyerVerification(lawyerProfileId, payload) {
+    return storage.adminUsers.updateLawyerVerification(lawyerProfileId, payload);
+  }
+};
+
+// server/admin/services/audit.service.ts
+init_database_storage();
+var auditService = {
+  /**
+   * Registra una acción crítica. Best-effort: si falla, no revierte la acción principal.
+   * Llamar desde el controller DESPUÉS de que la acción fue exitosa.
+   */
+  async log(entry) {
+    try {
+      await storage.adminAudit.log(entry);
+    } catch (err) {
+      console.error("[audit] Error al registrar acci\xF3n:", entry.accion, err);
+    }
+  },
+  async getLog(params) {
+    return storage.adminAudit.getLog(params);
+  }
+};
+
+// server/admin/controllers/admin-users.controller.ts
+import jwt4 from "jsonwebtoken";
+var listSchema = z16.object({
+  page: z16.coerce.number().int().positive().default(1),
+  limit: z16.coerce.number().int().positive().max(100).default(20),
+  tipo: z16.enum(["abogado", "bufete", "cliente"]).optional(),
+  estado: z16.enum(["activo", "suspendido"]).optional(),
+  search: z16.string().max(100).optional()
+});
+var updateEstadoSchema = z16.object({
+  activo: z16.boolean()
+});
+var updatePlanSchema = z16.object({
+  planId: z16.string().min(1)
+});
+var lawyerVerificationListSchema = z16.object({
+  status: z16.enum(["pendiente", "verificado", "rechazado"]).default("pendiente")
+});
+var updateLawyerVerificationSchema = z16.object({
+  status: z16.enum(["verificado", "rechazado"]),
+  reviewNotes: z16.string().max(1e3).optional()
+});
+function getAdminId(req) {
+  const user = req.user;
+  if (!user?.id) throw new Error("Unauthorized: no user on request");
+  return user.id;
+}
+async function listUsers(req, res, next) {
+  try {
+    const params = listSchema.parse(req.query);
+    const result = await adminUsersService.list(params);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    next(err);
+  }
+}
+async function getUserById(req, res, next) {
+  try {
+    const user = await adminUsersService.getById(req.params.id);
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+    res.json({ success: true, data: user });
+  } catch (err) {
+    next(err);
+  }
+}
+async function updateEstado(req, res, next) {
+  try {
+    const { activo } = updateEstadoSchema.parse(req.body);
+    const userId2 = req.params.id;
+    await adminUsersService.updateEstado(userId2, activo);
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: activo ? "usuario.activar" : "usuario.suspender",
+      targetId: userId2,
+      detalle: JSON.stringify({ activo })
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+async function updatePlan(req, res, next) {
+  try {
+    const { planId } = updatePlanSchema.parse(req.body);
+    const userId2 = req.params.id;
+    await adminUsersService.updatePlan(userId2, planId);
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.cambiar_plan",
+      targetId: userId2,
+      detalle: JSON.stringify({ planId })
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+async function resetPassword(req, res, next) {
+  try {
+    const userId2 = req.params.id;
+    const user = await adminUsersService.getById(userId2);
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error("JWT_SECRET environment variable is not configured");
+    }
+    const token = jwt4.sign(
+      { userId: userId2, purpose: "password_reset" },
+      secret,
+      { expiresIn: "1h" }
+    );
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.reset_password",
+      targetId: userId2,
+      detalle: JSON.stringify({ email: user.email })
+    });
+    res.json({ success: true, data: { token, expiresIn: "1h" } });
+  } catch (err) {
+    next(err);
+  }
+}
+async function listLawyerVerifications(req, res, next) {
+  try {
+    const { status } = lawyerVerificationListSchema.parse(req.query);
+    const data = await adminUsersService.listLawyerVerifications(status);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+async function updateLawyerVerification(req, res, next) {
+  try {
+    const { status, reviewNotes } = updateLawyerVerificationSchema.parse(req.body);
+    const lawyerProfileId = req.params.id;
+    const adminId = getAdminId(req);
+    await adminUsersService.updateLawyerVerification(lawyerProfileId, {
+      status,
+      reviewNotes,
+      reviewedBy: adminId
+    });
+    await auditService.log({
+      adminId,
+      accion: `abogado.verificacion_${status}`,
+      targetId: lawyerProfileId,
+      detalle: JSON.stringify({ status, reviewNotes: reviewNotes ?? null })
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// server/admin/routes/admin-users.routes.ts
+var router32 = Router32();
+router32.use(authenticate, requireAdmin);
+router32.get("/", listUsers);
+router32.get("/lawyer-verifications", listLawyerVerifications);
+router32.get("/:id", getUserById);
+router32.patch(
+  "/:id/estado",
+  requireAdminRole("admin_super", "admin_soporte"),
+  updateEstado
+);
+router32.patch(
+  "/:id/plan",
+  requireAdminRole("admin_super"),
+  updatePlan
+);
+router32.post(
+  "/:id/reset-password",
+  requireAdminRole("admin_super"),
+  resetPassword
+);
+router32.patch(
+  "/lawyer-verifications/:id",
+  requireAdminRole("admin_super", "admin_soporte"),
+  updateLawyerVerification
+);
+var admin_users_routes_default = router32;
+
+// server/admin/routes/admin-plans.routes.ts
+init_auth();
+import { Router as Router33 } from "express";
+import { randomUUID as randomUUID37 } from "crypto";
+import { z as z17 } from "zod";
+import { eq as eq57, sql as sql23, desc as desc23, and as and40 } from "drizzle-orm";
+init_database_storage();
+init_schema();
+var router33 = Router33();
+router33.use(authenticate, requireAdmin);
+var planSchema = z17.object({
+  nombre: z17.string().min(1),
+  tipo: z17.enum(["abogado", "bufete"]),
+  precioMensualCop: z17.coerce.string(),
+  precioAnualCop: z17.coerce.string(),
+  precioMensualUsd: z17.coerce.string(),
+  precioAnualUsd: z17.coerce.string(),
+  maxProcesos: z17.coerce.number().int(),
+  maxClientes: z17.coerce.number().int(),
+  maxStorageGb: z17.coerce.number().int(),
+  includedUsers: z17.coerce.number().int(),
+  maxUsers: z17.coerce.number().int(),
+  precioUsuarioExtraCop: z17.coerce.string().nullable().optional(),
+  precioUsuarioExtraUsd: z17.coerce.string().nullable().optional(),
+  state: z17.boolean().optional()
+});
+router33.get("/", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const tipo = typeof req.query.tipo === "string" ? req.query.tipo : void 0;
+    const estado = typeof req.query.estado === "string" ? req.query.estado : "todos";
+    const conditions = [];
+    if (tipo === "abogado" || tipo === "bufete") conditions.push(eq57(planes.tipo, tipo));
+    if (estado === "activo") conditions.push(eq57(planes.state, true));
+    if (estado === "inactivo") conditions.push(eq57(planes.state, false));
+    const rows = await db2.select({
+      ...planes,
+      suscriptores: sql23`(
+          SELECT COUNT(*)
+          FROM suscripciones s
+          WHERE s.plan_id = ${planes.id} AND s.estado = 'activa'
+        )`
+    }).from(planes).where(conditions.length ? and40(...conditions) : void 0).orderBy(desc23(planes.state), planes.tipo, planes.nombre);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+router33.post("/", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+  try {
+    const parsed2 = planSchema.parse(req.body);
+    const created = await storage.planes.createPlan({
+      id: randomUUID37(),
+      ...parsed2,
+      precioUsuarioExtraCop: parsed2.precioUsuarioExtraCop ?? null,
+      precioUsuarioExtraUsd: parsed2.precioUsuarioExtraUsd ?? null,
+      state: parsed2.state ?? true
+    });
+    res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    next(err);
+  }
+});
+router33.put("/:id", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+  try {
+    const parsed2 = planSchema.partial().parse(req.body);
+    const updated = await storage.planes.updatePlan(req.params.id, parsed2);
+    if (!updated) return res.status(404).json({ error: "Plan no encontrado" });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+router33.delete("/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const updated = await storage.planes.updatePlan(req.params.id, { state: false });
+    if (!updated) return res.status(404).json({ error: "Plan no encontrado" });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+var admin_plans_routes_default = router33;
+
+// server/admin/routes/admin-billing.routes.ts
+init_auth();
+import { Router as Router34 } from "express";
+import { z as z18 } from "zod";
+import { sql as sql24, desc as desc24, and as and41, eq as eq58, or as or9, like as like8 } from "drizzle-orm";
+init_database_storage();
+init_schema();
+var router34 = Router34();
+router34.use(authenticate, requireAdmin);
+router34.get("/summary", requireAdminRole("admin_super", "admin_finanzas"), async (_req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const [subs, pay, monthlyRevenue] = await Promise.all([
+      db2.select({
+        activas: sql24`SUM(CASE WHEN ${suscripciones.estado} = 'activa' THEN 1 ELSE 0 END)`,
+        canceladas: sql24`SUM(CASE WHEN ${suscripciones.estado} = 'cancelada' THEN 1 ELSE 0 END)`,
+        vencidas: sql24`SUM(CASE WHEN ${suscripciones.estado} = 'vencida' THEN 1 ELSE 0 END)`
+      }).from(suscripciones),
+      db2.select({
+        pendientes: sql24`SUM(CASE WHEN ${pagos.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
+        aprobados: sql24`SUM(CASE WHEN ${pagos.estado} = 'aprobado' THEN 1 ELSE 0 END)`,
+        rechazados: sql24`SUM(CASE WHEN ${pagos.estado} = 'rechazado' THEN 1 ELSE 0 END)`
+      }).from(pagos),
+      db2.select({
+        totalCop: sql24`COALESCE(SUM(CASE WHEN ${pagos.estado} = 'aprobado' AND ${pagos.currency} = 'COP' THEN ${pagos.amountCop} ELSE 0 END), 0)`
+      }).from(pagos)
+    ]);
+    res.json({
+      success: true,
+      data: {
+        suscripciones: {
+          activas: Number(subs[0]?.activas ?? 0),
+          canceladas: Number(subs[0]?.canceladas ?? 0),
+          vencidas: Number(subs[0]?.vencidas ?? 0)
+        },
+        pagos: {
+          pendientes: Number(pay[0]?.pendientes ?? 0),
+          aprobados: Number(pay[0]?.aprobados ?? 0),
+          rechazados: Number(pay[0]?.rechazados ?? 0)
+        },
+        ingresosCopAprobados: Number(monthlyRevenue[0]?.totalCop ?? 0)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router34.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = (page - 1) * limit;
+    const estado = typeof req.query.estado === "string" ? req.query.estado : void 0;
+    const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
+    const conditions = [];
+    if (estado) conditions.push(eq58(suscripciones.estado, estado));
+    if (search) conditions.push(or9(like8(users.email, search), like8(users.name, search)));
+    const where = conditions.length ? and41(...conditions) : void 0;
+    const [rows, countRows] = await Promise.all([
+      db2.select({
+        id: suscripciones.id,
+        userId: suscripciones.userId,
+        planId: suscripciones.planId,
+        estado: suscripciones.estado,
+        ciclo: suscripciones.ciclo,
+        fechaInicio: suscripciones.fechaInicio,
+        fechaVencimiento: suscripciones.fechaVencimiento,
+        autoRenovacion: suscripciones.autoRenovacion,
+        extraUsers: suscripciones.extraUsers,
+        userName: users.name,
+        email: users.email,
+        planNombre: planes.nombre,
+        planTipo: planes.tipo
+      }).from(suscripciones).innerJoin(users, eq58(users.id, suscripciones.userId)).innerJoin(planes, eq58(planes.id, suscripciones.planId)).where(where).orderBy(desc24(suscripciones.fechaInicio)).limit(limit).offset(offset),
+      db2.select({ total: sql24`COUNT(*)` }).from(suscripciones).innerJoin(users, eq58(users.id, suscripciones.userId)).where(where)
+    ]);
+    res.json({
+      success: true,
+      data: rows,
+      meta: { total: Number(countRows[0]?.total ?? 0), page, limit }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router34.get("/payments", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = (page - 1) * limit;
+    const estado = typeof req.query.estado === "string" ? req.query.estado : void 0;
+    const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
+    const conditions = [];
+    if (estado) conditions.push(eq58(pagos.estado, estado));
+    if (search) conditions.push(or9(like8(users.email, search), like8(users.name, search), like8(pagos.wompiReference, search)));
+    const where = conditions.length ? and41(...conditions) : void 0;
+    const [rows, countRows] = await Promise.all([
+      db2.select({
+        id: pagos.id,
+        estado: pagos.estado,
+        currency: pagos.currency,
+        amountCop: pagos.amountCop,
+        amountUsd: pagos.amountUsd,
+        metodoPago: pagos.metodoPago,
+        wompiReference: pagos.wompiReference,
+        concepto: pagos.concepto,
+        createdAt: pagos.createdAt,
+        email: users.email,
+        userName: users.name,
+        planNombre: planes.nombre
+      }).from(pagos).innerJoin(users, eq58(users.id, pagos.userId)).leftJoin(suscripciones, eq58(suscripciones.id, pagos.suscripcionId)).leftJoin(planes, eq58(planes.id, suscripciones.planId)).where(where).orderBy(desc24(pagos.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql24`COUNT(*)` }).from(pagos).innerJoin(users, eq58(users.id, pagos.userId)).where(where)
+    ]);
+    res.json({
+      success: true,
+      data: rows,
+      meta: { total: Number(countRows[0]?.total ?? 0), page, limit }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+var updateSubscriptionSchema = z18.object({
+  estado: z18.enum(["activa", "cancelada", "vencida", "en_prueba"]).optional(),
+  autoRenovacion: z18.boolean().optional()
+});
+router34.patch("/subscriptions/:id", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+  try {
+    const parsed2 = updateSubscriptionSchema.parse(req.body);
+    await storage.db.update(suscripciones).set(parsed2).where(eq58(suscripciones.id, req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+var admin_billing_routes_default = router34;
+
+// server/admin/routes/admin-processes.routes.ts
+init_auth();
+import { Router as Router35 } from "express";
+import { z as z19 } from "zod";
+import { sql as sql25, desc as desc25, like as like9, or as or10, eq as eq59 } from "drizzle-orm";
+init_database_storage();
+init_schema();
+var router35 = Router35();
+router35.use(authenticate, requireAdmin);
+router35.get("/summary", requireAdminRole("admin_super"), async (_req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const [totals, tipos] = await Promise.all([
+      db2.select({
+        total: sql25`COUNT(*)`,
+        activos: sql25`SUM(CASE WHEN ${procesos.state} = 1 THEN 1 ELSE 0 END)`,
+        archivados: sql25`SUM(CASE WHEN ${procesos.state} = 0 THEN 1 ELSE 0 END)`
+      }).from(procesos),
+      db2.select({
+        nombre: tiposProceso.nombre,
+        total: sql25`COUNT(*)`
+      }).from(procesos).leftJoin(tiposProceso, eq59(tiposProceso.id, procesos.tipoProcesoId)).groupBy(tiposProceso.nombre).orderBy(desc25(sql25`COUNT(*)`)).limit(6)
+    ]);
+    res.json({
+      success: true,
+      data: {
+        total: Number(totals[0]?.total ?? 0),
+        activos: Number(totals[0]?.activos ?? 0),
+        archivados: Number(totals[0]?.archivados ?? 0),
+        porTipo: tipos
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router35.get("/records", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = (page - 1) * limit;
+    const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
+    const where = search ? or10(
+      like9(procesos.radicado, search),
+      like9(procesos.juzgado, search),
+      like9(tiposProceso.nombre, search),
+      like9(personas.nombre, search),
+      like9(personas.apellido, search),
+      like9(clientesEmpresa.razonSocial, search)
+    ) : void 0;
+    const rows = await db2.select({
+      id: procesos.id,
+      radicado: procesos.radicado,
+      juzgado: procesos.juzgado,
+      state: procesos.state,
+      fechaCreacion: procesos.fechaCreacion,
+      tipoProceso: tiposProceso.nombre,
+      estado: estadosProceso.nombre,
+      clienteNombre: sql25`COALESCE(CONCAT(${personas.nombre}, ' ', ${personas.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`
+    }).from(procesos).leftJoin(tiposProceso, eq59(tiposProceso.id, procesos.tipoProcesoId)).leftJoin(estadosProceso, eq59(estadosProceso.id, procesos.estadoId)).leftJoin(clientes, eq59(clientes.id, procesos.clienteId)).leftJoin(clientesNatural, eq59(clientesNatural.clienteId, clientes.id)).leftJoin(personas, eq59(personas.id, clientesNatural.personaId)).leftJoin(clientesEmpresa, eq59(clientesEmpresa.clienteId, clientes.id)).where(where).orderBy(desc25(procesos.fechaCreacion)).limit(limit).offset(offset);
+    const countRows = await db2.select({ total: sql25`COUNT(*)` }).from(procesos).leftJoin(tiposProceso, eq59(tiposProceso.id, procesos.tipoProcesoId)).leftJoin(clientes, eq59(clientes.id, procesos.clienteId)).leftJoin(clientesNatural, eq59(clientesNatural.clienteId, clientes.id)).leftJoin(personas, eq59(personas.id, clientesNatural.personaId)).leftJoin(clientesEmpresa, eq59(clientesEmpresa.clienteId, clientes.id)).where(where);
+    res.json({
+      success: true,
+      data: rows,
+      meta: { total: Number(countRows[0]?.total ?? 0), page, limit }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router35.patch("/records/:id/state", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const { state } = z19.object({ state: z19.boolean() }).parse(req.body);
+    const updated = await storage.updateProceso(req.params.id, { state });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+router35.get("/types", requireAdminRole("admin_super"), async (_req, res, next) => {
+  try {
+    const tipos = await storage.tiposProceso.getTiposProceso();
+    res.json({ success: true, data: tipos });
+  } catch (err) {
+    next(err);
+  }
+});
+router35.post("/types", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const parsed2 = z19.object({ nombre: z19.string().min(1), descripcion: z19.string().optional() }).parse(req.body);
+    const created = await storage.tiposProceso.createTipoProceso(parsed2);
+    res.status(201).json({ success: true, data: created });
+  } catch (err) {
+    next(err);
+  }
+});
+router35.put("/types/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const parsed2 = z19.object({
+      nombre: z19.string().min(1).optional(),
+      descripcion: z19.string().nullable().optional(),
+      activo: z19.boolean().optional()
+    }).parse(req.body);
+    const updated = await storage.tiposProceso.updateTipoProceso(id, parsed2);
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+router35.delete("/types/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    await storage.tiposProceso.deleteTipoProceso(Number(req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+var admin_processes_routes_default = router35;
+
+// server/admin/routes/admin-community.routes.ts
+init_auth();
+import { Router as Router36 } from "express";
+import { z as z20 } from "zod";
+import { sql as sql26, desc as desc26, like as like10, or as or11, eq as eq60, and as and42 } from "drizzle-orm";
+init_database_storage();
+init_schema();
+var router36 = Router36();
+router36.use(authenticate, requireAdmin);
+router36.get("/overview", requireAdminRole("admin_super", "admin_soporte"), async (_req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const [postTotals, reportTotals] = await Promise.all([
+      db2.select({
+        total: sql26`COUNT(*)`,
+        open: sql26`SUM(CASE WHEN ${posts.status} = 'open' THEN 1 ELSE 0 END)`,
+        inProgress: sql26`SUM(CASE WHEN ${posts.status} = 'in_progress' THEN 1 ELSE 0 END)`,
+        closed: sql26`SUM(CASE WHEN ${posts.status} = 'closed' THEN 1 ELSE 0 END)`,
+        disabled: sql26`SUM(CASE WHEN ${posts.disabled} = 1 THEN 1 ELSE 0 END)`
+      }).from(posts),
+      db2.select({ total: sql26`COUNT(*)` }).from(postReports)
+    ]);
+    res.json({
+      success: true,
+      data: {
+        posts: {
+          total: Number(postTotals[0]?.total ?? 0),
+          open: Number(postTotals[0]?.open ?? 0),
+          inProgress: Number(postTotals[0]?.inProgress ?? 0),
+          closed: Number(postTotals[0]?.closed ?? 0),
+          disabled: Number(postTotals[0]?.disabled ?? 0)
+        },
+        reports: Number(reportTotals[0]?.total ?? 0)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router36.get("/posts", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = (page - 1) * limit;
+    const status = typeof req.query.status === "string" ? req.query.status : void 0;
+    const disabled = typeof req.query.disabled === "string" ? req.query.disabled : void 0;
+    const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
+    const conditions = [];
+    if (status) conditions.push(eq60(posts.status, status));
+    if (disabled === "true") conditions.push(eq60(posts.disabled, true));
+    if (disabled === "false") conditions.push(eq60(posts.disabled, false));
+    if (search) conditions.push(or11(like10(posts.title, search), like10(posts.content, search), like10(users.name, search)));
+    const where = conditions.length ? and42(...conditions) : void 0;
+    const [rows, countRows] = await Promise.all([
+      db2.select({
+        id: posts.id,
+        title: posts.title,
+        status: posts.status,
+        disabled: posts.disabled,
+        visibility: posts.visibility,
+        city: posts.city,
+        createdAt: posts.createdAt,
+        authorName: users.name,
+        reportCount: sql26`(
+          SELECT COUNT(*)
+          FROM post_reports pr
+          WHERE pr.post_id = ${posts.id}
+        )`
+      }).from(posts).leftJoin(users, eq60(users.id, posts.userId)).where(where).orderBy(desc26(posts.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql26`COUNT(*)` }).from(posts).leftJoin(users, eq60(users.id, posts.userId)).where(where)
+    ]);
+    res.json({ success: true, data: rows, meta: { total: Number(countRows[0]?.total ?? 0), page, limit } });
+  } catch (err) {
+    next(err);
+  }
+});
+router36.get("/reports", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const rows = await db2.select({
+      id: postReports.id,
+      postId: postReports.postId,
+      commentId: postReports.commentId,
+      reason: postReports.reason,
+      detail: postReports.detail,
+      createdAt: postReports.createdAt,
+      reporterEmail: users.email,
+      reporterName: users.name
+    }).from(postReports).leftJoin(users, eq60(users.id, postReports.reporterUserId)).orderBy(desc26(postReports.createdAt)).limit(limit);
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+router36.patch("/posts/:id/status", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const { status } = z20.object({ status: z20.enum(["open", "in_progress", "closed"]) }).parse(req.body);
+    await storage.db.update(posts).set({ status }).where(eq60(posts.id, req.params.id));
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+router36.patch("/posts/:id/disabled", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const { disabled } = z20.object({ disabled: z20.boolean() }).parse(req.body);
+    await storage.community.setPostDisabled(req.params.id, disabled);
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+});
+var admin_community_routes_default = router36;
+
+// server/admin/routes/admin-support.routes.ts
+init_auth();
+import { Router as Router37 } from "express";
+import { desc as desc27, sql as sql27, like as like11, or as or12 } from "drizzle-orm";
+init_database_storage();
+init_schema();
+var router37 = Router37();
+router37.use(authenticate, requireAdmin);
+router37.get("/overview", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const adminId = req.user?.id;
+    const [events, usersSummary, audit, supportConversations] = await Promise.all([
+      db2.select({
+        total: sql27`COUNT(*)`,
+        loginFail: sql27`SUM(CASE WHEN ${securityEvents.eventType} = 'login_fail' THEN 1 ELSE 0 END)`,
+        blocked: sql27`SUM(CASE WHEN ${securityEvents.eventType} IN ('login_blocked', 'login_blocked_user') THEN 1 ELSE 0 END)`
+      }).from(securityEvents),
+      db2.select({
+        activos: sql27`SUM(CASE WHEN ${users.isActive} = 1 THEN 1 ELSE 0 END)`,
+        suspendidos: sql27`SUM(CASE WHEN ${users.isActive} = 0 THEN 1 ELSE 0 END)`
+      }).from(users),
+      storage.adminAudit.getLog({ page: 1, limit: 10 }),
+      chatService.getConversations(adminId, 5, 0, "admin_support")
+    ]);
+    res.json({
+      success: true,
+      data: {
+        security: {
+          total: Number(events[0]?.total ?? 0),
+          loginFail: Number(events[0]?.loginFail ?? 0),
+          blocked: Number(events[0]?.blocked ?? 0)
+        },
+        users: {
+          activos: Number(usersSummary[0]?.activos ?? 0),
+          suspendidos: Number(usersSummary[0]?.suspendidos ?? 0)
+        },
+        support: {
+          total: supportConversations.total,
+          open: supportConversations.conversations.filter((conversation) => conversation.unreadCount > 0).length
+        },
+        audit: audit.data
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router37.get("/security-events", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const page = Math.max(Number(req.query.page ?? 1), 1);
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = (page - 1) * limit;
+    const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
+    const where = search ? or12(like11(securityEvents.email, search), like11(securityEvents.ip, search)) : void 0;
+    const [rows, countRows] = await Promise.all([
+      db2.select().from(securityEvents).where(where).orderBy(desc27(securityEvents.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql27`COUNT(*)` }).from(securityEvents).where(where)
+    ]);
+    res.json({ success: true, data: rows, meta: { total: Number(countRows[0]?.total ?? 0), page, limit } });
+  } catch (err) {
+    next(err);
+  }
+});
+router37.get("/audit-log", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const page = Number(req.query.page ?? 1);
+    const limit = Number(req.query.limit ?? 20);
+    const data = await storage.adminAudit.getLog({ page, limit });
+    res.json({ success: true, ...data });
+  } catch (err) {
+    next(err);
+  }
+});
+router37.get("/conversations", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const adminId = req.user?.id;
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const search = typeof req.query.search === "string" ? req.query.search.trim().toLowerCase() : "";
+    const result = await chatService.getConversations(adminId, limit, offset, "admin_support");
+    const data = search ? result.conversations.filter(
+      (conversation) => (conversation.name ?? "").toLowerCase().includes(search) || conversation.participants.some(
+        (participant) => participant.userId !== adminId && `${participant.name} ${participant.email}`.toLowerCase().includes(search)
+      )
+    ) : result.conversations;
+    res.json({ success: true, data, meta: { total: search ? data.length : result.total, limit, offset } });
+  } catch (err) {
+    next(err);
+  }
+});
+router37.post("/conversations", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const adminId = req.user?.id;
+    const targetUserId = typeof req.body?.targetUserId === "string" ? req.body.targetUserId : "";
+    if (!targetUserId) {
+      return res.status(400).json({ error: "targetUserId es requerido" });
+    }
+    const conversation = await chatService.getOrCreateSupportConversationForAdmin(adminId, targetUserId);
+    await auditService.log({
+      adminId,
+      accion: "support_chat_opened",
+      targetId: targetUserId,
+      detalle: `Conversaci\xF3n de soporte ${conversation.id}`
+    });
+    res.status(201).json({ success: true, data: conversation });
+  } catch (err) {
+    next(err);
+  }
+});
+var admin_support_routes_default = router37;
+
+// server/admin/routes/admin-config.routes.ts
+init_auth();
+import { Router as Router38 } from "express";
+import { z as z21 } from "zod";
+init_database_storage();
+var router38 = Router38();
+router38.use(authenticate, requireAdmin);
+router38.get("/overview", requireAdminRole("admin_super"), async (_req, res, next) => {
+  try {
+    const [roles2, permisos3, modulos2] = await Promise.all([
+      storage.getLisRol(),
+      storage.getPermisos(),
+      storage.getModulos()
+    ]);
+    const rolesWithPerms = await Promise.all(
+      roles2.map(async (rol) => ({
+        ...rol,
+        permisos: await storage.getPermisosByRol(rol.id)
+      }))
+    );
+    res.json({ success: true, data: { roles: rolesWithPerms, permisos: permisos3, modulos: modulos2 } });
+  } catch (err) {
+    next(err);
+  }
+});
+router38.get("/roles/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const roleId = Number(req.params.id);
+    const [rol, assignedCodes, permisos3] = await Promise.all([
+      storage.getRol(roleId),
+      storage.getPermisosByRol(roleId),
+      storage.getPermisos()
+    ]);
+    res.json({
+      success: true,
+      data: {
+        rol,
+        assignedCodes,
+        permisos: permisos3
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router38.put("/roles/:id/permisos", requireAdminRole("admin_super"), async (req, res, next) => {
+  try {
+    const roleId = Number(req.params.id);
+    const { permisoIds } = z21.object({ permisoIds: z21.array(z21.number().int().positive()) }).parse(req.body);
+    await storage.permisos.assignPermisosToRol(roleId, permisoIds);
+    const assignedCodes = await storage.getPermisosByRol(roleId);
+    res.json({ success: true, data: { assignedCodes } });
+  } catch (err) {
+    next(err);
+  }
+});
+var admin_config_routes_default = router38;
+
+// server/admin/routes/index.ts
+var router39 = Router39();
+router39.use("/stats", admin_stats_routes_default);
+router39.use("/users", admin_users_routes_default);
+router39.use("/plans", admin_plans_routes_default);
+router39.use("/billing", admin_billing_routes_default);
+router39.use("/processes", admin_processes_routes_default);
+router39.use("/community", admin_community_routes_default);
+router39.use("/support", admin_support_routes_default);
+router39.use("/config", admin_config_routes_default);
+var routes_default = router39;
 
 // server/routes/index.ts
 function registerAppRoutes(app2) {
@@ -16792,8 +19934,12 @@ function registerAppRoutes(app2) {
   app2.use("/api", calendar_default);
   app2.use("/api", stage_task_templates_default);
   app2.use("/api", stage_events_default);
+  app2.use("/api", proceso_etapa_historial_default);
   app2.use("/api", proceso_ownership_default);
   app2.use("/api", firm_settings_default);
+  app2.use("/api", suscripciones_default);
+  app2.use("/api", webhooks_default);
+  app2.use("/api/admin", routes_default);
 }
 
 // server/routes.ts
@@ -16897,7 +20043,7 @@ async function insertEtapas(db2, tipoProcesoId, etapas) {
 
 // server/db/seeds/stage-templates.seed.ts
 init_schema();
-import { eq as eq46, and as and31 } from "drizzle-orm";
+import { eq as eq61, and as and43 } from "drizzle-orm";
 var PLANTILLAS_DEFAULT = [
   { legalStageCode: "FILED", titulo: "Revisar escrito de demanda", prioridad: "alta", requerida: true, orden: 1 },
   { legalStageCode: "ADMITTED", titulo: "Notificar al cliente de admisi\xF3n", prioridad: "alta", requerida: true, orden: 1 },
@@ -16918,9 +20064,9 @@ async function seedStageTemplates(db2) {
   console.log("[seed] Sembrando plantillas de tareas por etapa...");
   for (const plantilla of PLANTILLAS_DEFAULT) {
     const alreadyExists = await db2.select().from(etapasTareasPlantilla).where(
-      and31(
-        eq46(etapasTareasPlantilla.legalStageCode, plantilla.legalStageCode),
-        eq46(etapasTareasPlantilla.titulo, plantilla.titulo)
+      and43(
+        eq61(etapasTareasPlantilla.legalStageCode, plantilla.legalStageCode),
+        eq61(etapasTareasPlantilla.titulo, plantilla.titulo)
       )
     ).limit(1);
     if (alreadyExists.length === 0) {
@@ -16936,6 +20082,237 @@ async function seedStageTemplates(db2) {
     }
   }
   console.log("[seed] Plantillas de tareas sembradas correctamente.");
+}
+
+// server/db/seeds/planes.seed.ts
+init_schema();
+import { eq as eq62 } from "drizzle-orm";
+var PLANES_SEED = [
+  // Abogado independiente
+  {
+    id: "plan-abogado-gratis",
+    nombre: "Gratis",
+    tipo: "abogado",
+    precioMensualCop: "0",
+    precioAnualCop: "0",
+    precioMensualUsd: "0",
+    precioAnualUsd: "0",
+    maxProcesos: 5,
+    maxClientes: 10,
+    maxStorageGb: 0.5,
+    includedUsers: 1,
+    maxUsers: 1,
+    precioUsuarioExtraCop: null,
+    precioUsuarioExtraUsd: null,
+    features: []
+  },
+  {
+    id: "plan-abogado-esencial",
+    nombre: "Esencial",
+    tipo: "abogado",
+    precioMensualCop: "29900",
+    precioAnualCop: "287040",
+    precioMensualUsd: "7",
+    precioAnualUsd: "70",
+    maxProcesos: 20,
+    maxClientes: 30,
+    maxStorageGb: 2,
+    includedUsers: 1,
+    maxUsers: 1,
+    precioUsuarioExtraCop: null,
+    precioUsuarioExtraUsd: null,
+    features: [
+      { code: "calendario", value: "true" },
+      { code: "etapas_procesales", value: "true" },
+      { code: "privacidad_basica", value: "5" }
+    ]
+  },
+  {
+    id: "plan-abogado-pro",
+    nombre: "Pro",
+    tipo: "abogado",
+    precioMensualCop: "84900",
+    precioAnualCop: "815040",
+    precioMensualUsd: "21",
+    precioAnualUsd: "199",
+    maxProcesos: -1,
+    maxClientes: -1,
+    maxStorageGb: 15,
+    includedUsers: 1,
+    maxUsers: 1,
+    precioUsuarioExtraCop: null,
+    precioUsuarioExtraUsd: null,
+    features: [
+      { code: "calendario", value: "true" },
+      { code: "etapas_procesales", value: "true" },
+      { code: "privacidad_basica", value: "true" },
+      { code: "privacidad_avanzada", value: "true" },
+      { code: "comunidad", value: "true" },
+      { code: "chat", value: "true" }
+    ]
+  },
+  // Bufete
+  {
+    id: "plan-bufete-gratis",
+    nombre: "Gratis",
+    tipo: "bufete",
+    precioMensualCop: "0",
+    precioAnualCop: "0",
+    precioMensualUsd: "0",
+    precioAnualUsd: "0",
+    maxProcesos: 5,
+    maxClientes: 10,
+    maxStorageGb: 0.5,
+    includedUsers: 3,
+    maxUsers: 3,
+    precioUsuarioExtraCop: null,
+    precioUsuarioExtraUsd: null,
+    features: []
+  },
+  {
+    id: "plan-bufete-starter",
+    nombre: "Starter",
+    tipo: "bufete",
+    precioMensualCop: "180000",
+    precioAnualCop: "1728000",
+    precioMensualUsd: "44",
+    precioAnualUsd: "422",
+    maxProcesos: 60,
+    maxClientes: 60,
+    maxStorageGb: 10,
+    includedUsers: 3,
+    maxUsers: 8,
+    precioUsuarioExtraCop: "45000",
+    precioUsuarioExtraUsd: "11",
+    features: [
+      { code: "calendario", value: "true" },
+      { code: "etapas_procesales", value: "true" },
+      { code: "dashboard_bufete", value: "true" },
+      { code: "privacidad_basica", value: "true" },
+      { code: "privacidad_avanzada", value: "true" }
+    ]
+  },
+  {
+    id: "plan-bufete-business",
+    nombre: "Business",
+    tipo: "bufete",
+    precioMensualCop: "350000",
+    precioAnualCop: "3360000",
+    precioMensualUsd: "85",
+    precioAnualUsd: "816",
+    maxProcesos: 300,
+    maxClientes: 300,
+    maxStorageGb: 30,
+    includedUsers: 8,
+    maxUsers: 20,
+    precioUsuarioExtraCop: "35000",
+    precioUsuarioExtraUsd: "9",
+    features: [
+      { code: "calendario", value: "true" },
+      { code: "etapas_procesales", value: "true" },
+      { code: "dashboard_bufete", value: "true" },
+      { code: "privacidad_basica", value: "true" },
+      { code: "privacidad_avanzada", value: "true" },
+      { code: "comunidad", value: "true" },
+      { code: "chat", value: "true" },
+      { code: "roles_custom", value: "true" }
+    ]
+  },
+  {
+    id: "plan-bufete-enterprise",
+    nombre: "Enterprise",
+    tipo: "bufete",
+    precioMensualCop: "600000",
+    precioAnualCop: "5760000",
+    precioMensualUsd: "146",
+    precioAnualUsd: "1402",
+    maxProcesos: -1,
+    maxClientes: -1,
+    maxStorageGb: 100,
+    includedUsers: 15,
+    maxUsers: -1,
+    precioUsuarioExtraCop: "28000",
+    precioUsuarioExtraUsd: "7",
+    features: [
+      { code: "calendario", value: "true" },
+      { code: "etapas_procesales", value: "true" },
+      { code: "dashboard_bufete", value: "true" },
+      { code: "privacidad_basica", value: "true" },
+      { code: "privacidad_avanzada", value: "true" },
+      { code: "comunidad", value: "true" },
+      { code: "chat", value: "true" },
+      { code: "roles_custom", value: "true" },
+      { code: "soporte_prioritario", value: "true" }
+    ]
+  }
+];
+var FEATURES_SEED = [
+  { code: "calendario", nombre: "Calendario", descripcion: "Gesti\xF3n de eventos, tareas y vencimientos en calendario" },
+  { code: "etapas_procesales", nombre: "Etapas procesales", descripcion: "Seguimiento jur\xEDdico del proceso con etapas y vencimientos" },
+  { code: "comunidad", nombre: "Comunidad", descripcion: "Acceso a la comunidad de abogados y matching con clientes" },
+  { code: "chat", nombre: "Chat con cliente", descripcion: "Mensajer\xEDa directa con clientes desde la plataforma" },
+  { code: "privacidad_basica", nombre: "Privacidad b\xE1sica", descripcion: "Marcar clientes como privados (hasta el l\xEDmite del plan)" },
+  { code: "privacidad_avanzada", nombre: "Privacidad avanzada", descripcion: "Clientes y procesos privados ilimitados con historial" },
+  { code: "dashboard_bufete", nombre: "Dashboard de bufete", descripcion: "Panel de control con m\xE9tricas agregadas del bufete" },
+  { code: "roles_custom", nombre: "Roles personalizados", descripcion: "Crear y asignar roles personalizados a abogados del bufete" },
+  { code: "soporte_prioritario", nombre: "Soporte prioritario", descripcion: "Acceso a soporte con tiempo de respuesta garantizado" }
+];
+var PLANES_LEGACY_IDS = ["default-plan-id"];
+async function seedPlanes(db2) {
+  for (const legacyId of PLANES_LEGACY_IDS) {
+    await db2.update(planes).set({ state: false }).where(eq62(planes.id, legacyId)).catch(() => {
+    });
+  }
+  for (const f of FEATURES_SEED) {
+    const existing = await db2.select().from(features).where(eq62(features.code, f.code)).limit(1).then((r) => r[0]);
+    if (!existing) {
+      await db2.insert(features).values({ ...f, state: true });
+    }
+  }
+  for (const p of PLANES_SEED) {
+    const { features: planFeaturesList, ...planData } = p;
+    const existing = await db2.select().from(planes).where(eq62(planes.id, p.id)).limit(1).then((r) => r[0]);
+    if (!existing) {
+      await db2.insert(planes).values({ ...planData, state: true });
+    } else {
+      await db2.update(planes).set({
+        maxStorageGb: planData.maxStorageGb,
+        state: true
+      }).where(eq62(planes.id, p.id));
+    }
+    for (const pf of planFeaturesList) {
+      const existingPf = await db2.select().from(planFeatures).where(eq62(planFeatures.planId, p.id)).then((rows) => rows.find((r) => r.featureCode === pf.code));
+      if (!existingPf) {
+        await db2.insert(planFeatures).values({ planId: p.id, featureCode: pf.code, value: pf.value });
+      }
+    }
+  }
+  console.log("[seed:planes] Planes y features sembrados correctamente.");
+}
+
+// server/db/seeds/admin-roles.seed.ts
+init_schema();
+import { eq as eq63 } from "drizzle-orm";
+var ADMIN_ROLES2 = [
+  { nombre: "admin_super", descripcion: "Acceso total al portal de administraci\xF3n" },
+  { nombre: "admin_soporte", descripcion: "Gesti\xF3n de usuarios y tickets de soporte" },
+  { nombre: "admin_finanzas", descripcion: "Gesti\xF3n de planes y facturaci\xF3n" }
+];
+async function seedAdminRoles(db2) {
+  for (const rol of ADMIN_ROLES2) {
+    const existing = await db2.select({ id: roles.id }).from(roles).where(eq63(roles.nombre, rol.nombre)).limit(1);
+    if (existing.length === 0) {
+      await db2.insert(roles).values({
+        nombre: rol.nombre,
+        descripcion: rol.descripcion,
+        activo: true,
+        firmId: null
+      });
+      console.log(`[seed] Rol creado: ${rol.nombre}`);
+    } else {
+      console.log(`[seed] Rol ya existe: ${rol.nombre}`);
+    }
+  }
 }
 
 // server/index.ts
@@ -16967,6 +20344,8 @@ async function seedDatabase() {
   }
   await seedLegalStages(db);
   await seedStageTemplates(db);
+  await seedPlanes(db);
+  await seedAdminRoles(db);
 }
 function setupCors(app2) {
   app2.use((req, res, next) => {
@@ -17124,7 +20503,8 @@ function configureExpoAndLanding(app2) {
 function setupErrorHandler(app2) {
   app2.use((err, _req, res, next) => {
     const error = err;
-    const status = error.status || error.statusCode || 500;
+    const duplicateEntry = error.code === "ER_DUP_ENTRY";
+    const status = error.status || error.statusCode || (duplicateEntry ? 409 : 500);
     const isProduction2 = process.env.NODE_ENV === "production";
     if (!isProduction2) {
       console.error("Error:", err);
@@ -17132,7 +20512,7 @@ function setupErrorHandler(app2) {
     if (res.headersSent) {
       return next(err);
     }
-    const message = isProduction2 && status >= 500 ? "Error interno del servidor" : error.message || "Internal Server Error";
+    const message = isProduction2 && status >= 500 ? "Error interno del servidor" : duplicateEntry ? "Ya existe un registro con uno de los datos \xFAnicos enviados." : error.message || "Internal Server Error";
     return res.status(status).json({ message });
   });
 }
@@ -17191,6 +20571,35 @@ function setupErrorHandler(app2) {
       console.error("[cron:calendar] Error al procesar recordatorios:", err);
     }
   }, 60 * 60 * 1e3);
+  setInterval(async () => {
+    try {
+      const vencidas = await storage.suscripciones.getVencidas();
+      for (const s of vencidas) {
+        await storage.suscripciones.updateEstado(s.id, "vencida");
+        await subscriptionService.activatePlanGratis(s.userId);
+        await storage.appNotifications.createNotification(
+          s.userId,
+          "subscription_expired",
+          "Tu suscripci\xF3n ha vencido",
+          "Tu plan ha sido degradado al plan gratuito. Renueva para seguir usando todas las funcionalidades.",
+          { suscripcionId: s.id }
+        );
+        console.log(`[cron:suscripciones] Suscripci\xF3n ${s.id} degradada a gratis`);
+      }
+      const proximasAVencer = await storage.suscripciones.getProximasAVencer(3);
+      for (const s of proximasAVencer) {
+        await storage.appNotifications.createNotification(
+          s.userId,
+          "subscription_expiring_soon",
+          "Tu suscripci\xF3n vence pronto",
+          `Tu plan vence el ${s.fechaVencimiento.toLocaleDateString("es-CO")}. Renueva para no perder el acceso.`,
+          { suscripcionId: s.id }
+        );
+      }
+    } catch (err) {
+      console.error("[cron:suscripciones] Error:", err);
+    }
+  }, 24 * 60 * 60 * 1e3);
   setupErrorHandler(app);
   const port = parseInt(process.env.PORT || "5000", 10);
   server.listen(

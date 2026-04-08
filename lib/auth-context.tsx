@@ -82,17 +82,12 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
-    try {
-      const loggedInUser = await loginUnified(email, password);
-      if (loggedInUser && loggedInUser.user && loggedInUser.profile) {
-        setUser(loggedInUser);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Unified login error:', error);
-      return false;
+    const loggedInUser = await loginUnified(email, password);
+    if (loggedInUser && loggedInUser.user && loggedInUser.profile) {
+      setUser(loggedInUser);
+      return true;
     }
+    return false;
   }, []);
 
   const logout = useCallback(async () => {

@@ -7,6 +7,7 @@ const ADMIN_ROLES = ["admin_super", "admin_soporte", "admin_finanzas"] as const;
 const MODULE_ACCESS: Record<string, string[]> = {
   dashboard: ["admin_super", "admin_soporte", "admin_finanzas"],
   usuarios: ["admin_super", "admin_soporte"],
+  "verificacion-abogados": ["admin_super", "admin_soporte"],
   planes: ["admin_super", "admin_finanzas"],
   facturacion: ["admin_super", "admin_finanzas"],
   procesos: ["admin_super"],

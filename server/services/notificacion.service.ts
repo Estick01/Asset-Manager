@@ -1,6 +1,15 @@
 import { storage } from "../storage/storeage/database-storage.js";
 import type { InsertNotificacion, Notificacion } from "@/shared/schema";
 import { broadcastToUser } from "../websocket/ws-server.js";
+import { queueNotificationEmail } from "./email.service.js";
+
+function joinAppUrl(path: string): string | undefined {
+  const appUrl = process.env.APP_URL?.trim();
+  if (!appUrl) return undefined;
+  const base = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+  const nextPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${nextPath}`;
+}
 
 export class NotificacionesService {
 
@@ -31,6 +40,10 @@ export class NotificacionesService {
       if (lawyer?.userId) {
         broadcastToUser(lawyer.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
       }
+      queueNotificationEmail(lawyer?.user?.email, titulo, mensaje, {
+        actionUrl: joinAppUrl(`/case/${procesoId}`),
+        actionLabel: "Ver proceso",
+      });
     } catch (err) {
       console.error("[notificaciones] notifyLawyer error:", err);
     }
@@ -57,6 +70,10 @@ export class NotificacionesService {
       if (cliente?.userId) {
         broadcastToUser(cliente.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
       }
+      queueNotificationEmail(cliente?.user?.email, titulo, mensaje, {
+        actionUrl: joinAppUrl(`/portal/case?id=${encodeURIComponent(procesoId)}`),
+        actionLabel: "Ver proceso",
+      });
     } catch (err) {
       console.error("[notificaciones] notifyCliente error:", err);
     }
@@ -83,6 +100,11 @@ export class NotificacionesService {
       if (firm?.userId) {
         broadcastToUser(firm.userId, { type: "new_notification", data: { titulo, mensaje, tipo } });
       }
+      const firmUser = firm?.userId ? await storage.users.getUserById(firm.userId) : undefined;
+      queueNotificationEmail(firmUser?.email, titulo, mensaje, {
+        actionUrl: joinAppUrl(`/case/${procesoId}`),
+        actionLabel: "Ver proceso",
+      });
     } catch (err) {
       console.error("[notificaciones] notifyFirm error:", err);
     }

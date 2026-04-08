@@ -4,7 +4,9 @@ import type {
   ListUsersParams,
   ListUsersResult,
   UserAdminDetail,
+  LawyerVerificationRow,
 } from "../storage/admin-users.storage.js";
+import type { LawyerProfessionalVerificationStatus } from "@/shared/schema";
 
 export const adminUsersService = {
   async list(params: ListUsersParams): Promise<ListUsersResult> {
@@ -21,5 +23,20 @@ export const adminUsersService = {
 
   async updatePlan(id: string, planId: string): Promise<void> {
     return storage.adminUsers.updatePlan(id, planId);
+  },
+
+  async listLawyerVerifications(status?: LawyerProfessionalVerificationStatus): Promise<LawyerVerificationRow[]> {
+    return storage.adminUsers.listLawyerVerifications(status);
+  },
+
+  async updateLawyerVerification(
+    lawyerProfileId: string,
+    payload: {
+      status: LawyerProfessionalVerificationStatus;
+      reviewedBy: string;
+      reviewNotes?: string | null;
+    },
+  ): Promise<void> {
+    return storage.adminUsers.updateLawyerVerification(lawyerProfileId, payload);
   },
 };

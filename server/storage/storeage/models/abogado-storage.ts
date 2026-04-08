@@ -8,6 +8,7 @@ import { LawyerProfileRelations, UpdateLawyerProfileDTO } from "@/shared/schema/
 import { and, eq, like } from "drizzle-orm";
 import { MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "@/shared/schema";
+import { assertDocumentoUnique, assertLicenseNumberUnique, normalizeLooseText, normalizeOptionalIdentity } from "./identity-uniqueness";
 
 type Database = MySql2Database<typeof schema>;
 
@@ -28,6 +29,10 @@ export class AbogadoStorage {
         specialization: lawyerProfiles.specialization,
         licenseNumber: lawyerProfiles.licenseNumber,
         isIndependent: lawyerProfiles.isIndependent,
+        professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+        professionalReviewedAt: lawyerProfiles.professionalReviewedAt,
+        professionalReviewedBy: lawyerProfiles.professionalReviewedBy,
+        professionalReviewNotes: lawyerProfiles.professionalReviewNotes,
         createdAt: lawyerProfiles.createdAt,
         updatedAt: lawyerProfiles.updatedAt,
         user: { id: users.id, email: users.email, name: users.name },
@@ -91,6 +96,10 @@ export class AbogadoStorage {
         specialization: lawyerProfiles.specialization,
         licenseNumber: lawyerProfiles.licenseNumber,
         isIndependent: lawyerProfiles.isIndependent,
+        professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+        professionalReviewedAt: lawyerProfiles.professionalReviewedAt,
+        professionalReviewedBy: lawyerProfiles.professionalReviewedBy,
+        professionalReviewNotes: lawyerProfiles.professionalReviewNotes,
         createdAt: lawyerProfiles.createdAt,
         updatedAt: lawyerProfiles.updatedAt,
         user: { id: users.id, email: users.email, name: users.name },
@@ -145,6 +154,10 @@ export class AbogadoStorage {
         specialization: lawyerProfiles.specialization,
         licenseNumber: lawyerProfiles.licenseNumber,
         isIndependent: lawyerProfiles.isIndependent,
+        professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+        professionalReviewedAt: lawyerProfiles.professionalReviewedAt,
+        professionalReviewedBy: lawyerProfiles.professionalReviewedBy,
+        professionalReviewNotes: lawyerProfiles.professionalReviewNotes,
         createdAt: lawyerProfiles.createdAt,
         updatedAt: lawyerProfiles.updatedAt,
       })
@@ -163,17 +176,24 @@ export class AbogadoStorage {
   }
 
   async createLawyer(lawyer: InsertLawyerProfile): Promise<LawyerProfile> {
-    await this.db.insert(lawyerProfiles).values(lawyer);
-    return lawyer as LawyerProfile;
+    const licenseNumber = await assertLicenseNumberUnique(this.db, lawyer.licenseNumber);
+    const payload = { ...lawyer, licenseNumber };
+    await this.db.insert(lawyerProfiles).values(payload);
+    return payload as LawyerProfile;
   }
 
   async updateLawyer(id: string, updates: Partial<UpdateLawyerProfileDTO>): Promise<LawyerProfile | undefined> {
     const { persona: personaUpdates, ...lawyerUpdates } = updates as any;
+    const safeLawyerUpdates: Record<string, unknown> = { ...lawyerUpdates };
 
-    if (Object.keys(lawyerUpdates).length > 0) {
+    if (lawyerUpdates.licenseNumber !== undefined) {
+      safeLawyerUpdates.licenseNumber = await assertLicenseNumberUnique(this.db, lawyerUpdates.licenseNumber, id);
+    }
+
+    if (Object.keys(safeLawyerUpdates).length > 0) {
       await this.db
         .update(lawyerProfiles)
-        .set({ ...lawyerUpdates, updatedAt: new Date() })
+        .set({ ...safeLawyerUpdates, updatedAt: new Date() })
         .where(eq(lawyerProfiles.id, id));
     }
 
@@ -185,7 +205,15 @@ export class AbogadoStorage {
         .limit(1);
 
       if (lawyer[0]?.personaId) {
-        await this.db.update(personas).set(personaUpdates).where(eq(personas.id, lawyer[0].personaId));
+        const safePersonaUpdates = {
+          ...personaUpdates,
+          ...(personaUpdates.nombre !== undefined && { nombre: normalizeLooseText(personaUpdates.nombre) }),
+          ...(personaUpdates.apellido !== undefined && { apellido: normalizeLooseText(personaUpdates.apellido) }),
+          ...(personaUpdates.telefono !== undefined && { telefono: normalizeLooseText(personaUpdates.telefono) }),
+          ...(personaUpdates.documento !== undefined && { documento: await assertDocumentoUnique(this.db, personaUpdates.documento, lawyer[0].personaId) }),
+          ...(personaUpdates.direccion !== undefined && { direccion: normalizeOptionalIdentity(personaUpdates.direccion) }),
+        };
+        await this.db.update(personas).set(safePersonaUpdates).where(eq(personas.id, lawyer[0].personaId));
       }
 
       // Keep users.name in sync when first/last name changes

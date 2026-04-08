@@ -27,6 +27,13 @@ const NAV_ITEMS: NavItem[] = [
     implemented: true,
   },
   {
+    label: "Verificación",
+    route: "verificacion-abogados",
+    icon:  "shield-checkmark-outline",
+    roles: ["admin_super", "admin_soporte"],
+    implemented: true,
+  },
+  {
     label: "Planes",
     route: "planes",
     icon:  "layers-outline",

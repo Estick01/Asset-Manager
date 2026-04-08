@@ -21,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { apiRequest } from "@/lib/query-client";
+import { extractApiErrorMessage } from "@/lib/api-error";
 import { FirmProfile } from "@/shared/schema";
 
 interface FirmForm {
@@ -109,9 +110,9 @@ export default function FirmProfileScreen() {
         repEmail: form.repEmail || undefined,
         repTelefono: form.repTelefono || undefined,
       });
-      const data = await response.json();
 
       if (response.ok) {
+        const data = await response.json();
         savedForm.current = form;
         // Actualizar contexto: perfil + nombre del usuario sincronizado
         await updateProfile({
@@ -121,7 +122,7 @@ export default function FirmProfileScreen() {
         toast.success("Perfil actualizado correctamente");
         router.back();
       } else {
-        toast.error(data.error || "Error al actualizar el perfil");
+        toast.error(await extractApiErrorMessage(response, "Error al actualizar el perfil"));
       }
     } catch {
       toast.error("Error de conexión");

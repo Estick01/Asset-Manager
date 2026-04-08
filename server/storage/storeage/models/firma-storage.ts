@@ -1,5 +1,6 @@
 import { FirmProfile, firmProfiles, InsertFirmProfile, representantesLegales, personas } from "@/shared/schema";
 import { eq } from "drizzle-orm";
+import { assertNitUnique, normalizeOptionalIdentity, normalizeRequiredIdentity } from "./identity-uniqueness";
 
 
 export class FirmProfileStorage {
@@ -89,8 +90,13 @@ export class FirmProfileStorage {
   async createFirmProfile(
     data: InsertFirmProfile
   ): Promise<FirmProfile> {
+    const nit = await assertNitUnique(this.db, data.nit);
     const newProfile = {
       ...data,
+      name: normalizeRequiredIdentity(data.name, "El nombre de la firma"),
+      nit,
+      address: normalizeOptionalIdentity(data.address),
+      phone: normalizeOptionalIdentity(data.phone),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -114,11 +120,17 @@ export class FirmProfileStorage {
     updates: Partial<FirmProfile>
   ): Promise<FirmProfile | undefined> {
     const { createdAt, ...safeUpdates } = updates as any;
+    const payload: Record<string, unknown> = { ...safeUpdates };
+
+    if (safeUpdates.name !== undefined) payload.name = normalizeRequiredIdentity(safeUpdates.name, "El nombre de la firma");
+    if (safeUpdates.nit !== undefined) payload.nit = await assertNitUnique(this.db, safeUpdates.nit, { excludeFirmId: id });
+    if (safeUpdates.address !== undefined) payload.address = normalizeOptionalIdentity(safeUpdates.address);
+    if (safeUpdates.phone !== undefined) payload.phone = normalizeOptionalIdentity(safeUpdates.phone);
 
     await this.db
       .update(firmProfiles)
       .set({
-        ...safeUpdates,
+        ...payload,
         updatedAt: new Date(),
       })
       .where(eq(firmProfiles.id, id));

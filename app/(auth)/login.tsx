@@ -8,6 +8,7 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
+import { AuthRequestError } from "@/lib/auth/unified";
 
 
 export default function LoginScreen() {
@@ -73,8 +74,18 @@ const handleLogin = async () => {
       );
     }
 
-  } catch {
-    setError("Error al iniciar sesion");
+  } catch (error) {
+    if (error instanceof AuthRequestError && error.requiresEmailVerification) {
+      setError(error.message);
+      router.push({
+        pathname: "/(auth)/verify-email",
+        params: { email: correo.trim(), next: "/login" },
+      } as any);
+    } else if (error instanceof Error) {
+      setError(error.message || "Error al iniciar sesion");
+    } else {
+      setError("Error al iniciar sesion");
+    }
   } finally {
     setLoading(false);
   }

@@ -55,7 +55,7 @@ export class RecommendationStorage {
         lp.id              AS lawyerProfileId,
         lp.user_id         AS userId,
         lp.specialization,
-        lp.license_number  AS licenseNumber,
+        lp.professional_verification_status AS professionalVerificationStatus,
         TRIM(CONCAT(
           COALESCE(p.nombre,   ''),
           ' ',
@@ -101,6 +101,7 @@ export class RecommendationStorage {
           AND client_accepted = 1
         GROUP BY taken_by_user_id
       ) conv ON conv.taken_by_user_id = lp.user_id
+      WHERE lp.professional_verification_status = 'verificado'
     `);
 
     const lawyers = ((rows as any[])[0] ?? []) as any[];
@@ -172,7 +173,7 @@ export class RecommendationStorage {
         userId:          row.userId           as string,
         name:            (row.fullName as string) || "Abogado",
         specialization:  (row.specialization as string | null) ?? null,
-        isVerified:      !!(row.licenseNumber),
+        isVerified:      row.professionalVerificationStatus === "verificado",
         rating:          { avg: rawRating, count: ratingCount },
         activeCases,
         finalScore,
@@ -212,7 +213,7 @@ export class RecommendationStorage {
           userId:          row.userId           as string,
           name:            (row.fullName as string) || "Abogado",
           specialization:  (row.specialization as string | null) ?? null,
-          isVerified:      !!(row.licenseNumber),
+          isVerified:      row.professionalVerificationStatus === "verificado",
           rating:          { avg: rawRating, count: ratingCount },
           activeCases,
           finalScore:      fallbackScore,

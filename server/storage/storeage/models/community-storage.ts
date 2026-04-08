@@ -17,7 +17,12 @@ import type { Database } from "../database-storage";
 export interface CommunityUserProfile {
   user: { id: string; name: string; email: string };
   role: string;
-  lawyerInfo: { specialization: string | null; licenseNumber: string | null; firmName: string | null } | null;
+  lawyerInfo: {
+    specialization: string | null;
+    licenseNumber: string | null;
+    firmName: string | null;
+    professionalVerificationStatus: "pendiente" | "verificado" | "rechazado";
+  } | null;
   firmInfo:   { nit: string; address: string | null; phone: string | null } | null;
   posts: PostDTO[];
 }
@@ -94,13 +99,20 @@ export class CommunityStorage {
       updatedAt:       row.updatedAt,
       author:          row.visibility === "anonymous"
         ? null
-        : { id: row.userId, name: row.authorName ?? "", email: row.authorEmail ?? "", rol: row.authorRole ?? "" },
+        : {
+            id: row.userId,
+            name: row.authorName ?? "",
+            email: row.authorEmail ?? "",
+            rol: row.authorRole ?? "",
+            isProfessionallyVerified: Boolean((row as any).authorProfessionallyVerified),
+          },
       commentCount:    Number(row.commentCount ?? 0),
       likeCount:       Number(likeCountRow[0]?.c ?? 0),
       isLiked:         likedRow.length > 0,
       isBookmarked:    bookmarkedRow.length > 0,
       tags:            postTagRows,
       takenByName:     (row as any).takenByName ?? null,
+      takenByProfessionallyVerified: Boolean((row as any).takenByProfessionallyVerified),
     };
   }
 
@@ -143,7 +155,23 @@ export class CommunityStorage {
         authorName:      users.name,
         authorEmail:     users.email,
         authorRole:      roles.nombre,
+        authorProfessionallyVerified: sql<number>`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp2
+              WHERE lp2.user_id = ${posts.userId}
+                AND lp2.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
         commentCount:    sql<number>`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`,
+        takenByProfessionallyVerified: sql<number>`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp3
+              WHERE lp3.user_id = ${posts.takenByUserId}
+                AND lp3.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
       })
       .from(posts)
       .leftJoin(users, eq(posts.userId, users.id))
@@ -225,7 +253,23 @@ export class CommunityStorage {
         authorName:   users.name,
         authorEmail:  users.email,
         authorRole:   roles.nombre,
+        authorProfessionallyVerified: sql<number>`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp2
+              WHERE lp2.user_id = ${posts.userId}
+                AND lp2.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
         takenByName:  sql<string>`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
+        takenByProfessionallyVerified: sql<number>`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp3
+              WHERE lp3.user_id = ${posts.takenByUserId}
+                AND lp3.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
         commentCount: sql<number>`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`,
       })
       .from(posts)
@@ -417,6 +461,14 @@ export class CommunityStorage {
         authorName:  users.name,
         authorEmail: users.email,
         authorRole:  roles.nombre,
+        authorProfessionallyVerified: sql<number>`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp2
+              WHERE lp2.user_id = ${comments.userId}
+                AND lp2.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
       })
       .from(comments)
       .leftJoin(users, eq(comments.userId, users.id))
@@ -432,7 +484,13 @@ export class CommunityStorage {
       parentId:  row.parentId ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
-      author:    { id: row.userId, name: row.authorName ?? "", email: row.authorEmail ?? "", rol: row.authorRole ?? "" },
+      author:    {
+        id: row.userId,
+        name: row.authorName ?? "",
+        email: row.authorEmail ?? "",
+        rol: row.authorRole ?? "",
+        isProfessionallyVerified: Boolean((row as any).authorProfessionallyVerified),
+      },
       replies:   [],
     }));
 
@@ -566,13 +624,23 @@ export class CommunityStorage {
 
     if (rolNombre === "abogado") {
       const lawyerRows = await this.db
-        .select({ specialization: lawyerProfiles.specialization, licenseNumber: lawyerProfiles.licenseNumber, firmName: firmProfiles.name })
+        .select({
+          specialization: lawyerProfiles.specialization,
+          licenseNumber: lawyerProfiles.licenseNumber,
+          firmName: firmProfiles.name,
+          professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+        })
         .from(lawyerProfiles)
         .leftJoin(firmProfiles, eq(lawyerProfiles.firmId, firmProfiles.id))
         .where(eq(lawyerProfiles.userId, userId))
         .limit(1);
       if (lawyerRows[0]) {
-        lawyerInfo = { specialization: lawyerRows[0].specialization ?? null, licenseNumber: lawyerRows[0].licenseNumber ?? null, firmName: lawyerRows[0].firmName ?? null };
+        lawyerInfo = {
+          specialization: lawyerRows[0].specialization ?? null,
+          licenseNumber: lawyerRows[0].licenseNumber ?? null,
+          firmName: lawyerRows[0].firmName ?? null,
+          professionalVerificationStatus: (lawyerRows[0].professionalVerificationStatus ?? "pendiente") as "pendiente" | "verificado" | "rechazado",
+        };
       }
     } else if (rolNombre === "bufete") {
       const firmRows = await this.db
@@ -598,6 +666,14 @@ export class CommunityStorage {
         clientAccepted:  posts.clientAccepted,
         procesoId:       posts.procesoId,
         takenByName:     sql<string>`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
+        takenByProfessionallyVerified: sql<number>`(
+          SELECT CASE
+            WHEN EXISTS (
+              SELECT 1 FROM lawyer_profiles lp3
+              WHERE lp3.user_id = ${posts.takenByUserId}
+                AND lp3.professional_verification_status = 'verificado'
+            ) THEN 1 ELSE 0 END
+        )`,
         commentCount:    sql<number>`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`,
       })
       .from(posts)

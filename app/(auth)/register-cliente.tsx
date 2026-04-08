@@ -11,9 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { loginUnified } from "@/lib/auth/unified";
 import { toast } from "sonner-native";
 import { API_URL } from "@/lib/config";
+import { extractApiErrorMessage } from "@/lib/api-error";
 import {
   getTiposDocumento, getDepartamentos, getMunicipios,
   type TipoDocumento, type Departamento, type Municipio,
@@ -239,19 +239,17 @@ export default function RegisterClienteScreen() {
             municipioId: municipioId || undefined,
           }),
         });
-        const data = await response.json();
         if (!response.ok) {
-          toast.error(data.details?.[0]?.message || data.error || data.message || "Error al registrar.");
+          toast.error(await extractApiErrorMessage(response, "Error al registrar."));
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
         }
-        const user = await loginUnified(correo, password);
-        if (user) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.replace("/portal" as any);
-        } else {
-          toast.error("Error al iniciar sesión después del registro.");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
+        const data = await response.json();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        toast.success(data.message || "Revisa tu correo para verificar la cuenta.");
+        router.replace({
+          pathname: "/(auth)/verify-email",
+          params: { email: correo, next: "/login" },
+        } as any);
       } catch { toast.error("Error al conectar con el servidor"); } finally { setLoading(false); }
     } else {
       if (!razonSocial.trim() || !nit.trim() || !empCorreo.trim() || !empPassword.trim()) {
@@ -272,19 +270,17 @@ export default function RegisterClienteScreen() {
             repEmail: repEmail || undefined, repTelefono: repTelefono || undefined,
           }),
         });
-        const data = await response.json();
         if (!response.ok) {
-          toast.error(data.details?.[0]?.message || data.error || data.message || "Error al registrar.");
+          toast.error(await extractApiErrorMessage(response, "Error al registrar."));
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
         }
-        const user = await loginUnified(empCorreo, empPassword);
-        if (user) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          router.replace("/portal-empresa" as any);
-        } else {
-          toast.error("Error al iniciar sesión después del registro.");
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
+        const data = await response.json();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        toast.success(data.message || "Revisa tu correo para verificar la cuenta.");
+        router.replace({
+          pathname: "/(auth)/verify-email",
+          params: { email: empCorreo, next: "/login" },
+        } as any);
       } catch { toast.error("Error al conectar con el servidor"); } finally { setLoading(false); }
     }
   };

@@ -131,6 +131,8 @@ SMTP_SECURE=false
 SMTP_USER=tu-correo@gmail.com
 SMTP_PASS=xxxx-xxxx-xxxx-xxxx
 SMTP_FROM="LexTrack <tu-correo@gmail.com>"
+# URL pública de la app para links en correos de notificaciones
+APP_URL=https://tu-dominio.com
 
 # ── AWS S3 (documentos) ────────────────────────────────────────────────────────
 AWS_ACCESS_KEY_ID=tu-access-key
@@ -148,6 +150,8 @@ EXPO_PUBLIC_LOCAL_IP=192.168.1.X
 # RECAPTCHA_SECRET_KEY=tu-secret-key-de-google
 # RECAPTCHA_MIN_SCORE=0.5
 ```
+
+`APP_URL` se usa para construir enlaces directos dentro de los correos de notificaciones. Si no se configura, el sistema seguirá enviando el correo, pero sin botón de acceso al detalle.
 
 ### Wompi — Pasarela de pagos
 

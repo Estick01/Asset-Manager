@@ -4,7 +4,7 @@
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, varchar } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, uniqueIndex } from "drizzle-orm/mysql-core";
 import { clientes } from "./cliente.schema";
 import { representantesLegales } from "./representante-legal.schema";
 
@@ -14,7 +14,9 @@ export const clientesEmpresa = mysqlTable("clientes_empresa", {
   nit: varchar("nit", { length: 50 }).notNull(),
   sector: varchar("sector", { length: 100 }),
   representanteLegalId: varchar("representante_legal_id", { length: 36 }),
-});
+}, (table) => ({
+  nitUnique: uniqueIndex("clientes_empresa_nit_unique").on(table.nit),
+}));
 
 export const clientesEmpresaRelations = relations(clientesEmpresa, ({ one }) => ({
   cliente: one(clientes, {

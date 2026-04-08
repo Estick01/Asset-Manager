@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { router, useNavigation } from "expo-router";
@@ -33,9 +34,12 @@ const MAX_ABOGADOS = 50;
 
 export default function PlanesScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const navigation = useNavigation();
   const { isLoggedIn, user } = useAuth();
-  const { suscripcion } = useSubscription();
+  const { suscripcion, uso } = useSubscription();
+  const isDesktop = width >= 1180;
+  const isWideDesktop = width >= 1440;
 
   const rolNombre = user?.user?.rol?.nombre;
   const tipoInicial: TipoPlan = rolNombre === "bufete" ? "bufete" : "abogado";
@@ -179,6 +183,23 @@ export default function PlanesScreen() {
     return nombre === "pro" || nombre === "business";
   };
 
+  const esGratisSeleccionado = planSeleccionado?.precioMensualCop === "0";
+  const precioBaseSeleccionado = planSeleccionado
+    ? parseInt(
+        ciclo === "mensual" ? planSeleccionado.precioMensualCop : planSeleccionado.precioAnualCop,
+        10,
+      )
+    : 0;
+  const extraSeleccionadoMensual =
+    tipoPlan === "bufete" && planSeleccionado?.precioUsuarioExtraCop
+      ? Math.max(0, extraUsers - (planSeleccionado.includedUsers ?? 0)) *
+        parseInt(planSeleccionado.precioUsuarioExtraCop, 10)
+      : 0;
+  const extraSeleccionadoTotal =
+    ciclo === "mensual" ? extraSeleccionadoMensual : extraSeleccionadoMensual * 12;
+  const totalSeleccionado = precioBaseSeleccionado + extraSeleccionadoTotal;
+  const fmtCop = (n: number) => `$${new Intl.NumberFormat("es-CO").format(n)}`;
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -205,17 +226,42 @@ export default function PlanesScreen() {
         </View>
 
         {/* Hero copy */}
-        <View style={styles.headerHero}>
-          <Text style={styles.headerTitulo}>Precios claros,</Text>
-          <Text style={styles.headerTituloAccent}>sin sorpresas</Text>
-          <Text style={styles.headerSubtitulo}>
-            Empieza gratis y escala cuando lo necesites.{"\n"}
-            Sin contratos, cancela cuando quieras.
-          </Text>
+        <View style={[styles.headerHero, isDesktop && styles.headerHeroDesktop]}>
+          <View style={styles.headerHeroCopy}>
+            <Text style={styles.headerTitulo}>Precios claros,</Text>
+            <Text style={styles.headerTituloAccent}>sin sorpresas</Text>
+            <Text style={styles.headerSubtitulo}>
+              Empieza gratis y escala cuando lo necesites.{"\n"}
+              Sin contratos, cancela cuando quieras.
+            </Text>
+          </View>
+
+          {isDesktop && (
+            <View style={styles.headerHighlightCard}>
+              <Text style={styles.headerHighlightEyebrow}>Hecho para crecer</Text>
+              <Text style={styles.headerHighlightTitle}>
+                Elige el plan correcto para tu práctica o firma y ajusta la capacidad cuando tu operación cambie.
+              </Text>
+              <View style={styles.headerHighlightStats}>
+                <View style={styles.headerHighlightStat}>
+                  <Text style={styles.headerHighlightValue}>2</Text>
+                  <Text style={styles.headerHighlightLabel}>modalidades</Text>
+                </View>
+                <View style={styles.headerHighlightStat}>
+                  <Text style={styles.headerHighlightValue}>0</Text>
+                  <Text style={styles.headerHighlightLabel}>costos ocultos</Text>
+                </View>
+                <View style={styles.headerHighlightStat}>
+                  <Text style={styles.headerHighlightValue}>24/7</Text>
+                  <Text style={styles.headerHighlightLabel}>acceso continuo</Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Trust strip */}
-        <View style={styles.trustStrip}>
+        <View style={[styles.trustStrip, isDesktop && styles.trustStripDesktop]}>
           {["Sin tarjeta de crédito", "Activa en 2 min", "Cancela cuando quieras"].map((t, i) => (
             <View key={i} style={styles.trustItem}>
               <Ionicons name="checkmark-circle" size={13} color={Colors.accentLight} />
@@ -230,13 +276,17 @@ export default function PlanesScreen() {
         style={styles.cuerpo}
         contentContainerStyle={[
           styles.cuerpoContent,
-          { paddingBottom: insets.bottom + 100 },
+          isDesktop && styles.cuerpoContentDesktop,
+          { paddingBottom: isDesktop ? insets.bottom + 40 : insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        <View style={[styles.pageShell, isWideDesktop && styles.pageShellWide]}>
+          <View style={[styles.pageColumns, isDesktop && styles.pageColumnsDesktop]}>
+            <View style={styles.mainColumn}>
         {/* Toggles row */}
-        <View style={styles.controlsRow}>
+        <View style={[styles.controlsRow, isDesktop && styles.controlsRowDesktop]}>
           {/* Tipo de plan — solo visible si no está logueado */}
           {!isLoggedIn && (
             <View style={styles.controlBlock}>
@@ -417,35 +467,123 @@ export default function PlanesScreen() {
         <Text style={styles.footerNota}>
           Todos los precios en pesos colombianos (COP) · IVA no incluido
         </Text>
+            </View>
+
+            {isDesktop && (
+              <View style={styles.sideColumn}>
+                <View style={styles.summaryCard}>
+                  <Text style={styles.summaryEyebrow}>Resumen</Text>
+                  <Text style={styles.summaryTitle}>
+                    {planSeleccionado ? `Plan ${planSeleccionado.nombre}` : "Selecciona un plan"}
+                  </Text>
+                  <Text style={styles.summaryText}>
+                    {planSeleccionado
+                      ? "Revisa el total estimado y continúa al checkout o activación."
+                      : "Elige una tarjeta para ver aquí el precio final y el resumen de compra."}
+                  </Text>
+
+                  <View style={styles.summaryDivider} />
+
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Modalidad</Text>
+                    <Text style={styles.summaryValue}>{tipoPlan === "abogado" ? "Abogado" : "Bufete"}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Facturación</Text>
+                    <Text style={styles.summaryValue}>{ciclo === "mensual" ? "Mensual" : "Anual"}</Text>
+                  </View>
+                  {tipoPlan === "bufete" && (
+                    <View style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel}>Usuarios</Text>
+                      <Text style={styles.summaryValue}>{extraUsers}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.summaryPriceBlock}>
+                    <Text style={styles.summaryPriceLabel}>Total estimado</Text>
+                    <Text style={styles.summaryPriceValue}>
+                      {!planSeleccionado
+                        ? "—"
+                        : esGratisSeleccionado
+                        ? "Gratis"
+                        : `${fmtCop(totalSeleccionado)} COP/${ciclo === "mensual" ? "mes" : "año"}`}
+                    </Text>
+                    {!!planSeleccionado && extraSeleccionadoTotal > 0 && (
+                      <Text style={styles.summaryPriceMeta}>
+                        Base {fmtCop(precioBaseSeleccionado)} + {fmtCop(extraSeleccionadoTotal)} en usuarios extra
+                      </Text>
+                    )}
+                  </View>
+
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.continuarBtn,
+                      styles.continuarBtnDesktop,
+                      (!planSeleccionado || procesando) && styles.continuarBtnOff,
+                      pressed && planSeleccionado && { opacity: 0.9, transform: [{ scale: 0.99 }] },
+                    ]}
+                    onPress={handleContinuar}
+                    disabled={!planSeleccionado || procesando}
+                  >
+                    {procesando ? (
+                      <ActivityIndicator color={Colors.white} size="small" />
+                    ) : (
+                      <>
+                        <Text style={styles.continuarBtnTexto}>
+                          {planSeleccionado ? "Continuar" : "Selecciona un plan"}
+                        </Text>
+                        {!!planSeleccionado && (
+                          <Ionicons name="arrow-forward" size={18} color={Colors.white} />
+                        )}
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+
+                <View style={styles.assuranceCard}>
+                  <Text style={styles.assuranceTitle}>Qué incluye tu compra</Text>
+                  {[
+                    "Activación inmediata del plan seleccionado",
+                    "Cambio o cancelación cuando quieras",
+                    "Acceso desde web y móvil con la misma cuenta",
+                  ].map((item) => (
+                    <View key={item} style={styles.assuranceRow}>
+                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                      <Text style={styles.assuranceText}>{item}</Text>
+                    </View>
+                  ))}
+
+                  {isLoggedIn && uso && (
+                    <View style={styles.currentUsageBox}>
+                      <Text style={styles.currentUsageTitle}>Uso actual</Text>
+                      <Text style={styles.currentUsageText}>
+                        {uso.procesosUsados} procesos · {uso.clientesUsados} clientes · {Math.round(uso.storageUsadoMb)} MB usados
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
       </ScrollView>
 
       {/* ── STICKY FOOTER CTA ── */}
+      {!isDesktop && (
       <View style={[styles.footerContainer, { paddingBottom: insets.bottom + 12 }]}>
         {planSeleccionado && (() => {
-          const esGratis = planSeleccionado.precioMensualCop === "0";
-          const baseNum  = parseInt(
-            ciclo === "mensual" ? planSeleccionado.precioMensualCop : planSeleccionado.precioAnualCop,
-            10,
-          );
-          const extraCopMensual = tipoPlan === "bufete" && planSeleccionado.precioUsuarioExtraCop
-            ? Math.max(0, extraUsers - (planSeleccionado.includedUsers ?? 0)) *
-              parseInt(planSeleccionado.precioUsuarioExtraCop, 10)
-            : 0;
-          const extraCopTotal = ciclo === "mensual" ? extraCopMensual : extraCopMensual * 12;
-          const totalNum = baseNum + extraCopTotal;
-          const fmt = (n: number) => `$${new Intl.NumberFormat("es-CO").format(n)}`;
           return (
             <View style={styles.footerPlanInfo}>
               <View>
                 <Text style={styles.footerPlanNombre}>{planSeleccionado.nombre}</Text>
-                {extraCopTotal > 0 && (
+                {extraSeleccionadoTotal > 0 && (
                   <Text style={styles.footerPlanDetalle}>
-                    Base {fmt(baseNum)} + {fmt(extraCopTotal)} extra
+                    Base {fmtCop(precioBaseSeleccionado)} + {fmtCop(extraSeleccionadoTotal)} extra
                   </Text>
                 )}
               </View>
               <Text style={styles.footerPlanPrecio}>
-                {esGratis ? "Gratis" : `${fmt(totalNum)} COP/${ciclo === "mensual" ? "mes" : "año"}`}
+                {esGratisSeleccionado ? "Gratis" : `${fmtCop(totalSeleccionado)} COP/${ciclo === "mensual" ? "mes" : "año"}`}
               </Text>
             </View>
           );
@@ -473,6 +611,7 @@ export default function PlanesScreen() {
           )}
         </Pressable>
       </View>
+      )}
     </View>
   );
 }
@@ -528,6 +667,17 @@ const styles = StyleSheet.create({
     gap: 2,
     marginBottom: 16,
   },
+  headerHeroDesktop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "stretch",
+    gap: 28,
+    marginBottom: 22,
+  },
+  headerHeroCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   headerTitulo: {
     fontSize: 28,
     fontFamily: "Inter_700Bold",
@@ -547,12 +697,61 @@ const styles = StyleSheet.create({
     marginTop: 6,
     lineHeight: 18,
   },
+  headerHighlightCard: {
+    width: 390,
+    borderRadius: 24,
+    padding: 22,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  headerHighlightEyebrow: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.5)",
+    textTransform: "uppercase",
+    letterSpacing: 1.4,
+    marginBottom: 10,
+  },
+  headerHighlightTitle: {
+    fontSize: 18,
+    lineHeight: 25,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.white,
+  },
+  headerHighlightStats: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 18,
+  },
+  headerHighlightStat: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  headerHighlightValue: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.accentLight,
+    marginBottom: 4,
+  },
+  headerHighlightLabel: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.64)",
+  },
 
   // Trust strip
   trustStrip: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 10,
+  },
+  trustStripDesktop: {
+    gap: 16,
   },
   trustItem: {
     flexDirection: "row",
@@ -574,11 +773,43 @@ const styles = StyleSheet.create({
     paddingTop: 24,
     gap: 16,
   },
+  cuerpoContentDesktop: {
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    gap: 20,
+  },
+  pageShell: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  pageShellWide: {
+    maxWidth: 1500,
+    alignSelf: "center",
+  },
+  pageColumns: {
+    width: "100%",
+  },
+  pageColumnsDesktop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 24,
+  },
+  mainColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sideColumn: {
+    width: 360,
+    gap: 18,
+  },
 
   // ── Controls row (tipo + ciclo) ──────────────────────────────────────────
   controlsRow: {
     flexDirection: "row",
     gap: 12,
+  },
+  controlsRowDesktop: {
+    marginBottom: 4,
   },
   controlBlock: {
     flex: 1,
@@ -652,11 +883,19 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     gap: 12,
   },
+  stepperCardDesktop: {
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+  },
   stepperTop: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+  },
+  stepperTopDesktop: {
+    alignItems: "flex-start",
   },
   stepperIconWrap: {
     width: 36,
@@ -762,11 +1001,18 @@ const styles = StyleSheet.create({
   skeletonContainer: {
     gap: 16,
   },
+  skeletonContainerDesktop: {
+    flexDirection: "row",
+    gap: 18,
+  },
   skeletonCard: {
     height: 320,
     borderRadius: 20,
     backgroundColor: Colors.border,
     opacity: 0.45,
+  },
+  skeletonCardDesktop: {
+    flex: 1,
   },
 
   // ── Vacío ─────────────────────────────────────────────────────────────────
@@ -803,6 +1049,12 @@ const styles = StyleSheet.create({
   planesLista: {
     gap: 16,
   },
+  planesListaDesktop: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 18,
+    alignItems: "stretch",
+  },
 
   // ── Nota de pie ───────────────────────────────────────────────────────────
   footerNota: {
@@ -811,6 +1063,144 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: "center",
     marginTop: 4,
+  },
+  continuarBtnDesktop: {
+    marginTop: 18,
+  },
+
+  summaryCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.06,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 4 },
+      },
+      android: { elevation: 2 },
+    }),
+  },
+  summaryEyebrow: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    color: Colors.textTertiary,
+    marginBottom: 8,
+  },
+  summaryTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  summaryText: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 8,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: Colors.border,
+    marginVertical: 16,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  summaryPriceBlock: {
+    backgroundColor: Colors.surfaceSecondary,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  summaryPriceLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    color: Colors.textTertiary,
+    marginBottom: 6,
+  },
+  summaryPriceValue: {
+    fontSize: 26,
+    lineHeight: 32,
+    fontFamily: "Inter_700Bold",
+    color: Colors.primary,
+  },
+  summaryPriceMeta: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: 6,
+  },
+  assuranceCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  assuranceTitle: {
+    fontSize: 17,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+    marginBottom: 14,
+  },
+  assuranceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  assuranceText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  currentUsageBox: {
+    marginTop: 8,
+    backgroundColor: "#EEF3FA",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  currentUsageTitle: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  currentUsageText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
   },
 
   // ── Sticky footer CTA ─────────────────────────────────────────────────────

@@ -92,6 +92,34 @@
       "when": 1775511600000,
       "tag": "0069_create_admin_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1775515200000,
+      "tag": "0070_add_disabled_to_posts",
+      "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1775518800000,
+      "tag": "0071_add_admin_support_conversation_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1775522400000,
+      "tag": "0072_email_and_lawyer_verification",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1775608800000,
+      "tag": "0073_unique_identity_fields",
+      "breakpoints": true
     }
   ]
 }

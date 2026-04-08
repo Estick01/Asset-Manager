@@ -143,6 +143,12 @@ export default function UsuarioDetailScreen() {
           <View style={styles.infoCard}>
             <InfoRow icon="person-outline"   label="Nombre"  value={user.name ?? "—"} />
             <InfoRow icon="mail-outline"     label="Email"   value={user.email} />
+            <InfoRow
+              icon="shield-checkmark-outline"
+              label="Correo"
+              value={user.emailVerified ? "Verificado" : "Pendiente"}
+              valueColor={user.emailVerified ? "#16A34A" : "#D97706"}
+            />
             <InfoRow icon="shield-outline"   label="Rol"     value={user.rol.nombre} />
             {user.firma && (
               <InfoRow icon="business-outline" label="Firma" value={user.firma.nombre} />
@@ -159,6 +165,17 @@ export default function UsuarioDetailScreen() {
               valueColor={user.isActive ? "#16A34A" : "#DC2626"}
             />
           </View>
+
+          {user.lawyerVerification && (
+            <>
+              <Text style={styles.sectionTitle}>Verificación profesional</Text>
+              <View style={styles.infoCard}>
+                <InfoRow icon="card-outline" label="Tarjeta" value={user.lawyerVerification.licenseNumber ?? "—"} />
+                <InfoRow icon="ribbon-outline" label="Estado" value={user.lawyerVerification.status} />
+                <InfoRow icon="document-text-outline" label="Notas" value={user.lawyerVerification.reviewNotes ?? "—"} />
+              </View>
+            </>
+          )}
 
           {/* Suscripción activa */}
           <Text style={styles.sectionTitle}>Suscripción activa</Text>

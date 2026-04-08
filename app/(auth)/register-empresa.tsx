@@ -14,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
-import { loginUnified } from "@/lib/auth/unified";
 import { API_URL } from "@/lib/config";
 
 export default function RegisterEmpresaScreen() {
@@ -89,14 +88,11 @@ export default function RegisterEmpresaScreen() {
         return;
       }
 
-      const user = await loginUnified(form.email, form.password);
-      if (user) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace("/portal-empresa");
-      } else {
-        setError("Error al iniciar sesión después del registro.");
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace({
+        pathname: "/(auth)/verify-email",
+        params: { email: form.email, next: "/login" },
+      } as any);
     } catch {
       setError("Error de conexión. Intenta de nuevo.");
     } finally {

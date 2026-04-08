@@ -1,6 +1,11 @@
 import crypto from "crypto";
 import { and, eq, gt, lt } from "drizzle-orm";
-import { passwordResetOtps, type PasswordResetOtp } from "@/shared/schema";
+import {
+  passwordResetOtps,
+  emailVerificationOtps,
+  type PasswordResetOtp,
+  type EmailVerificationOtp,
+} from "@/shared/schema";
 
 const OTP_EXPIRES_MINUTES = 5;
 const MAX_ATTEMPTS = 3;
@@ -8,18 +13,17 @@ const MAX_ATTEMPTS = 3;
 export class OtpStorage {
   constructor(private db: any) {}
 
-  /** Generate a 6-digit code and persist it. Invalidates any prior unused OTPs for the user. */
-  async createOtp(userId: string): Promise<string> {
+  private async createOtpForTable(table: typeof passwordResetOtps | typeof emailVerificationOtps, userId: string): Promise<string> {
     // Invalidate all prior OTPs for this user so only the latest is valid
     await this.db
-      .update(passwordResetOtps)
+      .update(table)
       .set({ isUsed: true })
-      .where(and(eq(passwordResetOtps.userId, userId), eq(passwordResetOtps.isUsed, false)));
+      .where(and(eq(table.userId, userId), eq(table.isUsed, false)));
 
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1000);
 
-    await this.db.insert(passwordResetOtps).values({
+    await this.db.insert(table).values({
       id:        crypto.randomUUID(),
       userId,
       code,
@@ -31,26 +35,24 @@ export class OtpStorage {
     return code;
   }
 
-  /** Validate an OTP for a given userId+code.
-   *  Returns: "valid" | "invalid" | "expired" | "used" | "too_many_attempts"
-   */
-  async verifyOtp(
+  private async verifyOtpForTable(
+    table: typeof passwordResetOtps | typeof emailVerificationOtps,
     userId: string,
     code: string
   ): Promise<"valid" | "invalid" | "expired" | "used" | "too_many_attempts"> {
     const rows = await this.db
       .select()
-      .from(passwordResetOtps)
+      .from(table)
       .where(
         and(
-          eq(passwordResetOtps.userId, userId),
-          eq(passwordResetOtps.isUsed, false),
+          eq(table.userId, userId),
+          eq(table.isUsed, false),
         )
       )
-      .orderBy(passwordResetOtps.createdAt)
+      .orderBy(table.createdAt)
       .limit(1);
 
-    const otp: PasswordResetOtp | undefined = rows[rows.length - 1] ?? rows[0];
+    const otp = (rows[rows.length - 1] ?? rows[0]) as PasswordResetOtp | EmailVerificationOtp | undefined;
     if (!otp) return "invalid";
 
     if (otp.isUsed)                   return "used";
@@ -63,21 +65,44 @@ export class OtpStorage {
     if (!matches) {
       // Increment attempts
       await this.db
-        .update(passwordResetOtps)
+        .update(table)
         .set({ attempts: otp.attempts + 1 })
-        .where(eq(passwordResetOtps.id, otp.id));
+        .where(eq(table.id, otp.id));
       return "invalid";
     }
 
     return "valid";
   }
 
-  /** Mark the latest unused OTP for this user as used */
-  async markUsed(userId: string): Promise<void> {
+  private async markUsedForTable(table: typeof passwordResetOtps | typeof emailVerificationOtps, userId: string): Promise<void> {
     await this.db
-      .update(passwordResetOtps)
+      .update(table)
       .set({ isUsed: true })
-      .where(and(eq(passwordResetOtps.userId, userId), eq(passwordResetOtps.isUsed, false)));
+      .where(and(eq(table.userId, userId), eq(table.isUsed, false)));
+  }
+
+  async createOtp(userId: string): Promise<string> {
+    return this.createOtpForTable(passwordResetOtps, userId);
+  }
+
+  async createEmailVerificationOtp(userId: string): Promise<string> {
+    return this.createOtpForTable(emailVerificationOtps, userId);
+  }
+
+  async verifyOtp(userId: string, code: string): Promise<"valid" | "invalid" | "expired" | "used" | "too_many_attempts"> {
+    return this.verifyOtpForTable(passwordResetOtps, userId, code);
+  }
+
+  async verifyEmailVerificationOtp(userId: string, code: string): Promise<"valid" | "invalid" | "expired" | "used" | "too_many_attempts"> {
+    return this.verifyOtpForTable(emailVerificationOtps, userId, code);
+  }
+
+  async markUsed(userId: string): Promise<void> {
+    await this.markUsedForTable(passwordResetOtps, userId);
+  }
+
+  async markEmailVerificationUsed(userId: string): Promise<void> {
+    await this.markUsedForTable(emailVerificationOtps, userId);
   }
 
   /** Delete all expired OTPs (for cleanup cron) */
@@ -85,5 +110,9 @@ export class OtpStorage {
     await this.db
       .delete(passwordResetOtps)
       .where(lt(passwordResetOtps.expiresAt, new Date()));
+
+    await this.db
+      .delete(emailVerificationOtps)
+      .where(lt(emailVerificationOtps.expiresAt, new Date()));
   }
 }

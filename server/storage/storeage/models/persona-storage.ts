@@ -7,6 +7,7 @@ import { personas, InsertPersona, Persona } from "@/shared/schema";
 import { eq } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import { assertDocumentoUnique, normalizeLooseText } from "./identity-uniqueness";
 
 export class PersonaStorage {
   constructor(private db: MySql2Database<any>) {}
@@ -14,7 +15,15 @@ export class PersonaStorage {
   async createPersona(data: Omit<InsertPersona, "id">, tx?: any): Promise<Persona> {
     const db = tx ?? this.db;
     const id = randomUUID();
-    await db.insert(personas).values({ ...data, id });
+    const documento = await assertDocumentoUnique(db, data.documento);
+    await db.insert(personas).values({
+      ...data,
+      id,
+      documento,
+      nombre: normalizeLooseText(data.nombre),
+      apellido: normalizeLooseText(data.apellido),
+      telefono: normalizeLooseText(data.telefono),
+    });
     const result = await db
       .select()
       .from(personas)
@@ -35,7 +44,22 @@ export class PersonaStorage {
 
   async updatePersona(id: string, updates: Partial<InsertPersona>, tx?: any): Promise<Persona | undefined> {
     const db = tx ?? this.db;
-    await db.update(personas).set(updates).where(eq(personas.id, id));
+    const safeUpdates: Partial<InsertPersona> = { ...updates };
+
+    if (updates.documento !== undefined) {
+      safeUpdates.documento = await assertDocumentoUnique(db, updates.documento, id);
+    }
+    if (updates.nombre !== undefined) {
+      safeUpdates.nombre = normalizeLooseText(updates.nombre);
+    }
+    if (updates.apellido !== undefined) {
+      safeUpdates.apellido = normalizeLooseText(updates.apellido);
+    }
+    if (updates.telefono !== undefined) {
+      safeUpdates.telefono = normalizeLooseText(updates.telefono);
+    }
+
+    await db.update(personas).set(safeUpdates).where(eq(personas.id, id));
     return this.getPersona(id);
   }
 

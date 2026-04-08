@@ -11,6 +11,8 @@ import {
   updateEstado,
   updatePlan,
   resetPassword,
+  listLawyerVerifications,
+  updateLawyerVerification,
 } from "../controllers/admin-users.controller.js";
 
 const router = Router();
@@ -19,6 +21,7 @@ const router = Router();
 router.use(authenticate, requireAdmin);
 
 router.get("/",    listUsers);
+router.get("/lawyer-verifications", listLawyerVerifications);
 router.get("/:id", getUserById);
 
 // Acciones críticas con sub-rol específico
@@ -36,6 +39,11 @@ router.post(
   "/:id/reset-password",
   requireAdminRole("admin_super"),
   resetPassword,
+);
+router.patch(
+  "/lawyer-verifications/:id",
+  requireAdminRole("admin_super", "admin_soporte"),
+  updateLawyerVerification,
 );
 
 export default router;

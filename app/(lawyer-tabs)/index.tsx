@@ -212,6 +212,11 @@ export default function DashboardScreen() {
     user?.profile && "specialization" in user.profile
       ? user.profile.specialization || "Panel principal"
       : "Panel principal";
+  const verificationStatus =
+    user?.profile && "professionalVerificationStatus" in user.profile
+      ? user.profile.professionalVerificationStatus ?? "pendiente"
+      : "pendiente";
+  const showVerificationNotice = verificationStatus !== "verificado";
 
   const statCards = useMemo(
     () => [
@@ -267,6 +272,27 @@ export default function DashboardScreen() {
             </View>
           </LinearGradient>
         </View>
+
+        {showVerificationNotice && (
+          <View style={[styles.verificationBanner, { marginBottom: metrics.contentGap }]}>
+            <View style={styles.verificationBannerIcon}>
+              <Ionicons name="shield-outline" size={18} color="#B45309" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.verificationBannerTitle}>
+                {verificationStatus === "rechazado"
+                  ? "Tu tarjeta profesional requiere corrección"
+                  : "Tu tarjeta profesional sigue en verificación"}
+              </Text>
+              <Text style={styles.verificationBannerText}>
+                Mientras este estado no sea aprobado, no podrás tomar casos de comunidad ni aparecer en recomendaciones públicas.
+              </Text>
+            </View>
+            <Pressable onPress={() => router.push("/lawyer-componts/lawyer-settings" as any)}>
+              <Text style={styles.verificationBannerLink}>Ver detalles</Text>
+            </Pressable>
+          </View>
+        )}
 
         <View style={[styles.desktopStatGrid, { gap: metrics.contentGap, marginBottom: metrics.contentGap }]}>
           {statCards.map((card) => (
@@ -388,6 +414,24 @@ export default function DashboardScreen() {
         </LinearGradient>
 
         <View style={[styles.mobileBody, compactMobile && styles.mobileBodyCompact]}>
+          {showVerificationNotice && (
+            <View style={styles.verificationBanner}>
+              <View style={styles.verificationBannerIcon}>
+                <Ionicons name="shield-outline" size={18} color="#B45309" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.verificationBannerTitle}>
+                  {verificationStatus === "rechazado"
+                    ? "Tarjeta profesional por corregir"
+                    : "Tarjeta profesional en verificación"}
+                </Text>
+                <Text style={styles.verificationBannerText}>
+                  Aún no puedes tomar casos de comunidad ni aparecer en recomendaciones.
+                </Text>
+              </View>
+            </View>
+          )}
+
           <View style={[styles.mobileSection, styles.mobileStatsSection]}>
             <View style={[styles.mobileStatGrid, compactMobile && styles.mobileStatGridCompact]}>
               {statCards.slice(0, 6).map((card) => (
@@ -890,5 +934,42 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
     textAlign: "center",
+  },
+  verificationBanner: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    borderRadius: 20,
+    padding: 16,
+  },
+  verificationBannerIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verificationBannerTitle: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    color: "#9A3412",
+    marginBottom: 4,
+  },
+  verificationBannerText: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+    color: "#9A3412",
+  },
+  verificationBannerLink: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#C2410C",
+    paddingLeft: 8,
   },
 });

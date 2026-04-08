@@ -6,6 +6,7 @@ export interface PostAuthor {
   name: string;
   email: string;
   rol?: string;
+  isProfessionallyVerified?: boolean;
 }
 
 export interface Tag {
@@ -40,6 +41,7 @@ export interface PostDTO {
   isBookmarked:    boolean;
   tags:            Tag[];
   takenByName:     string | null;
+  takenByProfessionallyVerified?: boolean;
 }
 
 export interface CommentDTO {

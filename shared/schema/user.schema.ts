@@ -14,6 +14,7 @@ export const users = mysqlTable("users", {
   name: varchar("name", { length: 100 }),
   rolId: int("rol_id"),
   isActive: boolean("is_active").notNull().default(true),
+  emailVerified: boolean("email_verified").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(new Date()),
   updatedAt: timestamp("updated_at").notNull().default(new Date()).onUpdateNow(),
 });
@@ -37,6 +38,7 @@ export interface User {
   name: string | null;
   rolId?: number | null;
   isActive?: boolean;
+  emailVerified?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
   passwordHash?: string;
@@ -50,6 +52,7 @@ export interface InsertUser {
   name?: string | null;
   rolId?: number | null;
   isActive?: boolean;
+  emailVerified?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -74,4 +77,3 @@ export type EnumRolType = typeof EnumRol[keyof typeof EnumRol]["nombre"];
 
 // Aliases for backward compatibility
 export type UserDTO = User;
-

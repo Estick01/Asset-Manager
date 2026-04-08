@@ -4,7 +4,7 @@
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, text, varchar, timestamp } from "drizzle-orm/mysql-core";
+import { mysqlTable, text, varchar, timestamp, uniqueIndex } from "drizzle-orm/mysql-core";
 import { users } from "./user.schema";
 import { representantesLegales } from "./representante-legal.schema";
 
@@ -19,7 +19,9 @@ export const firmProfiles = mysqlTable("firm_profiles", {
   representanteLegalId: varchar("representante_legal_id", { length: 36 }),
   createdAt: timestamp("created_at").notNull().default(new Date()),
   updatedAt: timestamp("updated_at").notNull().default(new Date()).onUpdateNow(),
-});
+}, (table) => ({
+  nitUnique: uniqueIndex("firm_profiles_nit_unique").on(table.nit),
+}));
 
 export const firmProfilesRelations = relations(firmProfiles, ({ one }) => ({
   user: one(users, {

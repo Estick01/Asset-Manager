@@ -5,7 +5,7 @@ import { users } from './user.schema';
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, varchar, boolean, timestamp } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, boolean, timestamp, text, uniqueIndex } from "drizzle-orm/mysql-core";
 
 import { firmProfiles } from "./firm-profile.schema";
 import { lawyerClients } from "./lawyer-clients.schema";
@@ -20,9 +20,15 @@ export const lawyerProfiles = mysqlTable("lawyer_profiles", {
   specialization: varchar("specialization", { length: 255 }),
   licenseNumber: varchar("license_number", { length: 50 }),
   isIndependent: boolean("is_independent").notNull().default(false),
+  professionalVerificationStatus: varchar("professional_verification_status", { length: 20 }).notNull().default("pendiente"),
+  professionalReviewedAt: timestamp("professional_reviewed_at"),
+  professionalReviewedBy: varchar("professional_reviewed_by", { length: 36 }),
+  professionalReviewNotes: text("professional_review_notes"),
   createdAt: timestamp("created_at").notNull().default(new Date()),
   updatedAt: timestamp("updated_at").notNull().default(new Date()).onUpdateNow(),
-});
+}, (table) => ({
+  licenseNumberUnique: uniqueIndex("lawyer_profiles_license_number_unique").on(table.licenseNumber),
+}));
 
 export const lawyerProfilesRelations = relations(lawyerProfiles, ({ one, many }) => ({
   user: one(users, {
@@ -57,10 +63,16 @@ export interface LawyerProfile {
   specialization: string | null;
   licenseNumber: string | null;
   isIndependent: boolean;
+  professionalVerificationStatus: LawyerProfessionalVerificationStatus;
+  professionalReviewedAt?: Date | null;
+  professionalReviewedBy?: string | null;
+  professionalReviewNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;
   persona?: import("./persona.schema").Persona | null;
 }
+
+export type LawyerProfessionalVerificationStatus = "pendiente" | "verificado" | "rechazado";
 
 export interface UpdateLawyerProfileDTO {
   specialization?: string;
@@ -85,6 +97,10 @@ export interface InsertLawyerProfile {
   personaId: string;
   specialization?: string | null;
   licenseNumber?: string | null;
+  professionalVerificationStatus?: LawyerProfessionalVerificationStatus;
+  professionalReviewedAt?: Date | null;
+  professionalReviewedBy?: string | null;
+  professionalReviewNotes?: string | null;
   isIndependent?: boolean;
   createdAt?: Date;
   updatedAt?: Date;

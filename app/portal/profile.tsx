@@ -14,6 +14,7 @@ import Colors from "@/constants/colors";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { apiRequest } from "@/lib/query-client";
+import { extractApiErrorMessage } from "@/lib/api-error";
 import { toast } from "sonner-native";
 import { isDesktopViewport } from "@/lib/ui/breakpoints";
 
@@ -247,8 +248,7 @@ export default function ClientProfileScreen() {
 
       const res = await apiRequest("PUT", "/api/cliente/me", updates);
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Error al guardar");
+        throw new Error(await extractApiErrorMessage(res, "Error al guardar"));
       }
       const updated = await res.json();
       await updateProfile({ profile: updated } as any);

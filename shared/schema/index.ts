@@ -16,7 +16,13 @@ export { planes, type Plan, type InsertPlan, type PlanPublicoDTO } from "./plane
 export { firmProfiles, firmProfilesRelations, type FirmProfile, type InsertFirmProfile } from "./firm-profile.schema";
 
 // Lawyer Profile
-export { lawyerProfiles, lawyerProfilesRelations, type LawyerProfile, type InsertLawyerProfile } from "./lawyer-profile.schema";
+export {
+  lawyerProfiles,
+  lawyerProfilesRelations,
+  type LawyerProfile,
+  type InsertLawyerProfile,
+  type LawyerProfessionalVerificationStatus,
+} from "./lawyer-profile.schema";
 
 // Persona (base para cliente natural, abogado y representante legal)
 export {
@@ -285,6 +291,8 @@ export {
 export {
   passwordResetOtps,
   type PasswordResetOtp,
+  emailVerificationOtps,
+  type EmailVerificationOtp,
 } from "./otp.schema";
 
 

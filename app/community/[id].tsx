@@ -184,6 +184,7 @@ function CommentItem({
   const av = getAvatarColor(comment.author.name || "?");
   const isOwn = comment.userId === currentUserId;
   const isLawyer = comment.author.rol === "abogado" || comment.author.rol === "bufete";
+  const isVerifiedLawyer = isLawyer && comment.author.isProfessionallyVerified === true;
   const [contacting, setContacting] = useState(false);
 
   const [sheetOpen, setSheetOpen]   = useState(false);
@@ -238,7 +239,7 @@ function CommentItem({
       {depth > 0 && <View style={styles.threadLine} />}
 
       {/* ── Lawyer verified banner ── */}
-      {isLawyer && !isOwn && (
+      {isVerifiedLawyer && !isOwn && (
         <View style={styles.lawyerVerifiedBanner}>
           <Ionicons name="shield-checkmark" size={13} color={TEAL} />
           <Text style={styles.lawyerVerifiedText}>Abogado verificado</Text>
@@ -260,20 +261,20 @@ function CommentItem({
             <View style={{ position: "relative" }}>
               <View style={[
                 styles.commentAvatar,
-                { backgroundColor: isLawyer && !isOwn ? TEAL + "18" : av.bg },
+                { backgroundColor: isVerifiedLawyer && !isOwn ? TEAL + "18" : av.bg },
               ]}>
-                <Text style={[styles.commentAvatarText, { color: isLawyer && !isOwn ? TEAL : av.text }]}>
+                <Text style={[styles.commentAvatarText, { color: isVerifiedLawyer && !isOwn ? TEAL : av.text }]}>
                   {comment.author.name?.[0]?.toUpperCase() ?? "?"}
                 </Text>
               </View>
-              {isLawyer && (
+              {isVerifiedLawyer && (
                 <View style={styles.lawyerBadgeDot}>
                   <Ionicons name="shield-checkmark" size={10} color={WHITE} />
                 </View>
               )}
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.commentAuthor, { color: isLawyer && !isOwn ? TEAL : isOwn ? NAVY : TEXT }]}>
+              <Text style={[styles.commentAuthor, { color: isVerifiedLawyer && !isOwn ? TEAL : isOwn ? NAVY : TEXT }]}>
                 {comment.author.name}
                 {isOwn && <Text style={styles.youBadge}> · tú</Text>}
               </Text>
@@ -328,7 +329,7 @@ function CommentItem({
           <Text style={styles.commentContent}>{editText}</Text>
 
           {/* ── Lawyer CTA — full width prominent button ── */}
-          {isLawyer && !isOwn && (
+          {isVerifiedLawyer && !isOwn && (
             <Pressable
               style={({ pressed }) => [
                 styles.lawyerCtaFull,
@@ -510,6 +511,10 @@ export default function PostDetailScreen() {
 
   const handleTakeCase = async () => {
     if (!post || takingCase) return;
+    if (currentLawyerVerificationStatus !== "verificado") {
+      toast.error("Debes tener tu tarjeta profesional verificada para tomar casos de comunidad.");
+      return;
+    }
     setTakingCase(true);
     try {
       const updated = await takePost(post.id);
@@ -723,10 +728,12 @@ export default function PostDetailScreen() {
   const postStatus     = (post as any).status as "open" | "in_progress" | "closed";
   const clientAccepted = (post as any).clientAccepted as number | null;
   const takenByName    = (post as any).takenByName   as string | null;
+  const takenByProfessionallyVerified = (post as any).takenByProfessionallyVerified as boolean | undefined;
   const takenExpiresAt = (post as any).takenExpiresAt as string | null;
   const takenByUserId  = (post as any).takenByUserId as string | null;
   const isLawyerUser   = (user?.user as any)?.rol?.nombre === "abogado";
-  const canTake        = isLawyerUser && !isOwnPost && postStatus === "open";
+  const currentLawyerVerificationStatus = isLawyerUser ? ((user?.profile as any)?.professionalVerificationStatus ?? "pendiente") : null;
+  const canTake        = isLawyerUser && !isOwnPost && postStatus === "open" && currentLawyerVerificationStatus === "verificado";
   const canClose       = isOwnPost && postStatus !== "closed";
   const showDecision   = isOwnPost && postStatus === "in_progress" && clientAccepted === null;
   const procesoId      = post.procesoId ?? null;
@@ -1050,17 +1057,21 @@ export default function PostDetailScreen() {
                           <Text style={[styles.decisionLawyerAvatarText, { color: lawyerAv.text }]}>
                             {lawyerInitial}
                           </Text>
-                          <View style={styles.decisionLawyerBadge}>
-                            <Ionicons name="shield-checkmark" size={10} color={WHITE} />
-                          </View>
+                          {takenByProfessionallyVerified && (
+                            <View style={styles.decisionLawyerBadge}>
+                              <Ionicons name="shield-checkmark" size={10} color={WHITE} />
+                            </View>
+                          )}
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.decisionLawyerName}>{takenByName ?? "Abogado"}</Text>
                           <View style={styles.decisionLawyerMeta}>
+                          {takenByProfessionallyVerified && (
                             <View style={styles.decisionVerifiedPill}>
                               <Ionicons name="shield-checkmark" size={10} color={TEAL} />
                               <Text style={styles.decisionVerifiedText}>Verificado</Text>
                             </View>
+                          )}
                             <Text style={styles.decisionLawyerRole}>· Abogado</Text>
                           </View>
                         </View>
@@ -1155,6 +1166,20 @@ export default function PostDetailScreen() {
                   </View>
                 )}
 
+                {isLawyerUser && currentLawyerVerificationStatus !== "verificado" && !isOwnPost && postStatus === "open" && (
+                  <View style={styles.restrictionCard}>
+                    <View style={styles.restrictionIconWrap}>
+                      <Ionicons name="shield-outline" size={16} color={AMBER} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.restrictionTitle}>Tu tarjeta profesional aún no está verificada</Text>
+                      <Text style={styles.restrictionText}>
+                        Puedes explorar la comunidad, pero no tomar casos hasta que el equipo admin valide tu tarjeta profesional.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
                 {/* ── Proceso vinculado ── */}
                 {procesoId && (() => {
                   const rol = (user?.user as any)?.rol?.nombre;
@@ -1201,10 +1226,12 @@ export default function PostDetailScreen() {
                             <Text style={styles.procesoLawyerName}>{takenByName}</Text>
                             <Text style={styles.procesoLawyerRole}>Abogado responsable</Text>
                           </View>
-                          <View style={styles.procesoVerifiedBadge}>
-                            <Ionicons name="shield-checkmark" size={11} color={TEAL} />
-                            <Text style={styles.procesoVerifiedText}>Verificado</Text>
-                          </View>
+                          {takenByProfessionallyVerified && (
+                            <View style={styles.procesoVerifiedBadge}>
+                              <Ionicons name="shield-checkmark" size={11} color={TEAL} />
+                              <Text style={styles.procesoVerifiedText}>Verificado</Text>
+                            </View>
+                          )}
                         </View>
                       )}
 
@@ -2667,6 +2694,37 @@ const styles = StyleSheet.create({
     marginTop: 12, borderRadius: 16, overflow: "hidden",
     backgroundColor: AMBER + "0A", borderWidth: 1.5, borderColor: AMBER + "30",
     padding: 14, gap: 10,
+  },
+  restrictionCard: {
+    marginTop: 12,
+    borderRadius: 16,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1.5,
+    borderColor: "#FED7AA",
+    padding: 14,
+    gap: 10,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  restrictionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  restrictionTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: "#9A3412",
+    marginBottom: 4,
+  },
+  restrictionText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: "#9A3412",
   },
   waitingCardTop:  { flexDirection: "row", alignItems: "center", gap: 10 },
   waitingIconWrap: { width: 36, height: 36, borderRadius: 10, backgroundColor: AMBER + "18", alignItems: "center", justifyContent: "center" },

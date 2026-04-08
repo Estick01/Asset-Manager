@@ -238,17 +238,18 @@ export interface InsertComment {
 
 /** Post enriched with author info, counts and user state */
 export interface PostDTO extends Post {
-  author:       { id: string; name: string; email: string; rol?: string } | null;
+  author:       { id: string; name: string; email: string; rol?: string; isProfessionallyVerified?: boolean } | null;
   commentCount: number;
   likeCount:    number;
   isLiked:      boolean;
   isBookmarked: boolean;
   tags:         Tag[];
   takenByName:  string | null;  // nombre del abogado que tomó el caso (solo en getPostDTO)
+  takenByProfessionallyVerified?: boolean;
 }
 
 /** Comment enriched with author info and nested replies */
 export interface CommentDTO extends Comment {
-  author:  { id: string; name: string; email: string };
+  author:  { id: string; name: string; email: string; rol?: string; isProfessionallyVerified?: boolean };
   replies: CommentDTO[];
 }

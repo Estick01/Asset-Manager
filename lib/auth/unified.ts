@@ -23,6 +23,20 @@ import type {
 } from './types';
 import { Rol } from '@/shared/schema';
 
+export class AuthRequestError extends Error {
+  code?: string;
+  requiresEmailVerification?: boolean;
+  email?: string;
+
+  constructor(message: string, options?: { code?: string; requiresEmailVerification?: boolean; email?: string }) {
+    super(message);
+    this.name = "AuthRequestError";
+    this.code = options?.code;
+    this.requiresEmailVerification = options?.requiresEmailVerification;
+    this.email = options?.email;
+  }
+}
+
 // --- Storage Functions ---
 
 /**
@@ -60,9 +74,15 @@ export async function loginUnified(
 
 
   if (!response.ok) {
-    const error = await response.json();
-    console.error('Login failed:', error.error || 'Invalid credentials');
-    return null;
+    const error = await response.json().catch(() => ({}));
+    throw new AuthRequestError(
+      error.error || 'Credenciales inválidas',
+      {
+        code: error.code,
+        requiresEmailVerification: error.requiresEmailVerification,
+        email,
+      },
+    );
   }
 
   const authData: UnifiedAuthResponse = await response.json();

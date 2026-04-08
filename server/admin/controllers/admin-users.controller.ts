@@ -5,6 +5,7 @@ import { adminUsersService } from "../services/admin-users.service.js";
 import { auditService } from "../services/audit.service.js";
 import type { JWTPayload } from "@/shared/model.schema.js";
 import jwt from "jsonwebtoken";
+import type { LawyerProfessionalVerificationStatus } from "@/shared/schema";
 
 // ── Schemas Zod ───────────────────────────────────────────────────────────────
 
@@ -22,6 +23,15 @@ const updateEstadoSchema = z.object({
 
 const updatePlanSchema = z.object({
   planId: z.string().min(1),
+});
+
+const lawyerVerificationListSchema = z.object({
+  status: z.enum(["pendiente", "verificado", "rechazado"]).default("pendiente"),
+});
+
+const updateLawyerVerificationSchema = z.object({
+  status: z.enum(["verificado", "rechazado"]),
+  reviewNotes: z.string().max(1000).optional(),
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -147,6 +157,49 @@ export async function resetPassword(
     });
 
     res.json({ success: true, data: { token, expiresIn: "1h" } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function listLawyerVerifications(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { status } = lawyerVerificationListSchema.parse(req.query);
+    const data = await adminUsersService.listLawyerVerifications(status as LawyerProfessionalVerificationStatus);
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateLawyerVerification(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const { status, reviewNotes } = updateLawyerVerificationSchema.parse(req.body);
+    const lawyerProfileId = req.params.id;
+    const adminId = getAdminId(req);
+
+    await adminUsersService.updateLawyerVerification(lawyerProfileId, {
+      status,
+      reviewNotes,
+      reviewedBy: adminId,
+    });
+
+    await auditService.log({
+      adminId,
+      accion: `abogado.verificacion_${status}`,
+      targetId: lawyerProfileId,
+      detalle: JSON.stringify({ status, reviewNotes: reviewNotes ?? null }),
+    });
+
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }

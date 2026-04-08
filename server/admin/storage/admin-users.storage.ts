@@ -8,6 +8,7 @@ import {
   lawyerProfiles,
   firmProfiles,
 } from "@/shared/schema";
+import type { LawyerProfessionalVerificationStatus } from "@/shared/schema";
 import type { Database } from "../../storage/storeage/database-storage.js";
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ export interface UserAdminRow {
   createdAt: string;
   rol:       { nombre: string };
   plan:      { nombre: string } | null;
+  emailVerified: boolean;
 }
 
 export interface SuscripcionResumen {
@@ -43,6 +45,26 @@ export interface UserAdminDetail extends UserAdminRow {
   firma:                   { id: string; nombre: string } | null;
   suscripcionActiva:       SuscripcionResumen | null;
   historialSuscripciones:  SuscripcionResumen[];
+  lawyerVerification: {
+    profileId: string;
+    licenseNumber: string | null;
+    status: LawyerProfessionalVerificationStatus;
+    reviewedAt: string | null;
+    reviewedBy: string | null;
+    reviewNotes: string | null;
+  } | null;
+}
+
+export interface LawyerVerificationRow {
+  profileId: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  licenseNumber: string | null;
+  specialization: string | null;
+  createdAt: string;
+  status: LawyerProfessionalVerificationStatus;
+  emailVerified: boolean;
 }
 
 export interface ListUsersResult {
@@ -98,6 +120,7 @@ export class AdminUsersStorage {
         name:      users.name,
         email:     users.email,
         isActive:  users.isActive,
+        emailVerified: users.emailVerified,
         createdAt: users.createdAt,
         rolNombre: roles.nombre,
         planNombre: sql<string | null>`(
@@ -120,6 +143,7 @@ export class AdminUsersStorage {
         name:      r.name,
         email:     r.email,
         isActive:  r.isActive ?? false,
+        emailVerified: r.emailVerified ?? false,
         createdAt: r.createdAt?.toISOString() ?? "",
         rol:       { nombre: r.rolNombre ?? "" },
         plan:      r.planNombre ? { nombre: r.planNombre } : null,
@@ -135,10 +159,17 @@ export class AdminUsersStorage {
         name:       users.name,
         email:      users.email,
         isActive:   users.isActive,
+        emailVerified: users.emailVerified,
         createdAt:  users.createdAt,
         rolNombre:  roles.nombre,
         firmId:     firmProfiles.id,
         firmNombre: firmProfiles.name,
+        lawyerProfileId: lawyerProfiles.id,
+        licenseNumber: lawyerProfiles.licenseNumber,
+        lawyerVerificationStatus: lawyerProfiles.professionalVerificationStatus,
+        lawyerReviewedAt: lawyerProfiles.professionalReviewedAt,
+        lawyerReviewedBy: lawyerProfiles.professionalReviewedBy,
+        lawyerReviewNotes: lawyerProfiles.professionalReviewNotes,
       })
       .from(users)
       .leftJoin(roles,          eq(roles.id,              users.rolId))
@@ -184,13 +215,68 @@ export class AdminUsersStorage {
       name:                   row.name,
       email:                  row.email,
       isActive:               row.isActive ?? false,
+      emailVerified:          row.emailVerified ?? false,
       createdAt:              row.createdAt?.toISOString() ?? "",
       rol:                    { nombre: row.rolNombre ?? "" },
       plan:                   suscripcionActiva ? { nombre: suscripcionActiva.planNombre } : null,
       firma,
       suscripcionActiva,
       historialSuscripciones: historial,
+      lawyerVerification: row.lawyerProfileId ? {
+        profileId: row.lawyerProfileId,
+        licenseNumber: row.licenseNumber ?? null,
+        status: (row.lawyerVerificationStatus ?? "pendiente") as LawyerProfessionalVerificationStatus,
+        reviewedAt: row.lawyerReviewedAt instanceof Date ? row.lawyerReviewedAt.toISOString() : null,
+        reviewedBy: row.lawyerReviewedBy ?? null,
+        reviewNotes: row.lawyerReviewNotes ?? null,
+      } : null,
     };
+  }
+
+  async listLawyerVerifications(status: LawyerProfessionalVerificationStatus = "pendiente"): Promise<LawyerVerificationRow[]> {
+    const rows = await this.db
+      .select({
+        profileId: lawyerProfiles.id,
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        licenseNumber: lawyerProfiles.licenseNumber,
+        specialization: lawyerProfiles.specialization,
+        createdAt: lawyerProfiles.createdAt,
+        status: lawyerProfiles.professionalVerificationStatus,
+        emailVerified: users.emailVerified,
+      })
+      .from(lawyerProfiles)
+      .innerJoin(users, eq(users.id, lawyerProfiles.userId))
+      .where(eq(lawyerProfiles.professionalVerificationStatus, status))
+      .orderBy(desc(lawyerProfiles.createdAt));
+
+    return rows.map((row) => ({
+      ...row,
+      createdAt: row.createdAt?.toISOString() ?? "",
+      status: (row.status ?? "pendiente") as LawyerProfessionalVerificationStatus,
+      emailVerified: row.emailVerified ?? false,
+    }));
+  }
+
+  async updateLawyerVerification(
+    lawyerProfileId: string,
+    payload: {
+      status: LawyerProfessionalVerificationStatus;
+      reviewedBy: string;
+      reviewNotes?: string | null;
+    },
+  ): Promise<void> {
+    await this.db
+      .update(lawyerProfiles)
+      .set({
+        professionalVerificationStatus: payload.status,
+        professionalReviewedAt: new Date(),
+        professionalReviewedBy: payload.reviewedBy,
+        professionalReviewNotes: payload.reviewNotes ?? null,
+        updatedAt: new Date(),
+      })
+      .where(eq(lawyerProfiles.id, lawyerProfileId));
   }
 
   async updateEstado(id: string, isActive: boolean): Promise<void> {

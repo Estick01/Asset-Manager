@@ -4,6 +4,7 @@
  */
 
 import { apiRequest } from "../query-client";
+import { extractApiErrorMessage } from "../api-error";
 import { Cliente } from "../../shared/schema";
 
 export interface LawyerProfile {
@@ -78,10 +79,9 @@ export async function updateLawyerProfile(
   data: UpdateLawyerProfile
 ): Promise<LawyerProfile | null> {
   try {
-    const response = await apiRequest("PUT", "/api/lawyer-profile", data);
+    const response = await apiRequest("PUT", "/api/lawyer-profile", data, { silent: true });
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Error al actualizar perfil");
+      throw new Error(await extractApiErrorMessage(response, "Error al actualizar perfil"));
     }
     return await response.json();
   } catch (error) {

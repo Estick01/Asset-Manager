@@ -331,6 +331,7 @@ export interface UserAdminRow {
   createdAt: string;
   rol:       { nombre: string };
   plan:      { nombre: string } | null;
+  emailVerified: boolean;
 }
 
 export interface SuscripcionResumen {
@@ -346,6 +347,26 @@ export interface UserAdminDetail extends UserAdminRow {
   firma:                  { id: string; nombre: string } | null;
   suscripcionActiva:      SuscripcionResumen | null;
   historialSuscripciones: SuscripcionResumen[];
+  lawyerVerification: {
+    profileId: string;
+    licenseNumber: string | null;
+    status: "pendiente" | "verificado" | "rechazado";
+    reviewedAt: string | null;
+    reviewedBy: string | null;
+    reviewNotes: string | null;
+  } | null;
+}
+
+export interface LawyerVerificationRow {
+  profileId: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  licenseNumber: string | null;
+  specialization: string | null;
+  createdAt: string;
+  status: "pendiente" | "verificado" | "rechazado";
+  emailVerified: boolean;
 }
 
 export interface ListUsersParams {
@@ -397,6 +418,21 @@ export const adminUsersService = {
     if (!response.ok) throw new Error(`Error ${response.status}`);
     const body = await response.json();
     return body.data;
+  },
+
+  listLawyerVerifications: async (status: "pendiente" | "verificado" | "rechazado" = "pendiente"): Promise<LawyerVerificationRow[]> => {
+    const response = await apiRequest("GET", `/api/admin/users/lawyer-verifications?status=${status}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data ?? [];
+  },
+
+  updateLawyerVerification: async (
+    id: string,
+    payload: { status: "verificado" | "rechazado"; reviewNotes?: string }
+  ): Promise<void> => {
+    const response = await apiRequest("PATCH", `/api/admin/users/lawyer-verifications/${id}`, payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
   },
 };
 

@@ -293,6 +293,16 @@ export default function CommunityProfileScreen() {
 
       {profile.lawyerInfo && (
         <View style={s.infoCard}>
+          <InfoRow
+            icon={profile.lawyerInfo.professionalVerificationStatus === "verificado" ? "shield-checkmark-outline" : "hourglass-outline"}
+            text={
+              profile.lawyerInfo.professionalVerificationStatus === "verificado"
+                ? "Perfil profesional verificado por administración"
+                : profile.lawyerInfo.professionalVerificationStatus === "rechazado"
+                  ? "Perfil profesional pendiente de corrección"
+                  : "Perfil profesional en revisión administrativa"
+            }
+          />
           {profile.lawyerInfo.specialization && (
             <InfoRow icon="briefcase-outline" text={profile.lawyerInfo.specialization} />
           )}

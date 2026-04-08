@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, TextInput, ActivityIndicator,
+  Modal, TextInput, ActivityIndicator, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -80,9 +80,11 @@ function SettingsSection({ title, items }: { title: string; items: SettingItem[]
 function PwdModal({
   visible,
   onClose,
+  centered = false,
 }: {
   visible: boolean;
   onClose: () => void;
+  centered?: boolean;
 }) {
   const [currentPwd, setCurrentPwd]   = useState("");
   const [newPwd, setNewPwd]           = useState("");
@@ -144,9 +146,9 @@ function PwdModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <Pressable style={styles.overlay} onPress={handleClose}>
-        <Pressable style={styles.sheet} onPress={e => e.stopPropagation()}>
-          <View style={styles.sheetHandle} />
+      <Pressable style={[styles.overlay, centered && styles.overlayCentered]} onPress={handleClose}>
+        <Pressable style={[styles.sheet, centered && styles.sheetCentered]} onPress={e => e.stopPropagation()}>
+          {!centered && <View style={styles.sheetHandle} />}
           <View style={styles.sheetHeader}>
             <View style={styles.sheetIconWrap}>
               <Ionicons name="lock-closed" size={20} color={TEAL} />
@@ -178,11 +180,14 @@ function PwdModal({
 // ─── Pantalla principal ───────────────────────────────────────────────────────
 export default function LawyerSettingsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const { user, logout } = useAuth();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loggingOut, setLoggingOut]           = useState(false);
   const [showPwdModal, setShowPwdModal]       = useState(false);
   const { plan, uso }                         = useSubscription();
+  const isDesktop = width >= 1100;
+  const isWideDesktop = width >= 1440;
 
   const handleConfirmLogout = async () => {
     setLoggingOut(true);
@@ -199,6 +204,8 @@ export default function LawyerSettingsScreen() {
   const displayName = user?.user.name || "Abogado";
   const email       = user?.user.email || "";
   const firmName    = profile?.firm?.name;
+  const verificationStatus = profile?.professionalVerificationStatus ?? "pendiente";
+  const isProfessionallyVerified = verificationStatus === "verificado";
   const initials    = displayName.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
 
   const openSupportChat = async () => {
@@ -256,87 +263,214 @@ export default function LawyerSettingsScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[
+          styles.bodyContent,
+          isDesktop && styles.bodyContentDesktop,
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.shell, isWideDesktop && styles.shellWide]}>
+          <View style={[styles.columns, isDesktop && styles.columnsDesktop]}>
+            <View style={[styles.mainColumn, isDesktop && styles.mainColumnDesktop]}>
+              <LinearGradient
+                colors={[WHITE, "#F8FBFD"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.userCard, isDesktop && styles.userCardDesktop]}
+              >
+                <View style={[styles.userCardTop, isDesktop && styles.userCardTopDesktop]}>
+                  <View style={[styles.avatar, isDesktop && styles.avatarDesktop]}>
+                    <Text style={[styles.avatarText, isDesktop && styles.avatarTextDesktop]}>{initials}</Text>
+                  </View>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userEyebrow}>PERFIL PROFESIONAL</Text>
+                    <Text style={[styles.userName, isDesktop && styles.userNameDesktop]}>{displayName}</Text>
+                    <Text style={[styles.userEmail, isDesktop && styles.userEmailDesktop]}>{email}</Text>
+                    <View style={styles.badgesRow}>
+                      {firmName ? (
+                        <View style={styles.firmBadge}>
+                          <Ionicons name="business-outline" size={11} color={TEAL} />
+                          <Text style={styles.firmBadgeText}>{firmName}</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.neutralBadge}>
+                          <Ionicons name="sparkles-outline" size={11} color={TEXT2} />
+                          <Text style={styles.neutralBadgeText}>Práctica independiente</Text>
+                        </View>
+                      )}
+                      <View style={styles.neutralBadge}>
+                        <Ionicons name="card-outline" size={11} color={TEXT2} />
+                        <Text style={styles.neutralBadgeText}>{plan?.nombre ?? "Gratis"}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <Pressable
+                    style={({ pressed }) => [styles.editAvatarBtn, pressed && { opacity: 0.7 }]}
+                    onPress={() => router.push("/profile/lawyer")}
+                  >
+                    <Ionicons name="pencil-outline" size={16} color={TEAL} />
+                  </Pressable>
+                </View>
 
-        {/* ── Tarjeta de usuario ── */}
-        <View style={styles.userCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{displayName}</Text>
-            <Text style={styles.userEmail}>{email}</Text>
-            {firmName ? (
-              <View style={styles.firmBadge}>
-                <Ionicons name="business-outline" size={11} color={TEAL} />
-                <Text style={styles.firmBadgeText}>{firmName}</Text>
+                {isDesktop && (
+                  <View style={styles.heroStatsRow}>
+                    <View style={styles.heroStatCard}>
+                      <Text style={styles.heroStatLabel}>Área</Text>
+                      <Text style={styles.heroStatValue}>{profile?.specialization || "General"}</Text>
+                    </View>
+                    <View style={styles.heroStatCard}>
+                      <Text style={styles.heroStatLabel}>Firma</Text>
+                      <Text style={styles.heroStatValue}>{firmName || "Independiente"}</Text>
+                    </View>
+                    <View style={styles.heroStatCard}>
+                      <Text style={styles.heroStatLabel}>Acceso</Text>
+                      <Text style={styles.heroStatValue}>Configuración y soporte</Text>
+                    </View>
+                  </View>
+                )}
+
+                {!isProfessionallyVerified && (
+                  <View style={styles.verificationNotice}>
+                    <View style={styles.verificationNoticeIcon}>
+                      <Ionicons name="shield-outline" size={18} color="#B45309" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.verificationNoticeTitle}>
+                        Tarjeta profesional en {verificationStatus === "rechazado" ? "revisión pendiente de corrección" : "verificación administrativa"}
+                      </Text>
+                      <Text style={styles.verificationNoticeText}>
+                        Mientras no esté verificada, podrás usar la plataforma pero no podrás tomar casos desde comunidad ni aparecer en recomendaciones públicas.
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </LinearGradient>
+
+              <View style={[styles.sectionsGrid, isDesktop && styles.sectionsGridDesktop]}>
+                {sections.map(s => (
+                  <View key={s.title} style={isDesktop && styles.sectionGridItem}>
+                    <SettingsSection title={s.title} items={s.items} />
+                  </View>
+                ))}
               </View>
-            ) : (
-              <View style={styles.firmBadge}>
-                <Ionicons name="person-outline" size={11} color={TEXT2} />
-                <Text style={[styles.firmBadgeText, { color: TEXT2 }]}>Independiente</Text>
+
+              {!isDesktop && (
+                <>
+                  <View style={styles.suscripcionCard}>
+                    <LinearGradient colors={[NAVY, NAVY_MID]} style={styles.suscripcionBanner}>
+                      <View style={styles.suscripcionBannerLeft}>
+                        <View style={styles.suscripcionBannerIconWrap}>
+                          <Ionicons name="shield-checkmark" size={22} color={TEAL} />
+                        </View>
+                        <View>
+                          <Text style={styles.suscripcionBannerLabel}>Plan activo</Text>
+                          <Text style={styles.suscripcionBannerNombre}>{plan?.nombre ?? "Gratis"}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.suscripcionActiveBadge}>
+                        <View style={styles.suscripcionActiveDot} />
+                        <Text style={styles.suscripcionActiveText}>Activo</Text>
+                      </View>
+                    </LinearGradient>
+
+                    {uso && (
+                      <View style={styles.suscripcionUsageWrap}>
+                        <UsageBars uso={uso} onUpgrade={() => router.push("/(auth)/planes" as any)} />
+                      </View>
+                    )}
+
+                    <Pressable
+                      style={({ pressed }) => [styles.upgradeBtn, pressed && { opacity: 0.88 }]}
+                      onPress={() => router.push("/(auth)/planes" as any)}
+                    >
+                      <Text style={styles.upgradeBtnText}>Ver planes y mejorar</Text>
+                      <Ionicons name="chevron-forward" size={15} color={NAVY} />
+                    </Pressable>
+                  </View>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.85 }]}
+                    onPress={() => setShowLogoutModal(true)}
+                  >
+                    <Ionicons name="log-out-outline" size={20} color={DANGER} />
+                    <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            {isDesktop && (
+              <View style={styles.sideColumn}>
+                <View style={styles.desktopQuickPanel}>
+                  <Text style={styles.desktopQuickTitle}>Accesos rápidos</Text>
+                  <Text style={styles.desktopQuickText}>
+                    Administra tu cuenta, revisa tu plan y entra rápido a soporte o notificaciones.
+                  </Text>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.quickActionBtn, pressed && { opacity: 0.85 }]}
+                    onPress={() => router.push("/lawyer-componts/lawyer-notifications" as any)}
+                  >
+                    <Ionicons name="notifications-outline" size={18} color={WHITE} />
+                    <Text style={styles.quickActionBtnText}>Abrir notificaciones</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={({ pressed }) => [styles.quickActionSecondary, pressed && { opacity: 0.78 }]}
+                    onPress={openSupportChat}
+                  >
+                    <Ionicons name="help-circle-outline" size={18} color={NAVY} />
+                    <Text style={styles.quickActionSecondaryText}>Contactar soporte</Text>
+                  </Pressable>
+                </View>
+
+                <View style={[styles.suscripcionCard, styles.suscripcionCardDesktop]}>
+                  <LinearGradient colors={[NAVY, NAVY_MID]} style={styles.suscripcionBanner}>
+                    <View style={styles.suscripcionBannerLeft}>
+                      <View style={styles.suscripcionBannerIconWrap}>
+                        <Ionicons name="shield-checkmark" size={22} color={TEAL} />
+                      </View>
+                      <View>
+                        <Text style={styles.suscripcionBannerLabel}>Plan activo</Text>
+                        <Text style={styles.suscripcionBannerNombre}>{plan?.nombre ?? "Gratis"}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.suscripcionActiveBadge}>
+                      <View style={styles.suscripcionActiveDot} />
+                      <Text style={styles.suscripcionActiveText}>Activo</Text>
+                    </View>
+                  </LinearGradient>
+
+                  {uso && (
+                    <View style={styles.suscripcionUsageWrap}>
+                      <UsageBars uso={uso} onUpgrade={() => router.push("/(auth)/planes" as any)} />
+                    </View>
+                  )}
+
+                  <Pressable
+                    style={({ pressed }) => [styles.upgradeBtn, pressed && { opacity: 0.88 }]}
+                    onPress={() => router.push("/(auth)/planes" as any)}
+                  >
+                    <Text style={styles.upgradeBtnText}>Ver planes y mejorar</Text>
+                    <Ionicons name="chevron-forward" size={15} color={NAVY} />
+                  </Pressable>
+                </View>
+
+                <Pressable
+                  style={({ pressed }) => [styles.logoutBtn, styles.logoutBtnDesktop, pressed && { opacity: 0.85 }]}
+                  onPress={() => setShowLogoutModal(true)}
+                >
+                  <Ionicons name="log-out-outline" size={20} color={DANGER} />
+                  <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
+                </Pressable>
               </View>
             )}
           </View>
-          <Pressable
-            style={({ pressed }) => [styles.editAvatarBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push("/profile/lawyer")}
-          >
-            <Ionicons name="pencil-outline" size={16} color={TEAL} />
-          </Pressable>
+
+          <Text style={styles.version}>LexTrack v1.0.0</Text>
         </View>
-
-        {/* ── Secciones ── */}
-        {sections.map(s => (
-          <SettingsSection key={s.title} title={s.title} items={s.items} />
-        ))}
-
-        {/* ── Mi Suscripción ── */}
-        <View style={styles.suscripcionCard}>
-          {/* Banner del plan */}
-          <LinearGradient colors={[NAVY, NAVY_MID]} style={styles.suscripcionBanner}>
-            <View style={styles.suscripcionBannerLeft}>
-              <View style={styles.suscripcionBannerIconWrap}>
-                <Ionicons name="shield-checkmark" size={22} color={TEAL} />
-              </View>
-              <View>
-                <Text style={styles.suscripcionBannerLabel}>Plan activo</Text>
-                <Text style={styles.suscripcionBannerNombre}>{plan?.nombre ?? "Gratis"}</Text>
-              </View>
-            </View>
-            <View style={styles.suscripcionActiveBadge}>
-              <View style={styles.suscripcionActiveDot} />
-              <Text style={styles.suscripcionActiveText}>Activo</Text>
-            </View>
-          </LinearGradient>
-
-          {/* Barras de uso */}
-          {uso && (
-            <View style={styles.suscripcionUsageWrap}>
-              <UsageBars uso={uso} onUpgrade={() => router.push("/(auth)/planes" as any)} />
-            </View>
-          )}
-
-          {/* Botón de upgrade */}
-          <Pressable
-            style={({ pressed }) => [styles.upgradeBtn, pressed && { opacity: 0.88 }]}
-            onPress={() => router.push("/(auth)/planes" as any)}
-          >
-            <Text style={styles.upgradeBtnText}>Ver planes y mejorar</Text>
-            <Ionicons name="chevron-forward" size={15} color={NAVY} />
-          </Pressable>
-        </View>
-
-        {/* ── Cerrar sesión ── */}
-        <Pressable
-          style={({ pressed }) => [styles.logoutBtn, pressed && { opacity: 0.85 }]}
-          onPress={() => setShowLogoutModal(true)}
-        >
-          <Ionicons name="log-out-outline" size={20} color={DANGER} />
-          <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
-        </Pressable>
-
-        <Text style={styles.version}>LexTrack v1.0.0</Text>
       </ScrollView>
 
       <LogoutModal
@@ -347,7 +481,7 @@ export default function LawyerSettingsScreen() {
         userName={displayName}
       />
 
-      <PwdModal visible={showPwdModal} onClose={() => setShowPwdModal(false)} />
+      <PwdModal visible={showPwdModal} onClose={() => setShowPwdModal(false)} centered={isDesktop} />
     </View>
   );
 }
@@ -384,39 +518,109 @@ const styles = StyleSheet.create({
   // Body
   body: { flex: 1, backgroundColor: BG, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
   bodyContent: { padding: 16, paddingBottom: 48 },
+  bodyContentDesktop: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 56 },
+  shell: { width: "100%", alignSelf: "center" },
+  shellWide: { maxWidth: 1480, alignSelf: "center" },
+  columns: { width: "100%" },
+  columnsDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  mainColumn: { minWidth: 0 },
+  mainColumnDesktop: { flex: 1 },
+  sideColumn: { width: 360, gap: 18 },
 
   // User card
   userCard: {
-    flexDirection: "row", alignItems: "center",
     backgroundColor: WHITE, borderRadius: 18,
-    padding: 16, marginBottom: 24, gap: 14,
+    padding: 16, marginBottom: 24,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
+    borderWidth: 1, borderColor: "rgba(15,38,64,0.06)",
   },
+  userCardDesktop: { padding: 24, borderRadius: 24, marginBottom: 28 },
+  userCardTop: { flexDirection: "row", alignItems: "center", gap: 14 },
+  userCardTopDesktop: { alignItems: "flex-start" },
   avatar: {
     width: 56, height: 56, borderRadius: 16,
     backgroundColor: NAVY, alignItems: "center", justifyContent: "center",
     flexShrink: 0,
   },
+  avatarDesktop: { width: 76, height: 76, borderRadius: 22 },
   avatarText: { fontSize: 18, fontFamily: "Inter_700Bold", color: WHITE },
+  avatarTextDesktop: { fontSize: 26 },
   userInfo: { flex: 1 },
+  userEyebrow: {
+    fontSize: 11, letterSpacing: 1.8, textTransform: "uppercase",
+    color: TEXT3, fontFamily: "Inter_600SemiBold", marginBottom: 6,
+  },
   userName:  { fontSize: 16, fontFamily: "Inter_700Bold", color: TEXT },
+  userNameDesktop: { fontSize: 28, letterSpacing: -0.5 },
   userEmail: { fontSize: 13, color: TEXT2, marginTop: 2 },
+  userEmailDesktop: { fontSize: 14, marginTop: 4 },
+  badgesRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
   firmBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
-    marginTop: 6, backgroundColor: TEAL + "12",
+    backgroundColor: TEAL + "12",
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
     alignSelf: "flex-start",
   },
   firmBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEAL },
+  neutralBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "#EEF2F6", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8,
+    alignSelf: "flex-start",
+  },
+  neutralBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT2 },
   editAvatarBtn: {
     width: 34, height: 34, borderRadius: 10,
     backgroundColor: TEAL + "15",
     alignItems: "center", justifyContent: "center",
   },
+  heroStatsRow: { flexDirection: "row", gap: 12, marginTop: 22 },
+  heroStatCard: {
+    flex: 1, minWidth: 0, backgroundColor: WHITE,
+    borderRadius: 16, paddingHorizontal: 14, paddingVertical: 14,
+    borderWidth: 1, borderColor: BORDER,
+  },
+  heroStatLabel: {
+    fontSize: 11, color: TEXT3, textTransform: "uppercase", letterSpacing: 1.1,
+    fontFamily: "Inter_600SemiBold", marginBottom: 6,
+  },
+  heroStatValue: { fontSize: 14, color: TEXT, fontFamily: "Inter_600SemiBold" },
+  verificationNotice: {
+    marginTop: 18,
+    flexDirection: "row",
+    gap: 12,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    borderRadius: 16,
+    padding: 14,
+  },
+  verificationNoticeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "#FFEDD5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  verificationNoticeTitle: {
+    fontSize: 14,
+    color: "#9A3412",
+    fontFamily: "Inter_700Bold",
+    marginBottom: 4,
+  },
+  verificationNoticeText: {
+    fontSize: 13,
+    color: "#9A3412",
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+  },
 
   // Secciones
   section: { marginBottom: 20 },
+  sectionsGrid: { width: "100%" },
+  sectionsGridDesktop: { flexDirection: "row", flexWrap: "wrap", gap: 20, alignItems: "flex-start" },
+  sectionGridItem: { flexBasis: 320, minWidth: 320, flexGrow: 1, flexShrink: 1 },
   sectionTitle: {
     fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT3,
     textTransform: "uppercase", letterSpacing: 1.2,
@@ -444,6 +648,24 @@ const styles = StyleSheet.create({
   rowLabel:    { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
   rowSublabel: { fontSize: 12, color: TEXT3, marginTop: 1 },
 
+  desktopQuickPanel: {
+    backgroundColor: NAVY, borderRadius: 24, padding: 22,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12, shadowRadius: 18, elevation: 4,
+  },
+  desktopQuickTitle: { fontSize: 22, color: WHITE, fontFamily: "Inter_700Bold", letterSpacing: -0.4 },
+  desktopQuickText: { fontSize: 13, color: "rgba(255,255,255,0.68)", lineHeight: 20, marginTop: 10, marginBottom: 18 },
+  quickActionBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: TEAL, borderRadius: 14, paddingVertical: 14, marginBottom: 10,
+  },
+  quickActionBtnText: { fontSize: 14, color: WHITE, fontFamily: "Inter_600SemiBold" },
+  quickActionSecondary: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 8, backgroundColor: WHITE, borderRadius: 14, paddingVertical: 13,
+  },
+  quickActionSecondaryText: { fontSize: 14, color: NAVY, fontFamily: "Inter_600SemiBold" },
+
   // Suscripción
   suscripcionCard: {
     backgroundColor: WHITE, borderRadius: 20,
@@ -452,6 +674,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.07, shadowRadius: 8, elevation: 2,
   },
+  suscripcionCardDesktop: { marginBottom: 0 },
   suscripcionBanner: {
     flexDirection: "row", alignItems: "center",
     justifyContent: "space-between", padding: 18,
@@ -499,6 +722,7 @@ const styles = StyleSheet.create({
     padding: 16, borderRadius: 16, marginTop: 4,
     borderWidth: 1, borderColor: DANGER + "25",
   },
+  logoutBtnDesktop: { marginTop: 0 },
   logoutBtnText: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: DANGER },
 
   version: {
@@ -511,9 +735,14 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
+  overlayCentered: { justifyContent: "center", alignItems: "center", padding: 24 },
   sheet: {
     backgroundColor: WHITE, borderTopLeftRadius: 24, borderTopRightRadius: 24,
     padding: 24, gap: 16,
+  },
+  sheetCentered: {
+    width: "100%", maxWidth: 520, borderRadius: 24,
+    borderTopLeftRadius: 24, borderTopRightRadius: 24,
   },
   sheetHandle: {
     width: 36, height: 4, borderRadius: 2,

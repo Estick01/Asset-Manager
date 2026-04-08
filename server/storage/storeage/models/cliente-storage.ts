@@ -16,6 +16,7 @@ import { InsertClienteNatural, InsertClienteEmpresa } from "@/shared/schema";
 import { randomUUID } from "crypto";
 import { eq, and, desc, like, SQL, or, inArray, sql } from "drizzle-orm";
 import type { MySql2Database } from "drizzle-orm/mysql2";
+import { assertDocumentoUnique, assertNitUnique, normalizeLooseText, normalizeOptionalIdentity, normalizeRequiredIdentity } from "./identity-uniqueness";
 
 export interface InsertClienteNaturalCompleto extends InsertCliente {
   tipo: "natural";
@@ -333,25 +334,27 @@ export class ClienteStorage {
     if (data.tipo === "natural") {
       const d = data as InsertClienteNaturalCompleto;
       const personaId = randomUUID();
+      const documento = await assertDocumentoUnique(db, d.documento);
       await db.insert(personas).values({
         id: personaId,
-        nombre: d.nombre,
-        apellido: d.apellido,
-        telefono: d.telefono,
-        documento: d.documento,
+        nombre: normalizeLooseText(d.nombre),
+        apellido: normalizeLooseText(d.apellido),
+        telefono: normalizeLooseText(d.telefono),
+        documento,
         tipoDocumentoId: d.tipoDocumentoId,
-        direccion: d.direccion ?? null,
+        direccion: normalizeOptionalIdentity(d.direccion),
         departamentoId: d.departamentoId ?? null,
         municipioId: d.municipioId ?? null,
       });
       await db.insert(clientesNatural).values({ clienteId: id, personaId });
     } else {
       const d = data as InsertClienteEmpresaCompleto;
+      const nit = await assertNitUnique(db, d.nit);
       await db.insert(clientesEmpresa).values({
         clienteId: id,
-        razonSocial: d.razonSocial,
-        nit: d.nit,
-        sector: d.sector ?? null,
+        razonSocial: normalizeRequiredIdentity(d.razonSocial, "La razón social"),
+        nit,
+        sector: normalizeOptionalIdentity(d.sector),
         representanteLegalId: d.representanteLegalId ?? null,
       });
     }
@@ -382,12 +385,12 @@ export class ClienteStorage {
     if (current.tipo === "natural") {
       const { nombre, apellido, telefono, documento, tipoDocumentoId, direccion, departamentoId, municipioId } = rest;
       const personaUpdates: any = {};
-      if (nombre !== undefined) personaUpdates.nombre = nombre;
-      if (apellido !== undefined) personaUpdates.apellido = apellido;
-      if (telefono !== undefined) personaUpdates.telefono = telefono;
-      if (documento !== undefined) personaUpdates.documento = documento;
+      if (nombre !== undefined) personaUpdates.nombre = normalizeLooseText(nombre);
+      if (apellido !== undefined) personaUpdates.apellido = normalizeLooseText(apellido);
+      if (telefono !== undefined) personaUpdates.telefono = normalizeLooseText(telefono);
+      if (documento !== undefined) personaUpdates.documento = await assertDocumentoUnique(db, documento, current.natural?.personaId);
       if (tipoDocumentoId !== undefined) personaUpdates.tipoDocumentoId = tipoDocumentoId;
-      if (direccion !== undefined) personaUpdates.direccion = direccion;
+      if (direccion !== undefined) personaUpdates.direccion = normalizeOptionalIdentity(direccion);
       if (departamentoId !== undefined) personaUpdates.departamentoId = departamentoId;
       if (municipioId !== undefined) personaUpdates.municipioId = municipioId;
 
@@ -397,9 +400,9 @@ export class ClienteStorage {
     } else {
       const { razonSocial, nit, sector, representanteLegalId } = rest;
       const empresaUpdates: any = {};
-      if (razonSocial !== undefined) empresaUpdates.razonSocial = razonSocial;
-      if (nit !== undefined) empresaUpdates.nit = nit;
-      if (sector !== undefined) empresaUpdates.sector = sector;
+      if (razonSocial !== undefined) empresaUpdates.razonSocial = normalizeRequiredIdentity(razonSocial, "La razón social");
+      if (nit !== undefined) empresaUpdates.nit = await assertNitUnique(db, nit, { excludeClienteEmpresaId: id });
+      if (sector !== undefined) empresaUpdates.sector = normalizeOptionalIdentity(sector);
       if (representanteLegalId !== undefined) empresaUpdates.representanteLegalId = representanteLegalId;
 
       if (Object.keys(empresaUpdates).length > 0) {

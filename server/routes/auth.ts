@@ -17,6 +17,7 @@ import { JWTPayload } from "@/shared/model.schema.js";
 import { validate } from "../middleware/validation.js";
 import { loginRateLimiter, registerRateLimiter } from "../middleware/rate-limit.js";
 import { subscriptionService } from "../services/subscription.service.js";
+import { sendEmailVerificationOtp } from "../services/email.service.js";
 import {
   recordFailure,
   recordSuccess,
@@ -75,6 +76,22 @@ const loginSchema = z.object({
   password: z.string().min(1, "La contraseña es requerida"),
 });
 
+const emailVerificationRequestSchema = z.object({
+  email: z.string().email("Correo electrónico inválido"),
+});
+
+const emailVerificationVerifySchema = z.object({
+  email: z.string().email("Correo electrónico inválido"),
+  code: z.string().length(6, "El código debe tener 6 dígitos"),
+});
+
+async function queueEmailVerification(email: string, userId: string): Promise<void> {
+  const code = await storage.otps.createEmailVerificationOtp(userId);
+  sendEmailVerificationOtp(email, code).catch((err) => {
+    console.error("[email-verification] email send error:", err);
+  });
+}
+
 
 // POST /api/login
 router.post("/login", loginRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
@@ -109,6 +126,14 @@ router.post("/login", loginRateLimiter, async (req: Request, res: Response, next
       auditLog({ email, ip, userAgent, eventType: "login_fail", success: false }).catch(() => {});
 
       return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+
+    if (!user.emailVerified) {
+      return res.status(403).json({
+        error: "Debes verificar tu correo electrónico antes de ingresar.",
+        code: "EMAIL_NOT_VERIFIED",
+        requiresEmailVerification: true,
+      });
     }
 
     // ── Success ─────────────────────────────────────────────────────────────
@@ -202,6 +227,7 @@ router.post("/register/lawyer",
         passwordHash: hashedPassword,
         rolId: EnumRol.ABOGADO.id,
         name: `${firstName} ${lastName}`,
+        emailVerified: false,
       },
       {
         id: crypto.randomUUID(),
@@ -209,6 +235,7 @@ router.post("/register/lawyer",
         licenseNumber,
         isIndependent: isIndependent ?? true,
         firmId: firmId || null,
+        professionalVerificationStatus: "pendiente",
       },
       {
         nombre: firstName,
@@ -223,9 +250,13 @@ router.post("/register/lawyer",
     );
 
     await subscriptionService.activatePlanGratis(lawyer.userId, "abogado");
+    await queueEmailVerification(email, lawyer.userId);
 
     return res.status(201).json({
-      message: "Abogado creado exitosamente",
+      message: "Abogado creado exitosamente. Verifica tu correo para activar el acceso.",
+      requiresEmailVerification: true,
+      email,
+      professionalVerificationStatus: "pendiente",
       data: lawyer,
     });
 
@@ -298,6 +329,7 @@ router.post("/register/firm",
         passwordHash: hashedPassword,
         rolId: 5,
         name,
+        emailVerified: false,
       },
       {
         id: crypto.randomUUID(),
@@ -310,9 +342,12 @@ router.post("/register/firm",
     );
 
     await subscriptionService.activatePlanGratis(firm.userId, "bufete");
+    await queueEmailVerification(email, firm.userId);
 
     return res.status(201).json({
-      message: "Firma creada exitosamente",
+      message: "Firma creada exitosamente. Verifica tu correo para activar el acceso.",
+      requiresEmailVerification: true,
+      email,
       data: firm,
     });
 
@@ -511,6 +546,56 @@ router.put("/auth/change-password", authenticate, async (req: Request, res: Resp
     // Revoke all active sessions — force re-login on other devices
     await storage.sessions.revokeAllForUser(authUser.id);
     res.json({ message: "Contraseña actualizada correctamente." });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/request-email-verification", registerRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email } = emailVerificationRequestSchema.parse(req.body);
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
+
+    if (user && user.isActive && !user.emailVerified) {
+      await queueEmailVerification(user.email, user.id);
+    }
+
+    return res.json({
+      message: "Si el correo existe y aún no está verificado, recibirás un código en breve.",
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/verify-email", registerRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, code } = emailVerificationVerifySchema.parse(req.body);
+    const user = await storage.getUserByEmail(email.toLowerCase().trim());
+    const GENERIC_ERROR = "Código inválido o expirado.";
+
+    if (!user || !user.isActive) {
+      return res.status(400).json({ error: GENERIC_ERROR });
+    }
+
+    if (user.emailVerified) {
+      return res.json({ message: "El correo ya estaba verificado." });
+    }
+
+    const result = await storage.otps.verifyEmailVerificationOtp(user.id, code);
+
+    if (result === "too_many_attempts") {
+      return res.status(429).json({ error: "Demasiados intentos fallidos. Solicita un nuevo código." });
+    }
+
+    if (result !== "valid") {
+      return res.status(400).json({ error: GENERIC_ERROR });
+    }
+
+    await storage.otps.markEmailVerificationUsed(user.id);
+    await storage.users.updateUser(user.id, { emailVerified: true });
+
+    return res.json({ message: "Correo verificado correctamente." });
   } catch (err) {
     next(err);
   }

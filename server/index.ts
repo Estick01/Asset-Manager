@@ -282,9 +282,11 @@ function setupErrorHandler(app: express.Application) {
       status?: number;
       statusCode?: number;
       message?: string;
+      code?: string;
     };
 
-    const status = error.status || error.statusCode || 500;
+    const duplicateEntry = error.code === "ER_DUP_ENTRY";
+    const status = error.status || error.statusCode || (duplicateEntry ? 409 : 500);
     const isProduction = process.env.NODE_ENV === "production";
 
     // Only log full error server-side, never expose stack traces to clients
@@ -300,7 +302,9 @@ function setupErrorHandler(app: express.Application) {
     const message =
       isProduction && status >= 500
         ? "Error interno del servidor"
-        : error.message || "Internal Server Error";
+        : duplicateEntry
+          ? "Ya existe un registro con uno de los datos únicos enviados."
+          : error.message || "Internal Server Error";
 
     return res.status(status).json({ message });
   });

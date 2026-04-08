@@ -26,6 +26,7 @@ export interface CommunityUserProfile {
     specialization: string | null;
     licenseNumber: string | null;
     firmName: string | null;
+    professionalVerificationStatus: "pendiente" | "verificado" | "rechazado";
   } | null;
   firmInfo: {
     nit: string;

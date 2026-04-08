@@ -11,6 +11,7 @@ import { clientesService } from '../services';
 import { validate } from "../middleware/validation.js";
 import { registerRateLimiter } from "../middleware/rate-limit.js";
 import { subscriptionService } from "../services/subscription.service.js";
+import { sendEmailVerificationOtp } from "../services/email.service.js";
 
 const registerClienteNaturalSchema = z.object({
   correo:          z.string().email("Correo inválido"),
@@ -44,6 +45,13 @@ const registerEmpresaSchema = z.object({
 });
 
 const router = Router();
+
+async function queueEmailVerification(email: string, userId: string): Promise<void> {
+  const code = await storage.otps.createEmailVerificationOtp(userId);
+  sendEmailVerificationOtp(email, code).catch((err) => {
+    console.error("[email-verification] email send error:", err);
+  });
+}
 
 // ----------------------------------------------------------------
 // GET /api/clientes — list for lawyer or firm
@@ -430,7 +438,15 @@ router.post("/register/cliente", registerRateLimiter, validate(registerClienteNa
       abogadoId
     );
 
-    res.status(201).json({ message: "Cliente creado exitosamente", data: cliente });
+    await storage.users.updateUser(cliente.userId!, { emailVerified: false });
+    await queueEmailVerification(correo, cliente.userId!);
+
+    res.status(201).json({
+      message: "Cliente creado exitosamente. Verifica tu correo para activar el acceso.",
+      requiresEmailVerification: true,
+      email: correo,
+      data: cliente,
+    });
   } catch (error) {
     next(error);
   }
@@ -486,7 +502,15 @@ router.post("/register/empresa", registerRateLimiter, validate(registerEmpresaSc
       abogadoId
     );
 
-    res.status(201).json({ message: "Empresa registrada exitosamente", data: cliente });
+    await storage.users.updateUser(cliente.userId!, { emailVerified: false });
+    await queueEmailVerification(correo, cliente.userId!);
+
+    res.status(201).json({
+      message: "Empresa registrada exitosamente. Verifica tu correo para activar el acceso.",
+      requiresEmailVerification: true,
+      email: correo,
+      data: cliente,
+    });
   } catch (error) {
     next(error);
   }

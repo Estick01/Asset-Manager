@@ -11,8 +11,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { API_URL } from "@/lib/config";
+import { extractApiErrorMessage } from "@/lib/api-error";
 import { toast } from "sonner-native";
-import { useAuth } from "@/lib/auth-context";
 import {
   getTiposDocumento, getDepartamentos, getMunicipios,
   type TipoDocumento, type Departamento, type Municipio,
@@ -95,7 +95,6 @@ export default function RegisterLawyerScreen() {
   const desktop = Platform.OS === "web" && isDesktopViewport(width);
   const metrics = getDesktopMetrics(width);
   const shellWidth = Math.min(1440, Math.max(1120, width - metrics.gutter * 2));
-  const { login } = useAuth();
 
   const [firstName, setFirstName]         = useState("");
   const [lastName, setLastName]           = useState("");
@@ -178,19 +177,17 @@ export default function RegisterLawyerScreen() {
           licenseNumber, specialty: specialty || undefined, isIndependent: true,
         }),
       });
-      const data = await response.json();
       if (!response.ok) {
-        toast.error(data.details?.[0]?.message || data.error || data.message || "Error al registrar.");
+        toast.error(await extractApiErrorMessage(response, "Error al registrar."));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
       }
-      const loggedIn = await login(email, password);
-      if (loggedIn) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        router.replace("/(lawyer-tabs)" as any);
-      } else {
-        toast.error("Error al iniciar sesión después del registro.");
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      }
+      const data = await response.json();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      toast.success(data.message || "Revisa tu correo para verificar la cuenta.");
+      router.replace({
+        pathname: "/(auth)/verify-email",
+        params: { email, next: "/login" },
+      } as any);
     } catch { toast.error("Error al conectar con el servidor"); } finally { setLoading(false); }
   };
 

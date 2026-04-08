@@ -4,7 +4,7 @@
  */
 
 import { relations } from "drizzle-orm";
-import { mysqlTable, varchar, text, int } from "drizzle-orm/mysql-core";
+import { mysqlTable, varchar, text, int, uniqueIndex } from "drizzle-orm/mysql-core";
 import { tiposDocumento } from "./tipos-documento.schema";
 import { departamentos, municipios } from "./ubicacion.schema";
 
@@ -18,7 +18,9 @@ export const personas = mysqlTable("personas", {
   direccion: text("direccion"),
   departamentoId: varchar("departamento_id", { length: 36 }),
   municipioId: varchar("municipio_id", { length: 36 }),
-});
+}, (table) => ({
+  documentoUnique: uniqueIndex("personas_documento_unique").on(table.documento),
+}));
 
 export const personasRelations = relations(personas, ({ one }) => ({
   tipoDocumento: one(tiposDocumento, {

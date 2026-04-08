@@ -288,6 +288,12 @@ router.post("/posts/:id/take", authenticate, requireFeature("comunidad"), async 
     if (!lawyerProfile) {
       return res.status(403).json({ error: "Solo abogados pueden tomar casos" });
     }
+    if (lawyerProfile.professionalVerificationStatus !== "verificado") {
+      return res.status(403).json({
+        error: "Debes tener tu tarjeta profesional verificada para tomar casos de comunidad.",
+        code: "LAWYER_PROFESSIONAL_VERIFICATION_REQUIRED",
+      });
+    }
     const user       = await storage.users.getUserById(userId);
     const lawyerName = user?.name ?? "Abogado";
     const post = await communityService.takePost(str(req.params.id), lawyerProfile.id, userId, lawyerName);
