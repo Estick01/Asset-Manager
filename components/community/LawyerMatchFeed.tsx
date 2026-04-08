@@ -25,6 +25,39 @@ const TEXT2  = C.TEXT2;
 const TEXT3  = C.TEXT3;
 const TEAL   = C.TEAL;
 const ROSE   = C.ROSE;
+const S = {
+  cardPad: 16,
+  cardGap: 10,
+  sectionGap: 24,
+  headerH: 56,
+} as const;
+const R = {
+  card: 12,
+  badge: 6,
+  button: 10,
+  avatar: 9999,
+} as const;
+const T = {
+  postTitle: { fontSize: 16, fontWeight: "600" as const },
+  postContent: { fontSize: 14 },
+  meta: { fontSize: 12 },
+} as const;
+const shadow = {
+  card: {
+    shadowColor: C.NAVY,
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardUrgent: {
+    shadowColor: C.ROSE,
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 4,
+  },
+} as const;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────
 function SkeletonBlock({ w, h, r = 8 }: { w?: number | `${number}%`; h: number; r?: number }) {

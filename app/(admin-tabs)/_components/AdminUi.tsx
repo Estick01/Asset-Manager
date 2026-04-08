@@ -225,3 +225,7 @@ const styles = StyleSheet.create({
     color: "#334155",
   },
 });
+
+export default function AdminUiRoutePlaceholder() {
+  return null;
+}

@@ -90,3 +90,5 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
   },
 });
+
+export default Topbar;

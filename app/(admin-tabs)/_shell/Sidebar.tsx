@@ -174,3 +174,5 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
   },
 });
+
+export default Sidebar;

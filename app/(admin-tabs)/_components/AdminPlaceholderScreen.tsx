@@ -81,3 +81,5 @@ const styles = StyleSheet.create({
     color: "#92400E",
   },
 });
+
+export default AdminPlaceholderScreen;
