@@ -220,7 +220,7 @@ export function EditarTareaModal({
     if (activeTab === "subtareas") loadSubtareas();
     if (activeTab === "archivos")  loadArchivos();
     if (activeTab === "historial") loadHistorial();
-  }, [activeTab, visible]);
+  }, [activeTab, visible, loadObservaciones, loadSubtareas, loadArchivos, loadHistorial]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
 

@@ -110,7 +110,7 @@ function ClientCard({
       delay: index * 45,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   const handleChat = async () => {
     if (!item.userId) return;

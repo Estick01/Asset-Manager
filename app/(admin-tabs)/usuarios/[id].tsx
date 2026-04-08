@@ -82,7 +82,7 @@ export default function UsuarioDetailScreen() {
     onError: () => setErrorEstado("Error al cambiar el estado del usuario."),
   });
 
-  const mutPlan = useMutation({
+  useMutation({
     mutationFn: (planId: string) => adminUsersService.updatePlan(id, planId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-user",  id] });

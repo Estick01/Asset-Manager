@@ -48,7 +48,7 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
       delay: Math.min(relativeIndex * 45, 200),
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index, pageOffset]);
 
   const ubicacion = [
     item.clienteMunicipio?.nombre,
@@ -284,11 +284,10 @@ export default function FirmCasesScreen() {
     }
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     getEstadosProceso().then(setEstados).catch(() => { });
     fetchProcesos();
-  }, []);
+  }, [fetchProcesos]);
 
   const onRefresh = useCallback(async () => {
     offsetRef.current = 0;

@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Modal, TextInput, ActivityIndicator, Alert,
+  Modal, TextInput, ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -27,7 +27,6 @@ const TEXT      = "#1B2B3B";
 const TEXT2     = "#6B7B8D";
 const TEXT3     = "#9AAABB";
 const DANGER    = "#E05252";
-const DANGER_BG = "#FDEAEA";
 const BORDER    = "#E5E7EB";
 
 // ─── Sección de ajustes ───────────────────────────────────────────────────────
@@ -183,7 +182,7 @@ export default function LawyerSettingsScreen() {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [loggingOut, setLoggingOut]           = useState(false);
   const [showPwdModal, setShowPwdModal]       = useState(false);
-  const { plan, uso, suscripcion }            = useSubscription();
+  const { plan, uso }                         = useSubscription();
 
   const handleConfirmLogout = async () => {
     setLoggingOut(true);

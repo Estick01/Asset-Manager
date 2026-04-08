@@ -18,11 +18,10 @@ import {
   type RecommendedLawyerDTO,
 } from "@/lib/services/recommendationService";
 import { startDirectChat, BADGE_META } from "@/lib/services/communityService";
-import { C, T, S, R, shadow, AVATAR_PALETTE, getAvatarColor } from "@/constants/community-theme";
+import { C, getAvatarColor } from "@/constants/community-theme";
 
 // ─── Token aliases ─────────────────────────────────────────────────────────
-const NAVY  = C.NAVY,  WHITE = C.WHITE, TEAL  = C.TEAL,  GREEN = C.GREEN;
-const AMBER = C.AMBER, ROSE  = C.ROSE,  TEXT  = C.TEXT,  TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, BG = C.BG;
+const WHITE = C.WHITE, TEAL = C.TEAL, AMBER = C.AMBER, ROSE = C.ROSE, TEXT = C.TEXT, TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, BG = C.BG;
 
 function Stars({ avg }: { avg: number }) {
   const full  = Math.round(avg);
@@ -59,7 +58,7 @@ function LawyerCard({ lawyer, onContact }: {
     try {
       await onContact(lawyer);
       setLoading(false);
-    } catch (error) {
+    } catch {
       setLoading(false);
       // Could show an error message here
     }
@@ -233,7 +232,7 @@ export default function RecommendedLawyers({ postId }: Props) {
     if (!lawyers[0]) return;
     try {
       await handleContact(lawyers[0]);
-    } catch (error) {
+    } catch {
       // Error handling could be added here if needed
     }
   }, [lawyers, handleContact]);

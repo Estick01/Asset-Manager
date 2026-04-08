@@ -168,7 +168,7 @@ function ProcessRow({ item }: { item: ProcesoDTO & { clienteNombre?: string } })
 function DistributionBar({
   rows,
 }: {
-  rows: Array<{ nombre: string; total: number; color?: string }>;
+  rows: { nombre: string; total: number; color?: string }[];
 }) {
   const total = rows.reduce((sum, row) => sum + row.total, 0) || 1;
   return (
@@ -460,9 +460,9 @@ export default function FirmDashboardScreen() {
           ]}
         >
           <View style={styles.mobileHeaderTop}>
-            <View>
+            <View style={styles.mobileHeaderIdentity}>
               <Text style={styles.mobileGreeting}>Bienvenido a</Text>
-              <Text style={styles.mobileTitle}>{displayName}</Text>
+              <Text style={styles.mobileTitle} numberOfLines={1} ellipsizeMode="tail">{displayName}</Text>
               <View style={styles.mobileBadgeWrap}>
                 <Text style={styles.mobileBadge}>Plan Empresarial</Text>
               </View>
@@ -741,6 +741,7 @@ const styles = StyleSheet.create({
   mobileHeroGradient: { paddingHorizontal: 24, paddingBottom: 24 },
   mobileHeroGradientCompact: { paddingHorizontal: 16, paddingBottom: 20 },
   mobileHeaderTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 12 },
+  mobileHeaderIdentity: { flex: 1, minWidth: 0, paddingRight: 6 },
   mobileGreeting: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
   mobileTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white, marginTop: 2 },
   mobileBadgeWrap: { marginTop: 4 },
@@ -754,7 +755,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignSelf: "flex-start",
   },
-  mobileHeaderActions: { flexDirection: "row", gap: 10 },
+  mobileHeaderActions: { flexDirection: "row", gap: 10, flexShrink: 0 },
   mobileHeaderActionsCompact: { alignSelf: "flex-start", gap: 8 },
   mobileHeaderBtn: {
     width: 38,

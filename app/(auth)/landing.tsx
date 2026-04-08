@@ -1,7 +1,6 @@
 import React, { useRef } from "react";
 import {
   Dimensions,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,7 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const IS_WEB = Platform.OS === "web";
 // Layout decisions based on viewport width, not platform.
 // Esto funciona en mobile nativo, web móvil, y desktop.
 const IS_MOBILE_LAYOUT = SCREEN_WIDTH < 768;
@@ -472,7 +470,7 @@ export default function LandingScreen() {
                       <Text style={[styles.matchPostMiniType, { color: "#EF4444" }]}>Urgente · Laboral</Text>
                     </View>
                     <Text style={styles.matchPostMiniText}>
-                      "Despido injustificado, necesito asesoría esta semana en Bogotá"
+                      &quot;Despido injustificado, necesito asesoría esta semana en Bogotá&quot;
                     </Text>
                   </View>
                 </View>
@@ -692,7 +690,7 @@ export default function LandingScreen() {
               <View style={styles.comActionsCol}>
                 <View style={styles.comActionCard}>
                   <Ionicons name="hand-right-outline" size={28} color={Colors.primary} style={{ marginBottom: 10 }} />
-                  <Text style={styles.comActionTitle}>"Tomar" un caso</Text>
+                  <Text style={styles.comActionTitle}>&quot;Tomar&quot; un caso</Text>
                   <Text style={styles.comActionDesc}>
                     Cuando ves un caso que dominas, lo marcas como tuyo. El cliente recibe tu perfil y decide si contactarte.
                   </Text>

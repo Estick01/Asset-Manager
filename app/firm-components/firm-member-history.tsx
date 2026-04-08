@@ -69,7 +69,7 @@ function HistoryCard({ item, index }: { item: FirmMemberHistory; index: number }
     Animated.timing(anim, {
       toValue: 1, duration: 300, delay: index * 50, useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   return (
     <Animated.View style={{

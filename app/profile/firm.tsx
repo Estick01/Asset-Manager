@@ -53,7 +53,7 @@ export default function FirmProfileScreen() {
 
   const [form, setForm] = useState<FirmForm>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
-  const [editing, setEditing] = useState(true);
+  const [editing] = useState(true);
   const [initialLoading, setInitialLoading] = useState(true);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 

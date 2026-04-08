@@ -145,6 +145,16 @@ export default function CalendarScreen() {
   const urgentCount = events.filter(e => e.diasRestantes >= 0 && e.diasRestantes <= 3).length;
   const manualCount = events.filter(e => e.source === "manual").length;
   const tareaCount = events.filter(e => e.source === "tarea").length;
+  const todayCount = events.filter((event) => event.diasRestantes === 0).length;
+  const stageCount = events.filter((event) => event.source === "etapa").length;
+  const nextEvents = [...events]
+    .filter((event) => event.diasRestantes >= 0)
+    .sort((a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime())
+    .slice(0, 4);
+  const weekFocus = urgentCount > 0
+    ? `${urgentCount} evento${urgentCount !== 1 ? "s" : ""} necesita${urgentCount === 1 ? "" : "n"} atención esta semana.`
+    : "La agenda está controlada para esta semana.";
+  const nextLead = nextEvents[0] ?? null;
 
   if (desktop) {
     return (
@@ -159,8 +169,12 @@ export default function CalendarScreen() {
               <Text style={styles.desktopEyebrow}>Agenda legal</Text>
               <Text style={styles.desktopHeroTitle}>Calendario de trabajo</Text>
               <Text style={styles.desktopHeroText}>
-                Visualiza audiencias, tareas, etapas y eventos manuales en una composición más clara para pantalla grande.
+                Centraliza audiencias, tareas, hitos procesales y seguimiento diario en una vista con más prioridad visual y mejor lectura de próximos movimientos.
               </Text>
+              <View style={styles.desktopHeroInsight}>
+                <Ionicons name="sparkles-outline" size={16} color={Colors.primary} />
+                <Text style={styles.desktopHeroInsightText}>{weekFocus}</Text>
+              </View>
             </View>
             <View style={styles.desktopHeroStats}>
               <View style={styles.desktopHeroStat}>
@@ -168,12 +182,12 @@ export default function CalendarScreen() {
                 <Text style={styles.desktopHeroLabel}>eventos</Text>
               </View>
               <View style={styles.desktopHeroStat}>
-                <Text style={styles.desktopHeroValue}>{urgentCount}</Text>
-                <Text style={styles.desktopHeroLabel}>urgentes</Text>
+                <Text style={styles.desktopHeroValue}>{todayCount}</Text>
+                <Text style={styles.desktopHeroLabel}>hoy</Text>
               </View>
               <View style={styles.desktopHeroStat}>
-                <Text style={styles.desktopHeroValue}>{tareaCount}</Text>
-                <Text style={styles.desktopHeroLabel}>tareas</Text>
+                <Text style={styles.desktopHeroValue}>{urgentCount}</Text>
+                <Text style={styles.desktopHeroLabel}>próximos</Text>
               </View>
             </View>
           </View>
@@ -192,8 +206,24 @@ export default function CalendarScreen() {
 
             <View style={styles.desktopAside}>
               <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Siguiente hito</Text>
+                <Text style={styles.desktopAsideTitle}>
+                  {nextLead ? nextLead.titulo : "No hay eventos próximos"}
+                </Text>
+                <Text style={styles.desktopAsideBodyText}>
+                  {nextLead
+                    ? `${new Date(nextLead.fechaInicio).toLocaleDateString("es-ES", {
+                        weekday: "long",
+                        day: "numeric",
+                        month: "long",
+                      })} · ${nextLead.proceso?.radicado ?? "Evento general"}`
+                    : "Cuando agregue o cargue nuevos eventos, aquí verá el siguiente movimiento de la agenda."}
+                </Text>
+              </View>
+
+              <View style={styles.desktopAsideCard}>
                 <Text style={styles.desktopAsideLabel}>Resumen</Text>
-                <Text style={styles.desktopAsideTitle}>Distribución del mes</Text>
+                <Text style={styles.desktopAsideTitle}>Pulso del calendario</Text>
                 <View style={styles.desktopAsideMetricRow}>
                   <Text style={styles.desktopAsideMetricName}>Eventos manuales</Text>
                   <Text style={styles.desktopAsideMetricValue}>{manualCount}</Text>
@@ -203,8 +233,35 @@ export default function CalendarScreen() {
                   <Text style={styles.desktopAsideMetricValue}>{tareaCount}</Text>
                 </View>
                 <View style={styles.desktopAsideMetricRow}>
-                  <Text style={styles.desktopAsideMetricName}>Urgentes</Text>
+                  <Text style={styles.desktopAsideMetricName}>Etapas</Text>
+                  <Text style={styles.desktopAsideMetricValue}>{stageCount}</Text>
+                </View>
+                <View style={styles.desktopAsideMetricRow}>
+                  <Text style={styles.desktopAsideMetricName}>Próximos 3 días</Text>
                   <Text style={styles.desktopAsideMetricValue}>{urgentCount}</Text>
+                </View>
+              </View>
+
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Próximos movimientos</Text>
+                <View style={styles.desktopUpcomingList}>
+                  {nextEvents.length > 0 ? nextEvents.map((event) => (
+                    <View key={event.id} style={styles.desktopUpcomingItem}>
+                      <View style={[styles.desktopUpcomingDot, { backgroundColor: event.color }]} />
+                      <View style={styles.desktopUpcomingCopy}>
+                        <Text style={styles.desktopUpcomingTitle} numberOfLines={1}>{event.titulo}</Text>
+                        <Text style={styles.desktopUpcomingMeta} numberOfLines={1}>
+                          {new Date(event.fechaInicio).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                          {" · "}
+                          {event.proceso?.radicado ?? (event.source === "manual" ? "Evento manual" : "Agenda vinculada")}
+                        </Text>
+                      </View>
+                    </View>
+                  )) : (
+                    <Text style={styles.desktopAsideBodyText}>
+                      No hay movimientos próximos registrados.
+                    </Text>
+                  )}
                 </View>
               </View>
 
@@ -269,6 +326,33 @@ export default function CalendarScreen() {
               <Text style={styles.urgentBadgeText}>{urgentCount} urgente{urgentCount !== 1 ? "s" : ""}</Text>
             </View>
           )}
+        </View>
+      </View>
+
+      <View style={styles.mobileHero}>
+        <View style={styles.mobileHeroTop}>
+          <View style={styles.mobileHeroCopy}>
+            <Text style={styles.mobileHeroEyebrow}>Agenda de seguimiento</Text>
+            <Text style={styles.mobileHeroTitle}>Lo importante de esta semana</Text>
+            <Text style={styles.mobileHeroText}>{weekFocus}</Text>
+          </View>
+          <Pressable style={styles.mobileHeroAction} onPress={() => handleAddPress(new Date())}>
+            <Ionicons name="add" size={16} color={Colors.white} />
+          </Pressable>
+        </View>
+        <View style={styles.mobileHeroStats}>
+          <View style={styles.mobileHeroStat}>
+            <Text style={styles.mobileHeroValue}>{todayCount}</Text>
+            <Text style={styles.mobileHeroLabel}>Hoy</Text>
+          </View>
+          <View style={styles.mobileHeroStat}>
+            <Text style={styles.mobileHeroValue}>{urgentCount}</Text>
+            <Text style={styles.mobileHeroLabel}>Próximos</Text>
+          </View>
+          <View style={styles.mobileHeroStat}>
+            <Text style={styles.mobileHeroValue}>{events.length}</Text>
+            <Text style={styles.mobileHeroLabel}>Mes</Text>
+          </View>
         </View>
       </View>
 
@@ -362,6 +446,24 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
   },
+  desktopHeroInsight: {
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 999,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  desktopHeroInsightText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
+  },
   desktopHeroStats: {
     flexDirection: "row",
     gap: 12,
@@ -422,6 +524,12 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontFamily: "Inter_700Bold",
   },
+  desktopAsideBodyText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+  },
   desktopAsideMetricRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -453,6 +561,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     fontFamily: "Inter_600SemiBold",
+  },
+  desktopUpcomingList: {
+    gap: 12,
+  },
+  desktopUpcomingItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  desktopUpcomingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 5,
+  },
+  desktopUpcomingCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  desktopUpcomingTitle: {
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopUpcomingMeta: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
   },
   header: {
     flexDirection: "row",
@@ -489,6 +625,79 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     color: "#FEF3C7",
+  },
+  mobileHero: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 14,
+    padding: 16,
+    borderRadius: 22,
+    backgroundColor: Colors.primaryLight + "12",
+    borderWidth: 1,
+    borderColor: Colors.primaryLight + "24",
+    gap: 14,
+  },
+  mobileHeroTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  mobileHeroCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  mobileHeroEyebrow: {
+    fontSize: 11,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_700Bold",
+  },
+  mobileHeroTitle: {
+    fontSize: 20,
+    lineHeight: 25,
+    color: Colors.text,
+    fontFamily: "Inter_700Bold",
+  },
+  mobileHeroText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+  },
+  mobileHeroAction: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary,
+  },
+  mobileHeroStats: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  mobileHeroStat: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 2,
+  },
+  mobileHeroValue: {
+    fontSize: 20,
+    color: Colors.primary,
+    fontFamily: "Inter_700Bold",
+  },
+  mobileHeroLabel: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   calendarContainer: {
     flex: 1,

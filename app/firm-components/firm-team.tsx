@@ -68,7 +68,7 @@ function MemberCard({ item, index, currentUserId, onRemove, onError }: { item: T
       delay: index * 55,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   const handleMessage = async () => {
     if (!currentUserId || currentUserId === item.userId) {

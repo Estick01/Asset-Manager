@@ -5,7 +5,6 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  useColorScheme,
   Platform,
   ScrollView,
   Keyboard,

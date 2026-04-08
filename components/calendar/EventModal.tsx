@@ -142,7 +142,6 @@ export function EventModal({ visible, event, initialDate, onSave, onDelete, onCl
 
   const pad = (n: number) => n.toString().padStart(2, "0");
   const fechaStr = fechaInicio.toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" });
-  const horaStr  = `${pad(fechaInicio.getHours())}:${pad(fechaInicio.getMinutes())}`;
 
   return (
     <Modal

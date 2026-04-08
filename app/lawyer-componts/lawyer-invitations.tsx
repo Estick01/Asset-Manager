@@ -13,8 +13,13 @@ import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
 import { StyledModal } from "@/components/StyledModal";
 import { useInvitations } from "@/lib/invitations-context";
-import { FirmInvitation, FirmInvitationWithDetails } from "@/lib/services/firmInvitationService";
-import { acceptInvitation, getLawyerInvitations, rejectInvitation } from "@/lib/services/firmInvitationService";
+import {
+  FirmInvitation,
+  FirmInvitationWithDetails,
+  acceptInvitation,
+  getLawyerInvitations,
+  rejectInvitation,
+} from "@/lib/services/firmInvitationService";
 import { ProcessDecisionWizard } from "@/components/proceso/ProcessDecisionWizard";
 import { getMiSuscripcion, type MiSuscripcion } from "@/lib/services/suscripcionService";
 import { UsageBars } from "@/components/subscription/UsageBars";

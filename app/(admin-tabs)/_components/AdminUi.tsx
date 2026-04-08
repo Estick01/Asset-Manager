@@ -54,7 +54,7 @@ export function StatusBadge({
   );
 }
 
-export function TableHeader({ columns }: { columns: Array<{ label: string; flex?: number }> }) {
+export function TableHeader({ columns }: { columns: { label: string; flex?: number }[] }) {
   return (
     <View style={styles.tableHeader}>
       {columns.map((column) => (

@@ -72,7 +72,7 @@ function ConversationCard({
       delay: Math.min(index * 40, 320),
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   return (
     <Animated.View style={{
@@ -232,11 +232,6 @@ export default function FirmChatScreen() {
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
   const lawyerCount = conversations.filter(c => c.type === "firm_lawyer").length;
   const clientCount = conversations.filter(c => c.type === "lawyer_client").length;
-  const todayCount = conversations.filter(c => {
-    const last = c.lastMessage?.createdAt;
-    return last && Date.now() - new Date(last).getTime() < 86400000;
-  }).length;
-
   const FILTERS = [
     { key: "all" as const, label: "Todos" },
     { key: "firm_lawyer" as const, label: "Abogados" },

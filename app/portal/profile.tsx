@@ -118,7 +118,11 @@ export default function ClientProfileScreen() {
   }, []);
 
   const loadMunicipios = useCallback(async (deptoId: string, page = 1, search = "") => {
-    page === 1 ? setLoadingMun(true) : setLoadingMoreMun(true);
+    if (page === 1) {
+      setLoadingMun(true);
+    } else {
+      setLoadingMoreMun(true);
+    }
     try {
       const params = new URLSearchParams({
         departamentoId: deptoId, page: String(page), pageSize: "10",

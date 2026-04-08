@@ -96,7 +96,11 @@ export default function FirmRolesScreen() {
   const togglePermiso = (id: number) => {
     setSelectedPermisos(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -106,7 +110,7 @@ export default function FirmRolesScreen() {
     setSavingPermisos(true);
     try {
       await setFirmRolPermisos(editingRol.id, Array.from(selectedPermisos));
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success("Permisos guardados");
       setEditingRol(null);
     } catch (e: any) {
@@ -122,7 +126,7 @@ export default function FirmRolesScreen() {
     try {
       const created = await createFirmRol({ nombre: newNombre.trim(), descripcion: newDesc.trim() || undefined });
       setRoles(prev => [...prev, created]);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.success(`Rol "${created.nombre}" creado`);
       setShowCreate(false);
       setNewNombre("");

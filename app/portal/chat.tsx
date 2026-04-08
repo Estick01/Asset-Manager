@@ -71,7 +71,7 @@ function ConversationCard({ conv, currentUserId, index }: {
       delay: Math.min(index * 40, 300),
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   return (
     <Animated.View style={{

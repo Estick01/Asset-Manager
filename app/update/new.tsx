@@ -38,7 +38,7 @@ export default function NewUpdateScreen() {
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleGoBack(procesoId);
-    } catch (error) {
+    } catch {
       setError("Error al guardar");
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {

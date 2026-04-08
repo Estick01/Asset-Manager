@@ -7,7 +7,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable,
-  ActivityIndicator, RefreshControl, Animated,
+  RefreshControl, Animated,
   useWindowDimensions, Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,22 +16,15 @@ import { router, useFocusEffect } from "expo-router";
 import { getLawyerFeed, markPostSeen, type LawyerFeedDTO } from "@/lib/services/matchingService";
 import { toggleLike, type PostDTO } from "@/lib/services/communityService";
 import { useGlobalSocket } from "@/lib/global-socket-context";
-import { C, T, S, R, shadow, CASE_META, getAvatarColor, formatDate, BackButton } from "@/constants/community-theme";
+import { C, CASE_META, formatDate } from "@/constants/community-theme";
 import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Local aliases for compatibility ──────────────────────────────────────
-const NAVY   = C.NAVY;
 const WHITE  = C.WHITE;
-const BG     = C.BG;
-const TEXT   = C.TEXT;
 const TEXT2  = C.TEXT2;
 const TEXT3  = C.TEXT3;
 const TEAL   = C.TEAL;
-const GREEN  = C.GREEN;
-const AMBER  = C.AMBER;
 const ROSE   = C.ROSE;
-const PURPLE = C.PURPLE;
-const ORANGE = C.ORANGE;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────
 function SkeletonBlock({ w, h, r = 8 }: { w?: number | `${number}%`; h: number; r?: number }) {

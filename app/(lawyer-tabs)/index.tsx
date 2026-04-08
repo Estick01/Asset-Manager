@@ -368,12 +368,15 @@ export default function DashboardScreen() {
           ]}
         >
           <View style={styles.mobileHeroHeader}>
-            <View>
+            <View style={styles.mobileHeroIdentity}>
               <Text style={styles.mobileHeroEyebrow}>Bienvenido</Text>
-              <Text style={styles.mobileHeroName}>{displayName}</Text>
-              <Text style={styles.mobileHeroSubtitle}>{specialization}</Text>
+              <Text style={styles.mobileHeroName} numberOfLines={1} ellipsizeMode="tail">{displayName}</Text>
+              <Text style={styles.mobileHeroSubtitle} numberOfLines={1} ellipsizeMode="tail">{specialization}</Text>
             </View>
             <View style={[styles.mobileHeroActions, compactMobile && styles.mobileHeroActionsCompact]}>
+              <Pressable style={styles.mobileHeroButton} onPress={() => router.push("/(lawyer-tabs)/calendar" as any)}>
+                <Ionicons name="calendar-outline" size={20} color={Colors.white} />
+              </Pressable>
               <Pressable style={styles.mobileHeroButton} onPress={() => router.push("/lawyer-componts/lawyer-notifications")}>
                 <Ionicons name="notifications-outline" size={20} color={Colors.white} />
               </Pressable>
@@ -753,6 +756,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
+  mobileHeroIdentity: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 6,
+  },
   mobileHeroEyebrow: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
@@ -773,6 +781,7 @@ const styles = StyleSheet.create({
   mobileHeroActions: {
     flexDirection: "row",
     gap: 10,
+    flexShrink: 0,
   },
   mobileHeroActionsCompact: {
     alignSelf: "flex-start",

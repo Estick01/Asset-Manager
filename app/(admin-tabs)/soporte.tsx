@@ -36,7 +36,7 @@ export default function AdminSoporteScreen() {
     queryFn: () => adminSupportService.listSecurityEvents({ limit: 8 }),
   });
 
-  const rows = conversations?.data ?? [];
+  const rows = useMemo(() => conversations?.data ?? [], [conversations?.data]);
   const urgentCount = useMemo(() => rows.filter((item) => item.unreadCount > 0).length, [rows]);
 
   return (

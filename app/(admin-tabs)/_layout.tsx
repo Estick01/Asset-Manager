@@ -1,7 +1,5 @@
 // app/(admin-tabs)/_layout.tsx
-import { Stack } from "expo-router";
-import { Redirect } from "expo-router";
-import { useSegments } from "expo-router";
+import { Redirect, Stack, useSegments } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import { Platform } from "react-native";
 

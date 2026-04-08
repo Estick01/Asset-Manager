@@ -18,6 +18,11 @@ const TAB_FEATURE: Record<string, string> = {
   community: "comunidad",
 };
 
+const SEGMENT_FEATURE_MAP: Record<string, string | undefined> = {
+  chat: "chat",
+  community: "comunidad",
+};
+
 function BadgeIcon({ name, size, color, count }: {
   name: keyof typeof Ionicons.glyphMap;
   size: number;
@@ -85,6 +90,8 @@ function ClassicTabLayout() {
   const segments = useSegments();
   const { width } = useWindowDimensions();
   const desktopWeb = Platform.OS === "web" && isDesktopViewport(width);
+  const lowResolutionNav = !desktopWeb && width < 880;
+  const compactMobileNav = !desktopWeb && width < 390;
 
   const { unreadCount: unreadChatCount } = useChatNotifications();
   const { unreadCount: unreadNotifCount } = useNotifications();
@@ -105,10 +112,6 @@ function ClassicTabLayout() {
   });
 
   const activeSegment = (segments[1] as string | undefined) ?? "index";
-  const segmentFeatureMap: Record<string, string | undefined> = {
-    chat: "chat",
-    community: "comunidad",
-  };
 
   const desktopTitleMap: Record<string, { title: string; subtitle: string }> = {
     index: { title: "Workspace del bufete", subtitle: "Vista de escritorio para supervisar operación, clientes y equipo." },
@@ -133,7 +136,7 @@ function ClassicTabLayout() {
   ];
 
   useEffect(() => {
-    const featureCode = segmentFeatureMap[activeSegment];
+    const featureCode = SEGMENT_FEATURE_MAP[activeSegment];
     if (!featureCode || isLoading) return;
 
     const featureLocked = !hasFeature(featureCode);
@@ -221,36 +224,76 @@ function ClassicTabLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: Colors.primary,
+          tabBarActiveTintColor: Colors.primaryDark,
           tabBarInactiveTintColor: Colors.textTertiary,
-          tabBarLabelStyle: { fontFamily: "Inter_500Medium", fontSize: 11 },
+          tabBarLabelStyle: {
+            fontFamily: "Inter_600SemiBold",
+            fontSize: compactMobileNav ? 10 : 11,
+            marginBottom: compactMobileNav ? 0 : 2,
+          },
+          tabBarItemStyle: {
+            borderRadius: compactMobileNav ? 16 : 18,
+            marginHorizontal: compactMobileNav ? 1 : 2,
+            marginTop: compactMobileNav ? 4 : 6,
+            marginBottom: compactMobileNav ? 4 : 6,
+            paddingVertical: compactMobileNav ? 1 : 3,
+          },
           tabBarStyle: {
             position: "absolute",
-            backgroundColor: isIOS ? "transparent" : isDark ? "#000" : "#fff",
-            borderTopWidth: desktopWeb ? 1 : 0,
-            borderTopColor: Colors.border,
+            left: compactMobileNav ? 8 : 12,
+            right: compactMobileNav ? 8 : 12,
+            bottom: compactMobileNav ? 8 : 12,
+            height: compactMobileNav
+              ? (isIOS ? 82 : 72)
+              : lowResolutionNav
+                ? 100
+                : (isIOS ? 86 : 74),
+            paddingTop: compactMobileNav ? 5 : lowResolutionNav ? 9 : 8,
+            paddingBottom: compactMobileNav
+              ? (isIOS ? 14 : 8)
+              : lowResolutionNav
+                ? (isIOS ? 24 : 12)
+                : (isIOS ? 20 : 10),
+            paddingHorizontal: compactMobileNav ? 5 : 8,
+            backgroundColor: "transparent",
+            borderTopWidth: 0,
             elevation: 0,
-            ...(desktopWeb ? { height: 84 } : {}),
+            ...Platform.select({
+              android: {
+                shadowColor: "#0F172A",
+                shadowOffset: { width: 0, height: 12 },
+                shadowOpacity: 0.14,
+                shadowRadius: 24,
+              },
+              web: {
+                boxShadow: "0 18px 40px rgba(15, 23, 42, 0.16)",
+              },
+            }),
           },
           tabBarBackground: () =>
             isIOS ? (
-              <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-            ) : desktopWeb ? (
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.white }]} />
-            ) : null,
+              <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={styles.mobileTabBarBlur} />
+            ) : (
+              <View
+                style={[
+                  styles.mobileTabBarSurface,
+                  { backgroundColor: isDark ? "rgba(12,18,28,0.84)" : "rgba(255,255,255,0.82)" },
+                ]}
+              />
+            ),
         }}
       >
         <Tabs.Screen
           name="index"
           options={{
-            title: "Bufete",
+            title: compactMobileNav ? "Inicio" : "Bufete",
             tabBarIcon: ({ color, size }) => <Ionicons name="business" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="cases"
           options={{
-            title: "Procesos",
+            title: compactMobileNav ? "Casos" : "Procesos",
             tabBarIcon: ({ color, size }) => <Ionicons name="document-text" size={size} color={color} />,
           }}
         />
@@ -265,10 +308,10 @@ function ClassicTabLayout() {
           name="chat"
           listeners={tabListeners("chat")}
           options={{
-            title: "Mensajes",
+            title: compactMobileNav ? "Chat" : "Mensajes",
             tabBarLabelStyle: isLocked("chat")
-              ? { fontFamily: "Inter_500Medium", fontSize: 11, color: Colors.textTertiary, opacity: 0.5 }
-              : { fontFamily: "Inter_500Medium", fontSize: 11 },
+              ? { fontFamily: "Inter_500Medium", fontSize: compactMobileNav ? 10 : 11, color: Colors.textTertiary, opacity: 0.5, marginBottom: compactMobileNav ? 0 : 2 }
+              : { fontFamily: "Inter_500Medium", fontSize: compactMobileNav ? 10 : 11, marginBottom: compactMobileNav ? 0 : 2 },
             tabBarIcon: ({ color, size }) =>
               isLocked("chat") ? (
                 <LockedIcon name="chatbubbles" size={size} color={color} />
@@ -283,8 +326,8 @@ function ClassicTabLayout() {
           options={{
             title: "Comunidad",
             tabBarLabelStyle: isLocked("community")
-              ? { fontFamily: "Inter_500Medium", fontSize: 11, color: Colors.textTertiary, opacity: 0.5 }
-              : { fontFamily: "Inter_500Medium", fontSize: 11 },
+              ? { fontFamily: "Inter_500Medium", fontSize: compactMobileNav ? 10 : 11, color: Colors.textTertiary, opacity: 0.5, marginBottom: compactMobileNav ? 0 : 2 }
+              : { fontFamily: "Inter_500Medium", fontSize: compactMobileNav ? 10 : 11, marginBottom: compactMobileNav ? 0 : 2 },
             tabBarIcon: ({ color, size }) =>
               isLocked("community") ? (
                 <LockedIcon name="globe-outline" size={size} color={color} />
@@ -314,6 +357,24 @@ function ClassicTabLayout() {
 }
 
 const styles = StyleSheet.create({
+  mobileTabBarBlur: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 26,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+  },
+  mobileTabBarSurface: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.14)",
+    ...Platform.select({
+      web: {
+        backdropFilter: "blur(4px)",
+      },
+    }),
+  },
   badge: {
     position: "absolute",
     top: -4,

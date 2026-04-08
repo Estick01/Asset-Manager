@@ -74,9 +74,9 @@ function OwnershipTooltip({ visible, esPrivado, onClose }: {
 
 // ─── Component ─────────────────────────────────────────────────────────────
 export default function ClienteInfoSection({ proceso, rol }: ClienteInfoSectionProps) {
-  if (!proceso) return null;
-
   const [ownershipTooltip, setOwnershipTooltip] = useState(false);
+
+  if (!proceso) return null;
 
   const canSeeCliente      = rol === "abogado" || rol === "bufete" || rol === "corporacion";
   const canNavigateCliente = rol === "abogado" || rol === "bufete";

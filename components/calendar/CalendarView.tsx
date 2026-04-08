@@ -81,6 +81,12 @@ function getDaysColor(days: number): string {
   return "#6B7280";
 }
 
+function getSourceTone(source: CalendarEventSource) {
+  if (source === "tarea") return { bg: "#FFF7ED", border: "#FED7AA", text: "#C2410C" };
+  if (source === "etapa") return { bg: "#F5F3FF", border: "#DDD6FE", text: "#6D28D9" };
+  return { bg: "#EFF6FF", border: "#BFDBFE", text: "#1D4ED8" };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // EventCard
 // ─────────────────────────────────────────────────────────────────────────────
@@ -215,6 +221,16 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
   const selectedEvents = getEventsForDay(selectedDay).sort(
     (a, b) => new Date(a.fechaInicio).getTime() - new Date(b.fechaInicio).getTime(),
   );
+  const monthUrgentCount = events.filter((event) => event.diasRestantes >= 0 && event.diasRestantes <= 3).length;
+  const monthTodayCount = getEventsForDay(today).length;
+  const selectedLeadEvent = selectedEvents[0] ?? null;
+  const eventSourceCounts = selectedEvents.reduce(
+    (acc, event) => {
+      acc[event.source] += 1;
+      return acc;
+    },
+    { tarea: 0, etapa: 0, manual: 0 } as Record<CalendarEventSource, number>,
+  );
 
   const isTodaySelected = isSameDay(selectedDay, today);
   const selectedDateLabel = isTodaySelected
@@ -234,9 +250,42 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
                 <Text style={styles.monthEventCount}>{events.length} evento{events.length !== 1 ? "s" : ""}</Text>
               ) : null}
             </View>
-            <Pressable onPress={nextMonth} hitSlop={12} style={styles.navBtn}>
-              <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
-            </Pressable>
+            <View style={styles.monthActions}>
+              <Pressable
+                onPress={() => {
+                  setYear(today.getFullYear());
+                  setMonth(today.getMonth());
+                  setSelectedDay(today);
+                  onMonthChange(today.getFullYear(), today.getMonth());
+                }}
+                hitSlop={12}
+                style={styles.todayBtn}
+              >
+                <Text style={styles.todayBtnText}>Hoy</Text>
+              </Pressable>
+              <Pressable onPress={nextMonth} hitSlop={12} style={styles.navBtn}>
+                <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+              </Pressable>
+            </View>
+          </View>
+
+          <View style={styles.monthHighlights}>
+            <View style={styles.monthHighlightCard}>
+              <Text style={styles.monthHighlightValue}>{monthTodayCount}</Text>
+              <Text style={styles.monthHighlightLabel}>hoy</Text>
+            </View>
+            <View style={styles.monthHighlightCard}>
+              <Text style={styles.monthHighlightValue}>{monthUrgentCount}</Text>
+              <Text style={styles.monthHighlightLabel}>próximos</Text>
+            </View>
+            <View style={styles.monthHighlightCardWide}>
+              <Text style={styles.monthHighlightEyebrow}>Foco del mes</Text>
+              <Text style={styles.monthHighlightText}>
+                {monthUrgentCount > 0
+                  ? `${monthUrgentCount} evento${monthUrgentCount !== 1 ? "s" : ""} necesita${monthUrgentCount === 1 ? "" : "n"} atención en los próximos 3 días.`
+                  : "No hay eventos críticos en los próximos 3 días."}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.weekHeader}>
@@ -310,6 +359,57 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
             </Pressable>
           </View>
 
+          <View style={styles.dayOverview}>
+            <View style={styles.dayOverviewMain}>
+              <Text style={styles.dayOverviewLabel}>
+                {selectedEvents.length > 0 ? "Lo más relevante del día" : "Agenda del día"}
+              </Text>
+              <Text style={styles.dayOverviewTitle}>
+                {selectedLeadEvent ? selectedLeadEvent.titulo : "No hay eventos programados"}
+              </Text>
+              <Text style={styles.dayOverviewText}>
+                {selectedLeadEvent
+                  ? selectedLeadEvent.descripcion || "Abra el evento para ver su detalle, el caso vinculado y el siguiente paso."
+                  : "Puede dejar este día libre o registrar una audiencia, recordatorio o evento manual."}
+              </Text>
+            </View>
+            <View style={styles.dayOverviewMeta}>
+              {selectedEvents.length > 0 ? (
+                <>
+                  {eventSourceCounts.tarea > 0 && (
+                    <View style={[styles.dayOverviewChip, getSourceTone("tarea")]}>
+                      <Ionicons name="checkmark-circle-outline" size={12} color={getSourceTone("tarea").text} />
+                      <Text style={[styles.dayOverviewChipText, { color: getSourceTone("tarea").text }]}>
+                        {eventSourceCounts.tarea} tarea{eventSourceCounts.tarea !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                  )}
+                  {eventSourceCounts.etapa > 0 && (
+                    <View style={[styles.dayOverviewChip, getSourceTone("etapa")]}>
+                      <Ionicons name="git-branch-outline" size={12} color={getSourceTone("etapa").text} />
+                      <Text style={[styles.dayOverviewChipText, { color: getSourceTone("etapa").text }]}>
+                        {eventSourceCounts.etapa} etapa{eventSourceCounts.etapa !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                  )}
+                  {eventSourceCounts.manual > 0 && (
+                    <View style={[styles.dayOverviewChip, getSourceTone("manual")]}>
+                      <Ionicons name="calendar-outline" size={12} color={getSourceTone("manual").text} />
+                      <Text style={[styles.dayOverviewChipText, { color: getSourceTone("manual").text }]}>
+                        {eventSourceCounts.manual} evento{eventSourceCounts.manual !== 1 ? "s" : ""}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <View style={styles.dayOverviewHint}>
+                  <Ionicons name="sparkles-outline" size={14} color={Colors.primary} />
+                  <Text style={styles.dayOverviewHintText}>Úselo para anticipar audiencias, hitos y vencimientos.</Text>
+                </View>
+              )}
+            </View>
+          </View>
+
           {selectedEvents.length === 0 ? (
             <View style={styles.emptyDay}>
               <Ionicons name="calendar-clear-outline" size={32} color={Colors.textTertiary} />
@@ -370,6 +470,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 2,
   },
+  monthActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   monthTitle: {
     fontSize: 17,
     fontFamily: "Inter_700Bold",
@@ -380,6 +485,67 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: "Inter_400Regular",
     color: Colors.textTertiary,
+  },
+  todayBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + "10",
+  },
+  todayBtnText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: Colors.primary,
+  },
+  monthHighlights: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+  },
+  monthHighlightCard: {
+    width: 74,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceSecondary,
+    paddingHorizontal: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthHighlightCardWide: {
+    flex: 1,
+    borderRadius: 16,
+    backgroundColor: Colors.primary + "0F",
+    borderWidth: 1,
+    borderColor: Colors.primary + "20",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 3,
+  },
+  monthHighlightValue: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  monthHighlightLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  monthHighlightEyebrow: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: Colors.primary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  monthHighlightText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
   },
 
   // ── Week header ──
@@ -454,6 +620,67 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
+  },
+  dayOverview: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: 12,
+  },
+  dayOverviewMain: {
+    gap: 4,
+  },
+  dayOverviewLabel: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  dayOverviewTitle: {
+    fontSize: 16,
+    lineHeight: 21,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  dayOverviewText: {
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  dayOverviewMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  dayOverviewChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  dayOverviewChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
+  dayOverviewHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  dayOverviewHintText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
   },
   daySectionLeft: {
     flexDirection: "row",

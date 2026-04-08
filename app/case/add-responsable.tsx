@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator, Alert, TextInput, Platform
+  Pressable, ActivityIndicator, TextInput, Platform, Modal
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,7 +14,6 @@ import { useAuth } from "@/lib/auth-context";
 import { LawyerProfile } from "@/shared/schema";
 import { setResponsableProceso, getAbogadosByFirma, getProcesoLawyers } from "@/lib/services/procesoLawyerService";
 import { EnumRol, EnumRolType, UserWithRol } from "@/shared/schema/user.schema";
-import { Modal } from "react-native";
 
 const DEBOUNCE_MS = 400;
 
@@ -512,7 +511,6 @@ const TEAL  = "#2196A6";
 const WHITE = "#FFFFFF";
 const TEXT  = "#1B2B3B";
 const TEXT2 = "#6B7B8D";
-const TEXT3 = "#9AAABB";
 
 const modalStyles = StyleSheet.create({
   overlay: {

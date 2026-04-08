@@ -75,7 +75,7 @@ function CurrentOwnerCard({ entry }: { entry: ProcesoOwnershipDTO }) {
             </Text>
 
             {!!entry.razon && (
-              <Text style={currentStyles.razon}>"{entry.razon}"</Text>
+              <Text style={currentStyles.razon}>&quot;{entry.razon}&quot;</Text>
             )}
           </View>
         </View>
@@ -160,7 +160,7 @@ function HistoryRow({
               {entry.fechaFin ? formatDate(entry.fechaFin) : "activo"}
             </Text>
             {!!entry.razon && (
-              <Text style={histStyles.razon}>"{entry.razon}"</Text>
+              <Text style={histStyles.razon}>&quot;{entry.razon}&quot;</Text>
             )}
           </View>
         </View>

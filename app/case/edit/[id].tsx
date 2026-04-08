@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, Platform, KeyboardAvoidingView, ActivityIndicator } from "react-native";
-import { router, useLocalSearchParams, Href } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -55,7 +55,7 @@ export default function EditCaseScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       handleGoBack(id);
       
-    } catch (error) {
+    } catch {
       setError("Error al guardar");
     } finally {
       setLoading(false);
