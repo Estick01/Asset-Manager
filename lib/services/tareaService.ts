@@ -1,6 +1,3 @@
-import { apiRequest } from "../apiClient";
-
-const SILENT = { silent: true } as const;
 import type {
   CreateTareaDTO,
   UpdateTareaDTO,
@@ -16,6 +13,19 @@ import type {
   TareaHistorialDTO,
   TareaArchivoDTO,
 } from "@/shared/schema";
+import { apiRequest } from "../apiClient";
+
+const SILENT = { silent: true } as const;
+
+export interface TaskSubtasksPendingError extends Error {
+  code: "SUBTASKS_PENDING";
+  tareaTitulo: string;
+  subtareasPendientes: {
+    id: string;
+    titulo: string;
+    estado: string;
+  }[];
+}
 
 export async function getTareasByProceso(procesoId: string, stage?: string): Promise<TareasProgresoDTO> {
   const url = stage
@@ -69,6 +79,13 @@ export async function cambiarEstadoTarea(
   const res = await apiRequest("PATCH", `/api/tareas/${id}/estado`, dto, SILENT);
   if (!res.ok) {
     const err = await res.json();
+    if (err.error === "SUBTASKS_PENDING") {
+      const taskError: TaskSubtasksPendingError = new Error(err.message) as TaskSubtasksPendingError;
+      taskError.code = "SUBTASKS_PENDING";
+      taskError.tareaTitulo = err.tareaTitulo || "";
+      taskError.subtareasPendientes = err.subtareasPendientes || [];
+      throw taskError;
+    }
     throw new Error(err.error || err.message || "Error al cambiar estado");
   }
   return res.json();
@@ -78,6 +95,13 @@ export async function completarTarea(id: string): Promise<TareaResponseDTO> {
   const res = await apiRequest("PATCH", `/api/tareas/${id}/completar`, undefined, SILENT);
   if (!res.ok) {
     const err = await res.json();
+    if (err.error === "SUBTASKS_PENDING") {
+      const taskError: TaskSubtasksPendingError = new Error(err.message) as TaskSubtasksPendingError;
+      taskError.code = "SUBTASKS_PENDING";
+      taskError.tareaTitulo = err.tareaTitulo || "";
+      taskError.subtareasPendientes = err.subtareasPendientes || [];
+      throw taskError;
+    }
     throw new Error(err.error || err.message || "Error al completar tarea");
   }
   return res.json();

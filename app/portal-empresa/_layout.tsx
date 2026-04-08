@@ -2,10 +2,11 @@ import React from "react";
 import { Tabs } from "expo-router";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform, StyleSheet, useColorScheme, View, Text } from "react-native";
+import { Platform, StyleSheet, useColorScheme, View, Text, useWindowDimensions } from "react-native";
 import Colors from "@/constants/colors";
 import { useChatNotifications } from "@/lib/chat-context";
 import { useNotifications } from "@/lib/notifications-context";
+import { isDesktopViewport } from "@/lib/ui/breakpoints";
 
 function BadgeIcon({ name, size, color, count }: {
   name: keyof typeof Ionicons.glyphMap;
@@ -28,8 +29,9 @@ function BadgeIcon({ name, size, color, count }: {
 export default function PortalEmpresaLayout() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
-  const isWeb = Platform.OS === "web";
   const isIOS = Platform.OS === "ios";
+  const { width } = useWindowDimensions();
+  const desktopWeb = Platform.OS === "web" && isDesktopViewport(width);
   const { unreadCount: unreadChatCount } = useChatNotifications();
   const { unreadCount: unreadNotifCount } = useNotifications();
 
@@ -43,15 +45,15 @@ export default function PortalEmpresaLayout() {
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : isDark ? "#000" : "#fff",
-          borderTopWidth: isWeb ? 1 : 0,
+          borderTopWidth: desktopWeb ? 1 : 0,
           borderTopColor: Colors.border,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          ...(desktopWeb ? { height: 84 } : {}),
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
+          ) : desktopWeb ? (
             <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.white }]} />
           ) : null,
       }}

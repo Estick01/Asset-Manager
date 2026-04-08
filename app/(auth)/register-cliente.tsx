@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, Pressable, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, ScrollView,
   Platform, Modal, FlatList, TouchableOpacity,
+  useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +18,7 @@ import {
   getTiposDocumento, getDepartamentos, getMunicipios,
   type TipoDocumento, type Departamento, type Municipio,
 } from "@/lib/services/ubicacionService";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 type TipoCliente = "natural" | "empresa";
 
 // ─── Componente reutilizable de campo ────────────────────────────────────────
@@ -122,6 +124,10 @@ const sectionStyles = StyleSheet.create({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function RegisterClienteScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1480, Math.max(1140, width - metrics.gutter * 2));
   const [tipoCliente, setTipoCliente] = useState<TipoCliente>("natural");
 
   // natural
@@ -188,7 +194,8 @@ export default function RegisterClienteScreen() {
   }, []);
 
   const loadMunicipios = useCallback(async (deptoId: string, page = 1, search = "") => {
-    page === 1 ? setLoadingMun(true) : setLoadingMoreMun(true);
+    if (page === 1) setLoadingMun(true);
+    else setLoadingMoreMun(true);
     try {
       const data = await getMunicipios(deptoId, page, 10, search);
       setMunicipios(prev => page === 1 ? data.data : [...prev, ...data.data]);
@@ -287,8 +294,9 @@ export default function RegisterClienteScreen() {
       {/* Header */}
       <LinearGradient
         colors={[Colors.primaryDark, Colors.primary]}
-        style={[styles.header, { paddingTop: insets.top + 16 }]}
+        style={[styles.header, desktop && styles.desktopHeader, { paddingTop: insets.top + (desktop ? 28 : 16), paddingHorizontal: desktop ? metrics.gutter : 20 }]}
       >
+        <View style={[styles.headerShell, desktop && { maxWidth: shellWidth }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
@@ -323,14 +331,26 @@ export default function RegisterClienteScreen() {
             </Text>
           </Pressable>
         </View>
+        {desktop && (
+          <View style={styles.desktopHeaderBody}>
+            <Text style={styles.desktopHeaderTitle}>Crea tu acceso al portal del cliente</Text>
+            <Text style={styles.desktopHeaderText}>
+              Registra una cuenta personal o empresarial para consultar procesos, documentos, mensajes y novedades jurídicas desde un mismo entorno.
+            </Text>
+          </View>
+        )}
+        </View>
       </LinearGradient>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktop && styles.desktopScrollContent, desktop && { paddingHorizontal: metrics.gutter }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={[styles.scrollShell, desktop && { maxWidth: shellWidth }]}>
+          <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+          <View style={styles.formColumn}>
 
           {/* ══════════════════ PERSONA NATURAL ══════════════════ */}
           {tipoCliente === "natural" && (
@@ -576,6 +596,28 @@ export default function RegisterClienteScreen() {
               Inicia sesión
             </Text>
           </Pressable>
+          </View>
+          {desktop && (
+            <View style={styles.desktopAside}>
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Portal</Text>
+                <Text style={styles.desktopAsideTitle}>{tipoCliente === "natural" ? "Cuenta de cliente personal" : "Cuenta de cliente empresa"}</Text>
+                <Text style={styles.desktopAsideText}>
+                  {tipoCliente === "natural"
+                    ? "Ideal para personas que necesitan seguimiento directo de sus procesos."
+                    : "Pensado para empresas que gestionan asuntos jurídicos desde un acceso institucional."}
+                </Text>
+                <View style={styles.desktopBulletList}>
+                  <Text style={styles.desktopBullet}>Consulta de procesos y etapas</Text>
+                  <Text style={styles.desktopBullet}>Acceso a documentos y novedades</Text>
+                  <Text style={styles.desktopBullet}>Comunicación con tu abogado o firma</Text>
+                  <Text style={styles.desktopBullet}>Vista adaptada al tipo de cliente</Text>
+                </View>
+              </View>
+            </View>
+          )}
+          </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -674,6 +716,8 @@ const styles = StyleSheet.create({
 
   // Header
   header: { paddingHorizontal: 20, paddingBottom: 20 },
+  desktopHeader: { paddingBottom: 28 },
+  headerShell: { width: "100%", alignSelf: "center" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   headerBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -702,9 +746,28 @@ const styles = StyleSheet.create({
   tipoBtnActive: { backgroundColor: Colors.white },
   tipoBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.8)" },
   tipoBtnTextActive: { fontFamily: "Inter_700Bold", color: Colors.primary },
+  desktopHeaderBody: { marginTop: 18, maxWidth: 780, gap: 8 },
+  desktopHeaderTitle: { fontSize: 28, lineHeight: 34, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeaderText: { fontSize: 14, lineHeight: 22, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.78)" },
 
   // Scroll
   scrollContent: { padding: 16, gap: 14, paddingBottom: 48 },
+  desktopScrollContent: { paddingTop: 24, paddingBottom: 32 },
+  scrollShell: { width: "100%", alignSelf: "center" },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  formColumn: { flex: 1, minWidth: 0, maxWidth: 980, gap: 16 },
+  desktopAside: { width: 340, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: Colors.white, borderRadius: 20, padding: 18, gap: 12,
+    borderWidth: 1, borderColor: Colors.borderLight,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  desktopAsideLabel: { fontSize: 11, color: Colors.textTertiary, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.7 },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: Colors.text, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
+  desktopBulletList: { gap: 8 },
+  desktopBullet: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, fontFamily: "Inter_500Medium" },
 
   // Card
   card: {

@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet,
-  ActivityIndicator, ScrollView, Modal, TouchableOpacity, FlatList, Switch,
+  ActivityIndicator, ScrollView, Modal, TouchableOpacity, FlatList, Switch, Platform, useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import { apiRequest } from "@/lib/query-client";
 import { Cliente } from "@/shared/schema";
 import type { SaveClienteData } from "@/lib/services/clienteService";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 interface TipoDocumento { id: number; nombre: string; codigo: string; }
 interface Departamento { id: string; codigo: string; nombre: string; }
@@ -130,6 +131,10 @@ const infoStyles = StyleSheet.create({
 type ClienteTipo = "natural" | "empresa";
 
 export function ClientForm({ initialData, onSave, isLoading, isEditing, error, firmAllowsPrivateClientes }: ClientFormProps) {
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1480, Math.max(1160, width - metrics.gutter * 2));
   const initialTipo: ClienteTipo = (initialData as any)?.tipo ?? "natural";
 
   // Representante legal (empresa) — declared early so state initialisers can reference repPersona
@@ -217,7 +222,11 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error, f
   }, [municipios, municipioId]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadMunicipios = useCallback(async (deptoId: string, page: number = 1, search = "") => {
-    page === 1 ? setLoadingMunicipios(true) : setLoadingMoreMun(true);
+    if (page === 1) {
+      setLoadingMunicipios(true);
+    } else {
+      setLoadingMoreMun(true);
+    }
     try {
       const params = new URLSearchParams({
         departamentoId: deptoId, page: page.toString(), pageSize: "10",
@@ -283,328 +292,341 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error, f
 
   const selectedTipo    = tiposDocumento.find(t => t.id === tipoDocumentoId);
   const selectedRepTipo = tiposDocumento.find(t => t.id === repTipoDocId);
+  const naturalClienteReady = Boolean(nombre.trim() && apellido.trim() && documento.trim());
+  const empresaClienteReady = Boolean(razonSocial.trim() && nit.trim());
+  const portalReady = Boolean(correo.trim() && (isEditing || password.trim()));
+  const selectedDepartamentoLabel = selectedDeptoName || "Sin seleccionar";
+  const selectedMunicipioLabel = selectedMunicipioName || "Sin seleccionar";
+  const portalScopeLabel =
+    !isEditing && firmAllowsPrivateClientes === true
+      ? esPrivado ? "Privado" : "Compartido con bufete"
+      : "Segun configuracion";
 
   return (
     <>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {!!error && (
-          <View style={styles.errorBox}>
-            <Ionicons name="alert-circle" size={16} color={Colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+      <ScrollView
+        contentContainerStyle={[styles.content, desktop && styles.desktopContent, desktop && { paddingHorizontal: metrics.gutter }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
+          <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+            <View style={styles.mainColumn}>
+              {!!error && (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+              <View style={styles.formCard}>
+                <Text style={styles.cardTitle}>Acceso y configuración del cliente</Text>
 
-        {/* Tipo de cliente */}
-        {!isEditing && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Tipo de cliente <Text style={styles.required}>*</Text></Text>
-            <View style={styles.tipoRow}>
-              {(["natural", "empresa"] as ClienteTipo[]).map(t => (
-                <TouchableOpacity
-                  key={t}
-                  style={[styles.tipoBtn, tipo === t && styles.tipoBtnActive]}
-                  onPress={() => setTipo(t)}
-                >
-                  <Ionicons
-                    name={t === "natural" ? "person-outline" : "business-outline"}
-                    size={18}
-                    color={tipo === t ? Colors.white : Colors.textSecondary}
-                  />
-                  <Text style={[styles.tipoBtnText, tipo === t && styles.tipoBtnTextActive]}>
-                    {t === "natural" ? "Persona natural" : "Empresa"}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                {!isEditing && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Tipo de cliente <Text style={styles.required}>*</Text></Text>
+                    <View style={styles.tipoRow}>
+                      {(["natural", "empresa"] as ClienteTipo[]).map(t => (
+                        <TouchableOpacity key={t} style={[styles.tipoBtn, tipo === t && styles.tipoBtnActive]} onPress={() => setTipo(t)}>
+                          <Ionicons name={t === "natural" ? "person-outline" : "business-outline"} size={18} color={tipo === t ? Colors.white : Colors.textSecondary} />
+                          <Text style={[styles.tipoBtnText, tipo === t && styles.tipoBtnTextActive]}>{t === "natural" ? "Persona natural" : "Empresa"}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {!isEditing && (
+                  <View style={styles.infoBox}>
+                    <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+                    <Text style={styles.infoText}>
+                      {tipo === "natural"
+                        ? "El correo y contraseña permiten al cliente acceder al Portal del Cliente."
+                        : "El correo y contraseña permiten a la empresa acceder al Portal Empresa."}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Correo electrónico <Text style={styles.required}>*</Text></Text>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                    <TextInput style={styles.input} value={correo} onChangeText={setCorreo} placeholder="correo@ejemplo.com" placeholderTextColor={Colors.textTertiary} keyboardType="email-address" autoCapitalize="none" />
+                  </View>
+                </View>
+
+                {!isEditing && (
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Contraseña del portal <Text style={styles.required}>*</Text></Text>
+                    <View style={styles.inputWrapper}>
+                      <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                      <TextInput style={styles.input} value={password} onChangeText={setPassword} placeholder="Contraseña para acceso al portal" placeholderTextColor={Colors.textTertiary} secureTextEntry />
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {tipo === "natural" ? (
+                <>
+                  <View style={styles.formCard}>
+                    <Text style={styles.cardTitle}>Identidad del cliente</Text>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Tipo de documento <Text style={styles.required}>*</Text></Text>
+                      {loadingTipos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
+                        <TouchableOpacity style={styles.selectButton} onPress={() => setShowTipoModal(true)}>
+                          <Text style={styles.selectButtonText}>{selectedTipo?.nombre || "Seleccionar tipo"}</Text>
+                          <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Número de documento <Text style={styles.required}>*</Text></Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={documento} onChangeText={setDocumento} placeholder="Número de documento" placeholderTextColor={Colors.textTertiary} />
+                      </View>
+                    </View>
+
+                    <View style={styles.row}>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Nombre <Text style={styles.required}>*</Text></Text>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="person-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                          <TextInput style={styles.input} value={nombre} onChangeText={setNombre} placeholder="Nombre del cliente" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
+                        </View>
+                      </View>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Apellido <Text style={styles.required}>*</Text></Text>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="person-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                          <TextInput style={styles.input} value={apellido} onChangeText={setApellido} placeholder="Apellido del cliente" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Teléfono</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="call-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={telefono} onChangeText={setTelefono} placeholder="+57 300 000 0000" placeholderTextColor={Colors.textTertiary} keyboardType="phone-pad" />
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.formCard}>
+                    <Text style={styles.cardTitle}>Ubicación y contacto</Text>
+
+                    <View style={styles.row}>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Departamento</Text>
+                        {loadingDeptos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
+                          <TouchableOpacity style={styles.selectButton} onPress={() => setShowDeptoModal(true)}>
+                            <Text style={styles.selectButtonText}>{selectedDeptoName || "Seleccionar departamento"}</Text>
+                            <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Municipio</Text>
+                        <TouchableOpacity style={[styles.selectButton, !departamentoId && styles.selectButtonDisabled]} onPress={() => departamentoId && setShowMunicipioModal(true)} disabled={!departamentoId}>
+                          <Text style={[styles.selectButtonText, !departamentoId && styles.selectButtonTextDisabled]}>
+                            {selectedMunicipioName || (departamentoId ? "Seleccionar municipio" : "Seleccione un departamento primero")}
+                          </Text>
+                          {departamentoId && <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Dirección</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="location-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={direccion} onChangeText={setDireccion} placeholder="Dirección del cliente" placeholderTextColor={Colors.textTertiary} />
+                      </View>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <View style={styles.formCard}>
+                    <Text style={styles.cardTitle}>Empresa</Text>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Razón social <Text style={styles.required}>*</Text></Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="business-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={razonSocial} onChangeText={setRazonSocial} placeholder="Nombre legal de la empresa" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
+                      </View>
+                    </View>
+                    <View style={styles.row}>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>NIT <Text style={styles.required}>*</Text></Text>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                          <TextInput style={styles.input} value={nit} onChangeText={setNit} placeholder="900.000.000-0" placeholderTextColor={Colors.textTertiary} keyboardType="numeric" />
+                        </View>
+                      </View>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Sector</Text>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="briefcase-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                          <TextInput style={styles.input} value={sector} onChangeText={setSector} placeholder="Tecnología, construcción..." placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.formCard}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.cardTitle}>Representante legal</Text>
+                      <Text style={styles.sectionSubtitle}>Opcional, pero útil para dejar la cuenta lista desde el inicio</Text>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Tipo de documento</Text>
+                      {loadingTipos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
+                        <TouchableOpacity style={styles.selectButton} onPress={() => setShowRepTipoModal(true)}>
+                          <Text style={styles.selectButtonText}>{selectedRepTipo?.nombre || "Seleccionar tipo"}</Text>
+                          <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Documento</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={repDocumento} onChangeText={setRepDocumento} placeholder="Número de documento" placeholderTextColor={Colors.textTertiary} />
+                      </View>
+                    </View>
+                    <View style={styles.row}>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Nombre</Text>
+                        <View style={styles.inputWrapper}>
+                          <TextInput style={styles.input} value={repNombre} onChangeText={setRepNombre} placeholder="Nombre" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
+                        </View>
+                      </View>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Apellido</Text>
+                        <View style={styles.inputWrapper}>
+                          <TextInput style={styles.input} value={repApellido} onChangeText={setRepApellido} placeholder="Apellido" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
+                        </View>
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Cargo</Text>
+                      <View style={styles.inputWrapper}>
+                        <TextInput style={styles.input} value={repCargo} onChangeText={setRepCargo} placeholder="Representante Legal" placeholderTextColor={Colors.textTertiary} />
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Email del representante</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={repEmail} onChangeText={setRepEmail} placeholder="representante@empresa.com" placeholderTextColor={Colors.textTertiary} keyboardType="email-address" autoCapitalize="none" />
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Teléfono del representante</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="call-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={repTelefono} onChangeText={setRepTelefono} placeholder="+57 300 000 0000" placeholderTextColor={Colors.textTertiary} keyboardType="phone-pad" />
+                      </View>
+                    </View>
+                    <View style={styles.row}>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Departamento del representante</Text>
+                        {loadingDeptos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
+                          <TouchableOpacity style={styles.selectButton} onPress={() => setShowDeptoModal(true)}>
+                            <Text style={styles.selectButtonText}>{selectedDeptoName || "Seleccionar departamento"}</Text>
+                            <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                      <View style={[styles.inputGroup, styles.rowField]}>
+                        <Text style={styles.label}>Municipio del representante</Text>
+                        <TouchableOpacity style={[styles.selectButton, !departamentoId && styles.selectButtonDisabled]} onPress={() => departamentoId && setShowMunicipioModal(true)} disabled={!departamentoId}>
+                          <Text style={[styles.selectButtonText, !departamentoId && styles.selectButtonTextDisabled]}>
+                            {selectedMunicipioName || (departamentoId ? "Seleccionar municipio" : "Seleccione un departamento primero")}
+                          </Text>
+                          {departamentoId && <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />}
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Dirección del representante</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="location-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput style={styles.input} value={repDireccion} onChangeText={setRepDireccion} placeholder="Dirección del representante" placeholderTextColor={Colors.textTertiary} />
+                      </View>
+                    </View>
+                  </View>
+                </>
+              )}
+
+              {!isEditing && firmAllowsPrivateClientes === true && (
+                <View style={styles.formCard}>
+                  <Text style={styles.cardTitle}>Privacidad</Text>
+                  <View style={styles.privadoRow}>
+                    <View style={styles.privadoInfo}>
+                      <Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.privadoLabel}>Cliente privado</Text>
+                        <Text style={styles.privadoSublabel}>Solo tú podrás ver este cliente</Text>
+                      </View>
+                    </View>
+                    <Switch value={esPrivado} onValueChange={setEsPrivado} trackColor={{ false: Colors.border, true: Colors.primary + "80" }} thumbColor={esPrivado ? Colors.primary : "#ccc"} ios_backgroundColor={Colors.border} />
+                  </View>
+                </View>
+              )}
+
+              {!isEditing && firmAllowsPrivateClientes === false && <FirmClienteOwnershipInfoCard />}
             </View>
-          </View>
-        )}
 
-        {!isEditing && (
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
-            <Text style={styles.infoText}>
-              {tipo === "natural"
-                ? "El documento y contraseña permiten al cliente acceder al Portal del Cliente."
-                : "El correo y contraseña permiten a la empresa acceder al Portal Empresa."}
-            </Text>
-          </View>
-        )}
+            {desktop && (
+              <View style={styles.desktopAside}>
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Resumen</Text>
+                  <Text style={styles.desktopAsideTitle}>{tipo === "natural" ? "Cliente persona natural" : "Cliente empresa"}</Text>
+                  <View style={styles.desktopMetaList}>
+                    <View style={styles.desktopMetaRow}>
+                      <Text style={styles.desktopMetaKey}>Portal</Text>
+                      <Text style={styles.desktopMetaValue}>{portalReady ? "Listo" : "Pendiente"}</Text>
+                    </View>
+                    <View style={styles.desktopMetaRow}>
+                      <Text style={styles.desktopMetaKey}>Datos base</Text>
+                      <Text style={styles.desktopMetaValue}>{tipo === "natural" ? (naturalClienteReady ? "Completos" : "Pendientes") : (empresaClienteReady ? "Completos" : "Pendientes")}</Text>
+                    </View>
+                    <View style={styles.desktopMetaRow}>
+                      <Text style={styles.desktopMetaKey}>Privacidad</Text>
+                      <Text style={styles.desktopMetaValue}>{portalScopeLabel}</Text>
+                    </View>
+                  </View>
+                </View>
 
-        {/* Correo — ambos tipos */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Correo electrónico <Text style={styles.required}>*</Text></Text>
-          <View style={styles.inputWrapper}>
-            <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-            <TextInput style={styles.input} value={correo} onChangeText={setCorreo}
-              placeholder="correo@ejemplo.com" placeholderTextColor={Colors.textTertiary}
-              keyboardType="email-address" autoCapitalize="none" />
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Datos visibles</Text>
+                  <Text style={styles.desktopAsideTitle}>{tipo === "natural" ? [nombre, apellido].filter(Boolean).join(" ") || "Sin nombre definido" : razonSocial || "Sin razón social"}</Text>
+                  <Text style={styles.desktopAsideText}>{tipo === "natural" ? `${selectedTipo?.nombre || "Documento"} ${documento || "sin número"}` : `NIT ${nit || "sin definir"}`}</Text>
+                  <Text style={styles.desktopAsideText}>{selectedDepartamentoLabel} · {selectedMunicipioLabel}</Text>
+                </View>
+
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Checklist</Text>
+                  <Text style={styles.desktopAsideTitle}>Antes de guardar</Text>
+                  <View style={styles.desktopBulletList}>
+                    <Text style={styles.desktopBullet}>Define el tipo correcto de cliente.</Text>
+                    <Text style={styles.desktopBullet}>Verifica correo y contraseña de acceso al portal.</Text>
+                    <Text style={styles.desktopBullet}>{tipo === "natural" ? "Completa documento, nombre y apellido." : "Completa razón social, NIT y datos del representante si aplican."}</Text>
+                    <Text style={styles.desktopBullet}>Revisa ubicación y privacidad antes de confirmar.</Text>
+                  </View>
+                </View>
+              </View>
+            )}
           </View>
         </View>
-
-        {tipo === "natural" ? (
-          <>
-            {/* Tipo documento */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Tipo de documento <Text style={styles.required}>*</Text></Text>
-              {loadingTipos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
-                <TouchableOpacity style={styles.selectButton} onPress={() => setShowTipoModal(true)}>
-                  <Text style={styles.selectButtonText}>{selectedTipo?.nombre || "Seleccionar tipo"}</Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Documento */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Número de documento <Text style={styles.required}>*</Text></Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={documento} onChangeText={setDocumento}
-                  placeholder="Número de documento" placeholderTextColor={Colors.textTertiary} />
-              </View>
-            </View>
-
-            {/* Nombre */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Nombre <Text style={styles.required}>*</Text></Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={nombre} onChangeText={setNombre}
-                  placeholder="Nombre del cliente" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
-              </View>
-            </View>
-
-            {/* Apellido */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Apellido <Text style={styles.required}>*</Text></Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={apellido} onChangeText={setApellido}
-                  placeholder="Apellido del cliente" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
-              </View>
-            </View>
-
-            {/* Teléfono */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Teléfono</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="call-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={telefono} onChangeText={setTelefono}
-                  placeholder="+57 300 000 0000" placeholderTextColor={Colors.textTertiary} keyboardType="phone-pad" />
-              </View>
-            </View>
-
-            {/* Departamento */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Departamento</Text>
-              {loadingDeptos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
-                <TouchableOpacity style={styles.selectButton} onPress={() => setShowDeptoModal(true)}>
-                  <Text style={styles.selectButtonText}>{selectedDeptoName || "Seleccionar departamento"}</Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {/* Municipio */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Municipio</Text>
-              <TouchableOpacity
-                style={[styles.selectButton, !departamentoId && styles.selectButtonDisabled]}
-                onPress={() => departamentoId && setShowMunicipioModal(true)}
-                disabled={!departamentoId}
-              >
-                <Text style={[styles.selectButtonText, !departamentoId && styles.selectButtonTextDisabled]}>
-                  {selectedMunicipioName || (departamentoId ? "Seleccionar municipio" : "Seleccione un departamento primero")}
-                </Text>
-                {departamentoId && <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />}
-              </TouchableOpacity>
-            </View>
-
-            {/* Dirección */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Dirección</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="location-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={direccion} onChangeText={setDireccion}
-                  placeholder="Dirección del cliente" placeholderTextColor={Colors.textTertiary} />
-              </View>
-            </View>
-          </>
-        ) : (
-          <>
-            {/* Razón social */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Razón social <Text style={styles.required}>*</Text></Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="business-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={razonSocial} onChangeText={setRazonSocial}
-                  placeholder="Nombre legal de la empresa" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
-              </View>
-            </View>
-
-            {/* NIT */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>NIT <Text style={styles.required}>*</Text></Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={nit} onChangeText={setNit}
-                  placeholder="900.000.000-0" placeholderTextColor={Colors.textTertiary} keyboardType="numeric" />
-              </View>
-            </View>
-
-            {/* Sector */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Sector</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="briefcase-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={sector} onChangeText={setSector}
-                  placeholder="Tecnología, construcción..." placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
-              </View>
-            </View>
-
-            {/* Representante legal */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Representante Legal</Text>
-              <Text style={styles.sectionSubtitle}>Opcional — puede completarse después</Text>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Tipo de documento</Text>
-              {loadingTipos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
-                <TouchableOpacity style={styles.selectButton} onPress={() => setShowRepTipoModal(true)}>
-                  <Text style={styles.selectButtonText}>{selectedRepTipo?.nombre || "Seleccionar tipo"}</Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Documento</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="card-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={repDocumento} onChangeText={setRepDocumento}
-                  placeholder="Número de documento" placeholderTextColor={Colors.textTertiary} />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Nombre</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} value={repNombre} onChangeText={setRepNombre}
-                    placeholder="Nombre" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
-                </View>
-              </View>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Apellido</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput style={styles.input} value={repApellido} onChangeText={setRepApellido}
-                    placeholder="Apellido" placeholderTextColor={Colors.textTertiary} autoCapitalize="words" />
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Cargo</Text>
-              <View style={styles.inputWrapper}>
-                <TextInput style={styles.input} value={repCargo} onChangeText={setRepCargo}
-                  placeholder="Representante Legal" placeholderTextColor={Colors.textTertiary} />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email del representante</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={repEmail} onChangeText={setRepEmail}
-                  placeholder="representante@empresa.com" placeholderTextColor={Colors.textTertiary}
-                  keyboardType="email-address" autoCapitalize="none" />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Teléfono del representante</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="call-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={repTelefono} onChangeText={setRepTelefono}
-                  placeholder="+57 300 000 0000" placeholderTextColor={Colors.textTertiary} keyboardType="phone-pad" />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Departamento del representante</Text>
-              {loadingDeptos ? <ActivityIndicator size="small" color={Colors.primary} /> : (
-                <TouchableOpacity style={styles.selectButton} onPress={() => setShowDeptoModal(true)}>
-                  <Text style={styles.selectButtonText}>{selectedDeptoName || "Seleccionar departamento"}</Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Municipio del representante</Text>
-              <TouchableOpacity
-                style={[styles.selectButton, !departamentoId && styles.selectButtonDisabled]}
-                onPress={() => departamentoId && setShowMunicipioModal(true)}
-                disabled={!departamentoId}
-              >
-                <Text style={[styles.selectButtonText, !departamentoId && styles.selectButtonTextDisabled]}>
-                  {selectedMunicipioName || (departamentoId ? "Seleccionar municipio" : "Seleccione un departamento primero")}
-                </Text>
-                {departamentoId && <Ionicons name="chevron-down" size={20} color={Colors.textTertiary} />}
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Dirección del representante</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="location-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput style={styles.input} value={repDireccion} onChangeText={setRepDireccion}
-                  placeholder="Dirección del representante" placeholderTextColor={Colors.textTertiary} />
-              </View>
-            </View>
-          </>
-        )}
-
-        {/* Contraseña — solo en creación */}
-        {!isEditing && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Contraseña del portal <Text style={styles.required}>*</Text></Text>
-            <View style={styles.inputWrapper}>
-              <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-              <TextInput style={styles.input} value={password} onChangeText={setPassword}
-                placeholder="Contraseña para acceso al portal" placeholderTextColor={Colors.textTertiary}
-                secureTextEntry />
-            </View>
-          </View>
-        )}
-        {/* ── Privacidad del cliente (solo al crear) ── */}
-        {!isEditing && firmAllowsPrivateClientes === true && (
-          <View style={styles.privadoRow}>
-            <View style={styles.privadoInfo}>
-              <Ionicons name="lock-closed-outline" size={18} color={Colors.textSecondary} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.privadoLabel}>Cliente privado</Text>
-                <Text style={styles.privadoSublabel}>Solo tú podrás ver este cliente</Text>
-              </View>
-            </View>
-            <Switch
-              value={esPrivado}
-              onValueChange={setEsPrivado}
-              trackColor={{ false: Colors.border, true: Colors.primary + "80" }}
-              thumbColor={esPrivado ? Colors.primary : "#ccc"}
-              ios_backgroundColor={Colors.border}
-            />
-          </View>
-        )}
-
-        {!isEditing && firmAllowsPrivateClientes === false && (
-          <FirmClienteOwnershipInfoCard />
-        )}
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, desktop && styles.desktopFooter]}>
         <Pressable onPress={handleSave} disabled={isLoading}
           style={({ pressed }) => [styles.saveBtn, pressed && styles.saveBtnPressed, isLoading && styles.saveBtnDisabled]}
         >
@@ -719,8 +741,29 @@ export function ClientForm({ initialData, onSave, isLoading, isEditing, error, f
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 20, gap: 16 },
+  content: { padding: 20, gap: 16, paddingBottom: 120 },
+  desktopContent: { paddingTop: 24, paddingBottom: 140 },
+  shell: { width: "100%", alignSelf: "center" },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  mainColumn: { flex: 1, minWidth: 0, maxWidth: 980, gap: 16 },
+  desktopAside: { width: 340, gap: 16 },
+  formCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 18,
+    padding: 18,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  cardTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text },
   row: { flexDirection: "row", gap: 12 },
+  rowField: { flex: 1 },
   errorBox: {
     flexDirection: "row", alignItems: "center", gap: 8,
     backgroundColor: Colors.dangerLight, padding: 12, borderRadius: 10,
@@ -740,7 +783,7 @@ const styles = StyleSheet.create({
   tipoBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   tipoBtnText: { fontSize: 14, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
   tipoBtnTextActive: { color: Colors.white },
-  sectionHeader: { paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.borderLight, gap: 2 },
+  sectionHeader: { gap: 4 },
   sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.text },
   sectionSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
   inputGroup: { gap: 6 },
@@ -769,6 +812,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24,
     backgroundColor: Colors.white, borderTopWidth: 1, borderTopColor: Colors.borderLight,
   },
+  desktopFooter: { paddingHorizontal: 32, alignItems: "center" },
   privadoRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     backgroundColor: Colors.white, borderRadius: 12,
@@ -778,10 +822,38 @@ const styles = StyleSheet.create({
   privadoInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   privadoLabel: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.text },
   privadoSublabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 1 },
-  saveBtn: { backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: "center" },
+  saveBtn: { backgroundColor: Colors.primary, paddingVertical: 16, borderRadius: 12, alignItems: "center", width: "100%", maxWidth: 980 },
   saveBtnPressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   saveBtnDisabled: { opacity: 0.6 },
   saveBtnText: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.white },
+  desktopAsideCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  desktopAsideLabel: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: Colors.text, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
+  desktopMetaList: { gap: 10 },
+  desktopMetaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopMetaKey: { fontSize: 12, color: Colors.textTertiary, fontFamily: "Inter_500Medium" },
+  desktopMetaValue: { flexShrink: 1, textAlign: "right", fontSize: 13, color: Colors.text, fontFamily: "Inter_600SemiBold" },
+  desktopBulletList: { gap: 8 },
+  desktopBullet: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, fontFamily: "Inter_500Medium" },
   modalOverlay: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "center", alignItems: "center", padding: 20,

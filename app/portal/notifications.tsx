@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet,
-  ActivityIndicator, RefreshControl, ScrollView, Platform,
+  ActivityIndicator, RefreshControl, ScrollView, Platform, useWindowDimensions,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -19,6 +19,8 @@ import {
   type ClientRequestDTO, type AppNotificationDTO,
 } from "@/lib/services/clientRequestService";
 import type { Notificacion } from "@/shared/schema";
+import { LinearGradient } from "expo-linear-gradient";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ───────────────────────────────────────────────────────
 const NAVY   = "#0F2640";
@@ -161,6 +163,10 @@ function RequestCard({
 // ─── Screen ──────────────────────────────────────────────────────────────
 export default function ClientNotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const compactMobile = width < 420;
   const router = useRouter();
   const { profile } = useAuth();
   const { refreshUnread } = useNotifications();
@@ -236,17 +242,188 @@ export default function ClientNotificationsScreen() {
 
   const isEmpty = requests.length === 0 && notificaciones.length === 0 && appNotifs.length === 0;
 
+  if (desktop) {
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{ paddingBottom: metrics.gutter }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(); }}
+            tintColor={TEAL}
+            colors={[TEAL]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopHero, { marginBottom: metrics.contentGap }]}>
+          <LinearGradient colors={[NAVY, "#15385D"]} style={styles.desktopHeroGradient}>
+            <View style={styles.desktopHeroMain}>
+              <View style={styles.desktopHeroCopy}>
+                <Text style={styles.desktopEyebrow}>Portal cliente</Text>
+                <Text style={styles.desktopTitle}>Notificaciones</Text>
+              </View>
+
+              <View style={styles.desktopHeroStats}>
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{unread}</Text>
+                  <Text style={styles.desktopHeroLabel}>sin leer</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{requests.length}</Text>
+                  <Text style={styles.desktopHeroLabel}>solicitudes</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{notificaciones.length + appNotifs.length}</Text>
+                  <Text style={styles.desktopHeroLabel}>alertas</Text>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+
+        <View style={[styles.desktopColumns, { gap: metrics.contentGap }]}>
+          <View style={styles.desktopMainColumn}>
+            {loading ? (
+              <View style={styles.centered}>
+                <ActivityIndicator size="large" color={TEAL} />
+              </View>
+            ) : (
+              <>
+                {requests.length > 0 && (
+                  <View style={styles.desktopPanel}>
+                    <View style={styles.desktopPanelHeader}>
+                      <Text style={styles.desktopPanelTitle}>Solicitudes pendientes</Text>
+                      <View style={[styles.sectionBadge, { backgroundColor: TEAL + "18" }]}>
+                        <Text style={[styles.sectionBadgeText, { color: TEAL }]}>{requests.length}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.desktopPanelList}>
+                      {requests.map((r) => (
+                        <RequestCard key={r.id} req={r} onRespond={handleRespond} />
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {notificaciones.length > 0 && (
+                  <View style={styles.desktopPanel}>
+                    <View style={styles.desktopPanelHeader}>
+                      <Text style={styles.desktopPanelTitle}>Actividad en procesos</Text>
+                    </View>
+                    <View style={styles.desktopPanelList}>
+                      {notificaciones.map((item) => {
+                        const c = cfgOf(PROCESS_NOTIF, item.tipo);
+                        return (
+                          <NotifCard
+                            key={item.id}
+                            icon={c.icon} color={c.color} bg={c.bg}
+                            title={item.titulo} body={item.mensaje}
+                            time={timeAgo(item.createdAt)}
+                            unread={!item.leidoCliente}
+                            onPress={() => handleMarkRead(item)}
+                          />
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {appNotifs.length > 0 && (
+                  <View style={styles.desktopPanel}>
+                    <View style={styles.desktopPanelHeader}>
+                      <Text style={styles.desktopPanelTitle}>Comunidad</Text>
+                    </View>
+                    <View style={styles.desktopPanelList}>
+                      {appNotifs.map((item) => {
+                        const c = cfgOf(APP_NOTIF, item.type);
+                        return (
+                          <NotifCard
+                            key={item.id}
+                            icon={c.icon} color={c.color} bg={c.bg}
+                            title={item.title} body={item.body}
+                            time={timeAgo(item.createdAt)}
+                            unread={!item.readAt}
+                            onPress={() => handleMarkAppRead(item)}
+                          />
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {isEmpty && (
+                  <View style={styles.empty}>
+                    <View style={styles.emptyIcon}>
+                      <Ionicons name="notifications-off-outline" size={36} color={TEXT3} />
+                    </View>
+                    <Text style={styles.emptyTitle}>Sin notificaciones</Text>
+                    <Text style={styles.emptySub}>Cuando recibas alertas aparecerán aquí</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+
+          <View style={styles.desktopSideColumn}>
+            <View style={styles.desktopPanel}>
+              <View style={styles.desktopPanelHeader}>
+                <Text style={styles.desktopPanelTitle}>Resumen</Text>
+              </View>
+              <View style={styles.desktopSummaryStack}>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Pendientes</Text>
+                  <Text style={styles.desktopSummaryValue}>{unread}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Solicitudes activas</Text>
+                  <Text style={styles.desktopSummaryValue}>{requests.length}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Actividad procesos</Text>
+                  <Text style={styles.desktopSummaryValue}>{notificaciones.length}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Comunidad</Text>
+                  <Text style={styles.desktopSummaryValue}>{appNotifs.length}</Text>
+                </View>
+              </View>
+            </View>
+
+            {unread > 0 && (
+              <View style={styles.desktopPanel}>
+                <View style={styles.desktopPanelHeader}>
+                  <Text style={styles.desktopPanelTitle}>Acción rápida</Text>
+                </View>
+                <Pressable
+                  style={styles.desktopActionBtn}
+                  onPress={handleMarkAll}
+                >
+                  <Ionicons name="checkmark-done-outline" size={16} color={WHITE} />
+                  <Text style={styles.desktopActionBtnText}>Marcar todo como leído</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
 
       {/* ── Header navy (tab screen — sin botón atrás) ── */}
-      <View style={styles.header}>
+      <View style={[styles.header, compactMobile && styles.headerCompact]}>
         <View>
           <Text style={styles.headerEyebrow}>PORTAL CLIENTE</Text>
           <Text style={styles.headerTitle}>Notificaciones</Text>
         </View>
 
-        <View style={styles.headerRight}>
+        <View style={[styles.headerRight, compactMobile && styles.headerRightCompact]}>
           {/* Badge de no leídas */}
           {unread > 0 && (
             <View style={styles.unreadPill}>
@@ -268,7 +445,7 @@ export default function ClientNotificationsScreen() {
 
       {/* Solicitudes pendientes badge en header */}
       {requests.length > 0 && (
-        <View style={styles.reqBanner}>
+        <View style={[styles.reqBanner, compactMobile && styles.reqBannerCompact]}>
           <Ionicons name="person-add-outline" size={13} color={WHITE} />
           <Text style={styles.reqBannerText}>
             {requests.length} solicitud{requests.length !== 1 ? "es" : ""} pendiente{requests.length !== 1 ? "s" : ""}
@@ -376,7 +553,67 @@ export default function ClientNotificationsScreen() {
 // ─── Styles ──────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen:   { flex: 1, backgroundColor: NAVY },
+  desktopScreen: { flex: 1, backgroundColor: BG },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  desktopHeroCopy: { flex: 1, gap: 4 },
+  desktopEyebrow: {
+    fontSize: 12, letterSpacing: 1.1, textTransform: "uppercase",
+    color: "rgba(255,255,255,0.6)", fontFamily: "Inter_600SemiBold",
+  },
+  desktopTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopHeroStats: {
+    minWidth: 320,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center" },
+  desktopHeroValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopHeroLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.68)", marginTop: 2 },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.18)" },
+  desktopColumns: { flexDirection: "row", alignItems: "flex-start" },
+  desktopMainColumn: { flex: 1.5, gap: 20 },
+  desktopSideColumn: { width: 320, gap: 20 },
+  desktopPanel: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+  },
+  desktopPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopPanelList: { gap: 10 },
+  desktopSummaryStack: { gap: 12 },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E7ECF0",
+  },
+  desktopSummaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  desktopSummaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: TEAL,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  desktopActionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
 
   // Header (tab — no back button, title left-aligned)
   header: {
@@ -386,6 +623,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
+  },
+  headerCompact: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 14,
+    alignItems: "flex-start",
+    gap: 10,
   },
   headerEyebrow: {
     fontSize: 11, letterSpacing: 2,
@@ -397,6 +641,7 @@ const styles = StyleSheet.create({
     color: WHITE, letterSpacing: -0.3,
   },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, paddingBottom: 4 },
+  headerRightCompact: { paddingBottom: 0 },
   unreadPill: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -417,6 +662,10 @@ const styles = StyleSheet.create({
     marginLeft: 20, marginBottom: 10,
     backgroundColor: TEAL + "30",
     paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+  },
+  reqBannerCompact: {
+    marginLeft: 16,
+    marginBottom: 8,
   },
   reqBannerText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: WHITE },
 

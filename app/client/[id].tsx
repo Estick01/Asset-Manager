@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
   ActivityIndicator, Modal, Platform,
+  useWindowDimensions,
 } from "react-native";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,6 +14,7 @@ import { getCliente, deleteCliente, updateCliente } from "@/lib/services/cliente
 import { getProcesosByCliente } from "@/lib/services/procesoService";
 import { ProcesoDTO, type Cliente } from "@/shared/schema";
 import { ClientForm } from "@/components/ClientForm";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const NAVY     = "#0F2640";
@@ -155,6 +157,10 @@ function ConfirmDeleteModal({
 export default function ClientDetailScreen() {
   const { id, edit } = useLocalSearchParams<{ id: string; edit?: string }>();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1480, Math.max(1160, width - metrics.gutter * 2));
   const [cliente, setCliente]       = useState<Cliente | null>(null);
   const [procesos, setProcesos]     = useState<ProcesoDTO[]>([]);
   const [isEditing, setIsEditing]   = useState(false);
@@ -229,22 +235,24 @@ export default function ClientDetailScreen() {
   if (isEditing) {
     return (
       <View style={styles.screen}>
-        {/* Header edit */}
-        <LinearGradient colors={[NAVY, NAVY_MID]} style={[styles.headerGradient, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 12) }]}>
-          <Pressable
-            style={({ pressed }) => [styles.headerBackBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => setIsEditing(false)}
-          >
-            <Ionicons name="arrow-back" size={20} color={WHITE} />
-          </Pressable>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.headerEyebrow}>CLIENTE</Text>
-            <Text style={styles.headerTitleSmall}>Editar Información</Text>
+        <LinearGradient colors={[NAVY, NAVY_MID]} style={[styles.headerGradient, desktop && styles.desktopHeaderGradient, { paddingTop: insets.top + (desktop ? 28 : Platform.OS === "web" ? 67 : 12), paddingHorizontal: desktop ? metrics.gutter : 20 }]}>
+          <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
+            <Pressable
+              style={({ pressed }) => [styles.headerBackBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => setIsEditing(false)}
+            >
+              <Ionicons name="arrow-back" size={20} color={WHITE} />
+            </Pressable>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={styles.headerEyebrow}>CLIENTE</Text>
+              <Text style={styles.headerTitleSmall}>Editar Información</Text>
+            </View>
           </View>
         </LinearGradient>
 
         <View style={styles.bodyWrap}>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={[{ padding: 20, paddingBottom: 60 }, desktop && { paddingHorizontal: metrics.gutter }]} showsVerticalScrollIndicator={false}>
+            <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
             <ClientForm
               initialData={cliente}
               onSave={handleSave}
@@ -252,6 +260,7 @@ export default function ClientDetailScreen() {
               isEditing
               error={undefined}
             />
+            </View>
           </ScrollView>
         </View>
       </View>
@@ -267,7 +276,8 @@ export default function ClientDetailScreen() {
     <View style={styles.screen}>
 
       {/* ── Header gradient ── */}
-      <LinearGradient colors={[NAVY, NAVY_MID]} style={[styles.headerGradient, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 12) }]}>
+      <LinearGradient colors={[NAVY, NAVY_MID]} style={[styles.headerGradient, desktop && styles.desktopHeaderGradient, { paddingTop: insets.top + (desktop ? 28 : Platform.OS === "web" ? 67 : 12), paddingHorizontal: desktop ? metrics.gutter : 20 }]}>
+        <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
 
         {/* Top row: back + actions */}
         <View style={styles.headerTopRow}>
@@ -341,16 +351,18 @@ export default function ClientDetailScreen() {
             <Text style={styles.statLbl}>Cerrados</Text>
           </View>
         </View>
+        </View>
       </LinearGradient>
 
-      {/* ── Body ── */}
       <View style={styles.bodyWrap}>
         <ScrollView
-          contentContainerStyle={styles.body}
+          contentContainerStyle={[styles.body, desktop && { paddingHorizontal: metrics.gutter, paddingBottom: 32 }]}
           showsVerticalScrollIndicator={false}
         >
+          <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
+          <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+          <View style={styles.mainColumn}>
 
-          {/* ── Info sections ── */}
           {infoSections.map((section, sIdx) => (
             <View key={sIdx} style={styles.section}>
               {section.title && (
@@ -507,7 +519,31 @@ export default function ClientDetailScreen() {
               })
             )}
           </View>
-
+          </View>
+          {desktop && (
+            <View style={styles.desktopAside}>
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Cliente</Text>
+                <Text style={styles.desktopAsideTitle}>{fullName}</Text>
+                <Text style={styles.desktopAsideText}>
+                  {isEmpresa ? "Registro empresarial con información institucional y representante legal." : "Registro personal con datos de contacto y ubicación."}
+                </Text>
+              </View>
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Accesos</Text>
+                <Pressable style={styles.desktopAsideAction} onPress={() => setIsEditing(true)}>
+                  <Ionicons name="create-outline" size={17} color={TEAL} />
+                  <Text style={styles.desktopAsideActionText}>Editar cliente</Text>
+                </Pressable>
+                <Pressable style={styles.desktopAsideAction} onPress={() => router.push({ pathname: "/case/new", params: { clienteId: cliente.id } })}>
+                  <Ionicons name="add-circle-outline" size={17} color={GREEN} />
+                  <Text style={styles.desktopAsideActionText}>Nuevo proceso</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+          </View>
+          </View>
         </ScrollView>
       </View>
 
@@ -527,13 +563,14 @@ export default function ClientDetailScreen() {
 const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: NAVY_MID },
   centered: { alignItems: "center", justifyContent: "center" },
+  shell: { width: "100%", alignSelf: "center" },
 
-  // ── Header gradient ──────────────────────────────────────────────────────
   headerGradient: {
     paddingHorizontal: 20,
     paddingBottom: 20,
     gap:10,
   },
+  desktopHeaderGradient: { paddingBottom: 24 },
 
   headerTopRow: {
     flexDirection: "row",
@@ -603,6 +640,23 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   body: { padding: 20, paddingBottom: 60, gap: 20 },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  mainColumn: { flex: 1, minWidth: 0, maxWidth: 920 },
+  desktopAside: { width: 340, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: WHITE, borderRadius: 20, padding: 18, gap: 12,
+    borderWidth: 1, borderColor: "#E4EAF0",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  desktopAsideLabel: { fontSize: 11, color: TEXT3, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.7 },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: TEXT, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: TEXT2, fontFamily: "Inter_400Regular" },
+  desktopAsideAction: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#F5F7FA",
+  },
+  desktopAsideActionText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_600SemiBold" },
 
   // ── Sections ─────────────────────────────────────────────────────────────
   section:       { gap: 10 },

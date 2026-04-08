@@ -38,6 +38,14 @@ router.post("/procesos/:procesoId/etapas", authenticate, requirePermission("proc
       return res.status(404).json({ error: "Proceso no encontrado" });
     }
 
+    const etapaValida = await storage.legalStages.getByCodigoYTipo(
+      etapa,
+      proceso.tipoProcesoId ?? null,
+    );
+    if (!etapaValida) {
+      return res.status(400).json({ error: "etapa no válida para este tipo de proceso" });
+    }
+
     const historial = await storage.procesoEtapaHistorial.createHistorial({
       id: randomUUID(),
       procesoId: procesoIdStr,

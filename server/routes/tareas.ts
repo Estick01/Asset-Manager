@@ -238,7 +238,15 @@ router.patch(
       }
       const tarea = await tareaService.cambiarEstado(tareaId, req.body, userId(req));
       res.json(tarea);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === "SUBTASKS_PENDING") {
+        return res.status(422).json({
+          error: "SUBTASKS_PENDING",
+          message: err.message,
+          tareaTitulo: err.tareaTitulo,
+          subtareasPendientes: err.subtareasPendientes ?? [],
+        });
+      }
       next(err);
     }
   },
@@ -259,7 +267,15 @@ router.patch(
       }
       const tarea = await tareaService.completarTarea(tareaId, userId(req));
       res.json(tarea);
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.code === "SUBTASKS_PENDING") {
+        return res.status(422).json({
+          error: "SUBTASKS_PENDING",
+          message: err.message,
+          tareaTitulo: err.tareaTitulo,
+          subtareasPendientes: err.subtareasPendientes ?? [],
+        });
+      }
       next(err);
     }
   },

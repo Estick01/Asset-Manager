@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
   RefreshControl, ActivityIndicator, ScrollView, Animated,
+  Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -9,6 +10,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { getProcesos, getEstadosProceso } from "@/lib/services/procesoService";
 import { ProcesoDTO, type EstadoProceso } from "@/shared/schema";
 import { useAuth } from "@/lib/auth-context";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const NAVY     = "#0F2640";
@@ -22,7 +24,6 @@ const TEAL     = "#2196A6";
 const GREEN    = "#27AE7A";
 const RED_S    = "#E05252";
 const AMBER    = "#F5A623";
-const INFO     = "#3B82F6";
 
 const LIMIT = 10;
 
@@ -49,7 +50,7 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
       delay: Math.min(relativeIndex * 45, 200),
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index, pageOffset]);
 
   const ubicacion = [
     item.clienteMunicipio?.nombre,
@@ -234,6 +235,10 @@ function ProcesoCard({ item, index, pageOffset = 0 }: {
 // ─── Screen ───────────────────────────────────────────────────────────────
 export default function CasesScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1520, Math.max(1160, width - metrics.gutter * 2));
   const { user } = useAuth();
 
   const [procesos, setProcesos]         = useState<ProcesoDTO[]>([]);
@@ -302,7 +307,7 @@ export default function CasesScreen() {
       getEstadosProceso().then(setEstados).catch(() => {});
       loadProcesos(true, search, selectedEstado, hasResponsable);
     }
-  }, [user]));
+  }, [user, procesos.length, loadProcesos, search, selectedEstado, hasResponsable]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -359,47 +364,57 @@ export default function CasesScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
 
-      {/* ── Header navy ── */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Procesos</Text>
-          {!isInitialLoad && (
-            <Text style={styles.headerSub}>{total} {total === 1 ? "proceso" : "procesos"}</Text>
-          )}
-        </View>
-        <Pressable
-          style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.8 }]}
-          onPress={() => router.push("/case/new")}
-        >
-          <Ionicons name="add" size={22} color={WHITE} />
-        </Pressable>
-      </View>
-
-      {/* ── Stats bar dinámica (mismo patrón que firma) ── */}
-      <View style={styles.statsBar}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{total}</Text>
-          <Text style={styles.statLbl}>Total</Text>
-        </View>
-        <View style={styles.statDivider} />
-        {statsByEstado.map((s, i) => (
-          <React.Fragment key={s.label}>
-            <Pressable
-              style={styles.statItem}
-              onPress={() => handleEstadoFilter(
-                selectedEstado === estados[i]?.codigo ? null : estados[i]?.codigo
+      <View style={[styles.header, desktop && styles.desktopHeader, desktop && { paddingHorizontal: metrics.gutter }]}>
+        <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
+          <View style={styles.headerMain}>
+            <View style={styles.headerTitleBlock}>
+              <Text style={styles.headerTitle}>Procesos</Text>
+              {!isInitialLoad && (
+                <Text style={styles.headerSub}>{total} {total === 1 ? "proceso" : "procesos"}</Text>
               )}
+              {desktop && (
+                <Text style={styles.desktopHeaderLead}>
+                  Administra tu cartera jurídica, filtra por estado o responsable y entra rápido al detalle de cada proceso.
+                </Text>
+              )}
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, desktop && styles.desktopAddBtn, pressed && { opacity: 0.8 }]}
+              onPress={() => router.push("/case/new")}
             >
-              <Text style={[styles.statNum, { color: s.color }]}>{s.count}</Text>
-              <Text style={styles.statLbl}>{s.label}</Text>
+              <Ionicons name="add" size={22} color={WHITE} />
             </Pressable>
-            {i < statsByEstado.length - 1 && <View style={styles.statDivider} />}
-          </React.Fragment>
-        ))}
+          </View>
+
+          <View style={[styles.statsBar, desktop && styles.desktopStatsBar]}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{total}</Text>
+              <Text style={styles.statLbl}>Total</Text>
+            </View>
+            <View style={styles.statDivider} />
+            {statsByEstado.map((s, i) => (
+              <React.Fragment key={s.label}>
+                <Pressable
+                  style={styles.statItem}
+                  onPress={() => handleEstadoFilter(
+                    selectedEstado === estados[i]?.codigo ? null : estados[i]?.codigo
+                  )}
+                >
+                  <Text style={[styles.statNum, { color: s.color }]}>{s.count}</Text>
+                  <Text style={styles.statLbl}>{s.label}</Text>
+                </Pressable>
+                {i < statsByEstado.length - 1 && <View style={styles.statDivider} />}
+              </React.Fragment>
+            ))}
+          </View>
+        </View>
       </View>
 
       {/* ── Body ── */}
       <View style={styles.body}>
+        <View style={[styles.shell, desktop && styles.desktopBodyShell, desktop && { maxWidth: shellWidth, paddingHorizontal: metrics.gutter }]}>
+        <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+        <View style={styles.mainColumn}>
 
         {/* Search */}
         <View style={styles.searchBar}>
@@ -552,6 +567,43 @@ export default function CasesScreen() {
             )}
           </>
         )}
+        </View>
+
+        {desktop && (
+          <View style={styles.desktopAside}>
+            <View style={styles.desktopAsideCard}>
+              <Text style={styles.desktopAsideLabel}>Vista actual</Text>
+              <Text style={styles.desktopAsideTitle}>
+                {selectedEstado
+                  ? estados.find(e => e.codigo === selectedEstado)?.nombre ?? "Procesos filtrados"
+                  : "Todos los procesos"}
+              </Text>
+              <Text style={styles.desktopAsideText}>
+                {search
+                  ? `Búsqueda activa: "${search}".`
+                  : "Filtra por estado, responsable o búsqueda rápida."}
+              </Text>
+            </View>
+
+            <View style={styles.desktopAsideCard}>
+              <Text style={styles.desktopAsideLabel}>Accesos</Text>
+              <Pressable style={styles.desktopAsideAction} onPress={() => router.push("/case/new")}>
+                <Ionicons name="add-circle-outline" size={17} color={TEAL} />
+                <Text style={styles.desktopAsideActionText}>Nuevo proceso</Text>
+              </Pressable>
+              <Pressable style={styles.desktopAsideAction} onPress={() => handleResponsableFilter(true)}>
+                <Ionicons name="person-outline" size={17} color={GREEN} />
+                <Text style={styles.desktopAsideActionText}>Con responsable</Text>
+              </Pressable>
+              <Pressable style={styles.desktopAsideAction} onPress={() => handleResponsableFilter(false)}>
+                <Ionicons name="person-add-outline" size={17} color={AMBER} />
+                <Text style={styles.desktopAsideActionText}>Sin responsable</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+        </View>
+        </View>
       </View>
     </View>
   );
@@ -561,23 +613,54 @@ export default function CasesScreen() {
 const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: NAVY },
   centered:{ flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
+  shell: { width: "100%", alignSelf: "center" },
 
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
     paddingHorizontal: 20, paddingTop: 32, paddingBottom: 32,
   },
+  desktopHeader: {
+    paddingTop: 28,
+    paddingBottom: 24,
+  },
+  headerMain: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 20,
+  },
+  headerTitleBlock: {
+    flex: 1,
+    maxWidth: 760,
+  },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE, marginTop: 2 },
   headerSub:   { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", marginTop: 4 },
+  desktopHeaderLead: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.78)",
+    fontFamily: "Inter_400Regular",
+  },
   addBtn: {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
+  },
+  desktopAddBtn: {
+    width: 48, height: 48, borderRadius: 16,
   },
 
   statsBar: {
     flexDirection: "row", backgroundColor: NAVY_MID,
     marginHorizontal: 16, borderRadius: 14,
     paddingVertical: 14, paddingHorizontal: 8,
+  },
+  desktopStatsBar: {
+    marginHorizontal: 0,
+    marginTop: 18,
+    borderRadius: 20,
+    paddingHorizontal: 14,
   },
   statItem:    { flex: 1, alignItems: "center" },
   statNum:     { fontSize: 20, fontFamily: "Inter_700Bold", color: WHITE },
@@ -588,6 +671,65 @@ const styles = StyleSheet.create({
     flex: 1, backgroundColor: BG,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     marginTop: 14, paddingTop: 16,
+  },
+  desktopBodyShell: {
+    flex: 1,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 24,
+  },
+  mainColumn: { flex: 1, minWidth: 0, maxWidth: 980 },
+  desktopAside: { width: 320, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: WHITE,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  desktopAsideLabel: {
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopAsideText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  desktopAsideAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "#F5F7FA",
+  },
+  desktopAsideActionText: {
+    fontSize: 13,
+    color: TEXT2,
+    fontFamily: "Inter_600SemiBold",
   },
 
   searchBar: {

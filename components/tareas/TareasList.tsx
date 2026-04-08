@@ -15,7 +15,7 @@ import { ProgressBar } from "./ProgressBar";
 import { CrearTareaModal } from "./CrearTareaModal";
 import { EditarTareaModal } from "./EditarTareaModal";
 import { StyledModal } from "../StyledModal";
-import { completarTarea, cambiarEstadoTarea } from "@/lib/services/tareaService";
+import { completarTarea, cambiarEstadoTarea, type TaskSubtasksPendingError } from "@/lib/services/tareaService";
 import type { TareaResponseDTO, TareaEstado, TareasProgresoDTO } from "@/shared/schema";
 import { toast } from "sonner-native";
 
@@ -50,6 +50,7 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
   const [editTarea, setEditTarea] = useState<TareaResponseDTO | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [tareaToAdvance, setTareaToAdvance] = useState<TareaResponseDTO | null>(null);
+  const [subtasksBlockedInfo, setSubtasksBlockedInfo] = useState<TaskSubtasksPendingError | null>(null);
 
   const filtered = filter === "todas"
     ? data.tareas
@@ -66,6 +67,10 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
       }
       onRefresh();
     } catch (err) {
+      if (err instanceof Error && "code" in err && err.code === "SUBTASKS_PENDING") {
+        setSubtasksBlockedInfo(err as TaskSubtasksPendingError);
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Error al actualizar tarea");
     } finally {
       setLoadingId(null);
@@ -93,10 +98,16 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
       setLoadingId(tarea.id);
       completarTarea(tarea.id)
         .then(() => onRefresh())
-        .catch((err) => toast.error(err instanceof Error ? err.message : "Error al completar tarea"))
+        .catch((err) => {
+          if (err instanceof Error && "code" in err && err.code === "SUBTASKS_PENDING") {
+            setSubtasksBlockedInfo(err as TaskSubtasksPendingError);
+            return;
+          }
+          toast.error(err instanceof Error ? err.message : "Error al completar tarea");
+        })
         .finally(() => setLoadingId(null));
     }
-  }, [loadingId, onRefresh]);
+  }, [loadingId, onRefresh, currentProfileId]);
 
   const confirmAdvance = useCallback(async () => {
     if (!tareaToAdvance || loadingId) return;
@@ -230,6 +241,40 @@ export function TareasList({ procesoId, data, onRefresh, canCreate = false, canE
           Al pasar esta tarea a En progreso, será asignada automáticamente a ti. ¿Continuar?
         </Text>
       </StyledModal>
+
+      <StyledModal
+        visible={subtasksBlockedInfo !== null}
+        onClose={() => setSubtasksBlockedInfo(null)}
+        title="Subtareas pendientes"
+        hideConfirm
+        cancelText="Entendido"
+      >
+        <View style={styles.subtasksModalBody}>
+          <View style={styles.subtasksWarning}>
+            <Ionicons name="list-outline" size={18} color={Colors.warning} />
+            <Text style={styles.subtasksWarningText}>
+              No se puede completar la tarea mientras tenga subtareas pendientes.
+            </Text>
+          </View>
+          {!!subtasksBlockedInfo?.tareaTitulo && (
+            <Text style={styles.subtasksTaskTitle}>{subtasksBlockedInfo.tareaTitulo}</Text>
+          )}
+          <Text style={styles.subtasksIntro}>
+            Complete primero estas subtareas:
+          </Text>
+          <View style={styles.subtasksList}>
+            {subtasksBlockedInfo?.subtareasPendientes.map((subtarea) => (
+              <View key={subtarea.id} style={styles.subtaskItem}>
+                <View style={styles.subtaskDot} />
+                <View style={styles.subtaskCopy}>
+                  <Text style={styles.subtaskTitle}>{subtarea.titulo}</Text>
+                  <Text style={styles.subtaskState}>{subtarea.estado}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
+      </StyledModal>
     </View>
   );
 }
@@ -291,5 +336,68 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "#9CA3AF",
     textAlign: "center",
+  },
+  subtasksModalBody: {
+    gap: 12,
+  },
+  subtasksWarning: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.warningLight,
+  },
+  subtasksWarningText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+  },
+  subtasksTaskTitle: {
+    fontSize: 15,
+    color: Colors.text,
+    fontFamily: "Inter_700Bold",
+  },
+  subtasksIntro: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+  },
+  subtasksList: {
+    gap: 10,
+  },
+  subtaskItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  subtaskDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.warning,
+    marginTop: 6,
+  },
+  subtaskCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  subtaskTitle: {
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: "Inter_600SemiBold",
+  },
+  subtaskState: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+    textTransform: "capitalize",
   },
 });

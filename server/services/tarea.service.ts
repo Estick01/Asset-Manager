@@ -19,6 +19,18 @@ import type {
 } from "@/shared/schema";
 import type { InsertActualizacion } from "@/shared/schema/actualizaciones.schema.js";
 
+class TaskSubtasksPendingError extends Error {
+  status = 422;
+  code = "SUBTASKS_PENDING" as const;
+  constructor(
+    public readonly tareaTitulo: string,
+    public readonly subtareasPendientes: { id: string; titulo: string; estado: string }[],
+  ) {
+    super("No se puede completar la tarea mientras existan subtareas pendientes");
+    this.name = "TaskSubtasksPendingError";
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Valid state transitions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -336,6 +348,21 @@ export class TareaService {
       if (caller.id !== tarea.asignadoA) {
         throw HttpException.unprocessable(
           `No se puede completar la tarea ya que no esta asignada a usted, la tarea pertenece a ${tarea.asignadoANombre}`,
+        );
+      }
+    }
+
+    if (dto.estado === "completada") {
+      const subtareas = await storage.tareaExtensions.getSubtareas(tareaId);
+      const subtareasPendientes = subtareas.filter((sub) => sub.estado !== "completada");
+      if (subtareasPendientes.length > 0) {
+        throw new TaskSubtasksPendingError(
+          tarea.titulo,
+          subtareasPendientes.map((sub) => ({
+            id: sub.id,
+            titulo: sub.titulo,
+            estado: sub.estado,
+          })),
         );
       }
     }

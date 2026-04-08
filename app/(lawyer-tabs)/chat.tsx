@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
-  RefreshControl, ActivityIndicator, Animated, Alert,
+  RefreshControl, ActivityIndicator, Animated, Alert, useWindowDimensions, Platform, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
+import { LinearGradient } from "expo-linear-gradient";
 import { getConversations, getOrCreateSupportConversation } from "@/lib/services/chatService";
 import type { ConversationDTO } from "@/shared/schema";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "@/lib/keys";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const NAVY = "#0F2640";
@@ -78,7 +79,7 @@ function ConversationCard({
       delay: Math.min(index * 40, 320),
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   return (
     <Animated.View style={{
@@ -150,6 +151,10 @@ function ConversationCard({
 // ─── Screen ───────────────────────────────────────────────────────────────
 export default function LawyerChatScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const shellWidth = Math.min(1480, Math.max(1160, width - metrics.gutter * 2));
   const [conversations, setConversations] = useState<ConversationDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -237,6 +242,140 @@ export default function LawyerChatScreen() {
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
   const totalConvs = conversations.length;
+  const todayCount = conversations.filter(c => {
+    const last = c.lastMessage?.createdAt;
+    return last && Date.now() - new Date(last).getTime() < 86400000;
+  }).length;
+
+  if (desktop) {
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{ paddingHorizontal: metrics.gutter, paddingTop: insets.top + 28, paddingBottom: metrics.gutter }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopShell, { maxWidth: shellWidth }]}>
+          <View style={styles.desktopHero}>
+            <LinearGradient colors={[NAVY, NAVY_MID]} style={styles.desktopHeroGradient}>
+              <View style={styles.desktopHeroMain}>
+                <View style={styles.desktopHeroCopy}>
+                  <Text style={styles.desktopEyebrow}>Mensajería</Text>
+                  <Text style={styles.desktopTitle}>Conversaciones activas del abogado</Text>
+                  <Text style={styles.desktopSubtitle}>
+                    Revisa clientes, actividad reciente y soporte desde una bandeja más clara para escritorio.
+                  </Text>
+                </View>
+                <View style={styles.desktopHeroStats}>
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{totalConvs}</Text>
+                    <Text style={styles.desktopHeroLabel}>chats</Text>
+                  </View>
+                  <View style={styles.desktopHeroDivider} />
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{totalUnread}</Text>
+                    <Text style={styles.desktopHeroLabel}>sin leer</Text>
+                  </View>
+                  <View style={styles.desktopHeroDivider} />
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{todayCount}</Text>
+                    <Text style={styles.desktopHeroLabel}>hoy</Text>
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
+          <View style={[styles.desktopBody, { marginTop: 22 }]}>
+            <View style={styles.desktopMainColumn}>
+              <View style={styles.desktopPanel}>
+                <View style={styles.desktopPanelHeader}>
+                  <Text style={styles.desktopPanelTitle}>Bandeja de conversaciones</Text>
+                  <Pressable style={styles.desktopSupportBtn} onPress={openSupportChat}>
+                    <Ionicons name="headset-outline" size={16} color={WHITE} />
+                    <Text style={styles.desktopSupportBtnText}>Soporte</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.desktopSearchBar}>
+                  <Ionicons name="search-outline" size={17} color={TEXT3} />
+                  <TextInput
+                    style={styles.desktopSearchInput}
+                    placeholder="Buscar conversación o cliente..."
+                    placeholderTextColor={TEXT3}
+                    value={search}
+                    onChangeText={setSearch}
+                  />
+                  {search.length > 0 && (
+                    <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                      <Ionicons name="close-circle" size={17} color={TEXT3} />
+                    </Pressable>
+                  )}
+                </View>
+
+                {loading ? (
+                  <View style={styles.centered}>
+                    <ActivityIndicator size="large" color={TEAL} />
+                  </View>
+                ) : filtered.length === 0 ? (
+                  <View style={styles.empty}>
+                    <View style={styles.emptyIcon}>
+                      <Ionicons name="chatbubbles-outline" size={36} color={TEXT3} />
+                    </View>
+                    <Text style={styles.emptyTitle}>{search ? "Sin resultados" : "Sin conversaciones"}</Text>
+                    <Text style={styles.emptySub}>
+                      {search ? `No hay coincidencias para "${search}"` : "Tus conversaciones con clientes aparecerán aquí."}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.desktopConversationList}>
+                    {filtered.map((item, index) => (
+                      <View key={item.id}>
+                        <ConversationCard conv={item} index={index} currentUserId={currentUserId ?? undefined} />
+                        {index < filtered.length - 1 ? <View style={styles.desktopSeparator} /> : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.desktopSideColumn}>
+              <View style={styles.desktopPanel}>
+                <Text style={styles.desktopPanelTitle}>Resumen</Text>
+                <View style={styles.desktopSummaryStack}>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Conversaciones activas</Text>
+                    <Text style={styles.desktopSummaryValue}>{totalConvs}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Mensajes sin leer</Text>
+                    <Text style={styles.desktopSummaryValue}>{totalUnread}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Actividad de hoy</Text>
+                    <Text style={styles.desktopSummaryValue}>{todayCount}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.desktopPanel}>
+                <Text style={styles.desktopPanelTitle}>Accesos</Text>
+                <Pressable style={styles.desktopAction} onPress={openSupportChat}>
+                  <Ionicons name="help-buoy-outline" size={16} color={TEXT2} />
+                  <Text style={styles.desktopActionText}>Abrir soporte</Text>
+                </Pressable>
+                <Pressable style={styles.desktopAction} onPress={onRefresh}>
+                  <Ionicons name="refresh-outline" size={16} color={TEXT2} />
+                  <Text style={styles.desktopActionText}>Actualizar bandeja</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -374,6 +513,107 @@ export default function LawyerChatScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: NAVY },
+  desktopScreen: { flex: 1, backgroundColor: BG },
+  desktopShell: { width: "100%", alignSelf: "center" },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  desktopHeroCopy: { flex: 1, gap: 4 },
+  desktopEyebrow: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.64)",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  desktopTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.72)",
+    marginTop: 4,
+    maxWidth: 640,
+  },
+  desktopHeroStats: {
+    minWidth: 300,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center" },
+  desktopHeroValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopHeroLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.68)", marginTop: 2 },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.18)" },
+  desktopBody: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  desktopMainColumn: { flex: 1.55 },
+  desktopSideColumn: { width: 320, gap: 20 },
+  desktopPanel: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+  },
+  desktopPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopSupportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: TEAL,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  desktopSupportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
+  desktopSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5EBF2",
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  desktopSearchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: TEXT,
+  },
+  desktopConversationList: { gap: 0 },
+  desktopSeparator: { height: 1, backgroundColor: "#F0F2F4", marginLeft: 76 },
+  desktopSummaryStack: { gap: 12 },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F6",
+  },
+  desktopSummaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  desktopSummaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: "#E8ECF0",
+  },
+  desktopActionText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2 },
 
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",

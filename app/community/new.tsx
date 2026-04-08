@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   View, Text, TextInput, StyleSheet, Pressable,
   ScrollView, ActivityIndicator, Switch,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -10,7 +10,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { toast } from "sonner-native";
 import { createPost, getTags, type Tag } from "@/lib/services/communityService";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
-import { C, T, S, R, shadow, CASE_META } from "@/constants/community-theme";
+import { C, R, shadow } from "@/constants/community-theme";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const NAVY  = C.NAVY,  WHITE = C.WHITE, BG    = C.BG,   TEXT  = C.TEXT;
@@ -138,6 +139,10 @@ const rp = StyleSheet.create({
 // ─── Main screen ──────────────────────────────────────────────────────────
 export default function NewPostScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktopWeb = Platform.OS === "web" && isDesktopViewport(width);
+  const desktopMetrics = getDesktopMetrics(width);
+  const desktopShellWidth = Math.min(1480, Math.max(1120, width - desktopMetrics.gutter * 2));
   const [title, setTitle]           = useState("");
   const [content, setContent]       = useState("");
   const [anonymous, setAnonymous]   = useState(false);
@@ -161,7 +166,8 @@ export default function NewPostScreen() {
   // Progress steps
   const step1 = titleOk && contentOk;
   const step2 = !!caseType;
-  const step3 = !!(city || isUrgent || anonymous || selectedTags.length > 0);
+  const currentStep = step1 ? (step2 ? 3 : 2) : 1;
+  const selectedCaseLabel = CASE_TYPES.find(c => c.key === caseType)?.label ?? "Sin seleccionar";
 
   useEffect(() => { getTags().then(setTags); }, []);
 
@@ -192,7 +198,7 @@ export default function NewPostScreen() {
   if (succeeded && createdPostId) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top, alignItems: "center", justifyContent: "center" }]}>
-        <View style={{ alignItems: "center", paddingHorizontal: 32, gap: 20 }}>
+        <View style={[styles.successCard, desktopWeb && { maxWidth: 560, width: "100%" }]}>
           <View style={{
             width: 80, height: 80, borderRadius: 40,
             backgroundColor: C.GREEN + "18", alignItems: "center", justifyContent: "center",
@@ -241,45 +247,85 @@ export default function NewPostScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* ── Top bar ── */}
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.cancelBtn, pressed && { opacity: 0.7 }]}
-          >
-            <Ionicons name="close" size={20} color={WHITE} />
-          </Pressable>
+        <View style={[styles.topBar, desktopWeb && styles.desktopTopBar, desktopWeb && { paddingHorizontal: desktopMetrics.gutter }]}>
+          <View style={[styles.topBarShell, desktopWeb && { maxWidth: desktopShellWidth }]}>
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.cancelBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="close" size={20} color={WHITE} />
+            </Pressable>
 
-          {/* Progress bar */}
-          <StepBar step={step1 ? (step2 ? 3 : 2) : 1} total={3} labels={["Contenido", "Tipo", "Opciones"]} />
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.publishBtn,
-              canSubmit && styles.publishBtnReady,
-              (!canSubmit || submitting) && styles.publishBtnDisabled,
-              pressed && canSubmit && { opacity: 0.85 },
-            ]}
-            onPress={handleSubmit}
-            disabled={!canSubmit || submitting}
-          >
-            {submitting ? (
-              <ActivityIndicator size="small" color={WHITE} />
-            ) : (
-              <>
-                <Ionicons name="send" size={13} color={WHITE} />
-                <Text style={styles.publishText}>Publicar</Text>
-              </>
+            {desktopWeb && (
+              <View style={styles.desktopTitleBlock}>
+                <Text style={styles.desktopEyebrow}>Nueva publicación</Text>
+                <Text style={styles.desktopTitle}>Comparte tu consulta legal</Text>
+              </View>
             )}
-          </Pressable>
+
+            <StepBar step={currentStep} total={3} labels={["Contenido", "Tipo", "Opciones"]} />
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.publishBtn,
+                canSubmit && styles.publishBtnReady,
+                (!canSubmit || submitting) && styles.publishBtnDisabled,
+                pressed && canSubmit && { opacity: 0.85 },
+              ]}
+              onPress={handleSubmit}
+              disabled={!canSubmit || submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator size="small" color={WHITE} />
+              ) : (
+                <>
+                  <Ionicons name="send" size={13} color={WHITE} />
+                  <Text style={styles.publishText}>Publicar</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
         </View>
 
         {/* ── Body ── */}
         <View style={styles.body}>
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              desktopWeb && styles.desktopScrollContent,
+              desktopWeb && { paddingHorizontal: desktopMetrics.gutter, paddingBottom: desktopMetrics.gutter },
+            ]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            <View style={[styles.pageShell, desktopWeb && { maxWidth: desktopShellWidth }]}>
+            {desktopWeb ? (
+              <View style={[styles.desktopIntroCard, { marginBottom: desktopMetrics.contentGap }]}>
+                <View style={styles.desktopIntroCopy}>
+                  <Text style={styles.desktopIntroTitle}>Estructura clara para recibir mejores respuestas</Text>
+                  <Text style={styles.desktopIntroText}>
+                    Redacta el contexto, marca el tipo de caso y ajusta visibilidad u urgencia. En web grande la composición queda dividida para que el formulario respire mejor.
+                  </Text>
+                </View>
+                <View style={styles.desktopIntroStats}>
+                  <View style={styles.desktopIntroStat}>
+                    <Text style={styles.desktopIntroValue}>{content.length}</Text>
+                    <Text style={styles.desktopIntroLabel}>caracteres</Text>
+                  </View>
+                  <View style={styles.desktopIntroStat}>
+                    <Text style={styles.desktopIntroValue}>{selectedTags.length}</Text>
+                    <Text style={styles.desktopIntroLabel}>categorías</Text>
+                  </View>
+                  <View style={styles.desktopIntroStat}>
+                    <Text style={styles.desktopIntroValue}>{currentStep}/3</Text>
+                    <Text style={styles.desktopIntroLabel}>avance</Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            <View style={[styles.contentLayout, desktopWeb && styles.desktopContentLayout, desktopWeb && { gap: desktopMetrics.contentGap }]}>
+            <View style={styles.mainColumn}>
 
             {/* Visibility badge */}
             <View style={styles.visibilityRow}>
@@ -533,6 +579,7 @@ export default function NewPostScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.bottomPublishBtn,
+                desktopWeb && styles.desktopBottomPublishBtn,
                 canSubmit && styles.bottomPublishBtnReady,
                 (!canSubmit || submitting) && styles.bottomPublishBtnDisabled,
                 pressed && canSubmit && { opacity: 0.88 },
@@ -565,6 +612,65 @@ export default function NewPostScreen() {
             </Pressable>
 
             <View style={{ height: 32 }} />
+            </View>
+
+            {desktopWeb && (
+              <View style={styles.desktopAside}>
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideEyebrow}>Resumen</Text>
+                  <Text style={styles.desktopAsideTitle}>Estado de la publicación</Text>
+                  <View style={styles.desktopSummaryList}>
+                    <View style={styles.desktopSummaryRow}>
+                      <Text style={styles.desktopSummaryLabel}>Título</Text>
+                      <Text style={styles.desktopSummaryValue}>{titleOk ? "Listo" : "Pendiente"}</Text>
+                    </View>
+                    <View style={styles.desktopSummaryRow}>
+                      <Text style={styles.desktopSummaryLabel}>Detalle</Text>
+                      <Text style={styles.desktopSummaryValue}>{contentOk ? "Listo" : "Pendiente"}</Text>
+                    </View>
+                    <View style={styles.desktopSummaryRow}>
+                      <Text style={styles.desktopSummaryLabel}>Tipo</Text>
+                      <Text style={styles.desktopSummaryValue}>{selectedCaseLabel}</Text>
+                    </View>
+                    <View style={styles.desktopSummaryRow}>
+                      <Text style={styles.desktopSummaryLabel}>Ciudad</Text>
+                      <Text style={styles.desktopSummaryValue}>{city ?? "Sin definir"}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideEyebrow}>Consejos</Text>
+                  <Text style={styles.desktopAsideTitle}>Checklist rápido</Text>
+                  <View style={styles.desktopChecklist}>
+                    <View style={styles.desktopChecklistItem}>
+                      <Ionicons name={titleOk ? "checkmark-circle" : "ellipse-outline"} size={16} color={titleOk ? GREEN : TEXT3} />
+                      <Text style={styles.desktopChecklistText}>Usa un título específico y directo.</Text>
+                    </View>
+                    <View style={styles.desktopChecklistItem}>
+                      <Ionicons name={content.length >= 120 ? "checkmark-circle" : "ellipse-outline"} size={16} color={content.length >= 120 ? GREEN : TEXT3} />
+                      <Text style={styles.desktopChecklistText}>Agrega contexto, fechas y qué necesitas.</Text>
+                    </View>
+                    <View style={styles.desktopChecklistItem}>
+                      <Ionicons name={caseType ? "checkmark-circle" : "ellipse-outline"} size={16} color={caseType ? GREEN : TEXT3} />
+                      <Text style={styles.desktopChecklistText}>Selecciona un tipo de caso para mejorar alcance.</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideEyebrow}>Visibilidad</Text>
+                  <Text style={styles.desktopAsideTitle}>{anonymous ? "Publicación anónima" : "Publicación pública"}</Text>
+                  <Text style={styles.desktopAsideText}>
+                    {anonymous
+                      ? "Tu nombre no será visible en el feed ni en el detalle."
+                      : "Tu nombre aparecerá como autor de la publicación."}
+                  </Text>
+                </View>
+              </View>
+            )}
+            </View>
+            </View>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -584,10 +690,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+  desktopTopBar: {
+    paddingVertical: 18,
+  },
+  topBarShell: {
+    width: "100%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 18,
+  },
   cancelBtn: {
     width: 36, height: 36, borderRadius: 12,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center", justifyContent: "center",
+  },
+  desktopTitleBlock: {
+    flex: 1,
+    minWidth: 220,
+    maxWidth: 420,
+  },
+  desktopEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.6,
+    color: "rgba(255,255,255,0.42)",
+    fontFamily: "Inter_500Medium",
+    textTransform: "uppercase",
+  },
+  desktopTitle: {
+    fontSize: 24,
+    lineHeight: 28,
+    color: WHITE,
+    fontFamily: "Inter_700Bold",
+    marginTop: 2,
   },
   progress: { flexDirection: "row", alignItems: "center", gap: 6 },
   progressLine: { width: 20, height: 1.5, backgroundColor: "rgba(255,255,255,0.2)", borderRadius: 1 },
@@ -615,6 +751,143 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
   },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16 },
+  desktopScrollContent: { paddingTop: 28 },
+  pageShell: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  contentLayout: {
+    width: "100%",
+  },
+  desktopContentLayout: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  mainColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  desktopAside: {
+    width: 340,
+    gap: 16,
+  },
+  desktopAsideCard: {
+    backgroundColor: WHITE,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    ...shadow.card,
+  },
+  desktopAsideEyebrow: {
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopAsideText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  desktopSummaryList: {
+    gap: 10,
+  },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  desktopSummaryLabel: {
+    fontSize: 12,
+    color: TEXT3,
+    fontFamily: "Inter_500Medium",
+  },
+  desktopSummaryValue: {
+    flexShrink: 1,
+    textAlign: "right",
+    fontSize: 13,
+    color: TEXT,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopChecklist: {
+    gap: 10,
+  },
+  desktopChecklistItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  desktopChecklistText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  desktopIntroCard: {
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    padding: 22,
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 20,
+    ...shadow.card,
+  },
+  desktopIntroCopy: {
+    flex: 1,
+    gap: 8,
+    maxWidth: 760,
+  },
+  desktopIntroTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopIntroText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  desktopIntroStats: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  desktopIntroStat: {
+    minWidth: 96,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: "#F5F7FA",
+    gap: 4,
+  },
+  desktopIntroValue: {
+    fontSize: 20,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopIntroLabel: {
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
 
   // ── Visibility row ──
   visibilityRow: { flexDirection: "row", gap: 8, marginBottom: 18, alignItems: "center" },
@@ -736,6 +1009,9 @@ const styles = StyleSheet.create({
     backgroundColor: NAVY,
     borderColor: NAVY,
   },
+  desktopBottomPublishBtn: {
+    marginTop: 8,
+  },
   bottomPublishBtnDisabled: {
     backgroundColor: "#EAEEF2",
   },
@@ -749,5 +1025,16 @@ const styles = StyleSheet.create({
   },
   bottomPublishSub: {
     fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3, marginTop: 2,
+  },
+  successCard: {
+    alignItems: "center",
+    gap: 20,
+    paddingHorizontal: 32,
+    paddingVertical: 28,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    ...shadow.card,
   },
 });

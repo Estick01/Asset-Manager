@@ -53,6 +53,20 @@ function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
+function toDateKey(value: Date | string) {
+  if (typeof value === "string") {
+    const isoDate = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoDate) {
+      return `${isoDate[1]}-${isoDate[2]}-${isoDate[3]}`;
+    }
+  }
+  const d = new Date(value);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function getDaysLabel(days: number): string {
   if (days < 0)  return `Hace ${Math.abs(days)}d`;
   if (days === 0) return "Hoy";
@@ -161,8 +175,7 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
   const eventsMap = useMemo(() => {
     const map: Record<string, CalendarEventDTO[]> = {};
     for (const ev of events) {
-      const d = new Date(ev.fechaInicio);
-      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      const key = toDateKey(ev.fechaInicio);
       if (!map[key]) map[key] = [];
       map[key].push(ev);
     }
@@ -170,7 +183,7 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
   }, [events]);
 
   const getEventsForDay = (d: Date) => {
-    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const key = toDateKey(d);
     return eventsMap[key] ?? [];
   };
 
@@ -210,118 +223,113 @@ export function CalendarView({ events, onEventPress, onAddPress, onMonthChange }
 
   return (
     <View style={styles.container}>
-      {/* ── Month nav ── */}
-      <View style={styles.monthNav}>
-        <Pressable onPress={prevMonth} hitSlop={12} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={18} color={Colors.primary} />
-        </Pressable>
-        <View style={styles.monthTitleWrap}>
-          <Text style={styles.monthTitle}>{MESES[month]} {year}</Text>
-          {events.length > 0 && (
-            <Text style={styles.monthEventCount}>{events.length} evento{events.length !== 1 ? "s" : ""}</Text>
-          )}
-        </View>
-        <Pressable onPress={nextMonth} hitSlop={12} style={styles.navBtn}>
-          <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
-        </Pressable>
-      </View>
-
-      {/* ── Week header ── */}
-      <View style={styles.weekHeader}>
-        {DIAS_SEMANA.map(d => (
-          <Text key={d} style={styles.weekDay}>{d}</Text>
-        ))}
-      </View>
-
-      {/* ── Grid ── */}
-      <View style={styles.grid}>
-        {cells.map((day, idx) => {
-          if (!day) return <View key={`empty-${idx}`} style={styles.cell} />;
-
-          const cellDate   = new Date(year, month, day);
-          const isToday    = isSameDay(cellDate, today);
-          const isSelected = isSameDay(cellDate, selectedDay);
-          const dayEvents  = getEventsForDay(cellDate);
-          const dotColors  = dayEvents.slice(0, 3).map(e => e.color);
-
-          return (
-            <Pressable
-              key={day}
-              style={[
-                styles.cell,
-                isSelected && styles.cellSelected,
-                isToday && !isSelected && styles.cellToday,
-              ]}
-              onPress={() => setSelectedDay(cellDate)}
-              accessibilityRole="button"
-              accessibilityLabel={`${day} de ${MESES[month]}, ${dayEvents.length} eventos`}
-            >
-              <Text style={[
-                styles.cellText,
-                isSelected && styles.cellTextSelected,
-                isToday && !isSelected && styles.cellTextToday,
-              ]}>
-                {day}
-              </Text>
-              {dotColors.length > 0 && (
-                <View style={styles.dotRow}>
-                  {dotColors.map((c, i) => (
-                    <View
-                      key={i}
-                      style={[styles.dot, { backgroundColor: isSelected ? "rgba(255,255,255,0.75)" : c }]}
-                    />
-                  ))}
-                </View>
-              )}
+      <View style={styles.monthPanel}>
+          <View style={styles.monthNav}>
+            <Pressable onPress={prevMonth} hitSlop={12} style={styles.navBtn}>
+              <Ionicons name="chevron-back" size={18} color={Colors.primary} />
             </Pressable>
-          );
-        })}
+            <View style={styles.monthTitleWrap}>
+              <Text style={styles.monthTitle}>{MESES[month]} {year}</Text>
+              {events.length > 0 ? (
+                <Text style={styles.monthEventCount}>{events.length} evento{events.length !== 1 ? "s" : ""}</Text>
+              ) : null}
+            </View>
+            <Pressable onPress={nextMonth} hitSlop={12} style={styles.navBtn}>
+              <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+            </Pressable>
+          </View>
+
+          <View style={styles.weekHeader}>
+            {DIAS_SEMANA.map((d) => (
+              <Text key={d} style={styles.weekDay}>{d}</Text>
+            ))}
+          </View>
+
+          <View style={styles.grid}>
+            {cells.map((day, idx) => {
+              if (!day) return <View key={`empty-${idx}`} style={styles.cell} />;
+
+              const cellDate = new Date(year, month, day);
+              const isToday = isSameDay(cellDate, today);
+              const isSelected = isSameDay(cellDate, selectedDay);
+              const dayEvents = getEventsForDay(cellDate);
+              const dotColors = dayEvents.slice(0, 3).map((e) => e.color);
+
+              return (
+                <Pressable
+                  key={day}
+                  style={[
+                    styles.cell,
+                    isSelected && styles.cellSelected,
+                    isToday && !isSelected && styles.cellToday,
+                  ]}
+                  onPress={() => setSelectedDay(cellDate)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${day} de ${MESES[month]}, ${dayEvents.length} eventos`}
+                >
+                  <Text
+                    style={[
+                      styles.cellText,
+                      isSelected && styles.cellTextSelected,
+                      isToday && !isSelected && styles.cellTextToday,
+                    ]}
+                  >
+                    {day}
+                  </Text>
+                  {dotColors.length > 0 ? (
+                    <View style={styles.dotRow}>
+                      {dotColors.map((c, i) => (
+                        <View key={i} style={[styles.dot, { backgroundColor: isSelected ? "rgba(255,255,255,0.75)" : c }]} />
+                      ))}
+                    </View>
+                  ) : null}
+                </Pressable>
+              );
+            })}
+          </View>
       </View>
 
-      {/* ── Day section ── */}
       <View style={styles.daySection}>
-        <View style={styles.daySectionHeader}>
-          <View style={styles.daySectionLeft}>
-            <Text style={styles.daySectionTitle} numberOfLines={1}>
-              {selectedDateLabel}
-            </Text>
-            {selectedEvents.length > 0 && (
-              <View style={styles.eventCountBadge}>
-                <Text style={styles.eventCountText}>{selectedEvents.length}</Text>
-              </View>
-            )}
+          <View style={styles.daySectionHeader}>
+            <View style={styles.daySectionLeft}>
+              <Text style={styles.daySectionTitle} numberOfLines={1}>{selectedDateLabel}</Text>
+              {selectedEvents.length > 0 ? (
+                <View style={styles.eventCountBadge}>
+                  <Text style={styles.eventCountText}>{selectedEvents.length}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.75 }]}
+              onPress={() => onAddPress(selectedDay)}
+              accessibilityRole="button"
+              accessibilityLabel="Agregar evento"
+            >
+              <Ionicons name="add" size={16} color={Colors.white} />
+              <Text style={styles.addBtnText}>Nuevo</Text>
+            </Pressable>
           </View>
-          <Pressable
-            style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.75 }]}
-            onPress={() => onAddPress(selectedDay)}
-            accessibilityRole="button"
-            accessibilityLabel="Agregar evento"
-          >
-            <Ionicons name="add" size={16} color={Colors.white} />
-            <Text style={styles.addBtnText}>Nuevo</Text>
-          </Pressable>
-        </View>
 
-        {selectedEvents.length === 0 ? (
-          <View style={styles.emptyDay}>
-            <Ionicons name="calendar-clear-outline" size={32} color={Colors.textTertiary} />
-            <Text style={styles.emptyDayTitle}>Sin eventos</Text>
-            <Text style={styles.emptyDayText}>
-              {isTodaySelected ? "Toca Nuevo para agregar un evento hoy" : "Toca Nuevo para agregar un evento"}
-            </Text>
-          </View>
-        ) : (
-          <ScrollView
-            style={styles.eventList}
-            contentContainerStyle={styles.eventListContent}
-            showsVerticalScrollIndicator={false}
-            nestedScrollEnabled
-          >
-            {selectedEvents.map(ev => (
-              <EventCard key={ev.id} event={ev} onPress={onEventPress} />
-            ))}
-          </ScrollView>
-        )}
+          {selectedEvents.length === 0 ? (
+            <View style={styles.emptyDay}>
+              <Ionicons name="calendar-clear-outline" size={32} color={Colors.textTertiary} />
+              <Text style={styles.emptyDayTitle}>Sin eventos</Text>
+              <Text style={styles.emptyDayText}>
+                {isTodaySelected ? "Toca Nuevo para agregar un evento hoy" : "Toca Nuevo para agregar un evento"}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              style={styles.eventList}
+              contentContainerStyle={styles.eventListContent}
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+            >
+              {selectedEvents.map((ev) => (
+                <EventCard key={ev.id} event={ev} onPress={onEventPress} />
+              ))}
+            </ScrollView>
+          )}
       </View>
     </View>
   );
@@ -336,6 +344,9 @@ const CELL_SIZE = 44;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.surface,
+  },
+  monthPanel: {
     backgroundColor: Colors.surface,
   },
 
@@ -393,7 +404,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   cell: {
-    width: `${100 / 7}%` as any,
+    width: "14.2857%",
     height: CELL_SIZE,
     alignItems: "center",
     justifyContent: "center",

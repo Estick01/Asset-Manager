@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, KeyboardAvoidingView, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, ActivityIndicator, KeyboardAvoidingView, ScrollView, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,10 +7,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1360, Math.max(1120, width - metrics.gutter * 2));
   const { login, user } = useAuth();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
@@ -79,96 +84,142 @@ const handleLogin = async () => {
     <LinearGradient colors={[Colors.primaryLight, Colors.primary, Colors.primaryDark]} style={styles.gradient}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView
-          contentContainerStyle={[styles.container, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 40), paddingBottom: insets.bottom + (Platform.OS === "web" ? 34 : 20) }]}
+          contentContainerStyle={[
+            styles.container,
+            desktop && styles.desktopContainer,
+            {
+              paddingTop: insets.top + (desktop ? 28 : Platform.OS === "web" ? 67 : 40),
+              paddingBottom: insets.bottom + (desktop ? 28 : Platform.OS === "web" ? 34 : 20),
+              paddingHorizontal: desktop ? metrics.gutter : 24,
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.logoSection}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="briefcase" size={40} color={Colors.accent} />
+          <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
+          <View style={[styles.layout, desktop && styles.desktopLayout]}>
+          <View style={[styles.brandPanel, desktop && styles.desktopBrandPanel]}>
+            <View style={styles.logoSection}>
+              <View style={styles.iconCircle}>
+                <Ionicons name="briefcase" size={40} color={Colors.accent} />
+              </View>
+              <Text style={styles.brandName}>LexTrack</Text>
+              <Text style={styles.brandSub}>Sistema de Seguimiento Juridico</Text>
             </View>
-            <Text style={styles.brandName}>LexTrack</Text>
-            <Text style={styles.brandSub}>Sistema de Seguimiento Juridico</Text>
-          </View>
 
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Iniciar Sesion</Text>
-
-            {!!error && (
-              <View style={styles.errorBox}>
-                <Ionicons name="alert-circle" size={16} color={Colors.danger} />
-                <Text style={styles.errorText}>{error}</Text>
+            {desktop && (
+              <View style={styles.desktopBrandContent}>
+                <Text style={styles.desktopBrandTitle}>Accede a tu espacio de trabajo legal</Text>
+                <Text style={styles.desktopBrandText}>
+                  Gestiona procesos, conversaciones, alertas y comunidad desde una interfaz más clara para escritorio.
+                </Text>
+                <View style={styles.desktopFeatureList}>
+                  <View style={styles.desktopFeatureItem}>
+                    <View style={styles.desktopFeatureIcon}>
+                      <Ionicons name="shield-checkmark-outline" size={18} color={Colors.white} />
+                    </View>
+                    <Text style={styles.desktopFeatureText}>Acceso seguro para clientes, bufetes y abogados.</Text>
+                  </View>
+                  <View style={styles.desktopFeatureItem}>
+                    <View style={styles.desktopFeatureIcon}>
+                      <Ionicons name="grid-outline" size={18} color={Colors.white} />
+                    </View>
+                    <Text style={styles.desktopFeatureText}>Procesos, documentos y mensajes en un solo lugar.</Text>
+                  </View>
+                  <View style={styles.desktopFeatureItem}>
+                    <View style={styles.desktopFeatureIcon}>
+                      <Ionicons name="sparkles-outline" size={18} color={Colors.white} />
+                    </View>
+                    <Text style={styles.desktopFeatureText}>Seguimiento centralizado de actuaciones, documentos y comunicación legal.</Text>
+                  </View>
+                </View>
               </View>
             )}
+          </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Correo electronico</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  value={correo}
-                  onChangeText={setCorreo}
-                  placeholder="tu@correo.com"
-                  placeholderTextColor={Colors.textTertiary}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
+          <View style={[styles.formColumn, desktop && styles.desktopFormColumn]}>
+            <View style={[styles.formCard, desktop && styles.desktopFormCard]}>
+              <Text style={styles.formTitle}>Iniciar Sesion</Text>
+              {desktop && <Text style={styles.formSubtitle}>Ingresa con tu correo y contraseña para continuar.</Text>}
+
+              {!!error && (
+                <View style={styles.errorBox}>
+                  <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Correo electronico</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    value={correo}
+                    onChangeText={setCorreo}
+                    placeholder="tu@correo.com"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
               </View>
-            </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Contrasena</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, styles.passwordInput]}
-                  value={password}
-                  onChangeText={setPassword}
-                  placeholder="Tu contrasena"
-                  placeholderTextColor={Colors.textTertiary}
-                  secureTextEntry={!showPassword}
-                />
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                  <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textTertiary} />
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Contrasena</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, styles.passwordInput]}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="Tu contrasena"
+                    placeholderTextColor={Colors.textTertiary}
+                    secureTextEntry={!showPassword}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textTertiary} />
+                  </Pressable>
+                </View>
+              </View>
+
+              <Pressable
+                onPress={handleLogin}
+                disabled={loading}
+                style={({ pressed }) => [styles.loginBtn, pressed && styles.loginBtnPressed, loading && styles.loginBtnDisabled]}
+              >
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.loginBtnText}>Ingresar</Text>
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/(auth)/forgot-password")}
+                style={styles.forgotBtn}
+              >
+                <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+              </Pressable>
+
+              <View style={[styles.footer, desktop && styles.desktopFooter]}>
+                <Text style={[styles.footerText, desktop && styles.desktopFooterText]}>No tienes cuenta?</Text>
+                <Pressable onPress={() => router.push("/(auth)/register-type")}>
+                  <Text style={styles.footerLink}>Registrate</Text>
                 </Pressable>
               </View>
+
+              <Pressable
+                onPress={() => router.push("/planes")}
+                style={[styles.verPlanesBtn, desktop && styles.desktopVerPlanesBtn]}
+              >
+                <Ionicons name="albums-outline" size={16} color={desktop ? Colors.primary : "rgba(255,255,255,0.8)"} />
+                <Text style={[styles.verPlanesBtnText, desktop && styles.desktopVerPlanesBtnText]}>Ver planes y precios</Text>
+              </Pressable>
             </View>
-
-            <Pressable
-              onPress={handleLogin}
-              disabled={loading}
-              style={({ pressed }) => [styles.loginBtn, pressed && styles.loginBtnPressed, loading && styles.loginBtnDisabled]}
-            >
-              {loading ? (
-                <ActivityIndicator color={Colors.white} />
-              ) : (
-                <Text style={styles.loginBtnText}>Ingresar</Text>
-              )}
-            </Pressable>
-
-            <Pressable
-              onPress={() => router.push("/(auth)/forgot-password")}
-              style={styles.forgotBtn}
-            >
-              <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
-            </Pressable>
           </View>
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>No tienes cuenta?</Text>
-            <Pressable onPress={() => router.push("/(auth)/register-type")}>
-              <Text style={styles.footerLink}>Registrate</Text>
-            </Pressable>
           </View>
-
-          <Pressable
-            onPress={() => router.push("/planes")}
-            style={styles.verPlanesBtn}
-          >
-            <Ionicons name="albums-outline" size={16} color="rgba(255,255,255,0.8)" />
-            <Text style={styles.verPlanesBtnText}>Ver planes y precios</Text>
-          </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -182,6 +233,36 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     paddingHorizontal: 24,
+  },
+  desktopContainer: {
+    justifyContent: "center",
+  },
+  shell: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  layout: {
+    width: "100%",
+  },
+  desktopLayout: {
+    minHeight: 720,
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 28,
+  },
+  brandPanel: {
+    alignItems: "center",
+  },
+  desktopBrandPanel: {
+    flex: 1,
+    minWidth: 0,
+    padding: 36,
+    borderRadius: 30,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
   },
   logoSection: {
     alignItems: "center",
@@ -208,17 +289,78 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.7)",
     marginTop: 4,
   },
+  desktopBrandContent: {
+    gap: 18,
+    maxWidth: 520,
+  },
+  desktopBrandTitle: {
+    fontSize: 34,
+    lineHeight: 40,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+    letterSpacing: -0.6,
+  },
+  desktopBrandText: {
+    fontSize: 15,
+    lineHeight: 24,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.76)",
+  },
+  desktopFeatureList: {
+    gap: 14,
+  },
+  desktopFeatureItem: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  desktopFeatureIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  desktopFeatureText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 21,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.82)",
+  },
+  formColumn: {},
+  desktopFormColumn: {
+    width: 460,
+    justifyContent: "center",
+  },
   formCard: {
     backgroundColor: Colors.white,
     borderRadius: 20,
     padding: 24,
     gap: 16,
   },
+  desktopFormCard: {
+    borderRadius: 28,
+    padding: 32,
+    shadowColor: "#0F2640",
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.16,
+    shadowRadius: 30,
+    elevation: 10,
+  },
   formTitle: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
     marginBottom: 4,
+  },
+  formSubtitle: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    marginTop: -4,
   },
   errorBox: {
     flexDirection: "row",
@@ -304,10 +446,16 @@ const styles = StyleSheet.create({
     marginTop: 24,
     gap: 6,
   },
+  desktopFooter: {
+    marginTop: 8,
+  },
   footerText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.7)",
+  },
+  desktopFooterText: {
+    color: Colors.textSecondary,
   },
   footerLink: {
     fontSize: 14,
@@ -322,10 +470,19 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 8,
   },
+  desktopVerPlanesBtn: {
+    marginTop: 4,
+    borderRadius: 14,
+    backgroundColor: Colors.primaryLight + "12",
+    paddingVertical: 12,
+  },
   verPlanesBtnText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.8)",
+  },
+  desktopVerPlanesBtnText: {
+    color: Colors.primary,
   },
   portalLink: {
     flexDirection: "row",

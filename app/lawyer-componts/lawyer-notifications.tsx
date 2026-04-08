@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, Pressable, StyleSheet,
-  ActivityIndicator, RefreshControl, ScrollView, Platform,
+  ActivityIndicator, RefreshControl, ScrollView, Platform, useWindowDimensions,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,6 +20,8 @@ import {
   type AppNotificationDTO,
 } from "@/lib/services/clientRequestService";
 import type { Notificacion } from "@/shared/schema";
+import { LinearGradient } from "expo-linear-gradient";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ───────────────────────────────────────────────────────
 const NAVY   = "#0F2640";
@@ -117,6 +119,9 @@ function NotifCard({
 // ─── Screen ──────────────────────────────────────────────────────────────
 export default function LawyerNotificationsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
   const router = useRouter();
   const { profile } = useAuth();
   const { refreshUnread } = useNotifications();
@@ -183,6 +188,231 @@ export default function LawyerNotificationsScreen() {
     appNotifs.filter(n => !n.readAt).length;
 
   const isEmpty = notificaciones.length === 0 && appNotifs.length === 0;
+
+  if (desktop) {
+    const shellWidth = Math.min(1240, Math.max(1060, width - metrics.gutter * 2));
+    const totalAlerts = notificaciones.length + appNotifs.length;
+    const processUnread = notificaciones.filter((n) => !n.leidoLawyer).length;
+
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{
+          paddingTop: Math.max(insets.top, 24),
+          paddingBottom: Math.max(insets.bottom, 32),
+          alignItems: "center",
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(); }}
+            tintColor={TEAL}
+            colors={[TEAL]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopShell, { width: shellWidth }]}>
+          <View style={[styles.desktopHero, { marginBottom: metrics.contentGap }]}>
+            <LinearGradient colors={[NAVY, "#173D66"]} style={styles.desktopHeroGradient}>
+              <View style={styles.desktopHeroMain}>
+                <View style={styles.desktopHeroCopy}>
+                  <Text style={styles.desktopEyebrow}>Centro legal</Text>
+                  <Text style={styles.desktopTitle}>Notificaciones del abogado</Text>
+                  <Text style={styles.desktopSubtitle}>
+                    Sigue novedades de procesos, actividad de clientes y movimiento en publicaciones desde una sola vista.
+                  </Text>
+                </View>
+
+                <View style={styles.desktopHeroStats}>
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{unread}</Text>
+                    <Text style={styles.desktopHeroLabel}>sin leer</Text>
+                  </View>
+                  <View style={styles.desktopHeroDivider} />
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{processUnread}</Text>
+                    <Text style={styles.desktopHeroLabel}>procesos</Text>
+                  </View>
+                  <View style={styles.desktopHeroDivider} />
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{totalAlerts}</Text>
+                    <Text style={styles.desktopHeroLabel}>alertas</Text>
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
+          <View style={[styles.desktopColumns, { gap: metrics.contentGap }]}>
+            <View style={styles.desktopMainColumn}>
+              {loading ? (
+                <View style={styles.centered}>
+                  <ActivityIndicator size="large" color={TEAL} />
+                </View>
+              ) : (
+                <>
+                  {appNotifs.length > 0 && (() => {
+                    const CASE_TYPES = new Set(["case_match", "case_accepted", "case_rejected", "case_expired", "case_taken", "request_accepted", "request_rejected"]);
+                    const caseNotifs = appNotifs.filter((n) => CASE_TYPES.has(n.type));
+                    const activityNotifs = appNotifs.filter((n) => !CASE_TYPES.has(n.type));
+
+                    return (
+                      <>
+                        {caseNotifs.length > 0 && (
+                          <View style={styles.desktopPanel}>
+                            <View style={styles.desktopPanelHeader}>
+                              <Text style={styles.desktopPanelTitle}>Casos y clientes</Text>
+                              <View style={[styles.sectionBadge, { backgroundColor: TEAL + "16" }]}>
+                                <Text style={[styles.sectionBadgeText, { color: TEAL }]}>{caseNotifs.length}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.desktopPanelList}>
+                              {caseNotifs.map((item) => {
+                                const c = cfg(APP_NOTIF, item.type);
+                                return (
+                                  <NotifCard
+                                    key={item.id}
+                                    icon={c.icon}
+                                    color={c.color}
+                                    bg={c.bg}
+                                    title={item.title}
+                                    body={item.body}
+                                    time={timeAgo(item.createdAt)}
+                                    unread={!item.readAt}
+                                    onPress={() => handleMarkAppRead(item)}
+                                  />
+                                );
+                              })}
+                            </View>
+                          </View>
+                        )}
+
+                        {activityNotifs.length > 0 && (
+                          <View style={styles.desktopPanel}>
+                            <View style={styles.desktopPanelHeader}>
+                              <Text style={styles.desktopPanelTitle}>Actividad en publicaciones</Text>
+                              <View style={[styles.sectionBadge, { backgroundColor: BLUE + "16" }]}>
+                                <Text style={[styles.sectionBadgeText, { color: BLUE }]}>{activityNotifs.length}</Text>
+                              </View>
+                            </View>
+                            <View style={styles.desktopPanelList}>
+                              {activityNotifs.map((item) => {
+                                const c = cfg(APP_NOTIF, item.type);
+                                return (
+                                  <NotifCard
+                                    key={item.id}
+                                    icon={c.icon}
+                                    color={c.color}
+                                    bg={c.bg}
+                                    title={item.title}
+                                    body={item.body}
+                                    time={timeAgo(item.createdAt)}
+                                    unread={!item.readAt}
+                                    onPress={() => handleMarkAppRead(item)}
+                                  />
+                                );
+                              })}
+                            </View>
+                          </View>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {notificaciones.length > 0 && (
+                    <View style={styles.desktopPanel}>
+                      <View style={styles.desktopPanelHeader}>
+                        <Text style={styles.desktopPanelTitle}>Actividad en procesos</Text>
+                        <View style={[styles.sectionBadge, { backgroundColor: AMBER + "16" }]}>
+                          <Text style={[styles.sectionBadgeText, { color: AMBER }]}>{notificaciones.length}</Text>
+                        </View>
+                      </View>
+                      <View style={styles.desktopPanelList}>
+                        {notificaciones.map((item) => {
+                          const c = cfg(PROCESS_NOTIF, item.tipo);
+                          return (
+                            <NotifCard
+                              key={item.id}
+                              icon={c.icon}
+                              color={c.color}
+                              bg={c.bg}
+                              title={item.titulo}
+                              body={item.mensaje}
+                              time={timeAgo(item.createdAt)}
+                              unread={!item.leidoLawyer}
+                              onPress={() => handleMarkRead(item)}
+                            />
+                          );
+                        })}
+                      </View>
+                    </View>
+                  )}
+
+                  {isEmpty && (
+                    <View style={styles.empty}>
+                      <View style={styles.emptyIcon}>
+                        <Ionicons name="notifications-off-outline" size={36} color={TEXT3} />
+                      </View>
+                      <Text style={styles.emptyTitle}>Sin notificaciones</Text>
+                      <Text style={styles.emptySub}>Cuando recibas alertas aparecerán aquí</Text>
+                    </View>
+                  )}
+                </>
+              )}
+            </View>
+
+            <View style={styles.desktopSideColumn}>
+              <View style={styles.desktopPanel}>
+                <View style={styles.desktopPanelHeader}>
+                  <Text style={styles.desktopPanelTitle}>Resumen</Text>
+                </View>
+                <View style={styles.desktopSummaryStack}>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Sin leer</Text>
+                    <Text style={styles.desktopSummaryValue}>{unread}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Procesos</Text>
+                    <Text style={styles.desktopSummaryValue}>{notificaciones.length}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Casos y clientes</Text>
+                    <Text style={styles.desktopSummaryValue}>{appNotifs.filter((n) => ["case_match", "case_accepted", "case_rejected", "case_expired", "case_taken", "request_accepted", "request_rejected"].includes(n.type)).length}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Comunidad</Text>
+                    <Text style={styles.desktopSummaryValue}>{appNotifs.filter((n) => !["case_match", "case_accepted", "case_rejected", "case_expired", "case_taken", "request_accepted", "request_rejected"].includes(n.type)).length}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {unread > 0 && (
+                <View style={styles.desktopPanel}>
+                  <View style={styles.desktopPanelHeader}>
+                    <Text style={styles.desktopPanelTitle}>Acción rápida</Text>
+                  </View>
+                  <Pressable style={styles.desktopActionBtn} onPress={handleMarkAll}>
+                    <Ionicons name="checkmark-done-outline" size={16} color={WHITE} />
+                    <Text style={styles.desktopActionBtnText}>Marcar todo como leído</Text>
+                  </Pressable>
+                </View>
+              )}
+
+              <View style={styles.desktopPanel}>
+                <View style={styles.desktopPanelHeader}>
+                  <Text style={styles.desktopPanelTitle}>Contexto</Text>
+                </View>
+                <Text style={styles.desktopNote}>
+                  Las alertas de procesos llevan al expediente. Las alertas de comunidad abren directamente la publicación relacionada.
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
@@ -341,7 +571,85 @@ export default function LawyerNotificationsScreen() {
 // ─── Styles ──────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen:  { flex: 1, backgroundColor: NAVY },
+  desktopScreen: { flex: 1, backgroundColor: BG },
+  desktopShell: { alignSelf: "center" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
+  desktopHero: { borderRadius: 30, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 30, paddingVertical: 28 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 24 },
+  desktopHeroCopy: { flex: 1, gap: 6 },
+  desktopEyebrow: {
+    fontSize: 12,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.62)",
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: WHITE, letterSpacing: -0.5 },
+  desktopSubtitle: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.74)",
+    fontFamily: "Inter_400Regular",
+    maxWidth: 620,
+  },
+  desktopHeroStats: {
+    minWidth: 340,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 22,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center" },
+  desktopHeroValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopHeroLabel: {
+    marginTop: 2,
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.7)",
+  },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.18)" },
+  desktopColumns: { flexDirection: "row", alignItems: "flex-start" },
+  desktopMainColumn: { flex: 1.55, gap: 20 },
+  desktopSideColumn: { width: 330, gap: 20 },
+  desktopPanel: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+    ...(Platform.OS === "web" ? { boxShadow: "0 10px 30px rgba(15,38,64,0.06)" } as any : {}),
+  },
+  desktopPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopPanelList: { gap: 12 },
+  desktopSummaryStack: { gap: 12 },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E7ECF0",
+  },
+  desktopSummaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  desktopSummaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: TEAL,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  desktopActionBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
+  desktopNote: { fontSize: 13, lineHeight: 21, color: TEXT2, fontFamily: "Inter_400Regular" },
 
   // Header
   header: {

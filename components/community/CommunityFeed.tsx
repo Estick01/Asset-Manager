@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable,
   RefreshControl, ActivityIndicator, Animated,
-  TextInput, ScrollView,
+  TextInput, ScrollView, useWindowDimensions, Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,13 +14,13 @@ import {
 } from "@/lib/services/communityService";
 import { Tooltip } from "@/components/Tooltip";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
-import { C, T, S, R, shadow, CASE_META, AVATAR_PALETTE, getAvatarColor, formatDate } from "@/constants/community-theme";
+import { C, S, R, shadow, CASE_META, getAvatarColor, formatDate } from "@/constants/community-theme";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // Local aliases for backwards compat within this file
 const NAVY = C.NAVY, WHITE = C.WHITE, BG = C.BG, TEXT = C.TEXT;
 const TEXT2 = C.TEXT2, TEXT3 = C.TEXT3, TEAL = C.TEAL;
 const GREEN = C.GREEN, AMBER = C.AMBER, ROSE = C.ROSE;
-const PURPLE = C.PURPLE, ORANGE = C.ORANGE;
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────
 function SkeletonBlock({ w, h, r = 8, mb = 0 }: { w?: number | `${number}%`; h: number; r?: number; mb?: number }) {
@@ -361,10 +361,15 @@ const SORT_OPTIONS: { key: PostSort; label: string; icon: string }[] = [
 
 export default function CommunityFeed() {
   const insets        = useSafeAreaInsets();
+  const { width }     = useWindowDimensions();
   const { user }      = useAuth();
   const currentUserId = user?.user?.id as string | undefined;
   const userRole      = (user?.user as any)?.rol as string | undefined;
   const isLawyer      = userRole === "abogado" || userRole === "bufete";
+  const desktopWeb    = Platform.OS === "web" && isDesktopViewport(width);
+  const desktopMetrics = getDesktopMetrics(width);
+  const desktopShellWidth = Math.min(1520, Math.max(1120, width - desktopMetrics.gutter * 2));
+  const desktopAsideWidth = Math.min(340, Math.max(292, desktopMetrics.sidebarWidth + 28));
 
   const [posts, setPosts]           = useState<PostDTO[]>([]);
   const [loading, setLoading]       = useState(true);
@@ -465,6 +470,7 @@ export default function CommunityFeed() {
     setCityFilter(next);
     reload({ city: next });
   };
+  const activeFilters = [search ? 1 : 0, tagSlug ? 1 : 0, cityFilter ? 1 : 0].reduce((sum, value) => sum + value, 0);
 
   const ListHeader = (
     <View style={styles.listHeader}>
@@ -606,8 +612,214 @@ export default function CommunityFeed() {
     </View>
   );
 
+  const DesktopHeader = (
+    <View style={[styles.desktopHeader, { paddingHorizontal: desktopMetrics.gutter, paddingTop: insets.top + 20, paddingBottom: desktopMetrics.contentGap }]}>
+      <View style={[styles.desktopShell, { maxWidth: desktopShellWidth }]}>
+        <View style={styles.desktopHeroPanel}>
+          <View style={styles.desktopHeaderMain}>
+            <View style={styles.desktopTitleBlock}>
+              <Text style={styles.desktopEyebrow}>{isLawyer ? "Comunidad profesional" : "Comunidad legal"}</Text>
+              <Text style={styles.desktopTitle}>Comunidad</Text>
+              <Text style={styles.desktopSubtitle}>
+                {isLawyer
+                  ? "Revisa consultas activas, detecta oportunidades y responde con contexto desde una vista amplia."
+                  : "Explora casos, filtra por tema o ciudad y publica tu consulta con una jerarquía más clara en escritorio."}
+              </Text>
+            </View>
+
+            <View style={styles.desktopHeaderAside}>
+              <View style={styles.desktopHeaderStats}>
+                <View style={styles.desktopStatChip}>
+                  <Text style={styles.desktopStatValue}>{posts.length}</Text>
+                  <Text style={styles.desktopStatLabel}>visibles</Text>
+                </View>
+                <View style={styles.desktopStatChip}>
+                  <Text style={styles.desktopStatValue}>{tags.length}</Text>
+                  <Text style={styles.desktopStatLabel}>temas</Text>
+                </View>
+                <View style={styles.desktopStatChip}>
+                  <Text style={styles.desktopStatValue}>{activeFilters}</Text>
+                  <Text style={styles.desktopStatLabel}>filtros</Text>
+                </View>
+              </View>
+
+              <View style={styles.desktopHeaderActions}>
+                <Pressable style={styles.desktopPrimaryAction} onPress={() => router.push("/community/new" as any)}>
+                  <Ionicons name="add" size={16} color={WHITE} />
+                  <Text style={styles.desktopPrimaryActionText}>{isLawyer ? "Publicar aporte" : "Publicar caso"}</Text>
+                </Pressable>
+                <Pressable style={styles.desktopGhostAction} onPress={() => router.push("/community/bookmarks" as any)}>
+                  <Ionicons name="bookmark-outline" size={15} color={WHITE} />
+                  <Text style={styles.desktopGhostActionText}>Guardados</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.desktopControlSurface}>
+            <View style={styles.desktopControlBar}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.desktopChipRow}>
+                {SORT_OPTIONS.map(opt => (
+                  <Pressable
+                    key={opt.key}
+                    style={[styles.sortChip, styles.desktopSortChip, sort === opt.key && styles.sortChipActive]}
+                    onPress={() => handleSort(opt.key)}
+                  >
+                    <Ionicons name={opt.icon as any} size={13} color={sort === opt.key ? WHITE : TEXT2} />
+                    <Text style={[styles.sortText, sort === opt.key && styles.sortTextActive]}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+                <Pressable
+                  style={[styles.sortChip, styles.desktopSortChip, cityFilter && styles.sortChipCity]}
+                  onPress={() => setCityPickerOpen(true)}
+                >
+                  <Ionicons name="location-outline" size={13} color={cityFilter ? TEAL : TEXT2} />
+                  <Text style={[styles.sortText, cityFilter && styles.sortTextCity]}>{cityFilter ?? "Ciudad"}</Text>
+                  {cityFilter && (
+                    <Pressable onPress={(e) => { e.stopPropagation?.(); handleCitySelect(""); }} hitSlop={8}>
+                      <Ionicons name="close-circle" size={13} color={TEAL} />
+                    </Pressable>
+                  )}
+                </Pressable>
+              </ScrollView>
+
+              <View style={[styles.searchBox, styles.desktopSearchBox]}>
+                <Ionicons name="search-outline" size={16} color={TEXT3} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Buscar consultas legales…"
+                  placeholderTextColor={TEXT3}
+                  value={search}
+                  onChangeText={handleSearchChange}
+                  returnKeyType="search"
+                />
+                {search.length > 0 && (
+                  <Pressable onPress={() => { setSearch(""); reload({ search: "" }); }} hitSlop={8}>
+                    <Ionicons name="close-circle" size={16} color={TEXT3} />
+                  </Pressable>
+                )}
+              </View>
+            </View>
+
+            {tags.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.desktopTagRow}>
+                {tags.map(tag => (
+                  <Pressable
+                    key={tag.id}
+                    style={[styles.tagChipFilter, styles.desktopTagChip, tagSlug === tag.slug && styles.tagChipFilterActive]}
+                    onPress={() => handleTag(tag.slug)}
+                  >
+                    <Text style={[styles.tagChipFilterText, tagSlug === tag.slug && styles.tagChipFilterTextActive]}>#{tag.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
+  const DesktopAside = (
+    <View style={[styles.desktopAside, { width: desktopAsideWidth }]}>
+      <View style={styles.desktopAsideCard}>
+        <Text style={styles.desktopAsideLabel}>Vista actual</Text>
+        <Text style={styles.desktopAsideValue}>
+          {search
+            ? `Resultados para "${search}"`
+            : sort === "popular" ? "Más populares"
+            : sort === "liked" ? "Más gustados"
+            : "Consultas recientes"}
+        </Text>
+        {!!cityFilter && (
+          <View style={styles.desktopAsidePill}>
+            <Ionicons name="location-outline" size={12} color={TEAL} />
+            <Text style={styles.desktopAsidePillText}>{cityFilter}</Text>
+          </View>
+        )}
+        {!!tagSlug && (
+          <View style={styles.desktopAsidePill}>
+            <Ionicons name="pricetag-outline" size={12} color={TEAL} />
+            <Text style={styles.desktopAsidePillText}>#{tagSlug}</Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.desktopAsideCard}>
+        <Text style={styles.desktopAsideLabel}>Accesos</Text>
+        {currentUserId && (
+          <Pressable style={styles.desktopAsideAction} onPress={() => router.push(`/community/profile/${currentUserId}` as any)}>
+            <Ionicons name="person-outline" size={16} color={TEXT2} />
+            <Text style={styles.desktopAsideActionText}>Mi perfil</Text>
+          </Pressable>
+        )}
+        <Pressable style={styles.desktopAsideAction} onPress={() => router.push("/community/bookmarks" as any)}>
+          <Ionicons name="bookmark-outline" size={16} color={TEXT2} />
+          <Text style={styles.desktopAsideActionText}>Guardados</Text>
+        </Pressable>
+        <Pressable style={[styles.desktopAsideAction, styles.desktopAsideActionPrimary]} onPress={() => router.push("/community/new" as any)}>
+          <Ionicons name="add" size={16} color={WHITE} />
+          <Text style={styles.desktopAsideActionPrimaryText}>{isLawyer ? "Publicar aporte" : "Publicar caso"}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+
   return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+    <View style={[styles.screen, { paddingTop: desktopWeb ? 0 : insets.top }]}>
+      {desktopWeb ? (
+        <>
+          {DesktopHeader}
+          <View style={[styles.desktopBody, { paddingHorizontal: desktopMetrics.gutter, paddingBottom: desktopMetrics.gutter }]}>
+            <View style={[styles.desktopShell, styles.desktopBodyShell, { maxWidth: desktopShellWidth, gap: desktopMetrics.contentGap }]}>
+            <View style={styles.desktopFeedColumn}>
+              {loading ? (
+                <ScrollView
+                  contentContainerStyle={styles.desktopLoadingList}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {[0, 1, 2, 3].map(i => <CardSkeleton key={i} />)}
+                </ScrollView>
+              ) : (
+                <FlatList
+                  data={posts}
+                  keyExtractor={item => item.id}
+                  renderItem={({ item, index }) => <PostCard post={item} index={index} />}
+                  contentContainerStyle={styles.desktopList}
+                  showsVerticalScrollIndicator={false}
+                  style={styles.desktopListView}
+                  refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
+                  }
+                  onEndReached={onEndReached}
+                  onEndReachedThreshold={0.3}
+                  ListEmptyComponent={
+                    <View style={styles.empty}>
+                      <View style={styles.emptyIcon}>
+                        <Ionicons name="chatbubbles-outline" size={34} color={TEXT3} />
+                      </View>
+                      <Text style={styles.emptyTitle}>
+                        {search ? "Sin resultados" : "Aún no hay consultas"}
+                      </Text>
+                      <Text style={styles.emptySub}>
+                        {search ? "Intenta con otras palabras clave" : "Las publicaciones aparecerán aquí."}
+                      </Text>
+                    </View>
+                  }
+                  ListFooterComponent={
+                    loadingMore
+                      ? <ActivityIndicator style={{ paddingVertical: 20 }} color={TEAL} />
+                      : <View style={{ height: 32 }} />
+                  }
+                />
+              )}
+            </View>
+            {DesktopAside}
+            </View>
+          </View>
+        </>
+      ) : (
+        <>
 
       {/* ── Nav bar ── */}
       <View style={styles.navBar}>
@@ -758,6 +970,17 @@ export default function CommunityFeed() {
         onClose={() => setCityPickerOpen(false)}
         onSelect={handleCitySelect}
       />
+        </>
+      )}
+
+      {desktopWeb && (
+        <CityPickerModal
+          visible={cityPickerOpen}
+          selected={cityFilter ?? null}
+          onClose={() => setCityPickerOpen(false)}
+          onSelect={handleCitySelect}
+        />
+      )}
     </View>
   );
 }
@@ -765,6 +988,254 @@ export default function CommunityFeed() {
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: NAVY },
+  desktopHeader: {
+    backgroundColor: NAVY,
+    gap: 18,
+  },
+  desktopShell: {
+    width: "100%",
+    alignSelf: "center",
+  },
+  desktopHeroPanel: {
+    gap: 18,
+  },
+  desktopHeaderMain: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "stretch",
+    gap: 28,
+  },
+  desktopTitleBlock: {
+    flex: 1,
+    maxWidth: 720,
+    gap: 8,
+  },
+  desktopEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.8,
+    color: "rgba(255,255,255,0.42)",
+    fontFamily: "Inter_500Medium",
+    textTransform: "uppercase",
+  },
+  desktopTitle: {
+    fontSize: 38,
+    lineHeight: 42,
+    color: WHITE,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.8,
+  },
+  desktopSubtitle: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: "rgba(255,255,255,0.72)",
+    fontFamily: "Inter_400Regular",
+    maxWidth: 640,
+  },
+  desktopHeaderAside: {
+    flexShrink: 1,
+    minWidth: 280,
+    maxWidth: 360,
+    gap: 14,
+    alignItems: "stretch",
+  },
+  desktopHeaderStats: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+  },
+  desktopStatChip: {
+    minWidth: 92,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    gap: 3,
+  },
+  desktopStatValue: {
+    fontSize: 18,
+    color: WHITE,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopStatLabel: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.62)",
+    fontFamily: "Inter_500Medium",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  desktopHeaderActions: {
+    flexDirection: "row",
+    gap: 10,
+    justifyContent: "flex-end",
+  },
+  desktopPrimaryAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 46,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: TEAL,
+    shadowColor: TEAL,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  desktopPrimaryActionText: {
+    fontSize: 13,
+    color: WHITE,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopGhostAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    minHeight: 46,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  desktopGhostActionText: {
+    fontSize: 13,
+    color: WHITE,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopControlSurface: {
+    borderRadius: 24,
+    padding: 18,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    gap: 14,
+  },
+  desktopControlBar: {
+    flexDirection: "row",
+    gap: 16,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  desktopChipRow: {
+    gap: 8,
+    alignItems: "center",
+    paddingRight: 8,
+  },
+  desktopSortChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  desktopSearchBox: {
+    flex: 1,
+    marginHorizontal: 0,
+    minWidth: 260,
+    maxWidth: 460,
+  },
+  desktopTagRow: {
+    gap: 8,
+    paddingRight: 8,
+  },
+  desktopTagChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  desktopBody: {
+    flex: 1,
+    backgroundColor: BG,
+    minHeight: 0,
+    paddingTop: 20,
+  },
+  desktopBodyShell: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "stretch",
+    minHeight: 0,
+  },
+  desktopFeedColumn: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 0,
+    maxWidth: 880,
+  },
+  desktopListView: {
+    flex: 1,
+    minHeight: 0,
+  },
+  desktopList: {
+    paddingBottom: 28,
+  },
+  desktopLoadingList: {
+    paddingTop: 18,
+    paddingBottom: 28,
+    gap: 16,
+  },
+  desktopAside: {
+    gap: 16,
+  },
+  desktopAsideCard: {
+    backgroundColor: WHITE,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    ...shadow.card,
+  },
+  desktopAsideLabel: {
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideValue: {
+    fontSize: 18,
+    lineHeight: 24,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopAsidePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    backgroundColor: TEAL + "12",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  desktopAsidePillText: {
+    fontSize: 12,
+    color: TEAL,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopAsideAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: "#F5F7FA",
+  },
+  desktopAsideActionText: {
+    fontSize: 13,
+    color: TEXT2,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopAsideActionPrimary: {
+    backgroundColor: TEAL,
+  },
+  desktopAsideActionPrimaryText: {
+    fontSize: 13,
+    color: WHITE,
+    fontFamily: "Inter_700Bold",
+  },
 
   // ── Nav bar ──
   navBar: {

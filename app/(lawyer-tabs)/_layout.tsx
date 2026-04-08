@@ -1,17 +1,20 @@
 import { isLiquidGlassAvailable } from "expo-glass-effect";
-import { Tabs, router } from "expo-router";
+import { Tabs, router, useSegments } from "expo-router";
 import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform, StyleSheet, useColorScheme, View, Text } from "react-native";
-import React, { useState } from "react";
+import { Platform, StyleSheet, useColorScheme, View, Text, useWindowDimensions } from "react-native";
+import React, { useEffect, useState } from "react";
 import Colors from "@/constants/colors";
 import { useInvitations } from "@/lib/invitations-context";
 import { useChatNotifications } from "@/lib/chat-context";
 import { useGlobalSocket } from "@/lib/global-socket-context";
+import { useNotifications } from "@/lib/notifications-context";
 import { useAuth } from "@/lib/auth-context";
 import { useSubscription } from "@/lib/subscription-context";
 import { FeatureLockedModal } from "@/components/subscription/FeatureLockedModal";
+import { DesktopAppShell } from "@/components/web/DesktopAppShell";
+import { isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ── Mapa tab → feature code ──────────────────────────────────────────────────
 const TAB_FEATURE: Record<string, string> = {
@@ -96,11 +99,14 @@ function NativeTabLayout() {
 function ClassicTabLayout() {
   const colorScheme = useColorScheme();
   const isDark      = colorScheme === "dark";
-  const isWeb       = Platform.OS === "web";
   const isIOS       = Platform.OS === "ios";
+  const segments    = useSegments();
+  const { width }   = useWindowDimensions();
+  const desktopWeb  = Platform.OS === "web" && isDesktopViewport(width);
 
   const { pendingCount }                  = useInvitations();
   const { unreadCount: unreadChatCount }  = useChatNotifications();
+  const { unreadCount: unreadNotifCount } = useNotifications();
   const { hasPermission }                 = useAuth();
   const { unseenCaseCount }               = useGlobalSocket();
   const { hasFeature, isLoading }         = useSubscription();
@@ -120,6 +126,114 @@ function ClassicTabLayout() {
     },
   });
 
+  const activeSegment = (segments[1] as string | undefined) ?? "index";
+  const segmentFeatureMap: Record<string, string | undefined> = {
+    chat: "chat",
+    community: "comunidad",
+    calendar: "calendario",
+  };
+  const desktopTitleMap: Record<string, { title: string; subtitle: string }> = {
+    index: { title: "Workspace de abogado", subtitle: "" },
+    cases: { title: "Procesos", subtitle: "Gestiona tus casos con más densidad de información y menos desplazamiento." },
+    clients: { title: "Clientes", subtitle: "Acceso rápido a tus relaciones activas y próximos seguimientos." },
+    chat: { title: "Mensajes", subtitle: "Comunicación organizada en un layout preparado para pantallas amplias." },
+    community: { title: "Comunidad", subtitle: "Explora publicaciones y conexiones profesionales sin patrón móvil estirado." },
+    calendar: { title: "Calendario", subtitle: "Agenda de trabajo con espacio para contexto y próximos hitos." },
+  };
+
+  const desktopMeta = desktopTitleMap[activeSegment] ?? desktopTitleMap.index;
+  const desktopNav = [
+    { key: "index", label: "Dashboard", icon: "grid-outline" as const, href: "/(lawyer-tabs)" },
+    { key: "cases", label: "Procesos", icon: "document-text-outline" as const, href: "/(lawyer-tabs)/cases" },
+    { key: "clients", label: "Clientes", icon: "people-outline" as const, href: "/(lawyer-tabs)/clients" },
+    { key: "chat", label: "Mensajes", icon: "chatbubble-ellipses-outline" as const, href: "/(lawyer-tabs)/chat", badgeCount: unreadChatCount, disabled: isLocked("chat") },
+    { key: "community", label: "Comunidad", icon: "globe-outline" as const, href: "/(lawyer-tabs)/community", badgeCount: unseenCaseCount, disabled: isLocked("community") },
+    { key: "calendar", label: "Calendario", icon: "calendar-outline" as const, href: "/(lawyer-tabs)/calendar", disabled: isLocked("calendar") },
+  ];
+
+  useEffect(() => {
+    const featureCode = segmentFeatureMap[activeSegment];
+    if (!featureCode || isLoading) return;
+
+    const featureLocked = !hasFeature(featureCode);
+    if (!featureLocked) return;
+
+    setLockedFeature(featureCode);
+    if (activeSegment !== "index") {
+      router.replace("/(lawyer-tabs)" as any);
+    }
+  }, [activeSegment, hasFeature, isLoading]);
+
+  const webTabs = (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: { display: "none" },
+        sceneStyle: { backgroundColor: Colors.background },
+      }}
+    >
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="cases" />
+      <Tabs.Screen name="clients" />
+      <Tabs.Screen name="chat" listeners={tabListeners("chat")} />
+      <Tabs.Screen name="community" listeners={tabListeners("community")} />
+      <Tabs.Screen name="calendar" listeners={tabListeners("calendar")} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="notifications" options={{ href: null }} />
+      <Tabs.Screen name="invitations" options={{ href: null }} />
+    </Tabs>
+  );
+
+  if (desktopWeb) {
+    return (
+      <>
+        <DesktopAppShell
+          brand="LexTrack"
+          title={desktopMeta.title}
+          subtitle={desktopMeta.subtitle}
+          navItems={desktopNav}
+          activeKey={activeSegment}
+          onNavigate={(href) => {
+            const item = desktopNav.find((entry) => entry.href === href);
+            if (item?.disabled) {
+              const featureCode = TAB_FEATURE[item.key];
+              if (featureCode) setLockedFeature(featureCode);
+              return;
+            }
+            router.push(href as any);
+          }}
+          actions={[
+            {
+              key: "notifications",
+              icon: "notifications-outline",
+              label: "Notificaciones",
+              badgeCount: unreadNotifCount,
+              onPress: () => router.push("/lawyer-componts/lawyer-notifications" as any),
+            },
+            {
+              key: "settings",
+              icon: "settings-outline",
+              label: "Ajustes",
+              onPress: () => router.push("/lawyer-componts/lawyer-settings" as any),
+            },
+          ]}
+        >
+          {webTabs}
+        </DesktopAppShell>
+
+        <FeatureLockedModal
+          visible={lockedFeature !== null}
+          featureCode={lockedFeature ?? ""}
+          onClose={() => setLockedFeature(null)}
+          onVerPlanes={() => {
+            setLockedFeature(null);
+            router.push("/(auth)/planes" as any);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <Tabs
@@ -131,15 +245,15 @@ function ClassicTabLayout() {
           tabBarStyle: {
             position: "absolute",
             backgroundColor: isIOS ? "transparent" : isDark ? "#000" : "#fff",
-            borderTopWidth: isWeb ? 1 : 0,
+            borderTopWidth: desktopWeb ? 1 : 0,
             borderTopColor: Colors.border,
             elevation: 0,
-            ...(isWeb ? { height: 84 } : {}),
+            ...(desktopWeb ? { height: 84 } : {}),
           },
           tabBarBackground: () =>
             isIOS ? (
               <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-            ) : isWeb ? (
+            ) : desktopWeb ? (
               <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.white }]} />
             ) : null,
         }}

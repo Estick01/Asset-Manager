@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, Platform } from "react-native";
+import React, { useState, useCallback, useMemo } from "react";
+import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, useWindowDimensions, Platform, ScrollView } from "react-native";
 import { useFocusEffect, router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,8 @@ import { StyledModal } from "@/components/StyledModal";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import { getProcesosByCliente } from "@/lib/services/procesoService";
 import { ProcesoDTO } from "@/shared/schema/proceso.schema";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
+import { getOrCreateSupportConversation } from "@/lib/services/chatService";
 
 const ESTADO_CONFIG: Record<string, { color: string; label: string; icon: keyof typeof Ionicons.glyphMap }> = {
   activo:     { color: Colors.success,      label: "Activo",      icon: "pulse" },
@@ -21,6 +23,10 @@ const ESTADO_CONFIG: Record<string, { color: string; label: string; icon: keyof 
 
 export default function ClientPortalScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const compactMobile = width < 420;
   const { user, profile, logout } = useUnifiedAuth();
   const [loggingOut, setLoggingOut] = useState(false);
   const [procesos, setProcesos] = useState<ProcesoDTO[]>([]);
@@ -58,6 +64,22 @@ export default function ClientPortalScreen() {
 
   const activos    = procesos.filter(p => p.estado?.codigo === "activo" || p.estado?.codigo === "en_tramite").length;
   const finalizados = procesos.filter(p => p.estado?.codigo === "finalized").length;
+  const recientes = useMemo(() => procesos.slice(0, 6), [procesos]);
+
+  const openSupport = useCallback(async () => {
+    try {
+      const conversation = await getOrCreateSupportConversation();
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? "Soporte LexTrack",
+          from: "/portal/chat",
+          support: "1",
+        },
+      });
+    } catch {}
+  }, []);
 
   // ── Render proceso card ───────────────────────────────────────
   const renderProceso = ({ item: p }: { item: ProcesoDTO }) => {
@@ -128,10 +150,10 @@ export default function ClientPortalScreen() {
     <>
       <LinearGradient
         colors={["#0D3B66", "#1B5A8C"]}
-        style={[styles.headerGradient, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
+        style={[styles.headerGradient, compactMobile && styles.headerGradientCompact, { paddingTop: insets.top + 16 }]}
       >
         {/* Top row */}
-        <View style={styles.headerTop}>
+        <View style={[styles.headerTop, compactMobile && styles.headerTopCompact]}>
           <View>
             <Text style={styles.greeting}>Hola,</Text>
             <Text style={styles.clientName}>
@@ -146,7 +168,7 @@ export default function ClientPortalScreen() {
         </View>
 
         {/* Summary */}
-        <View style={styles.summaryRow}>
+        <View style={[styles.summaryRow, compactMobile && styles.summaryRowCompact]}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryValue}>{procesos.length}</Text>
             <Text style={styles.summaryLabel}>Total</Text>
@@ -173,6 +195,145 @@ export default function ClientPortalScreen() {
     </>
   );
 
+  if (desktop) {
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{ paddingBottom: metrics.gutter }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopHero, { marginBottom: metrics.contentGap }]}>
+          <LinearGradient colors={["#0D3B66", "#1B5A8C"]} style={styles.desktopHeroGradient}>
+            <View style={styles.desktopHeroMain}>
+              <View style={styles.desktopIdentity}>
+                <View style={styles.desktopAvatar}>
+                  <Ionicons name="person-outline" size={30} color={Colors.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.desktopTitle}>{user?.user?.name || user?.user?.email || "Cliente"}</Text>
+                </View>
+              </View>
+
+              <View style={styles.desktopHeroStats}>
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{procesos.length}</Text>
+                  <Text style={styles.desktopHeroLabel}>procesos</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{activos}</Text>
+                  <Text style={styles.desktopHeroLabel}>activos</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{finalizados}</Text>
+                  <Text style={styles.desktopHeroLabel}>finalizados</Text>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+
+        <View style={[styles.desktopColumns, { gap: metrics.contentGap }]}>
+          <View style={styles.desktopMainColumn}>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <Text style={styles.panelTitle}>Accesos rápidos</Text>
+              </View>
+              <View style={styles.desktopActionGrid}>
+                <Pressable style={styles.desktopActionCard} onPress={() => router.push("/portal/notifications")}>
+                  <View style={[styles.desktopActionIcon, { backgroundColor: Colors.info + "18" }]}>
+                    <Ionicons name="notifications-outline" size={18} color={Colors.info} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.desktopActionTitle}>Alertas</Text>
+                    <Text style={styles.desktopActionHint}>Revisa novedades y cambios recientes.</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.desktopActionCard} onPress={() => router.push("/portal/chat")}>
+                  <View style={[styles.desktopActionIcon, { backgroundColor: Colors.primary + "18" }]}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={18} color={Colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.desktopActionTitle}>Mensajes</Text>
+                    <Text style={styles.desktopActionHint}>Continúa conversaciones con tu abogado.</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.desktopActionCard} onPress={openSupport}>
+                  <View style={[styles.desktopActionIcon, { backgroundColor: Colors.warning + "18" }]}>
+                    <Ionicons name="headset-outline" size={18} color={Colors.warning} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.desktopActionTitle}>Soporte</Text>
+                    <Text style={styles.desktopActionHint}>Abre ayuda rápida desde el portal.</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.desktopActionCard} onPress={() => router.push("/portal/profile")}>
+                  <View style={[styles.desktopActionIcon, { backgroundColor: Colors.accent + "18" }]}>
+                    <Ionicons name="person-circle-outline" size={18} color={Colors.accent} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.desktopActionTitle}>Perfil</Text>
+                    <Text style={styles.desktopActionHint}>Administra tu información del portal.</Text>
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <Text style={styles.panelTitle}>Procesos recientes</Text>
+                <Pressable onPress={() => router.push("/portal")}>
+                  <Text style={styles.panelAction}>Ver todos</Text>
+                </Pressable>
+              </View>
+              <View style={styles.desktopProcessList}>
+                {recientes.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <View style={styles.emptyIconWrap}>
+                      <Ionicons name="document-text-outline" size={38} color={Colors.primary} />
+                    </View>
+                    <Text style={styles.emptyTitle}>Sin procesos</Text>
+                    <Text style={styles.emptySubtitle}>No tienes procesos registrados aún</Text>
+                  </View>
+                ) : (
+                  recientes.map((p) => (
+                    <View key={p.id}>
+                      {renderProceso({ item: p })}
+                    </View>
+                  ))
+                )}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.desktopSideColumn}>
+            <View style={styles.panel}>
+              <View style={styles.panelHeader}>
+                <Text style={styles.panelTitle}>Resumen general</Text>
+              </View>
+              <View style={styles.desktopSummaryStack}>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Procesos activos</Text>
+                  <Text style={styles.desktopSummaryValue}>{activos}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Procesos finalizados</Text>
+                  <Text style={styles.desktopSummaryValue}>{finalizados}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>En trámite</Text>
+                  <Text style={styles.desktopSummaryValue}>{procesos.filter((p) => p.estado?.codigo === "en_tramite").length}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={styles.screen}>
       <FlatList
@@ -180,7 +341,7 @@ export default function ClientPortalScreen() {
         keyExtractor={item => item.id}
         renderItem={renderProceso}
         ListHeaderComponent={ListHeader}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, compactMobile && styles.listContentCompact]}
         ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -213,17 +374,103 @@ export default function ClientPortalScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
+  desktopScreen: { flex: 1, backgroundColor: Colors.background },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  desktopIdentity: { flexDirection: "row", alignItems: "center", gap: 18, flex: 1 },
+  desktopAvatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.14)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  desktopTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroStats: {
+    minWidth: 320,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center" },
+  desktopHeroValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.68)", marginTop: 2 },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.18)" },
+  desktopColumns: { flexDirection: "row", alignItems: "flex-start" },
+  desktopMainColumn: { flex: 1.5, gap: 20 },
+  desktopSideColumn: { width: 340, gap: 20 },
+  panel: {
+    backgroundColor: Colors.white,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  panelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
+  panelAction: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.primary },
+  desktopActionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  desktopActionCard: {
+    minHeight: 86,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: "#FBFCFE",
+    padding: 16,
+    flexBasis: "48%",
+    flexGrow: 1,
+  },
+  desktopActionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  desktopActionTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: Colors.text },
+  desktopActionHint: { fontSize: 12, lineHeight: 18, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 3 },
+  desktopProcessList: { gap: 12 },
+  desktopSummaryStack: { gap: 12 },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  desktopSummaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  desktopSummaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
 
   // ── Header ──────────────────────────────────────────────────
   headerGradient: {
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
+  headerGradientCompact: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: 20,
+  },
+  headerTopCompact: {
+    gap: 12,
   },
   greeting: {
     fontSize: 13,
@@ -251,6 +498,9 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: "space-around",
   },
+  summaryRowCompact: {
+    padding: 10,
+  },
   summaryItem: { alignItems: "center", gap: 2 },
   summaryValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.white },
   summaryLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.75)" },
@@ -258,6 +508,7 @@ const styles = StyleSheet.create({
 
   // ── List ─────────────────────────────────────────────────────
   listContent: { paddingBottom: 100 },
+  listContentCompact: { paddingBottom: 88 },
   listHeader: {
     flexDirection: "row",
     alignItems: "center",

@@ -12,14 +12,19 @@ import {
   Pressable,
   ActivityIndicator,
   Modal,
-  TextInput,
   ScrollView,
-  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
 import type { EtapaProcesoDTO } from "@/shared/schema";
 import { StageBlockedError } from "@/lib/services/legalStageService";
+
+type PendingStageTask = {
+  id: string;
+  titulo: string;
+  estado: string;
+  prioridad: string;
+};
 
 interface Props {
   visible: boolean;
@@ -27,6 +32,7 @@ interface Props {
   siguienteEtapa: EtapaProcesoDTO | null;
   onConfirm: (fechaVencimiento?: Date) => Promise<void>;
   onClose: () => void;
+  pendingTasks?: PendingStageTask[];
 }
 
 export function ChangeStageModal({
@@ -35,6 +41,7 @@ export function ChangeStageModal({
   siguienteEtapa,
   onConfirm,
   onClose,
+  pendingTasks = [],
 }: Props) {
   const [loading, setLoading] = useState(false);
   const [fechaVencimiento, setFechaVencimiento] = useState<string>("");
@@ -61,14 +68,11 @@ export function ChangeStageModal({
     }
   };
 
-  if (!siguienteEtapa) return null;
-
-  // Calcular fecha estimada de vencimiento si la siguiente etapa tiene días legales
-  const diasLegales = siguienteEtapa.diasLegales;
+  const diasLegales = siguienteEtapa?.diasLegales ?? 0;
   let fechaEstimada: Date | null = null;
   let fechaEstimadaDisplay: string | null = null;
   let fechaEstimadaValue: string | null = null;
-  if (diasLegales > 0) {
+  if (siguienteEtapa && diasLegales > 0) {
     fechaEstimada = new Date();
     fechaEstimada.setDate(fechaEstimada.getDate() + diasLegales);
     fechaEstimadaDisplay = fechaEstimada.toLocaleDateString("es-ES", {
@@ -76,15 +80,23 @@ export function ChangeStageModal({
       month: "long",
       year: "numeric",
     });
-    fechaEstimadaValue = fechaEstimada.toISOString().split('T')[0]; // YYYY-MM-DD format for input
+    fechaEstimadaValue = fechaEstimada.toISOString().split('T')[0];
   }
 
-  // Inicializar la fecha editable cuando se abre el modal
   React.useEffect(() => {
     if (visible && fechaEstimadaValue && !fechaVencimiento) {
       setFechaVencimiento(fechaEstimadaValue);
     }
-  }, [visible, fechaEstimadaValue]);
+  }, [visible, fechaEstimadaValue, fechaVencimiento]);
+
+  React.useEffect(() => {
+    if (!visible) {
+      setStageBlockedError(null);
+      setShowDatePicker(false);
+    }
+  }, [visible]);
+
+  if (!siguienteEtapa) return null;
 
   return (
     <Modal
@@ -135,17 +147,39 @@ export function ChangeStageModal({
           {/* Vencimiento estimado y editable */}
           {fechaEstimadaValue && (
             <View style={styles.dateSection}>
+              <View style={styles.dateContextCard}>
+                <View style={styles.dateContextHeader}>
+                  <View style={styles.dateContextIcon}>
+                    <Ionicons name="calendar-clear-outline" size={16} color={Colors.primary} />
+                  </View>
+                  <View style={styles.dateContextCopy}>
+                    <Text style={styles.dateContextTitle}>Fecha objetivo de la nueva etapa</Text>
+                    <Text style={styles.dateContextText}>
+                      Esta fecha le sirve al sistema para marcar hasta cuándo debería desarrollarse la etapa que va a abrir.
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.dateContextTips}>
+                  <Text style={styles.dateContextTip}>
+                    • Se propone automáticamente con base en el tiempo legal estimado.
+                  </Text>
+                  <Text style={styles.dateContextTip}>
+                    • Cámbiela solo si ya conoce una fecha distinta para seguimiento o vencimiento.
+                  </Text>
+                </View>
+              </View>
+
               <View style={styles.infoRow}>
-                <Ionicons name="calendar-outline" size={16} color={Colors.warning} />
+                <Ionicons name="time-outline" size={16} color={Colors.warning} />
                 <Text style={styles.infoText}>
-                  <Text style={styles.infoLabel}>Fecha estimada: </Text>
+                  <Text style={styles.infoLabel}>Fecha sugerida por el sistema: </Text>
                   {fechaEstimadaDisplay}
                   {" "}({diasLegales} días hábiles)
                 </Text>
               </View>
 
               <View style={styles.dateInputRow}>
-                <Text style={styles.dateLabel}>Nueva fecha:</Text>
+                <Text style={styles.dateLabel}>Fecha a guardar:</Text>
                 <Pressable
                   style={styles.dateButton}
                   onPress={() => setShowDatePicker(true)}
@@ -174,60 +208,133 @@ export function ChangeStageModal({
             </Text>
           </View>
 
+          {pendingTasks.length > 0 && (
+            <View style={styles.pendingTasksContainer}>
+              <View style={styles.pendingTasksHeader}>
+                <View style={styles.pendingHeaderMain}>
+                  <View style={styles.pendingIconContainer}>
+                    <Ionicons name="alert-circle-outline" size={18} color={Colors.warning} />
+                  </View>
+                  <View style={styles.pendingHeaderCopy}>
+                    <Text style={styles.pendingTasksTitle}>Hay tareas abiertas en esta etapa</Text>
+                    <Text style={styles.pendingTasksMessage}>
+                      Aún existen tareas pendientes o en progreso. Puede revisarlas ahora o avanzar de todos modos.
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.pendingCountBadge}>
+                  <Text style={styles.pendingCountBadgeText}>{pendingTasks.length}</Text>
+                </View>
+              </View>
+
+              <ScrollView style={styles.pendingTasksList} showsVerticalScrollIndicator={false}>
+                {pendingTasks.map((tarea) => (
+                  <View key={tarea.id} style={styles.pendingTaskItem}>
+                    <View style={styles.taskRowTop}>
+                      <View style={styles.taskIconContainer}>
+                        <Ionicons name="clipboard-outline" size={16} color={Colors.textSecondary} />
+                      </View>
+                      <Text style={styles.taskTitle} numberOfLines={2}>
+                        {tarea.titulo}
+                      </Text>
+                    </View>
+                    <View style={styles.taskMetaRow}>
+                      <View style={[styles.priorityBadge, getPriorityStyle(tarea.prioridad)]}>
+                        <Text style={styles.priorityText}>
+                          {tarea.prioridad === 'alta' ? 'ALTA' :
+                           tarea.prioridad === 'media' ? 'MEDIA' :
+                           tarea.prioridad === 'urgente' ? 'URGENTE' : 'BAJA'}
+                        </Text>
+                      </View>
+                      <View style={styles.taskStatusPill}>
+                        <Ionicons name="time-outline" size={11} color={Colors.textSecondary} />
+                        <Text style={styles.taskStatus}>{tarea.estado}</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <View style={styles.pendingTasksHint}>
+                <Ionicons name="information-circle-outline" size={14} color={Colors.primary} />
+                <Text style={styles.pendingHintText}>
+                  Si prefiere, vuelva a `1. Tareas` para terminarlas antes de avanzar. Si no, puede continuar con el cambio de etapa.
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Mostrar tareas bloqueantes si hay error STAGE_BLOCKED */}
           {stageBlockedError && (
             <View style={styles.blockedTasksContainer}>
               <View style={styles.blockedTasksHeader}>
-                <View style={styles.warningIconContainer}>
-                  <Ionicons name="warning" size={24} color={Colors.white} />
+                <View style={styles.blockedHeaderMain}>
+                  <View style={styles.warningIconContainer}>
+                    <Ionicons name="warning" size={20} color={Colors.white} />
+                  </View>
+                  <View style={styles.blockedHeaderCopy}>
+                    <Text style={styles.blockedTasksTitle}>
+                      Acceso bloqueado
+                    </Text>
+                    <Text style={styles.blockedTasksMessage}>
+                      No se puede avanzar porque hay tareas requeridas pendientes en esta etapa.
+                    </Text>
+                  </View>
                 </View>
-                <Text style={styles.blockedTasksTitle}>
-                  Acceso Bloqueado
-                </Text>
+                <View style={styles.blockedCountBadge}>
+                  <Text style={styles.blockedCountBadgeText}>
+                    {stageBlockedError.tareasBloqueantes.length}
+                  </Text>
+                </View>
               </View>
 
-              <View style={styles.blockedMessageContainer}>
-                <Ionicons name="lock-closed" size={18} color={Colors.danger} />
-                <Text style={styles.blockedTasksMessage}>
-                  No se puede avanzar a la siguiente etapa porque hay tareas requeridas pendientes de completar.
-                </Text>
+              <View style={styles.blockedSummaryCard}>
+                <View style={styles.blockedSummaryRow}>
+                  <Ionicons name="lock-closed-outline" size={16} color={Colors.danger} />
+                  <Text style={styles.blockedSummaryText}>
+                    Debe completar estas tareas antes de resolver la etapa.
+                  </Text>
+                </View>
               </View>
 
-              <Text style={styles.tasksRequiredTitle}>
-                Tareas que debe completar:
-              </Text>
+              <View style={styles.tasksRequiredHeader}>
+                <Text style={styles.tasksRequiredTitle}>
+                  Tareas requeridas
+                </Text>
+                <Text style={styles.tasksRequiredSubtitle}>
+                  Complete lo pendiente y vuelva a intentar el avance.
+                </Text>
+              </View>
 
               <ScrollView style={styles.blockedTasksList} showsVerticalScrollIndicator={false}>
-                {stageBlockedError.tareasBloqueantes.map((tarea, index) => (
+                {stageBlockedError.tareasBloqueantes.map((tarea) => (
                   <View key={tarea.id} style={styles.blockedTaskItem}>
-                    <View style={styles.taskIconContainer}>
-                      <Ionicons name="checkbox-outline" size={16} color={Colors.textSecondary} />
-                    </View>
-
-                    <View style={styles.taskContent}>
-                      <View style={styles.taskHeader}>
-                        <Text style={styles.taskTitle} numberOfLines={2}>
-                          {tarea.titulo}
-                        </Text>
-                        <View style={[styles.priorityBadge, getPriorityStyle(tarea.prioridad)]}>
-                          <Ionicons
-                            name={tarea.prioridad === 'alta' ? 'alert-circle' :
-                                  tarea.prioridad === 'media' ? 'alert' : 'information-circle'}
-                            size={12}
-                            color={Colors.white}
-                            style={{ marginRight: 4 }}
-                          />
-                          <Text style={styles.priorityText}>
-                            {tarea.prioridad === 'alta' ? 'ALTA' :
-                             tarea.prioridad === 'media' ? 'MEDIA' : 'BAJA'}
-                          </Text>
-                        </View>
+                    <View style={styles.taskRowTop}>
+                      <View style={styles.taskIconContainer}>
+                        <Ionicons name="checkbox-outline" size={16} color={Colors.textSecondary} />
                       </View>
-
-                      <View style={styles.taskMeta}>
-                        <Ionicons name="time-outline" size={12} color={Colors.textTertiary} />
+                      <Text style={styles.taskTitle} numberOfLines={2}>
+                        {tarea.titulo}
+                      </Text>
+                    </View>
+                    <View style={styles.taskMetaRow}>
+                      <View style={[styles.priorityBadge, getPriorityStyle(tarea.prioridad)]}>
+                        <Ionicons
+                          name={tarea.prioridad === 'alta' ? 'alert-circle' :
+                                tarea.prioridad === 'media' ? 'alert' : 'information-circle'}
+                          size={11}
+                          color={Colors.white}
+                          style={{ marginRight: 4 }}
+                        />
+                        <Text style={styles.priorityText}>
+                          {tarea.prioridad === 'alta' ? 'ALTA' :
+                           tarea.prioridad === 'media' ? 'MEDIA' : 'BAJA'}
+                        </Text>
+                      </View>
+                      <View style={styles.taskStatusPill}>
+                        <Ionicons name="time-outline" size={11} color={Colors.textSecondary} />
                         <Text style={styles.taskStatus}>
-                          Estado: {tarea.estado}
+                          {tarea.estado}
                         </Text>
                       </View>
                     </View>
@@ -236,9 +343,11 @@ export function ChangeStageModal({
               </ScrollView>
 
               <View style={styles.blockedTasksHint}>
-                <Ionicons name="bulb" size={14} color={Colors.warning} />
+                <View style={styles.blockedHintIcon}>
+                  <Ionicons name="bulb-outline" size={14} color={Colors.warning} />
+                </View>
                 <Text style={styles.hintText}>
-                  Complete estas tareas en la sección de tareas del proceso para poder continuar con el avance de etapa.
+                  Vaya a la sección `1. Tareas`, complete lo pendiente y luego vuelva al paso `Resolver etapa`.
                 </Text>
               </View>
             </View>
@@ -507,6 +616,50 @@ const styles = StyleSheet.create({
   dateSection: {
     gap: 12,
   },
+  dateContextCard: {
+    backgroundColor: Colors.primary + "0E",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.primary + "24",
+    padding: 12,
+    gap: 10,
+  },
+  dateContextHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  dateContextIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.primary + "14",
+  },
+  dateContextCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  dateContextTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  dateContextText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+  },
+  dateContextTips: {
+    gap: 4,
+    paddingLeft: 2,
+  },
+  dateContextTip: {
+    fontSize: 12,
+    lineHeight: 17,
+    color: Colors.textSecondary,
+  },
   infoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -606,6 +759,275 @@ const styles = StyleSheet.create({
   },
   btnDisabled: {
     opacity: 0.6,
+  },
+  pendingTasksContainer: {
+    backgroundColor: Colors.warningLight,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.warning + "25",
+    gap: 12,
+  },
+  pendingTasksHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  pendingHeaderMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  pendingHeaderCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  pendingIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.white,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pendingTasksTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  pendingTasksMessage: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.textSecondary,
+  },
+  pendingCountBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    backgroundColor: Colors.warning + "18",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pendingCountBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.warning,
+  },
+  pendingTasksList: {
+    maxHeight: 170,
+  },
+  pendingTaskItem: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    gap: 10,
+  },
+  pendingTasksHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    padding: 11,
+    borderRadius: 12,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.primary + "18",
+  },
+  pendingHintText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  blockedTasksContainer: {
+    backgroundColor: "#FFF7F5",
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: "#F7C9C2",
+    gap: 14,
+  },
+  blockedTasksHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  blockedHeaderMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  blockedHeaderCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  warningIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  blockedTasksTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#8B1E12",
+  },
+  blockedCountBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    backgroundColor: Colors.danger + "18",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  blockedCountBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.danger,
+  },
+  blockedSummaryCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F2D7D2",
+    padding: 12,
+  },
+  blockedSummaryRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  blockedTasksMessage: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  blockedSummaryText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    lineHeight: 19,
+    fontWeight: "500",
+    flex: 1,
+  },
+  tasksRequiredHeader: {
+    gap: 2,
+  },
+  tasksRequiredTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.text,
+  },
+  tasksRequiredSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+  },
+  blockedTasksList: {
+    maxHeight: 220,
+  },
+  blockedTaskItem: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 13,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F0E1DD",
+    gap: 10,
+  },
+  taskRowTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  taskIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.borderLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  taskTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  priorityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    minWidth: 70,
+    justifyContent: "center",
+  },
+  priorityText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.white,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  taskMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  taskStatusPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  taskStatus: {
+    fontSize: 11,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  blockedTasksHint: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    backgroundColor: "#FFF3D8",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.warning + "20",
+  },
+  blockedHintIcon: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.white,
+  },
+  hintText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+    lineHeight: 18,
+    flex: 1,
   },
 });
 
@@ -726,160 +1148,5 @@ const datePickerStyles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     fontWeight: "500",
-  },
-
-  // ─── Blocked Tasks Styles ────────────────────────────────────────────────
-  blockedTasksContainer: {
-    backgroundColor: Colors.surface,
-    borderRadius: 20,
-    padding: 24,
-    marginTop: 24,
-    borderWidth: 2,
-    borderColor: Colors.danger + '30',
-    shadowColor: Colors.danger,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  blockedTasksHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.danger + '20',
-  },
-  warningIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.danger,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.danger,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  blockedTasksTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.danger,
-    flex: 1,
-  },
-  blockedMessageContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: Colors.danger + '08',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.danger + '15',
-  },
-  blockedTasksMessage: {
-    fontSize: 15,
-    color: Colors.text,
-    lineHeight: 22,
-    fontWeight: '500',
-    flex: 1,
-  },
-  tasksRequiredTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: 12,
-  },
-  blockedTasksList: {
-    maxHeight: 280,
-    marginBottom: 20,
-  },
-  blockedTaskItem: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  taskIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.borderLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-    marginTop: 2,
-  },
-  taskContent: {
-    flex: 1,
-  },
-  taskHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 10,
-  },
-  taskTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
-    flex: 1,
-    marginRight: 12,
-    lineHeight: 22,
-  },
-  priorityBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    minWidth: 70,
-    justifyContent: 'center',
-  },
-  priorityText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.white,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  taskMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  taskStatus: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  blockedTasksHint: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    padding: 16,
-    backgroundColor: Colors.warning + '08',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.warning + '20',
-  },
-  hintText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-    lineHeight: 18,
-    flex: 1,
   },
 });

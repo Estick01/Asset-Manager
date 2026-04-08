@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable,
-  RefreshControl, ActivityIndicator, Animated, Alert,
+  RefreshControl, ActivityIndicator, Animated, Alert, useWindowDimensions, Platform, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -10,6 +10,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { getConversations, getOrCreateSupportConversation } from "@/lib/services/chatService";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import type { ConversationDTO } from "@/shared/schema";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const BLUE      = "#1B5A8C";
@@ -135,6 +136,10 @@ function ConversationCard({ conv, currentUserId, index }: {
 // ─── Screen ───────────────────────────────────────────────────────────────
 export default function ClientChatScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const compactMobile = width < 420;
   const { user } = useUnifiedAuth();
   const currentUserId = user?.user?.id;
 
@@ -202,16 +207,119 @@ export default function ClientChatScreen() {
     return last && Date.now() - new Date(last).getTime() < 86400000;
   }).length;
 
+  if (desktop) {
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{ paddingBottom: metrics.gutter }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={BLUE} colors={[BLUE]} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopHero, { marginBottom: metrics.contentGap }]}>
+          <LinearGradient colors={[BLUE_DARK, BLUE]} style={styles.desktopHeroGradient}>
+            <View style={styles.desktopHeroMain}>
+              <View style={styles.desktopHeroCopy}>
+                <Text style={styles.desktopEyebrow}>Mensajería</Text>
+                <Text style={styles.desktopTitle}>Conversaciones del portal</Text>
+                <Text style={styles.desktopSubtitle}>
+                  Sigue conversaciones con tu abogado y abre soporte sin depender de una interfaz móvil estirada.
+                </Text>
+              </View>
+
+              <View style={styles.desktopHeroStats}>
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{conversations.length}</Text>
+                  <Text style={styles.desktopHeroLabel}>chats</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{totalUnread}</Text>
+                  <Text style={styles.desktopHeroLabel}>sin leer</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroValue}>{todayCount}</Text>
+                  <Text style={styles.desktopHeroLabel}>hoy</Text>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+
+        <View style={[styles.desktopColumns, { gap: metrics.contentGap }]}>
+          <View style={styles.desktopMainColumn}>
+            <View style={styles.desktopPanel}>
+              <View style={styles.desktopPanelHeader}>
+                <Text style={styles.desktopPanelTitle}>Bandeja de conversaciones</Text>
+                <Pressable style={styles.desktopSupportBtn} onPress={openSupportChat}>
+                  <Ionicons name="headset-outline" size={16} color={WHITE} />
+                  <Text style={styles.desktopSupportBtnText}>Soporte</Text>
+                </Pressable>
+              </View>
+
+              {loading ? (
+                <View style={styles.centered}>
+                  <ActivityIndicator size="large" color={BLUE} />
+                </View>
+              ) : conversations.length === 0 ? (
+                <View style={styles.empty}>
+                  <View style={styles.emptyIcon}>
+                    <Ionicons name="chatbubbles-outline" size={36} color={TEXT3} />
+                  </View>
+                  <Text style={styles.emptyTitle}>Sin conversaciones</Text>
+                  <Text style={styles.emptySub}>
+                    Abre un proceso y presiona Mensaje para chatear con tu abogado
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.desktopConversationList}>
+                  {conversations.map((item, index) => (
+                    <View key={item.id}>
+                      <ConversationCard conv={item} currentUserId={currentUserId} index={index} />
+                      {index < conversations.length - 1 ? <View style={styles.desktopSeparator} /> : null}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.desktopSideColumn}>
+            <View style={styles.desktopPanel}>
+              <View style={styles.desktopPanelHeader}>
+                <Text style={styles.desktopPanelTitle}>Resumen</Text>
+              </View>
+              <View style={styles.desktopSummaryStack}>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Conversaciones activas</Text>
+                  <Text style={styles.desktopSummaryValue}>{conversations.length}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Mensajes sin leer</Text>
+                  <Text style={styles.desktopSummaryValue}>{totalUnread}</Text>
+                </View>
+                <View style={styles.desktopSummaryRow}>
+                  <Text style={styles.desktopSummaryLabel}>Actividad de hoy</Text>
+                  <Text style={styles.desktopSummaryValue}>{todayCount}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
 
       {/* ── Gradient header ── */}
       <LinearGradient
         colors={[BLUE_DARK, BLUE]}
-        style={styles.header}
+        style={[styles.header, compactMobile && styles.headerCompact]}
       >
         {/* Top row */}
-        <View style={styles.headerTop}>
+        <View style={[styles.headerTop, compactMobile && styles.headerTopCompact]}>
           <View>
             <Text style={styles.headerTitle}>Mensajes</Text>
             {!loading && (
@@ -236,7 +344,7 @@ export default function ClientChatScreen() {
 
         {/* Stats row */}
         {!loading && conversations.length > 0 && (
-          <View style={styles.statsRow}>
+          <View style={[styles.statsRow, compactMobile && styles.statsRowCompact]}>
             <View style={styles.statPill}>
               <Ionicons name="chatbubbles-outline" size={13} color="rgba(255,255,255,0.8)" />
               <Text style={styles.statText}>{conversations.length} chats</Text>
@@ -319,12 +427,89 @@ export default function ClientChatScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BLUE_DARK },
+  desktopScreen: { flex: 1, backgroundColor: BG },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  desktopHeroCopy: { flex: 1, gap: 4 },
+  desktopEyebrow: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.64)",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  desktopTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.72)",
+    marginTop: 4,
+    maxWidth: 640,
+  },
+  desktopHeroStats: {
+    minWidth: 300,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center" },
+  desktopHeroValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopHeroLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.68)", marginTop: 2 },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.18)" },
+  desktopColumns: { flexDirection: "row", alignItems: "flex-start" },
+  desktopMainColumn: { flex: 1.5 },
+  desktopSideColumn: { width: 320, gap: 20 },
+  desktopPanel: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+  },
+  desktopPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopSupportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: BLUE,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  desktopSupportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
+  desktopConversationList: { gap: 0 },
+  desktopSeparator: { height: 1, backgroundColor: "#F0F2F4", marginLeft: 76 },
+  desktopSummaryStack: { gap: 12 },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F6",
+  },
+  desktopSummaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  desktopSummaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
 
   header: {
     paddingHorizontal: 20, paddingTop: 28, paddingBottom: 24, gap: 16,
   },
+  headerCompact: {
+    paddingHorizontal: 16, paddingTop: 22, paddingBottom: 18, gap: 12,
+  },
   headerTop: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
+  },
+  headerTopCompact: {
+    gap: 12,
   },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE, marginTop: 2 },
   headerSub:   { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", marginTop: 4 },
@@ -346,7 +531,8 @@ const styles = StyleSheet.create({
   },
   supportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
 
-  statsRow: { flexDirection: "row", gap: 8 },
+  statsRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  statsRowCompact: { gap: 6 },
   statPill: {
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: "rgba(255,255,255,0.12)",

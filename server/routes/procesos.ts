@@ -776,13 +776,15 @@ router.get("/legal-stages", authenticate, async (req: Request, res: Response, ne
         // Primero intentar obtener la etapa actual del historial
         try {
           const ultimosEstados = await storage.procesoEtapaHistorial.getUltimoEstadoPorEtapa(procesoId);
+          const etapasValidas = await storage.legalStages.getByTipoProceso(proceso.tipoProcesoId ?? null);
+          const codigosValidos = new Set(etapasValidas.map((e) => e.codigo));
           // Buscar la etapa más reciente que no esté finalizada
           const estadosFinales = ['COMPLETADA', 'CANCELADA', 'SUSPENDIDA'];
           let etapaMasReciente: string | null = null;
           let fechaMasReciente: Date | null = null;
 
           for (const [etapa, registro] of Object.entries(ultimosEstados)) {
-            if (!estadosFinales.includes(registro.estado)) {
+            if (codigosValidos.has(etapa) && !estadosFinales.includes(registro.estado)) {
               const fechaRegistro = new Date(registro.fecha);
               if (!fechaMasReciente || fechaRegistro > fechaMasReciente) {
                 fechaMasReciente = fechaRegistro;
@@ -792,7 +794,7 @@ router.get("/legal-stages", authenticate, async (req: Request, res: Response, ne
           }
 
           currentStage = etapaMasReciente ?? proceso.legalStage ?? null;
-        } catch (error) {
+        } catch {
           // Si falla el historial, usar el campo tradicional
           currentStage = proceso.legalStage ?? null;
         }
@@ -867,24 +869,6 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
       }
     }
 
-    // ── Gate: tareas requeridas pendientes ──────────────────────────────────
-    if (oldStage) {
-      const bloqueantes = await storage.tareas.getRequiredPendingByStage(procesoId, oldStage);
-      if (bloqueantes.length > 0) {
-        res.status(422).json({
-          error:             "STAGE_BLOCKED",
-          message:           "Hay tareas requeridas sin completar en esta etapa",
-          tareasBloqueantes: bloqueantes.map(t => ({
-            id:        t.id,
-            titulo:    t.titulo,
-            estado:    t.estado,
-            prioridad: t.prioridad,
-          })),
-        });
-        return;
-      }
-    }
-
     // Calcular fecha de vencimiento
     let fechaVencimiento: Date | null = fechaManual ? new Date(fechaManual) : null;
 
@@ -905,6 +889,18 @@ router.patch("/procesos/:id/legal-stage", authenticate, async (req: Request, res
 
     // Registrar en el historial de etapas
     try {
+      if (oldStage && oldStage !== legalStage) {
+        await storage.procesoEtapaHistorial.createHistorial({
+          id: randomUUID(),
+          procesoId,
+          etapa: oldStage,
+          estado: "COMPLETADA",
+          fecha: new Date(),
+          observacion: `Etapa cerrada al avanzar a ${legalStage}`,
+          usuarioId: idProfile || null,
+        });
+      }
+
       await storage.procesoEtapaHistorial.createHistorial({
         id: randomUUID(),
         procesoId,

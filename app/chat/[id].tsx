@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, TextInput, Pressable,
   KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
-  Modal, Image, Linking,
+  Modal, Image, Linking, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -24,6 +24,8 @@ import type { MessageDTO } from "@/shared/schema";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "@/lib/keys";
 import { Tooltip } from "@/components/Tooltip";
+import { LinearGradient } from "expo-linear-gradient";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const PAGE_SIZE = 30;
@@ -302,6 +304,10 @@ function AttachModal({ visible, onClose, onDocument, onImage }: {
 // ─── Screen ───────────────────────────────────────────────────────────────
 export default function ConversationScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const shellWidth = Math.min(1480, Math.max(1180, width - metrics.gutter * 2));
   const router = useRouter();
   const { id: conversationId, name, from, procesoId, userId, support } =
     useLocalSearchParams<{ id: string; name: string; from: string; procesoId?: string; userId?: string; support?: string }>();
@@ -533,6 +539,179 @@ export default function ConversationScreen() {
   const av            = avatarColor(name ?? "Chat");
   const isSupportChat = support === "1";
 
+  if (desktop) {
+    return (
+      <KeyboardAvoidingView style={styles.desktopScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={[styles.desktopShell, { maxWidth: shellWidth, paddingTop: insets.top + 24 }]}>
+          <View style={styles.desktopHero}>
+            <LinearGradient colors={[NAVY, "#17365B"]} style={styles.desktopHeroGradient}>
+              <View style={styles.desktopHeroRow}>
+                <View style={styles.desktopHeroMain}>
+                  <Pressable
+                    onPress={() => router.canGoBack() ? router.back() : router.replace((from as any) ?? "/(firm-tabs)/chat")}
+                    style={styles.desktopBackBtn}
+                    hitSlop={8}
+                  >
+                    <Ionicons name="chevron-back" size={20} color={WHITE} />
+                  </Pressable>
+
+                  <View style={[styles.desktopHeroAvatar, { backgroundColor: av.bg }]}>
+                    <Text style={[styles.desktopHeroAvatarText, { color: av.text }]}>{displayInitial}</Text>
+                  </View>
+
+                  <View style={styles.desktopHeroCopy}>
+                    <Text style={styles.desktopEyebrow}>Conversación</Text>
+                    <Text style={styles.desktopHeroTitle} numberOfLines={1}>{name ?? "Chat"}</Text>
+                    <View style={styles.desktopStatusRow}>
+                      <View style={[styles.statusDot, { backgroundColor: isSupportChat ? TEAL : isOnline ? GREEN : TEXT3 }]} />
+                      <Text style={styles.desktopHeroStatus}>
+                        {isSupportChat ? "Canal de soporte" : isOnline ? "En línea" : "Conectando..."}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.desktopHeroActions}>
+                  {!isSupportChat && !!userId && (
+                    <Pressable style={styles.desktopHeroAction} onPress={() => router.push(`/community/profile/${userId}` as any)}>
+                      <Ionicons name="person-outline" size={16} color={WHITE} />
+                      <Text style={styles.desktopHeroActionText}>Perfil</Text>
+                    </Pressable>
+                  )}
+                  <View style={styles.desktopStatusPill}>
+                    <Text style={styles.desktopStatusPillText}>{status === "connected" ? "WS activa" : "Modo REST"}</Text>
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
+          <View style={[styles.desktopChatLayout, { marginTop: 22 }]}>
+            <View style={styles.desktopConversationColumn}>
+              <View style={styles.desktopConversationPanel}>
+                {loading ? (
+                  <View style={styles.centered}>
+                    <ActivityIndicator size="large" color={TEAL} />
+                  </View>
+                ) : (
+                  <FlatList
+                    ref={flatListRef}
+                    data={msgs}
+                    inverted
+                    keyExtractor={(item) => item.tempId ?? item.id}
+                    renderItem={renderItem}
+                    contentContainerStyle={[styles.listContent, styles.desktopListContent]}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.3}
+                    showsVerticalScrollIndicator={false}
+                    ListFooterComponent={
+                      loadingMore ? (
+                        <View style={styles.loadingMore}>
+                          <ActivityIndicator size="small" color={TEAL} />
+                        </View>
+                      ) : null
+                    }
+                    ListEmptyComponent={
+                      <View style={styles.empty}>
+                        <View style={styles.emptyIcon}>
+                          <Ionicons name="chatbubble-outline" size={36} color={TEXT3} />
+                        </View>
+                        <Text style={styles.emptyTitle}>Sin mensajes aún</Text>
+                        <Text style={styles.emptySub}>Sé el primero en escribir</Text>
+                      </View>
+                    }
+                  />
+                )}
+
+                <View style={styles.desktopInputBar}>
+                  <Tooltip label="Adjuntar archivo">
+                    <Pressable onPress={() => setShowAttach(true)} style={({ pressed }) => [styles.attachBtn, pressed && { opacity: 0.7 }]} hitSlop={8}>
+                      <Ionicons name="attach" size={22} color={TEXT2} />
+                    </Pressable>
+                  </Tooltip>
+
+                  <TextInput
+                    ref={inputRef}
+                    style={[styles.input, styles.desktopInput]}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    placeholder="Escribe un mensaje..."
+                    placeholderTextColor={TEXT3}
+                    multiline
+                    maxLength={2000}
+                  />
+
+                  <Tooltip label="Enviar mensaje">
+                    <Pressable
+                      onPress={handleSend}
+                      disabled={!inputText.trim() || isSending}
+                      style={({ pressed }) => [
+                        styles.sendBtn,
+                        (!inputText.trim() || isSending) && styles.sendBtnDisabled,
+                        pressed && { opacity: 0.8 },
+                      ]}
+                    >
+                      {isSending ? <ActivityIndicator size="small" color={WHITE} /> : <Ionicons name="send" size={18} color={WHITE} />}
+                    </Pressable>
+                  </Tooltip>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.desktopAside}>
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Resumen</Text>
+                <Text style={styles.desktopAsideTitle}>{isSupportChat ? "Soporte LexTrack" : name ?? "Contacto"}</Text>
+                <Text style={styles.desktopAsideText}>
+                  {isSupportChat
+                    ? "Canal para resolver incidencias operativas o dudas de plataforma."
+                    : "Conversación directa con seguimiento en tiempo real y archivos adjuntos."}
+                </Text>
+              </View>
+
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Actividad</Text>
+                <View style={styles.desktopMetaRow}>
+                  <Text style={styles.desktopMetaKey}>Mensajes cargados</Text>
+                  <Text style={styles.desktopMetaValue}>{msgs.length}</Text>
+                </View>
+                <View style={styles.desktopMetaRow}>
+                  <Text style={styles.desktopMetaKey}>Conexión</Text>
+                  <Text style={styles.desktopMetaValue}>{isOnline ? "En línea" : "Sincr. diferida"}</Text>
+                </View>
+                <View style={styles.desktopMetaRow}>
+                  <Text style={styles.desktopMetaKey}>Archivos</Text>
+                  <Text style={styles.desktopMetaValue}>Permitidos</Text>
+                </View>
+              </View>
+
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Accesos</Text>
+                {!isSupportChat && !!userId && (
+                  <Pressable style={styles.desktopAsideAction} onPress={() => router.push(`/community/profile/${userId}` as any)}>
+                    <Ionicons name="person-outline" size={16} color={TEXT2} />
+                    <Text style={styles.desktopAsideActionText}>Ver perfil</Text>
+                  </Pressable>
+                )}
+                <Pressable style={styles.desktopAsideAction} onPress={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })}>
+                  <Ionicons name="arrow-up-outline" size={16} color={TEXT2} />
+                  <Text style={styles.desktopAsideActionText}>Ir al último mensaje</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <AttachModal
+          visible={showAttach}
+          onClose={() => setShowAttach(false)}
+          onDocument={handlePickDocument}
+          onImage={handlePickImage}
+        />
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
       style={styles.screen}
@@ -669,6 +848,110 @@ export default function ConversationScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: BG },
+  desktopScreen: { flex: 1, backgroundColor: BG, paddingHorizontal: 24, paddingBottom: 24 },
+  desktopShell: { width: "100%", alignSelf: "center", flex: 1 },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 24 },
+  desktopHeroRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", gap: 16, flex: 1, minWidth: 0 },
+  desktopBackBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center", justifyContent: "center",
+  },
+  desktopHeroAvatar: {
+    width: 54, height: 54, borderRadius: 27,
+    alignItems: "center", justifyContent: "center",
+  },
+  desktopHeroAvatarText: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  desktopHeroCopy: { flex: 1, minWidth: 0 },
+  desktopEyebrow: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.64)",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  desktopHeroTitle: { fontSize: 28, lineHeight: 34, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopStatusRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
+  desktopHeroStatus: { fontSize: 13, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.72)" },
+  desktopHeroActions: { flexDirection: "row", alignItems: "center", gap: 10 },
+  desktopHeroAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  desktopHeroActionText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
+  desktopStatusPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  desktopStatusPillText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "rgba(255,255,255,0.76)" },
+  desktopChatLayout: { flex: 1, flexDirection: "row", alignItems: "stretch", gap: 24, minHeight: 0 },
+  desktopConversationColumn: { flex: 1.55, minWidth: 0 },
+  desktopConversationPanel: {
+    flex: 1,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E1E8F0",
+    overflow: "hidden",
+    minHeight: 0,
+  },
+  desktopListContent: { paddingHorizontal: 20, paddingTop: 22, paddingBottom: 20, flexGrow: 1 },
+  desktopInputBar: {
+    flexDirection: "row", alignItems: "flex-end",
+    backgroundColor: WHITE,
+    borderTopWidth: 1, borderTopColor: "#E0E7EF",
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 14, gap: 10,
+  },
+  desktopInput: { minHeight: 46, borderRadius: 24 },
+  desktopAside: { width: 320, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E1E8F0",
+  },
+  desktopAsideLabel: {
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: TEXT, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: TEXT2, fontFamily: "Inter_400Regular" },
+  desktopMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 6,
+  },
+  desktopMetaKey: { fontSize: 12, color: TEXT3, fontFamily: "Inter_500Medium" },
+  desktopMetaValue: { fontSize: 13, color: TEXT, fontFamily: "Inter_600SemiBold", textAlign: "right", flexShrink: 1 },
+  desktopAsideAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: "#E5EBF2",
+  },
+  desktopAsideActionText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_600SemiBold" },
 
   // Header
   header: {

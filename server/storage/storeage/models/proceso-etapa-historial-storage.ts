@@ -26,7 +26,7 @@ export class ProcesoEtapaHistorialStorage {
       .select()
       .from(procesoEtapaHistorial)
       .where(eq(procesoEtapaHistorial.procesoId, procesoId))
-      .orderBy(asc(procesoEtapaHistorial.fecha));
+      .orderBy(asc(procesoEtapaHistorial.fecha), asc(procesoEtapaHistorial.createdAt));
   }
 
   async getHistorialByProcesoYEtapa(procesoId: string, etapa: string): Promise<ProcesoEtapaHistorial[]> {
@@ -37,14 +37,18 @@ export class ProcesoEtapaHistorialStorage {
         eq(procesoEtapaHistorial.procesoId, procesoId),
         eq(procesoEtapaHistorial.etapa, etapa)
       ))
-      .orderBy(desc(procesoEtapaHistorial.fecha)); // Más reciente primero
+      .orderBy(desc(procesoEtapaHistorial.fecha), desc(procesoEtapaHistorial.createdAt)); // Más reciente primero
   }
 
   async getUltimoEstadoPorEtapa(procesoId: string): Promise<Record<string, ProcesoEtapaHistorial>> {
-    const historial = await this.getHistorialByProceso(procesoId);
+    const historial = await this.db
+      .select()
+      .from(procesoEtapaHistorial)
+      .where(eq(procesoEtapaHistorial.procesoId, procesoId))
+      .orderBy(desc(procesoEtapaHistorial.fecha), desc(procesoEtapaHistorial.createdAt));
     const ultimoPorEtapa: Record<string, ProcesoEtapaHistorial> = {};
 
-    // Procesar en orden cronológico para obtener el último estado de cada etapa
+    // Procesar de más reciente a más antiguo y tomar el primer registro de cada etapa
     for (const registro of historial) {
       if (!ultimoPorEtapa[registro.etapa]) {
         ultimoPorEtapa[registro.etapa] = registro;

@@ -3,7 +3,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet,
   Platform, ActivityIndicator, Modal,
-  TouchableOpacity, ScrollView, FlatList
+  TouchableOpacity, ScrollView, FlatList, useWindowDimensions
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,6 +15,7 @@ import { useUnifiedAuth } from "@/lib/auth-context";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { apiRequest } from "@/lib/query-client";
 import { toast } from "sonner-native";
+import { isDesktopViewport } from "@/lib/ui/breakpoints";
 
 const PORTAL_BLUE = "#1B5A8C";
 const PORTAL_BLUE_DARK = "#0D3B66";
@@ -26,6 +27,9 @@ interface MunicipioRes { data: Municipio[]; total: number; hasMore: boolean; }
 
 export default function ClientProfileScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const compactMobile = width < 420;
   const { user, updateProfile } = useUnifiedAuth();
 
   // Client type loaded from API (not from cached auth profile)
@@ -281,17 +285,22 @@ export default function ClientProfileScreen() {
         {/* ── Header ── */}
         <LinearGradient
           colors={[PORTAL_BLUE_DARK, PORTAL_BLUE]}
-          style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 25 : 16) }]}
+          style={[
+            styles.header,
+            desktop && styles.desktopHeader,
+            compactMobile && styles.headerCompact,
+            { paddingTop: insets.top + 16 },
+          ]}
         >
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, desktop && styles.desktopHeaderRow]}>
             <Pressable onPress={() => router.replace("/portal")} style={styles.headerBtn} hitSlop={8}>
               <Ionicons name="arrow-back" size={22} color="#fff" />
             </Pressable>
             <Text style={styles.headerTitle}>Editar Perfil</Text>
             <View style={{ width: 38 }} />
           </View>
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatar}>
+          <View style={[styles.avatarWrap, desktop && styles.desktopAvatarWrap]}>
+            <View style={[styles.avatar, desktop && styles.desktopAvatar]}>
               <Text style={styles.avatarText}>{avatarText}</Text>
             </View>
             <Text style={styles.avatarName}>{avatarName}</Text>
@@ -305,9 +314,9 @@ export default function ClientProfileScreen() {
           </View>
         </LinearGradient>
 
-        <View style={styles.content}>
+        <View style={[styles.content, desktop && styles.desktopContent, compactMobile && styles.contentCompact]}>
           {/* ── Correo (común) ── */}
-          <View style={styles.section}>
+          <View style={[styles.section, desktop && styles.desktopSection]}>
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionIcon, { backgroundColor: PORTAL_BLUE + "15" }]}>
                 <Ionicons name="mail-outline" size={16} color={PORTAL_BLUE} />
@@ -324,7 +333,7 @@ export default function ClientProfileScreen() {
           {isEmpresa ? (
             <>
               {/* ── Datos empresa ── */}
-              <View style={styles.section}>
+              <View style={[styles.section, desktop && styles.desktopSection]}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionIcon, { backgroundColor: PORTAL_BLUE + "15" }]}>
                     <Ionicons name="business-outline" size={16} color={PORTAL_BLUE} />
@@ -348,7 +357,7 @@ export default function ClientProfileScreen() {
               </View>
 
               {/* ── Representante legal ── */}
-              <View style={styles.section}>
+              <View style={[styles.section, desktop && styles.desktopSection]}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionIcon, { backgroundColor: Colors.warning + "15" }]}>
                     <Ionicons name="person-outline" size={16} color={Colors.warning} />
@@ -417,7 +426,7 @@ export default function ClientProfileScreen() {
           ) : (
             <>
               {/* ── Datos personales ── */}
-              <View style={styles.section}>
+              <View style={[styles.section, desktop && styles.desktopSection]}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionIcon, { backgroundColor: PORTAL_BLUE + "15" }]}>
                     <Ionicons name="person-outline" size={16} color={PORTAL_BLUE} />
@@ -446,7 +455,7 @@ export default function ClientProfileScreen() {
               </View>
 
               {/* ── Documento ── */}
-              <View style={styles.section}>
+              <View style={[styles.section, desktop && styles.desktopSection]}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionIcon, { backgroundColor: Colors.warning + "15" }]}>
                     <Ionicons name="card-outline" size={16} color={Colors.warning} />
@@ -466,7 +475,7 @@ export default function ClientProfileScreen() {
               </View>
 
               {/* ── Ubicación ── */}
-              <View style={styles.section}>
+              <View style={[styles.section, desktop && styles.desktopSection]}>
                 <View style={styles.sectionHeader}>
                   <View style={[styles.sectionIcon, { backgroundColor: Colors.success + "15" }]}>
                     <Ionicons name="location-outline" size={16} color={Colors.success} />
@@ -496,7 +505,7 @@ export default function ClientProfileScreen() {
           )}
 
           {/* ── Contraseña ── */}
-          <View style={styles.section}>
+          <View style={[styles.section, desktop && styles.desktopSection]}>
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionIcon, { backgroundColor: Colors.accent + "15" }]}>
                 <Ionicons name="lock-closed-outline" size={16} color={Colors.accent} />
@@ -543,7 +552,7 @@ export default function ClientProfileScreen() {
           <Pressable
             onPress={handleSave}
             disabled={saving}
-            style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.9 }, saving && { opacity: 0.6 }]}
+            style={({ pressed }) => [styles.saveBtn, desktop && styles.desktopSaveBtn, pressed && { opacity: 0.9 }, saving && { opacity: 0.6 }]}
           >
             <LinearGradient colors={[PORTAL_BLUE_DARK, PORTAL_BLUE]} style={styles.saveBtnGradient}>
               {saving
@@ -695,7 +704,15 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Colors.background },
 
   header: { paddingHorizontal: 20, paddingBottom: 24 },
+  headerCompact: { paddingHorizontal: 16, paddingBottom: 20 },
+  desktopHeader: {
+    paddingHorizontal: 28,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 },
+  desktopHeaderRow: { marginBottom: 26 },
   headerBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: "rgba(255,255,255,0.15)",
@@ -704,11 +721,17 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   avatarWrap: { alignItems: "center", gap: 6 },
+  desktopAvatarWrap: { gap: 8 },
   avatar: {
     width: 72, height: 72, borderRadius: 36,
     backgroundColor: "rgba(255,255,255,0.2)",
     alignItems: "center", justifyContent: "center",
     marginBottom: 4,
+  },
+  desktopAvatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 30,
   },
   avatarText: { fontSize: 26, fontFamily: "Inter_700Bold", color: "#fff" },
   avatarName: { fontSize: 18, fontFamily: "Inter_700Bold", color: "#fff" },
@@ -721,12 +744,30 @@ const styles = StyleSheet.create({
   badgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   content: { padding: 16, gap: 12 },
+  contentCompact: { padding: 12, gap: 10 },
+  desktopContent: {
+    alignSelf: "center",
+    width: "100%",
+    maxWidth: 1120,
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    gap: 18,
+  },
 
   section: {
     backgroundColor: Colors.white,
     borderRadius: 16, padding: 16, gap: 14,
     shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05, shadowRadius: 6, elevation: 2,
+  },
+  desktopSection: {
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
   },
   sectionHeader: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 2 },
   sectionIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
@@ -757,6 +798,10 @@ const styles = StyleSheet.create({
   pwdEye: { paddingHorizontal: 14 },
 
   saveBtn: { borderRadius: 14, overflow: "hidden", marginTop: 4 },
+  desktopSaveBtn: {
+    alignSelf: "flex-start",
+    minWidth: 260,
+  },
   saveBtnGradient: {
     flexDirection: "row", alignItems: "center", justifyContent: "center",
     gap: 8, paddingVertical: 16,

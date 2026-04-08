@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, Pressable, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, ScrollView, Platform,
   Modal, FlatList, TouchableOpacity,
+  useWindowDimensions,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,22 +13,12 @@ import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { toast } from "sonner-native";
 import { API_URL } from "@/lib/config";
-import { EnumRol, EnumRolType } from "@/shared/schema/user.schema";
 import { useAuth } from "@/lib/auth-context";
 import {
   getTiposDocumento, getDepartamentos, getMunicipios,
   type TipoDocumento, type Departamento, type Municipio,
 } from "@/lib/services/ubicacionService";
-
-const getRedirectPath = (role: string): "/(tabs)" | "/(firm-tabs)" | "/(lawyer-tabs)" | "/portal" => {
-  switch (role?.toLowerCase()) {
-    case EnumRol.BUFETE.nombre:  return "/(firm-tabs)";
-    case EnumRol.ABOGADO.nombre: return "/(lawyer-tabs)";
-    case EnumRol.CLIENTE.nombre: return "/portal";
-    case EnumRol.ADMIN.nombre:   return "/(tabs)";
-    default:                     return "/(firm-tabs)";
-  }
-};
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Field ───────────────────────────────────────────────────────────────────
 function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
@@ -101,6 +92,10 @@ const sectionStyles = StyleSheet.create({
 // ─── Screen ──────────────────────────────────────────────────────────────────
 export default function RegisterFirmScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1480, Math.max(1140, width - metrics.gutter * 2));
   const { login } = useAuth();
 
   // firma
@@ -226,8 +221,9 @@ export default function RegisterFirmScreen() {
       {/* Header */}
       <LinearGradient
         colors={[Colors.primaryDark, Colors.primary]}
-        style={[styles.header, { paddingTop: insets.top + 16 }]}
+        style={[styles.header, desktop && styles.desktopHeader, { paddingTop: insets.top + (desktop ? 28 : 16), paddingHorizontal: desktop ? metrics.gutter : 20 }]}
       >
+        <View style={[styles.headerShell, desktop && { maxWidth: shellWidth }]}>
         <View style={styles.headerRow}>
           <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
             <Ionicons name="arrow-back" size={22} color={Colors.white} />
@@ -246,14 +242,26 @@ export default function RegisterFirmScreen() {
             Registro empresarial — accede a todas las funciones del bufete
           </Text>
         </View>
+        {desktop && (
+          <View style={styles.desktopHeaderBody}>
+            <Text style={styles.desktopHeaderTitle}>Activa la operación completa de tu firma jurídica</Text>
+            <Text style={styles.desktopHeaderText}>
+              Registra el bufete, configura el acceso principal y añade la información del representante para comenzar a administrar clientes, abogados y procesos.
+            </Text>
+          </View>
+        )}
+        </View>
       </LinearGradient>
 
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktop && styles.desktopScrollContent, desktop && { paddingHorizontal: metrics.gutter }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={[styles.scrollShell, desktop && { maxWidth: shellWidth }]}>
+          <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+          <View style={styles.formColumn}>
           {/* Información del bufete */}
           <View style={styles.card}>
             <Section title="Información del Bufete" iconName="business-outline" iconColor={Colors.primary} />
@@ -389,6 +397,24 @@ export default function RegisterFirmScreen() {
             <Text style={styles.loginLinkText}>¿Ya tienes cuenta? </Text>
             <Text style={[styles.loginLinkText, { color: Colors.primary, fontFamily: "Inter_600SemiBold" }]}>Inicia sesión</Text>
           </Pressable>
+          </View>
+          {desktop && (
+            <View style={styles.desktopAside}>
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Operación</Text>
+                <Text style={styles.desktopAsideTitle}>Cuenta institucional del bufete</Text>
+                <Text style={styles.desktopAsideText}>El registro habilita la estructura base para trabajar con equipo y cartera jurídica.</Text>
+                <View style={styles.desktopBulletList}>
+                  <Text style={styles.desktopBullet}>Datos corporativos del bufete</Text>
+                  <Text style={styles.desktopBullet}>Canales de contacto institucional</Text>
+                  <Text style={styles.desktopBullet}>Representación legal y ubicación</Text>
+                  <Text style={styles.desktopBullet}>Acceso al panel operativo del bufete</Text>
+                </View>
+              </View>
+            </View>
+          )}
+          </View>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -482,6 +508,8 @@ const styles = StyleSheet.create({
 
   // Header
   header: { paddingHorizontal: 20, paddingBottom: 20 },
+  desktopHeader: { paddingBottom: 28 },
+  headerShell: { width: "100%", alignSelf: "center" },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   headerBtn: {
     width: 36, height: 36, borderRadius: 18,
@@ -505,8 +533,27 @@ const styles = StyleSheet.create({
     flex: 1, fontSize: 13, fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.9)", lineHeight: 18,
   },
+  desktopHeaderBody: { marginTop: 18, maxWidth: 780, gap: 8 },
+  desktopHeaderTitle: { fontSize: 28, lineHeight: 34, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeaderText: { fontSize: 14, lineHeight: 22, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.78)" },
 
   scrollContent: { padding: 16, gap: 14, paddingBottom: 48 },
+  desktopScrollContent: { paddingTop: 24, paddingBottom: 32 },
+  scrollShell: { width: "100%", alignSelf: "center" },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  formColumn: { flex: 1, minWidth: 0, maxWidth: 980, gap: 16 },
+  desktopAside: { width: 340, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: Colors.white, borderRadius: 20, padding: 18, gap: 12,
+    borderWidth: 1, borderColor: Colors.borderLight,
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  desktopAsideLabel: { fontSize: 11, color: Colors.textTertiary, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.7 },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: Colors.text, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, fontFamily: "Inter_400Regular" },
+  desktopBulletList: { gap: 8 },
+  desktopBullet: { fontSize: 13, lineHeight: 20, color: Colors.textSecondary, fontFamily: "Inter_500Medium" },
   row: { flexDirection: "row", gap: 12 },
 
   // Card

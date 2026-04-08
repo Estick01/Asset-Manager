@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UnifiedAuthProvider, useAuth } from "@/lib/auth-context";
-import { View, StyleSheet, Dimensions, Platform, LogBox } from "react-native";
+import { View, StyleSheet, Platform, LogBox } from "react-native";
 import "./global.css";
 
 import {
@@ -184,10 +184,6 @@ const styles = StyleSheet.create({
   contentWrapper: {
     flex: 1,
     width: '100%',
-    marginHorizontal: 'auto',
-    ...(Platform.OS === 'web' ? {
-      maxWidth: 1200,
-      marginHorizontal: 'auto',
-    } : {}),
+    alignSelf: 'stretch',
   },
 });

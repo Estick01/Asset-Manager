@@ -3,14 +3,15 @@ import {
   View, Text, StyleSheet, FlatList, Pressable,
   RefreshControl, TextInput, ActivityIndicator,
   ScrollView, Animated,
+  Platform, useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import Colors from "@/constants/colors";
 import { getClientes } from "@/lib/services/clienteService";
 import { getOrCreateConversation } from "@/lib/services/chatService";
 import { type Cliente } from "@/shared/schema";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens ─────────────────────────────────────────────────────────
 const NAVY = "#0F2640";
@@ -107,7 +108,7 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
       delay: index * 45,
       useNativeDriver: true,
     }).start();
-  }, []);
+  }, [anim, index]);
 
   const handleChat = async () => {
     if (!item.userId) return;
@@ -259,6 +260,10 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
 // ─── Screen ───────────────────────────────────────────────────────────────
 export default function FirmClientsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1520, Math.max(1160, width - metrics.gutter * 2));
   const [allClientes, setAllClientes] = useState<Cliente[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -277,7 +282,7 @@ export default function FirmClientsScreen() {
     }
   }, []);
 
-  useEffect(() => { fetchClientes(); }, []);
+  useEffect(() => { fetchClientes(); }, [fetchClientes]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -321,51 +326,59 @@ export default function FirmClientsScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
 
-      {/* ── Header navy ── */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Clientes</Text>
-          {!loading && (
-            <Text style={styles.headerSub}>
-              {activeCount} activos · {inactiveCount} inactivos
-            </Text>
-          )}
+      <View style={[styles.header, desktop && styles.desktopHeader, desktop && { paddingHorizontal: metrics.gutter }]}>
+        <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
+          <View style={styles.headerRow}>
+            <View style={styles.headerCopy}>
+              <Text style={styles.headerTitle}>Clientes</Text>
+              {!loading && (
+                <Text style={styles.headerSub}>
+                  {activeCount} activos · {inactiveCount} inactivos
+                </Text>
+              )}
+              {desktop && (
+                <Text style={styles.desktopHeaderLead}>
+                  Consulta clientes naturales y empresas, filtra por estado y entra rápido al detalle de cada relación.
+                </Text>
+              )}
+            </View>
+            <Pressable
+              style={({ pressed }) => [styles.addBtn, desktop && styles.desktopAddBtn, pressed && { opacity: 0.8 }]}
+              onPress={() => router.push("/client/new")}
+            >
+              <Ionicons name="person-add-outline" size={20} color={WHITE} />
+            </Pressable>
+          </View>
+
+          <View style={[styles.statsBar, desktop && styles.desktopStatsBar]}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{allClientes.length}</Text>
+              <Text style={styles.statLbl}>Total</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{activeCount}</Text>
+              <Text style={styles.statLbl}>Activos</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{allClientes.length - empresaCount}</Text>
+              <Text style={styles.statLbl}>Naturales</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{empresaCount}</Text>
+              <Text style={styles.statLbl}>Empresas</Text>
+            </View>
+          </View>
         </View>
-        <Pressable
-          style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.8 }]}
-          onPress={() => router.push("/client/new")}
-        >
-          <Ionicons name="person-add-outline" size={20} color={WHITE} />
-        </Pressable>
       </View>
 
-      {/* ── Stats bar ── */}
-      <View style={styles.statsBar}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{allClientes.length}</Text>
-          <Text style={styles.statLbl}>Total</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{activeCount}</Text>
-          <Text style={styles.statLbl}>Activos</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{allClientes.length - empresaCount}</Text>
-          <Text style={styles.statLbl}>Naturales</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNum}>{empresaCount}</Text>
-          <Text style={styles.statLbl}>Empresas</Text>
-        </View>
-      </View>
-
-      {/* ── Body ── */}
       <View style={styles.body}>
+        <View style={[styles.shell, desktop && styles.desktopBodyShell, desktop && { maxWidth: shellWidth, paddingHorizontal: metrics.gutter }]}>
+        <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+        <View style={styles.mainColumn}>
 
-        {/* Search */}
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={17} color={TEXT3} />
           <TextInput
@@ -421,7 +434,6 @@ export default function FirmClientsScreen() {
           </View>
         )}
 
-        {/* List */}
         <FlatList
           data={clientes}
           keyExtractor={item => item.id}
@@ -454,6 +466,39 @@ export default function FirmClientsScreen() {
             </View>
           }
         />
+        </View>
+
+        {desktop && (
+          <View style={styles.desktopAside}>
+            <View style={styles.desktopAsideCard}>
+              <Text style={styles.desktopAsideLabel}>Vista actual</Text>
+              <Text style={styles.desktopAsideTitle}>
+                {filterTab === "todos" ? "Todos los clientes" : filterTab === "activos" ? "Clientes activos" : "Clientes inactivos"}
+              </Text>
+              <Text style={styles.desktopAsideText}>
+                {search ? `Búsqueda activa: "${search}".` : "Usa filtros y búsqueda para segmentar la cartera."}
+              </Text>
+            </View>
+
+            <View style={styles.desktopAsideCard}>
+              <Text style={styles.desktopAsideLabel}>Accesos</Text>
+              <Pressable style={styles.desktopAsideAction} onPress={() => router.push("/client/new")}>
+                <Ionicons name="person-add-outline" size={17} color={TEAL} />
+                <Text style={styles.desktopAsideActionText}>Agregar cliente</Text>
+              </Pressable>
+              <Pressable style={styles.desktopAsideAction} onPress={() => setFilterTab("activos")}>
+                <Ionicons name="checkmark-circle-outline" size={17} color={GREEN} />
+                <Text style={styles.desktopAsideActionText}>Ver activos</Text>
+              </Pressable>
+              <Pressable style={styles.desktopAsideAction} onPress={() => setFilterTab("inactivos")}>
+                <Ionicons name="pause-circle-outline" size={17} color={AMBER} />
+                <Text style={styles.desktopAsideActionText}>Ver inactivos</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+        </View>
+        </View>
       </View>
     </View>
   );
@@ -463,23 +508,25 @@ export default function FirmClientsScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: NAVY },
   centered: { justifyContent: "center", alignItems: "center" },
+  shell: { width: "100%", alignSelf: "center" },
 
-  // Header
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
     paddingHorizontal: 20,
     paddingTop: 32,
     paddingBottom: 32,
   },
+  desktopHeader: { paddingTop: 28, paddingBottom: 24 },
+  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 20 },
+  headerCopy: { flex: 1, maxWidth: 760 },
   headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE, marginTop: 2 },
   headerSub: { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", marginTop: 4 },
+  desktopHeaderLead: { marginTop: 10, fontSize: 14, lineHeight: 22, color: "rgba(255,255,255,0.78)", fontFamily: "Inter_400Regular" },
   addBtn: {
     width: 42, height: 42, borderRadius: 21,
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
   },
+  desktopAddBtn: { width: 48, height: 48, borderRadius: 16 },
 
   // Stats
   statsBar: {
@@ -490,6 +537,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 8,
   },
+  desktopStatsBar: { marginHorizontal: 0, marginTop: 18, borderRadius: 20, paddingHorizontal: 14 },
   statItem: { flex: 1, alignItems: "center" },
   statNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: WHITE },
   statLbl: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 2 },
@@ -504,6 +552,24 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingTop: 16,
   },
+  desktopBodyShell: { flex: 1, paddingTop: 8, paddingBottom: 24 },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  mainColumn: { flex: 1, minWidth: 0, maxWidth: 980 },
+  desktopAside: { width: 320, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: WHITE, borderRadius: 20, padding: 18, gap: 12,
+    borderWidth: 1, borderColor: "#E4EAF0",
+    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  },
+  desktopAsideLabel: { fontSize: 11, color: TEXT3, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.7 },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: TEXT, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: TEXT2, fontFamily: "Inter_400Regular" },
+  desktopAsideAction: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#F5F7FA",
+  },
+  desktopAsideActionText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_600SemiBold" },
 
   // Search
   searchBar: {

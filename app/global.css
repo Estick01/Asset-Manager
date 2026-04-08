@@ -1,15 +1,11 @@
 /* Global styles for web */
 html, body, #__next {
   width: 100%;
-  max-width: 1200px;
   margin: 0 auto;
   padding: 0;
 }
 
 /* Ensure the root element has proper constraints */
-:root {
-  --max-width: 1200px;
-}
 
 /* Prevent horizontal overflow */
 body {

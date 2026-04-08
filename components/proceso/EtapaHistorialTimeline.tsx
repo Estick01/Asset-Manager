@@ -4,7 +4,7 @@
  * Permite visualizar la evolución de cada etapa con sus diferentes estados
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator,
   Pressable, Modal, TextInput,
@@ -19,6 +19,7 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   canEdit?: boolean; // Si el usuario puede agregar nuevos registros
+  focusEtapa?: string | null;
 }
 
 interface HistorialItemProps {
@@ -108,19 +109,13 @@ function HistorialItem({ registro, isLast, onEdit }: HistorialItemProps) {
   );
 }
 
-export default function EtapaHistorialTimeline({ procesoId, visible, onClose, canEdit = false }: Props) {
+export default function EtapaHistorialTimeline({ procesoId, visible, onClose, canEdit = false, focusEtapa = null }: Props) {
   const [historial, setHistorial] = useState<ProcesoEtapaHistorialDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRegistro, setSelectedRegistro] = useState<ProcesoEtapaHistorialDTO | null>(null);
 
-  useEffect(() => {
-    if (visible && procesoId) {
-      loadHistorial();
-    }
-  }, [visible, procesoId]);
-
-  const loadHistorial = async () => {
+  const loadHistorial = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getEtapaHistorial(procesoId);
@@ -130,7 +125,13 @@ export default function EtapaHistorialTimeline({ procesoId, visible, onClose, ca
     } finally {
       setLoading(false);
     }
-  };
+  }, [procesoId]);
+
+  useEffect(() => {
+    if (visible && procesoId) {
+      loadHistorial();
+    }
+  }, [visible, procesoId, loadHistorial]);
 
   const handleAddRegistro = () => {
     setSelectedRegistro(null);
@@ -154,13 +155,26 @@ export default function EtapaHistorialTimeline({ procesoId, visible, onClose, ca
 
   if (!visible) return null;
 
+  const historialVisible = focusEtapa
+    ? historial.filter((registro) => registro.etapa === focusEtapa)
+    : historial;
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.container}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Historial de Etapas</Text>
+            <View style={styles.headerCopy}>
+              <Text style={styles.title}>
+                {focusEtapa ? `Historial de ${focusEtapa}` : "Historial de Etapas"}
+              </Text>
+              {focusEtapa && (
+                <Text style={styles.subtitle}>
+                  Aqui se muestran solo los estados e incidencias registrados para esta etapa.
+                </Text>
+              )}
+            </View>
             <Pressable onPress={onClose} hitSlop={8}>
               <Ionicons name="close" size={24} color={Colors.textSecondary} />
             </Pressable>
@@ -174,17 +188,28 @@ export default function EtapaHistorialTimeline({ procesoId, visible, onClose, ca
             </View>
           ) : (
             <FlatList
-              data={historial}
+              data={historialVisible}
               keyExtractor={(item) => `${item.id}`}
               renderItem={({ item, index }) => (
                 <HistorialItem
                   registro={item}
-                  isLast={index === historial.length - 1}
+                  isLast={index === historialVisible.length - 1}
                   onEdit={canEdit ? handleEditRegistro : undefined}
                 />
               )}
               contentContainerStyle={styles.timelineList}
               showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={styles.emptyState}>
+                  <Ionicons name="time-outline" size={28} color={Colors.textTertiary} />
+                  <Text style={styles.emptyStateTitle}>Sin registros para esta etapa</Text>
+                  <Text style={styles.emptyStateText}>
+                    {focusEtapa
+                      ? "Todavia no hay cambios de estado ni incidencias guardadas para esta etapa."
+                      : "Todavia no hay historial formal registrado en este proceso."}
+                  </Text>
+                </View>
+              }
             />
           )}
 
@@ -345,15 +370,25 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: 12,
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: 4,
   },
   title: {
     fontSize: 18,
     fontWeight: "600",
     color: Colors.text,
+  },
+  subtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.textSecondary,
   },
 
   loadingContainer: {
@@ -369,6 +404,25 @@ const styles = StyleSheet.create({
 
   timelineList: {
     padding: 20,
+    flexGrow: 1,
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 48,
+    paddingHorizontal: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Colors.text,
+  },
+  emptyStateText: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: Colors.textSecondary,
+    textAlign: "center",
   },
   timelineItem: {
     flexDirection: "row",

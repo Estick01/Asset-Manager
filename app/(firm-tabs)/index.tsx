@@ -1,7 +1,14 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView,
-  Pressable, RefreshControl, ActivityIndicator
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  RefreshControl,
+  ActivityIndicator,
+  Platform,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -9,19 +16,200 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
-import { UnifiedUser } from "@/lib/auth";
 import { getFirmDashboardStats, FirmDashboardStats } from "@/lib/services/firmDashboardService";
 import { getProcesos } from "@/lib/services/procesoService";
-import { ProcesoDTO, type Proceso, type FirmProfile } from "@/shared/schema";
+import { ProcesoDTO, type FirmProfile } from "@/shared/schema";
 import { useInvitations } from "@/lib/invitations-context";
 import { useNotifications } from "@/lib/notifications-context";
 import { getPendingReassignments } from "@/lib/services/ownershipService";
 import { PendingReassignmentBanner } from "@/components/bufete/PendingReassignmentBanner";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
+
+function formatDate(date: Date | string) {
+  return new Date(date).toLocaleDateString("es-CO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function CompanyStat({
+  label,
+  value,
+  icon,
+  color,
+  compact = false,
+}: {
+  label: string;
+  value: number;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  compact?: boolean;
+}) {
+  return (
+    <View style={[styles.statCard, compact && styles.statCardCompact]}>
+      <View style={[styles.statIcon, { backgroundColor: color + "15" }]}>
+        <Ionicons name={icon} size={compact ? 18 : 20} color={color} />
+      </View>
+      <Text style={[styles.statValue, compact && styles.statValueCompact]}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function Panel({
+  title,
+  actionLabel,
+  onAction,
+  children,
+}: {
+  title: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View style={styles.panel}>
+      <View style={styles.panelHeader}>
+        <Text style={styles.panelTitle}>{title}</Text>
+        {actionLabel && onAction ? (
+          <Pressable onPress={onAction}>
+            <Text style={styles.panelAction}>{actionLabel}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function ActionTile({
+  label,
+  hint,
+  icon,
+  color,
+  onPress,
+  badge,
+  compact = false,
+  fullWidth = false,
+}: {
+  label: string;
+  hint: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  color: string;
+  onPress: () => void;
+  badge?: number;
+  compact?: boolean;
+  fullWidth?: boolean;
+}) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.actionTile,
+        compact && styles.actionTileCompact,
+        fullWidth && styles.actionTileFullWidth,
+        pressed && { opacity: 0.86 },
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.actionTileIcon, compact && styles.actionTileIconCompact, { backgroundColor: color + "16" }]}>
+        <Ionicons name={icon} size={compact ? 16 : 18} color={color} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <View style={styles.actionTileTitleRow}>
+          <Text style={[styles.actionTileTitle, compact && styles.actionTileTitleCompact]} numberOfLines={1}>{label}</Text>
+          {badge && badge > 0 ? (
+            <View style={styles.actionTileBadge}>
+              <Text style={styles.actionTileBadgeText}>{badge > 9 ? "9+" : badge}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[styles.actionTileHint, compact && styles.actionTileHintCompact]} numberOfLines={compact ? 1 : 2}>{hint}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+    </Pressable>
+  );
+}
+
+function ProcessRow({ item }: { item: ProcesoDTO & { clienteNombre?: string } }) {
+  const stateColor = item.estado?.color ?? Colors.textTertiary;
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.processRow, pressed && { opacity: 0.88 }]}
+      onPress={() => router.push({ pathname: "/case/[id]", params: { id: item.id } })}
+    >
+      <View style={[styles.processAccent, { backgroundColor: stateColor }]} />
+      <View style={styles.processContent}>
+        <View style={styles.processTop}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.processId} numberOfLines={1}>{item.radicado}</Text>
+            <Text style={styles.processType} numberOfLines={1}>{item.tipoProceso?.nombre ?? "Proceso"}</Text>
+          </View>
+          <View style={[styles.processState, { backgroundColor: stateColor + "18" }]}>
+            <Text style={[styles.processStateText, { color: stateColor }]}>{item.estado?.nombre ?? "Sin estado"}</Text>
+          </View>
+        </View>
+
+        <View style={styles.processMeta}>
+          <View style={styles.processMetaItem}>
+            <Ionicons name="business-outline" size={12} color={Colors.textTertiary} />
+            <Text style={styles.processMetaText} numberOfLines={1}>{item.clienteNombre || "Sin cliente"}</Text>
+          </View>
+          <View style={styles.processMetaItem}>
+            <Ionicons name="calendar-outline" size={12} color={Colors.textTertiary} />
+            <Text style={styles.processMetaText}>{formatDate(item.fechaCreacion)}</Text>
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+function DistributionBar({
+  rows,
+}: {
+  rows: Array<{ nombre: string; total: number; color?: string }>;
+}) {
+  const total = rows.reduce((sum, row) => sum + row.total, 0) || 1;
+  return (
+    <View style={styles.distributionWrap}>
+      <View style={styles.distributionBar}>
+        {rows.map((row, index) => (
+          <View
+            key={`${row.nombre}-${index}`}
+            style={[
+              styles.distributionSegment,
+              {
+                flex: row.total,
+                backgroundColor: row.color || [Colors.primary, Colors.info, Colors.accent, Colors.success][index % 4],
+              },
+            ]}
+          />
+        ))}
+      </View>
+      <View style={styles.distributionLegend}>
+        {rows.map((row, index) => {
+          const color = row.color || [Colors.primary, Colors.info, Colors.accent, Colors.success][index % 4];
+          return (
+            <View key={`${row.nombre}-legend-${index}`} style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: color }]} />
+              <Text style={styles.legendName}>{row.nombre}</Text>
+              <Text style={styles.legendValue}>{Math.round((row.total / total) * 100)}%</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
 
 export default function FirmDashboardScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const compactMobile = width < 420;
   const { user, isLoggedIn } = useAuth();
-
   const [stats, setStats] = useState<FirmDashboardStats | null>(null);
   const [recentCases, setRecentCases] = useState<(ProcesoDTO & { clienteNombre?: string })[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,12 +222,13 @@ export default function FirmDashboardScreen() {
     if (!user) return;
     try {
       const firmId = (user.profile as FirmProfile | undefined)?.id;
-      const [s, procesos, pendingIds] = await Promise.all([
+      const [dashboardStats, procesos, pendingIds] = await Promise.all([
         getFirmDashboardStats(),
-        getProcesos(5, 0),
+        getProcesos(6, 0),
         firmId ? getPendingReassignments(firmId) : Promise.resolve([]),
       ]);
-      setStats(s);
+
+      setStats(dashboardStats);
       setRecentCases(procesos.data);
       setPendingReassignCount(pendingIds.length);
     } catch (error) {
@@ -50,7 +239,9 @@ export default function FirmDashboardScreen() {
   }, [user]);
 
   useEffect(() => {
-    if (isLoggedIn) loadData();
+    if (isLoggedIn) {
+      void loadData();
+    }
   }, [isLoggedIn, loadData]);
 
   const onRefresh = async () => {
@@ -58,6 +249,24 @@ export default function FirmDashboardScreen() {
     await loadData();
     setRefreshing(false);
   };
+
+  const displayName = user?.user?.name || "Mi Bufete";
+  const firmId = (user?.profile as FirmProfile | undefined)?.id ?? "";
+
+  const statRows = useMemo(() => {
+    if (!stats) return [];
+    return [
+      { label: "Abogados activos", value: stats.abogadosActivos, icon: "people-outline" as const, color: Colors.primary },
+      { label: "Clientes activos", value: stats.clientesActivos, icon: "person-outline" as const, color: Colors.info },
+      { label: "Procesos activos", value: stats.procesosActivos, icon: "pulse-outline" as const, color: Colors.success },
+      { label: "Finalizados", value: stats.procesosFinalizados, icon: "checkmark-circle-outline" as const, color: Colors.accent },
+      { label: "Documentos", value: stats.totalDocumentos, icon: "document-text-outline" as const, color: Colors.warning },
+      { label: "Actividad del mes", value: stats.actualizacionesEsteMes, icon: "trending-up-outline" as const, color: Colors.danger },
+      { label: "Tareas pendientes", value: stats.tareasPendientes, icon: "time-outline" as const, color: Colors.warning },
+      { label: "En progreso", value: stats.tareasEnProgreso, icon: "refresh-outline" as const, color: Colors.info },
+      { label: "Completadas", value: stats.tareasCompletadas, icon: "checkmark-done-outline" as const, color: Colors.success },
+    ];
+  }, [stats]);
 
   if (loading) {
     return (
@@ -67,16 +276,172 @@ export default function FirmDashboardScreen() {
     );
   }
 
-  const pieData = stats?.procesosPorEstado.map(e => ({
-    x: e.nombre,
-    y: e.total,
-    color: e.color,
-  })) || [];
+  if (!stats) {
+    return (
+      <View style={styles.loadingScreen}>
+        <Text style={styles.emptyStateText}>No se pudo cargar el dashboard del bufete.</Text>
+      </View>
+    );
+  }
 
-  const barData = stats?.procesosPorTipo.map((t, i) => ({
-    x: t.nombre.length > 10 ? t.nombre.substring(0, 10) + "..." : t.nombre,
-    y: t.total,
-  })) || [];
+  if (desktop) {
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{ paddingBottom: metrics.gutter }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopHero, { marginBottom: metrics.contentGap }]}>
+          <LinearGradient colors={[Colors.primaryDark, Colors.primary]} style={styles.desktopHeroGradient}>
+            <View style={styles.desktopHeroTop}>
+              <View style={styles.desktopBrandCluster}>
+                <View style={styles.desktopBrandIcon}>
+                  <Ionicons name="business-outline" size={30} color={Colors.white} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.desktopHeroTitle}>{displayName}</Text>
+                </View>
+              </View>
+
+              <View style={styles.desktopHeroStrip}>
+                <View style={styles.desktopHeroMetric}>
+                  <Text style={styles.desktopHeroMetricValue}>{stats.totalAbogados}</Text>
+                  <Text style={styles.desktopHeroMetricLabel}>abogados</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroMetric}>
+                  <Text style={styles.desktopHeroMetricValue}>{stats.totalClientes}</Text>
+                  <Text style={styles.desktopHeroMetricLabel}>clientes</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroMetric}>
+                  <Text style={styles.desktopHeroMetricValue}>{stats.totalProcesos}</Text>
+                  <Text style={styles.desktopHeroMetricLabel}>procesos</Text>
+                </View>
+                <View style={styles.desktopHeroDivider} />
+                <View style={styles.desktopHeroMetric}>
+                  <Text style={styles.desktopHeroMetricValue}>{stats.procesosEsteMes}</Text>
+                  <Text style={styles.desktopHeroMetricLabel}>nuevos este mes</Text>
+                </View>
+              </View>
+            </View>
+          </LinearGradient>
+        </View>
+
+        <PendingReassignmentBanner count={pendingReassignCount} firmId={firmId} />
+
+        <View style={[styles.desktopStatsGrid, { gap: metrics.contentGap, marginTop: metrics.contentGap, marginBottom: metrics.contentGap }]}>
+          {statRows.map((item) => (
+            <CompanyStat key={item.label} {...item} compact />
+          ))}
+        </View>
+
+        <View style={[styles.desktopColumns, { gap: metrics.contentGap }]}>
+          <View style={styles.desktopMainColumn}>
+            <Panel title="Acciones del bufete">
+              <View style={styles.actionGrid}>
+                <ActionTile
+                  label="Nuevo cliente"
+                  hint="Abre una nueva relación y registra sus datos base."
+                  icon="person-add-outline"
+                  color={Colors.primary}
+                  onPress={() => router.push("/client/new")}
+                />
+                <ActionTile
+                  label="Nuevo proceso"
+                  hint="Lleva el intake del caso y asígnalo al responsable."
+                  icon="add-circle-outline"
+                  color={Colors.success}
+                  onPress={() => router.push("/case/new")}
+                />
+                <ActionTile
+                  label="Equipo"
+                  hint="Administra abogados, roles y distribución operativa."
+                  icon="people-circle-outline"
+                  color={Colors.accent}
+                  onPress={() => router.push("/firm-components/firm-team")}
+                />
+                <ActionTile
+                  label="Invitaciones"
+                  hint="Controla altas pendientes y seguimiento de invitaciones."
+                  icon="mail-outline"
+                  color={Colors.warning}
+                  badge={pendingCount}
+                  onPress={() => router.push("/firm-components/firm-invitations")}
+                />
+              </View>
+            </Panel>
+
+            <Panel title="Distribución de procesos por estado">
+              <DistributionBar rows={stats.procesosPorEstado} />
+            </Panel>
+
+            <Panel title="Procesos recientes" actionLabel="Ver todos" onAction={() => router.push("/(firm-tabs)/cases" as any)}>
+              <View style={styles.processList}>
+                {recentCases.length === 0 ? (
+                  <View style={styles.emptyStateBox}>
+                    <Ionicons name="folder-open-outline" size={30} color={Colors.textTertiary} />
+                    <Text style={styles.emptyStateTitle}>Aún no hay procesos recientes</Text>
+                    <Text style={styles.emptyStateHint}>El panel mostrará aquí el flujo operativo más reciente del bufete.</Text>
+                  </View>
+                ) : (
+                  recentCases.map((item) => <ProcessRow key={item.id} item={item} />)
+                )}
+              </View>
+            </Panel>
+          </View>
+
+          <View style={styles.desktopSideColumn}>
+            <Panel title="Resumen ejecutivo">
+              <View style={styles.summaryStack}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Abogados suspendidos</Text>
+                  <Text style={styles.summaryValue}>{stats.abogadosSuspendidos}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Reasignaciones pendientes</Text>
+                  <Text style={styles.summaryValue}>{pendingReassignCount}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Alertas no leídas</Text>
+                  <Text style={styles.summaryValue}>{unreadNotifCount}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Tareas totales</Text>
+                  <Text style={styles.summaryValue}>{stats.totalTareas}</Text>
+                </View>
+              </View>
+            </Panel>
+
+            <Panel title="Volumen por tipo de proceso">
+              <View style={styles.typeStack}>
+                {stats.procesosPorTipo.slice(0, 6).map((item, index) => (
+                  <View key={`${item.nombre}-${index}`} style={styles.typeRow}>
+                    <View style={styles.typeHeader}>
+                      <Text style={styles.typeName} numberOfLines={1}>{item.nombre}</Text>
+                      <Text style={styles.typeValue}>{item.total}</Text>
+                    </View>
+                    <View style={styles.typeBarTrack}>
+                      <View
+                        style={[
+                          styles.typeBarFill,
+                          {
+                            width: `${Math.max(10, (item.total / Math.max(...stats.procesosPorTipo.map((row) => row.total), 1)) * 100)}%` as any,
+                            backgroundColor: [Colors.primary, Colors.info, Colors.accent, Colors.success][index % 4],
+                          },
+                        ]}
+                      />
+                    </View>
+                  </View>
+                ))}
+              </View>
+            </Panel>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={styles.screen}>
@@ -84,510 +449,314 @@ export default function FirmDashboardScreen() {
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
         contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
         <LinearGradient
           colors={[Colors.primaryDark, Colors.primary]}
-          style={[styles.headerGradient, { paddingTop: insets.top + 16 }]}
+          style={[
+            styles.mobileHeroGradient,
+            compactMobile && styles.mobileHeroGradientCompact,
+            { paddingTop: insets.top + 16 },
+          ]}
         >
-          <View style={styles.headerContent}>
+          <View style={styles.mobileHeaderTop}>
             <View>
-              <Text style={styles.greeting}>Bienvenido a</Text>
-              <Text style={styles.userName}>{(user as UnifiedUser).user.name || "Mi Bufete"}</Text>
-              <View style={styles.roleBadgeRow}>
-                <Text style={styles.roleBadge}>Plan Empresarial</Text>
+              <Text style={styles.mobileGreeting}>Bienvenido a</Text>
+              <Text style={styles.mobileTitle}>{displayName}</Text>
+              <View style={styles.mobileBadgeWrap}>
+                <Text style={styles.mobileBadge}>Plan Empresarial</Text>
               </View>
             </View>
-            <View style={styles.headerActions}>
-              <Pressable
-                style={styles.headerIconBtn}
-                onPress={() => router.push("/firm-components/firm-notifications")}
-              >
+            <View style={[styles.mobileHeaderActions, compactMobile && styles.mobileHeaderActionsCompact]}>
+              <Pressable style={styles.mobileHeaderBtn} onPress={() => router.push("/firm-components/firm-notifications")}>
                 <Ionicons name="notifications-outline" size={22} color="#fff" />
                 {unreadNotifCount > 0 && (
                   <View style={styles.notifBadge}>
-                    <Text style={styles.notifBadgeText}>
-                      {unreadNotifCount > 9 ? "9+" : unreadNotifCount}
-                    </Text>
+                    <Text style={styles.notifBadgeText}>{unreadNotifCount > 9 ? "9+" : unreadNotifCount}</Text>
                   </View>
                 )}
               </Pressable>
-              <Pressable
-                style={styles.headerIconBtn}
-                onPress={() => router.push("/firm-components/firm-settings" as any)}
-              >
+              <Pressable style={styles.mobileHeaderBtn} onPress={() => router.push("/firm-components/firm-settings" as any)}>
                 <Ionicons name="settings-outline" size={22} color="#fff" />
-              </Pressable>
-              <Pressable style={styles.avatarCircle}>
-                <Ionicons name="business" size={24} color={Colors.primary} />
               </Pressable>
             </View>
           </View>
 
-          {/* Mini stats en el header */}
-          <View style={styles.headerStats}>
-            <View style={styles.headerStatItem}>
-              <Text style={styles.headerStatValue}>{stats?.totalAbogados ?? 0}</Text>
-              <Text style={styles.headerStatLabel}>Abogados</Text>
+          <View style={[styles.mobileHeroStats, compactMobile && styles.mobileHeroStatsCompact]}>
+            <View style={styles.mobileHeroStat}>
+              <Text style={styles.mobileHeroValue}>{stats.totalAbogados}</Text>
+              <Text style={styles.mobileHeroLabel}>Abogados</Text>
             </View>
-            <View style={styles.headerStatDivider} />
-            <View style={styles.headerStatItem}>
-              <Text style={styles.headerStatValue}>{stats?.totalClientes ?? 0}</Text>
-              <Text style={styles.headerStatLabel}>Clientes</Text>
+            <View style={styles.mobileHeroDivider} />
+            <View style={styles.mobileHeroStat}>
+              <Text style={styles.mobileHeroValue}>{stats.totalClientes}</Text>
+              <Text style={styles.mobileHeroLabel}>Clientes</Text>
             </View>
-            <View style={styles.headerStatDivider} />
-            <View style={styles.headerStatItem}>
-              <Text style={styles.headerStatValue}>{stats?.totalProcesos ?? 0}</Text>
-              <Text style={styles.headerStatLabel}>Procesos</Text>
-            </View>
-            <View style={styles.headerStatDivider} />
-            <View style={styles.headerStatItem}>
-              <Text style={styles.headerStatValue}>{stats?.procesosEsteMes ?? 0}</Text>
-              <Text style={styles.headerStatLabel}>Este mes</Text>
+            <View style={styles.mobileHeroDivider} />
+            <View style={styles.mobileHeroStat}>
+              <Text style={styles.mobileHeroValue}>{stats.totalProcesos}</Text>
+              <Text style={styles.mobileHeroLabel}>Procesos</Text>
             </View>
           </View>
         </LinearGradient>
 
-        {/* Banner de reasignación pendiente */}
-        <PendingReassignmentBanner
-          count={pendingReassignCount}
-          firmId={(user?.profile as FirmProfile | undefined)?.id ?? ""}
-        />
+        <PendingReassignmentBanner count={pendingReassignCount} firmId={firmId} />
 
-        <View style={styles.content}>
-
-          {/* Quick Actions */}
-          <View style={styles.quickActions}>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
-              onPress={() => router.push("/client/new")}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: Colors.primary + "15" }]}>
-                <Ionicons name="person-add" size={20} color={Colors.primary} />
-              </View>
-              <Text style={styles.actionText}>Nuevo Cliente</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
-              onPress={() => router.push("/case/new")}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: Colors.success + "15" }]}>
-                <Ionicons name="add-circle" size={20} color={Colors.success} />
-              </View>
-              <Text style={styles.actionText}>Nuevo Proceso</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, pressed && styles.actionBtnPressed]}
-              onPress={() => router.push("/firm-components/firm-team")}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: Colors.accent + "15" }]}>
-                <Ionicons name="people" size={20} color={Colors.accent} />
-              </View>
-              <Text style={styles.actionText}>Mi Equipo</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.actionBtn, styles.actionBtnInvitation, pressed && styles.actionBtnPressed]}
-              onPress={() => router.push("/firm-components/firm-invitations")}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: Colors.warning + "15" }]}>
-                <Ionicons name="mail" size={20} color={Colors.warning} />
-              </View>
-              <Text style={styles.actionText}>Invitaciones</Text>
-              {pendingCount > 0 && (
-                <View style={styles.actionBadge}>
-                  <Text style={styles.actionBadgeText}>{pendingCount}</Text>
-                </View>
-              )}
-            </Pressable>
-          </View>
-
-          {/* Stats Grid */}
-          <View style={styles.statsGrid}>
-            <StatCard
-              label="Abogados Activos"
-              value={stats?.abogadosActivos ?? 0}
-              total={stats?.totalAbogados ?? 0}
-              icon="people"
+        <View style={[styles.mobileContent, compactMobile && styles.mobileContentCompact]}>
+          <View style={styles.mobileActionGrid}>
+            <ActionTile
+              label="Nuevo cliente"
+              hint="Alta rápida de relación."
+              icon="person-add-outline"
               color={Colors.primary}
+              compact={compactMobile}
+              fullWidth
+              onPress={() => router.push("/client/new")}
             />
-            <StatCard
-              label="Clientes Activos"
-              value={stats?.clientesActivos ?? 0}
-              total={stats?.totalClientes ?? 0}
-              icon="person"
-              color={Colors.info}
-            />
-            <StatCard
-              label="Procesos Activos"
-              value={stats?.procesosActivos ?? 0}
-              total={stats?.totalProcesos ?? 0}
-              icon="pulse"
+            <ActionTile
+              label="Nuevo proceso"
+              hint="Registro de caso."
+              icon="add-circle-outline"
               color={Colors.success}
+              compact={compactMobile}
+              fullWidth
+              onPress={() => router.push("/case/new")}
             />
-            <StatCard
-              label="Finalizados"
-              value={stats?.procesosFinalizados ?? 0}
-              total={stats?.totalProcesos ?? 0}
-              icon="checkmark-circle"
+            <ActionTile
+              label="Mi equipo"
+              hint="Gestiona abogados."
+              icon="people-circle-outline"
               color={Colors.accent}
+              compact={compactMobile}
+              fullWidth
+              onPress={() => router.push("/firm-components/firm-team")}
             />
-            <StatCard
-              label="Documentos"
-              value={stats?.totalDocumentos ?? 0}
-              icon="document-text"
+            <ActionTile
+              label="Invitaciones"
+              hint="Pendientes por revisar."
+              icon="mail-outline"
               color={Colors.warning}
-            />
-            <StatCard
-              label="Actividad Mes"
-              value={stats?.actualizacionesEsteMes ?? 0}
-              icon="trending-up"
-              color={Colors.danger}
-            />
-            <StatCard
-              label="Tareas Pendientes"
-              value={stats?.tareasPendientes ?? 0}
-              total={stats?.totalTareas ?? 0}
-              icon="time"
-              color={Colors.warning}
-            />
-            <StatCard
-              label="Tareas En Progreso"
-              value={stats?.tareasEnProgreso ?? 0}
-              total={stats?.totalTareas ?? 0}
-              icon="reload"
-              color={Colors.info}
-            />
-            <StatCard
-              label="Tareas Completadas"
-              value={stats?.tareasCompletadas ?? 0}
-              total={stats?.totalTareas ?? 0}
-              icon="checkmark-done"
-              color={Colors.success}
+              badge={pendingCount}
+              compact={compactMobile}
+              fullWidth
+              onPress={() => router.push("/firm-components/firm-invitations")}
             />
           </View>
 
-          {/* Gráfica de estados - Procesos por estado */}
-          {pieData.length > 0 && (
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Procesos por Estado</Text>
-              <View style={styles.pieContainer}>
-                <View style={styles.simplePieContainer}>
-                  {pieData.map((item, idx) => {
-                    const total = pieData.reduce((sum, d) => sum + d.y, 0);
-                    const percentage = total > 0 ? (item.y / total) * 100 : 0;
-                    return (
-                      <View
-                        key={idx}
-                        style={[
-                          styles.simplePieSegment,
-                          {
-                            backgroundColor: item.color,
-                            flex: percentage,
-                          },
-                        ]}
-                      />
-                    );
-                  })}
-                </View>
-                <View style={styles.pieLegend}>
-                  {pieData.map((item, idx) => (
-                    <View key={idx} style={styles.legendItem}>
-                      <View style={[styles.legendDot, { backgroundColor: item.color }]} />
-                      <Text style={styles.legendLabel}>{item.x}</Text>
-                      <Text style={styles.legendValue}>{item.y}</Text>
-                    </View>
-                  ))}
-                </View>
+          <View style={[styles.mobileStatsGrid, compactMobile && styles.mobileStatsGridCompact]}>
+            {statRows.slice(0, 6).map((item) => (
+              <View key={item.label} style={compactMobile ? styles.mobileSingleColumnItem : styles.mobileHalfColumnItem}>
+                <CompanyStat {...item} />
               </View>
-            </View>
-          )}
-
-          {/* Gráfica de barras - Procesos por tipo */}
-          {barData.length > 0 && (
-            <View style={styles.chartCard}>
-              <Text style={styles.chartTitle}>Procesos por Tipo</Text>
-              <View style={styles.barChartContainer}>
-                {barData.map((item, idx) => {
-                  const maxValue = Math.max(...barData.map(d => d.y), 1);
-                  const barHeight = (item.y / maxValue) * 150;
-                  return (
-                    <View key={idx} style={styles.barItem}>
-                      <Text style={styles.barValue}>{item.y}</Text>
-                      <View style={[styles.bar, { height: Math.max(barHeight, 4) }]}>
-                        <View
-                          style={[
-                            styles.barFill,
-                            { height: Math.max(barHeight, 4) },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.barLabel} numberOfLines={1}>{item.x}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Procesos Recientes */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Procesos Recientes</Text>
-            <Pressable onPress={() => router.push("/cases")}>
-              <Text style={styles.seeAll}>Ver todos</Text>
-            </Pressable>
+            ))}
           </View>
 
-          {recentCases.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="folder-open-outline" size={48} color={Colors.textTertiary} />
-              <Text style={styles.emptyTitle}>Sin procesos</Text>
-              <Text style={styles.emptySubtitle}>Crea tu primer proceso para comenzar</Text>
+          <Panel title="Procesos recientes" actionLabel="Ver todos" onAction={() => router.push("/(firm-tabs)/cases" as any)}>
+            <View style={styles.processList}>
+              {recentCases.length === 0 ? (
+                <View style={styles.emptyStateBox}>
+                  <Ionicons name="folder-open-outline" size={30} color={Colors.textTertiary} />
+                  <Text style={styles.emptyStateTitle}>Sin procesos</Text>
+                  <Text style={styles.emptyStateHint}>Crea tu primer proceso para comenzar.</Text>
+                </View>
+              ) : (
+                recentCases.map((item) => <ProcessRow key={item.id} item={item} />)
+              )}
             </View>
-          ) : (
-            recentCases.map((caso, index) => {
-              const estadoColor = caso.estado?.color ?? Colors.textTertiary;
-              const ubicacion = [
-                caso.clienteMunicipio?.nombre,
-                caso.clienteDepartamento?.nombre,
-              ].filter(Boolean).join(", ");
-
-              return (
-                <Pressable
-                  key={caso.id}
-                  style={({ pressed }) => [styles.caseCard, pressed && styles.caseCardPressed]}
-                  onPress={() => router.push({ pathname: "/case/[id]", params: { id: caso.id } })}
-                >
-                  {/* Acento lateral de color */}
-                  <View style={[styles.caseAccent, { backgroundColor: estadoColor }]} />
-
-                  <View style={styles.caseCardInner}>
-                    {/* Header: radicado + tipo + badge estado */}
-                    <View style={styles.caseCardHeader}>
-                      <View style={styles.caseInfo}>
-                        <Text style={styles.caseRadicado} numberOfLines={1}>{caso.radicado}</Text>
-                        {caso.tipoProceso?.nombre && (
-                          <Text style={styles.caseTipo} numberOfLines={1}>{caso.tipoProceso.nombre}</Text>
-                        )}
-                      </View>
-                      <View style={[styles.estadoBadge, { backgroundColor: estadoColor + "1A" }]}>
-                        <View style={[styles.estadoDot, { backgroundColor: estadoColor }]} />
-                        <Text style={[styles.estadoText, { color: estadoColor }]}>
-                          {caso.estado?.nombre ?? "—"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.caseDivider} />
-
-                    {/* Footer: cliente, juzgado, responsable */}
-                    <View style={styles.caseCardFooter}>
-                      <View style={styles.clienteRow}>
-                        <View style={[styles.caseIconWrap, { backgroundColor: Colors.primary + "15" }]}>
-                          <Ionicons
-                            name={caso.tipoCliente === "empresa" ? "business-outline" : "person-outline"}
-                            size={11}
-                            color={Colors.primary}
-                          />
-                        </View>
-                        <Text style={styles.clienteText} numberOfLines={1}>
-                          {caso.clienteNombre || "Sin cliente"}
-                          {caso.tipoCliente
-                            ? <Text style={styles.clienteTextMuted}> · {caso.tipoCliente}</Text>
-                            : null}
-                        </Text>
-                      </View>
-
-                      <View style={styles.clienteRow}>
-                        <View style={[styles.caseIconWrap, { backgroundColor: Colors.warning + "15" }]}>
-                          <Ionicons name="document-text-outline" size={11} color={Colors.warning} />
-                        </View>
-                        <Text style={styles.clienteText} numberOfLines={1}>
-                          {caso.juzgado || "—"}
-                        </Text>
-                      </View>
-
-                      <View style={styles.clienteRow}>
-                        <View style={[styles.caseIconWrap, {
-                          backgroundColor: (caso.responsable ? Colors.success : Colors.danger) + "15"
-                        }]}>
-                          <Ionicons
-                            name="person-circle-outline"
-                            size={11}
-                            color={caso.responsable ? Colors.success : Colors.danger}
-                          />
-                        </View>
-                        <Text style={[
-                          styles.clienteText,
-                          !caso.responsable && { color: Colors.danger }
-                        ]} numberOfLines={1}>
-                          {caso.responsable
-                            ? `${caso.responsable.lawyer?.persona?.nombre} ${caso.responsable.lawyer?.persona?.apellido}`
-                            : "Sin responsable"}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Info extra: solo persona natural */}
-                    {caso.tipoCliente === "natural" && (
-                      <View style={styles.caseExtraRow}>
-                        {caso.clienteDocumento && (
-                          <View style={styles.caseExtraItem}>
-                            <Ionicons name="card-outline" size={11} color={Colors.textTertiary} />
-                            <Text style={styles.caseExtraText}>CC {caso.clienteDocumento}</Text>
-                          </View>
-                        )}
-                        {caso.clienteTelefono && (
-                          <View style={styles.caseExtraItem}>
-                            <Ionicons name="call-outline" size={11} color={Colors.textTertiary} />
-                            <Text style={styles.caseExtraText}>{caso.clienteTelefono}</Text>
-                          </View>
-                        )}
-                        {ubicacion.length > 0 && (
-                          <View style={styles.caseExtraItem}>
-                            <Ionicons name="location-outline" size={11} color={Colors.textTertiary} />
-                            <Text style={styles.caseExtraText}>{ubicacion}</Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-
-                    {/* Representante legal: solo empresa */}
-                    {caso.representanteLegal && (
-                      <View style={styles.caseRepBox}>
-                        <Text style={styles.caseRepLabel}>Rep. legal</Text>
-                        <View style={styles.caseRepRow}>
-                          <View style={styles.caseExtraItem}>
-                            <Ionicons name="person-outline" size={11} color={Colors.textTertiary} />
-                            <Text style={styles.caseExtraText}>
-                              {caso.representanteLegal.nombre} {caso.representanteLegal.apellido}
-                              {caso.representanteLegal.cargo
-                                ? <Text style={styles.clienteTextMuted}> · {caso.representanteLegal.cargo}</Text>
-                                : null}
-                            </Text>
-                          </View>
-                          {caso.representanteLegal.email && (
-                            <View style={styles.caseExtraItem}>
-                              <Ionicons name="mail-outline" size={11} color={Colors.textTertiary} />
-                              <Text style={styles.caseExtraText} numberOfLines={1}>
-                                {caso.representanteLegal.email}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                      </View>
-                    )}
-
-                    {/* Tareas */}
-                    {caso.tareasConteo && caso.tareasConteo.total > 0 && (
-                      <View style={styles.caseTareasRow}>
-                        <Ionicons name="checkmark-circle-outline" size={11} color={Colors.textTertiary} />
-                        <Text style={styles.caseTareasTotal}>{caso.tareasConteo.total} tareas</Text>
-                        {caso.tareasConteo.pendientes > 0 && (
-                          <View style={[styles.caseTareasPill, { backgroundColor: Colors.warning + "20" }]}>
-                            <Text style={[styles.caseTareasPillTxt, { color: Colors.warning }]}>
-                              {caso.tareasConteo.pendientes} pend.
-                            </Text>
-                          </View>
-                        )}
-                        {caso.tareasConteo.en_progreso > 0 && (
-                          <View style={[styles.caseTareasPill, { backgroundColor: Colors.info + "20" }]}>
-                            <Text style={[styles.caseTareasPillTxt, { color: Colors.info }]}>
-                              {caso.tareasConteo.en_progreso} prog.
-                            </Text>
-                          </View>
-                        )}
-                        {caso.tareasConteo.completadas > 0 && (
-                          <View style={[styles.caseTareasPill, { backgroundColor: Colors.success + "20" }]}>
-                            <Text style={[styles.caseTareasPillTxt, { color: Colors.success }]}>
-                              {caso.tareasConteo.completadas} listas
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
-
-                    {/* Fecha */}
-                    <Text style={styles.caseFecha}>
-                      Creado: {new Date(caso.fechaCreacion).toLocaleDateString("es-CO", {
-                        day: "2-digit", month: "short", year: "numeric"
-                      })}
-                    </Text>
-                  </View>
-
-                  <Ionicons name="chevron-forward" size={14} color={Colors.textTertiary}
-                    style={{ flexShrink: 0, marginRight: 4 }} />
-                </Pressable>
-              );
-            })
-          )}
+          </Panel>
         </View>
       </ScrollView>
     </View>
   );
 }
 
-// ============================================
-// StatCard Component
-// ============================================
-function StatCard({
-  label, value, total, icon, color
-}: {
-  label: string;
-  value: number;
-  total?: number;
-  icon: any;
-  color: string;
-}) {
-  const percentage = total && total > 0 ? Math.round((value / total) * 100) : null;
-
-  return (
-    <View style={styles.statCard}>
-      <View style={[styles.statIcon, { backgroundColor: color + "15" }]}>
-        <Ionicons name={icon} size={20} color={color} />
-      </View>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-      {percentage !== null && (
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${percentage}%` as any, backgroundColor: color }]} />
-        </View>
-      )}
-    </View>
-  );
-}
-
-// ============================================
-// Styles
-// ============================================
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center" },
-  headerGradient: { paddingHorizontal: 24, paddingBottom: 24 },
-  headerContent: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Colors.background },
+  desktopScreen: { flex: 1, backgroundColor: Colors.background },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
+  desktopHeroTop: { gap: 20 },
+  desktopBrandCluster: { flexDirection: "row", alignItems: "center", gap: 18 },
+  desktopBrandIcon: {
+    width: 74,
+    height: 74,
+    borderRadius: 24,
+    backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
-    marginBottom: 20,
+    justifyContent: "center",
   },
-  greeting: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
-  userName: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white, marginTop: 2 },
-  roleBadgeRow: { marginTop: 4 },
-  roleBadge: {
+  desktopHeroTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.11)",
+    borderRadius: 22,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+  },
+  desktopHeroMetric: { flex: 1, alignItems: "center" },
+  desktopHeroMetricValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroMetricLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", marginTop: 2, textAlign: "center" },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.16)" },
+  desktopStatsGrid: { flexDirection: "row", flexWrap: "wrap" },
+  desktopColumns: { flexDirection: "row", alignItems: "flex-start" },
+  desktopMainColumn: { flex: 1.5, gap: 20 },
+  desktopSideColumn: { width: 360, gap: 20 },
+  panel: {
+    backgroundColor: Colors.white,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+    width: "100%",
+    alignSelf: "stretch",
+  },
+  panelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  panelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
+  panelAction: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: Colors.primary },
+  actionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  actionTile: {
+    minHeight: 86,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: "#FBFCFE",
+    padding: 16,
+    flexBasis: "48%",
+    flexGrow: 1,
+    width: "100%",
+    alignSelf: "stretch",
+    minWidth: 0,
+  },
+  actionTileCompact: {
+    minHeight: 64,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  actionTileFullWidth: {
+    flexBasis: "auto",
+    flexGrow: 0,
+    flexShrink: 0,
+    width: "100%",
+    maxWidth: "100%",
+  },
+  actionTileIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionTileIconCompact: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+  },
+  actionTileTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  actionTileTitle: { fontSize: 14, fontFamily: "Inter_700Bold", color: Colors.text, flexShrink: 1 },
+  actionTileTitleCompact: { fontSize: 13 },
+  actionTileHint: { fontSize: 12, lineHeight: 18, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 4 },
+  actionTileHintCompact: { fontSize: 11, lineHeight: 15, marginTop: 2 },
+  actionTileBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.warning,
+    paddingHorizontal: 5,
+  },
+  actionTileBadgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: Colors.white },
+  statCard: {
+    flex: 1,
+    minWidth: "47%",
+    borderRadius: 18,
+    backgroundColor: Colors.white,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.06)",
+    gap: 6,
+  },
+  statCardCompact: { minWidth: 0, flexBasis: "13.6%", padding: 16 },
+  statIcon: { width: 38, height: 38, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  statValue: { fontSize: 28, fontFamily: "Inter_700Bold", color: Colors.text },
+  statValueCompact: { fontSize: 24 },
+  statLabel: { fontSize: 12, lineHeight: 17, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  distributionWrap: { gap: 16 },
+  distributionBar: { height: 18, borderRadius: 999, overflow: "hidden", flexDirection: "row", backgroundColor: Colors.borderLight },
+  distributionSegment: { height: "100%" },
+  distributionLegend: { gap: 10 },
+  legendRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  legendDot: { width: 10, height: 10, borderRadius: 5 },
+  legendName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  legendValue: { fontSize: 13, fontFamily: "Inter_700Bold", color: Colors.text },
+  processList: { gap: 12 },
+  processRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    borderRadius: 18,
+    overflow: "hidden",
+    backgroundColor: "#FBFCFE",
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  processAccent: { width: 4 },
+  processContent: { flex: 1, padding: 16, gap: 12 },
+  processTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  processId: { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.text },
+  processType: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 3 },
+  processState: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  processStateText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  processMeta: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  processMetaItem: { flexDirection: "row", alignItems: "center", gap: 6 },
+  processMetaText: { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
+  summaryStack: { gap: 12 },
+  summaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+  },
+  summaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  summaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
+  typeStack: { gap: 14 },
+  typeRow: { gap: 7 },
+  typeHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  typeName: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  typeValue: { fontSize: 14, fontFamily: "Inter_700Bold", color: Colors.text },
+  typeBarTrack: { height: 8, borderRadius: 999, backgroundColor: Colors.borderLight, overflow: "hidden" },
+  typeBarFill: { height: "100%", borderRadius: 999 },
+  emptyStateBox: { alignItems: "center", paddingVertical: 28, paddingHorizontal: 20, gap: 8 },
+  emptyStateTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.text, textAlign: "center" },
+  emptyStateHint: { fontSize: 13, lineHeight: 19, fontFamily: "Inter_400Regular", color: Colors.textTertiary, textAlign: "center" },
+  emptyStateText: { fontSize: 14, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
+  mobileHeroGradient: { paddingHorizontal: 24, paddingBottom: 24 },
+  mobileHeroGradientCompact: { paddingHorizontal: 16, paddingBottom: 20 },
+  mobileHeaderTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 18, gap: 12 },
+  mobileGreeting: { fontSize: 14, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)" },
+  mobileTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white, marginTop: 2 },
+  mobileBadgeWrap: { marginTop: 4 },
+  mobileBadge: {
     fontSize: 12,
     fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.7)",
-    backgroundColor: "rgba(255,255,255,0.2)",
+    color: "rgba(255,255,255,0.75)",
+    backgroundColor: "rgba(255,255,255,0.18)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
     alignSelf: "flex-start",
   },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  headerIconBtn: {
+  mobileHeaderActions: { flexDirection: "row", gap: 10 },
+  mobileHeaderActionsCompact: { alignSelf: "flex-start", gap: 8 },
+  mobileHeaderBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
@@ -609,241 +778,26 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.white,
   },
-  notifBadgeText: {
-    fontSize: 9,
-    fontFamily: "Inter_700Bold",
-    color: Colors.white,
-  },
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.white,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerStats: {
+  notifBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.white },
+  mobileHeroStats: {
     flexDirection: "row",
     backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 16,
     padding: 16,
     justifyContent: "space-around",
   },
-  headerStatItem: { alignItems: "center" },
-  headerStatValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.white },
-  headerStatLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", marginTop: 2 },
-  headerStatDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
-  content: { paddingHorizontal: 20, marginTop: 16 },
-
-  actionBtnPressed: { opacity: 0.8, transform: [{ scale: 0.98 }] },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: Colors.text, textAlign: "center" },
-  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginBottom: 16 },
-  statCard: {
-    flex: 1,
-    minWidth: "45%",
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 14,
-    gap: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statValue: { fontSize: 26, fontFamily: "Inter_700Bold", color: Colors.text },
-  statLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: Colors.textSecondary },
-  progressBar: {
-    height: 4,
-    backgroundColor: Colors.borderLight,
-    borderRadius: 2,
-    marginTop: 4,
-    overflow: "hidden",
-  },
-  progressFill: { height: 4, borderRadius: 2 },
-  chartCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  chartTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: Colors.text, marginBottom: 12 },
-  pieContainer: { flexDirection: "row", alignItems: "center" },
-  pieLegend: { flex: 1, gap: 8, paddingLeft: 8 },
-  simplePieContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    overflow: "hidden",
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  simplePieSegment: {
-    minWidth: 1,
-    minHeight: 1,
-  },
-  barChartContainer: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-around",
-    height: 180,
-    paddingTop: 10,
-  },
-  barItem: {
-    alignItems: "center",
-    flex: 1,
-    marginHorizontal: 2,
-  },
-  bar: {
-    width: "80%",
-    backgroundColor: Colors.borderLight,
-    borderRadius: 4,
-    overflow: "hidden",
-    justifyContent: "flex-end",
-  },
-  barFill: {
-    width: "100%",
-    backgroundColor: Colors.primary,
-    borderRadius: 4,
-  },
-  barValue: {
-    fontSize: 10,
-    color: Colors.textTertiary,
-    marginBottom: 4,
-  },
-  barLabel: {
-    fontSize: 9,
-    color: Colors.textTertiary,
-    marginTop: 4,
-    textAlign: "center",
-  },
-  legendItem: { flexDirection: "row", alignItems: "center", gap: 8 },
-  legendDot: { width: 10, height: 10, borderRadius: 5 },
-  legendLabel: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary },
-  legendValue: { fontSize: 12, fontFamily: "Inter_700Bold", color: Colors.text },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  sectionTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.text },
-  seeAll: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: Colors.primary },
-  emptyState: { alignItems: "center", paddingVertical: 40, gap: 8 },
-  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: Colors.textSecondary },
-  emptySubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
-  quickActions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 16,
-  },
-  actionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: Colors.white,
-    borderRadius: 14,
+  mobileHeroStatsCompact: {
     padding: 12,
-    minWidth: "47%",   
-    flex: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
   },
-  actionBtnInvitation: {
-    borderWidth: 1.5,
-    borderColor: Colors.warning + "40",
-  },
-  actionBadge: {
-    backgroundColor: Colors.warning,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  actionBadgeText: {
-    fontSize: 11,
-    fontFamily: "Inter_700Bold",
-    color: Colors.white,
-  },
-  // ── Case card enriquecida ──────────────────────────────────────────────────
-caseCard: {
-  flexDirection: "row",
-  alignItems: "center",
-  backgroundColor: Colors.white,
-  borderRadius: 16,
-  marginBottom: 12,
-  overflow: "hidden",
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.04,
-  shadowRadius: 4,
-  elevation: 1,
-},
-caseCardPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
-caseAccent:      { width: 4, alignSelf: "stretch", flexShrink: 0 },
-caseCardInner:   { flex: 1, padding: 14 },
-caseCardHeader: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  marginBottom: 10,
-},
-caseInfo:        { flex: 1, marginRight: 10 },
-caseRadicado:    { fontSize: 15, fontFamily: "Inter_700Bold", color: Colors.text },
-caseTipo:        { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, marginTop: 2 },
-estadoBadge: {
-  flexDirection: "row", alignItems: "center", gap: 6,
-  paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, flexShrink: 0,
-},
-estadoDot:  { width: 6, height: 6, borderRadius: 3 },
-estadoText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
-caseDivider:{ height: 1, backgroundColor: "#F0F2F4", marginBottom: 10 },
-caseCardFooter: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-clienteRow: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1, minWidth: 0 },
-caseIconWrap: {
-  width: 20, height: 20, borderRadius: 6,
-  alignItems: "center", justifyContent: "center",
-},
-clienteText:     { fontSize: 12, fontFamily: "Inter_400Regular", color: Colors.textSecondary, flexShrink: 1 },
-clienteTextMuted:{ fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
-caseExtraRow:    { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
-caseExtraItem:   { flexDirection: "row", alignItems: "center", gap: 4 },
-caseExtraText:   { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary },
-caseRepBox:      { marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#F0F2F4" },
-caseRepLabel: {
-  fontSize: 10, fontFamily: "Inter_600SemiBold", color: Colors.textTertiary,
-  textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 5,
-},
-caseRepRow:      { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-caseTareasRow:   { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8, flexWrap: "wrap" },
-caseTareasTotal: { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginLeft: 2 },
-caseTareasPill:  { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 },
-caseTareasPillTxt:{ fontSize: 11, fontFamily: "Inter_600SemiBold" },
-caseFecha:       { fontSize: 11, fontFamily: "Inter_400Regular", color: Colors.textTertiary, marginTop: 8 },
+  mobileHeroStat: { flex: 1, alignItems: "center" },
+  mobileHeroValue: { fontSize: 20, fontFamily: "Inter_700Bold", color: Colors.white },
+  mobileHeroLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", marginTop: 2 },
+  mobileHeroDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
+  mobileContent: { paddingHorizontal: 16, marginTop: 16, gap: 16 },
+  mobileContentCompact: { paddingHorizontal: 12, marginTop: 12, gap: 14 },
+  mobileActionGrid: { gap: 10, width: "100%", alignSelf: "stretch" },
+  mobileStatsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  mobileStatsGridCompact: { gap: 8 },
+  mobileHalfColumnItem: { flexBasis: "48%", flexGrow: 1 },
+  mobileSingleColumnItem: { width: "100%" },
 });

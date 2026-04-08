@@ -1,7 +1,7 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable,
-  Platform, Linking, Alert, ActivityIndicator, TextInput,
+  Platform, Linking, Alert, ActivityIndicator, TextInput, useWindowDimensions,
 } from "react-native";
 import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,15 +13,50 @@ import {
 } from "@/lib/services/procesoService";
 import { getLegalStages } from "@/lib/services/legalStageService";
 import { getAllStageEvents } from "@/lib/services/stageEventService";
-import { getEtapaHistorial } from "@/lib/services/proceso-etapa-historial.service";
-import { type ProcesoDTO, type Documento, type LegalStagesResponseDTO, type StageEventResponseDTO, type EtapaProcesoDTO, type ProcesoEtapaHistorialDTO } from "@/shared/schema";
+import { getUltimoEstadoPorEtapa } from "@/lib/services/proceso-etapa-historial.service";
+import { type ProcesoDTO, type Documento, type LegalStagesResponseDTO, type StageEventResponseDTO, type EtapaEstado } from "@/shared/schema";
 import { type ActualizacionRelations } from "@/shared/schema/actualizaciones.schema";
 import { useUnifiedAuth } from "@/lib/auth-context";
 import { getOrCreateConversation } from "@/lib/services/chatService";
 import { LegalStageStepper } from "@/components/proceso/LegalStageStepper";
+import EtapaHistorialTimeline from "@/components/proceso/EtapaHistorialTimeline";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 const PORTAL_BLUE      = "#1B5A8C";
 const PORTAL_BLUE_DARK = "#0D3B66";
+
+const STAGE_INCIDENT_META: Partial<Record<EtapaEstado, { label: string; tone: string; icon: keyof typeof Ionicons.glyphMap; help: string }>> = {
+  SUSPENDIDA: {
+    label: "Etapa suspendida",
+    tone: Colors.danger,
+    icon: "pause-circle-outline",
+    help: "La etapa sigue detenida temporalmente hasta que el abogado la retome formalmente.",
+  },
+  APLAZADA: {
+    label: "Etapa aplazada",
+    tone: Colors.warning,
+    icon: "calendar-outline",
+    help: "La etapa continua en curso, pero con una reprogramacion o demora registrada.",
+  },
+  REINTENTO: {
+    label: "Etapa en reintento",
+    tone: PORTAL_BLUE,
+    icon: "refresh-circle-outline",
+    help: "Esta etapa tuvo que repetirse o retomarse antes de seguir avanzando.",
+  },
+  SUBSANADA: {
+    label: "Subsanacion registrada",
+    tone: Colors.info,
+    icon: "build-outline",
+    help: "Se registro una subsanacion dentro de esta etapa y el proceso sigue en revision.",
+  },
+  CANCELADA: {
+    label: "Etapa cancelada",
+    tone: Colors.danger,
+    icon: "close-circle-outline",
+    help: "La etapa se cerro de forma excepcional y no siguio su curso normal.",
+  },
+};
 
 const ESTADO_CONFIG: Record<string, { color: string; label: string }> = {
   activo:     { color: Colors.success,      label: "Activo" },
@@ -84,6 +119,10 @@ export default function ClientCaseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { user } = useUnifiedAuth();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const desktopShellWidth = Math.min(1480, Math.max(1120, width - metrics.gutter * 2));
 
   const [proceso, setProceso] = useState<ProcesoDTO | null>(null);
   const [legalStages, setLegalStages] = useState<LegalStagesResponseDTO | null>(null);
@@ -92,21 +131,21 @@ export default function ClientCaseDetailScreen() {
   const [actualizaciones, setActualizaciones] = useState<ActualizacionRelations[]>([]);
   const [documentos, setDocumentos] = useState<Documento[]>([]);
   const [stageEvents, setStageEvents] = useState<StageEventResponseDTO[]>([]);
-  const [etapaHistorial, setEtapaHistorial] = useState<ProcesoEtapaHistorialDTO[]>([]);
-  const [activeTab, setActiveTab] = useState<"timeline" | "documents" | "etapas">("timeline");
+  const [activeTab, setActiveTab] = useState<"timeline" | "documents">("timeline");
+  const [etapaHistorialOpen, setEtapaHistorialOpen] = useState(false);
+  const [etapaHistorialFocus, setEtapaHistorialFocus] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<string | null>(null);
+  const [ultimosEstadosPorEtapa, setUltimosEstadosPorEtapa] = useState<Record<string, string>>({});
   const [documentSearch, setDocumentSearch] = useState("");
   const [actualizacionesOffset, setActualizacionesOffset] = useState(0);
   const [actualizacionesLoading, setActualizacionesLoading] = useState(false);
   const [hasMoreActualizaciones, setHasMoreActualizaciones] = useState(true);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const isLoadingMoreRef = useRef(false);
   const LIMIT = 10;
 
   const loadData = useCallback(async () => {
     if (!id) return;
     if (isLoadingMoreRef.current) return;
-    setIsInitialLoad(true);
     const p = await getProceso(id);
     setProceso(p);
     if (p) {
@@ -149,7 +188,6 @@ export default function ClientCaseDetailScreen() {
       setActualizacionesOffset(acts.length);
       setHasMoreActualizaciones(acts.length === LIMIT);
       setDocumentos(docs);
-      setIsInitialLoad(false);
       try {
         const [stages, allEvents] = await Promise.all([
           getLegalStages(p.tipoProceso?.nombre, p.id),
@@ -158,10 +196,13 @@ export default function ClientCaseDetailScreen() {
         setLegalStages(stages);
         setStageEvents(allEvents);
 
-        // Cargar historial de etapas
         try {
-          const historial = await getEtapaHistorial(p.id);
-          setEtapaHistorial(historial);
+          const ultimosEstados = await getUltimoEstadoPorEtapa(p.id);
+          const estadosMap: Record<string, string> = {};
+          Object.entries(ultimosEstados).forEach(([etapa, registro]) => {
+            estadosMap[etapa] = registro.estado;
+          });
+          setUltimosEstadosPorEtapa(estadosMap);
         } catch (error) {
           console.error('Error loading etapa historial:', error);
           // No fallar si no se puede cargar el historial
@@ -207,12 +248,9 @@ export default function ClientCaseDetailScreen() {
 
   useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
-  // Etapas disponibles: todas hasta la etapa actual (inclusive)
-  const etapasDisponibles = useMemo((): EtapaProcesoDTO[] => {
-    if (!legalStages) return [];
-    const ordenActual = legalStages.etapaActual?.orden ?? 999;
-    return legalStages.etapas.filter(e => e.orden <= ordenActual);
-  }, [legalStages]);
+  const handleStageFilter = useCallback((stage: string | null) => {
+    setStageFilter(stage);
+  }, []);
 
   // Cuando hay filtro activo, historial = stageEvents de esa etapa (tienen legalStageCode exacto).
   // Sin filtro, historial = actualizaciones normales.
@@ -220,6 +258,38 @@ export default function ClientCaseDetailScreen() {
     if (!stageFilter) return [];
     return stageEvents.filter(e => e.legalStageCode === stageFilter);
   }, [stageEvents, stageFilter]);
+
+  const focusedStage = useMemo(() => {
+    if (!legalStages) return null;
+    if (stageFilter) {
+      return legalStages.etapas.find((etapa) => etapa.codigo === stageFilter) ?? null;
+    }
+    return legalStages.etapaActual ?? null;
+  }, [legalStages, stageFilter]);
+
+  const focusedStageStatus = useMemo(() => {
+    if (!focusedStage) return null;
+    if (focusedStage.esActual) return "Etapa actual";
+    if (focusedStage.completada) return "Etapa completada";
+    return "Etapa previa";
+  }, [focusedStage]);
+
+  const focusedStageIncident = useMemo(() => {
+    if (!focusedStage) return null;
+    const ultimoEstado = ultimosEstadosPorEtapa[focusedStage.codigo] as EtapaEstado | undefined;
+    if (!ultimoEstado) return null;
+    return STAGE_INCIDENT_META[ultimoEstado] ?? null;
+  }, [focusedStage, ultimosEstadosPorEtapa]);
+
+  const stageDocumentsCount = useMemo(() => {
+    if (!stageFilter) return documentos.length;
+    return documentos.filter((doc) => doc.legalStage === stageFilter).length;
+  }, [documentos, stageFilter]);
+
+  useEffect(() => {
+    if (!legalStages?.etapaActual || stageFilter) return;
+    setStageFilter(legalStages.etapaActual.codigo);
+  }, [legalStages, stageFilter]);
 
   if (!proceso) {
     return (
@@ -242,7 +312,10 @@ export default function ClientCaseDetailScreen() {
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 48 }}
+        contentContainerStyle={[
+          styles.scrollShell,
+          desktop && { paddingBottom: metrics.gutter, paddingHorizontal: metrics.gutter },
+        ]}
         onScroll={({ nativeEvent }) => {
           if (isLoadingMoreRef.current || !hasMoreActualizaciones || actualizacionesLoading) return;
           const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
@@ -256,46 +329,69 @@ export default function ClientCaseDetailScreen() {
         {/* ── Header gradiente ── */}
         <LinearGradient
           colors={[PORTAL_BLUE_DARK, PORTAL_BLUE]}
-          style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
+          style={[
+            styles.header,
+            desktop && styles.desktopHeader,
+            {
+              paddingTop: insets.top + (desktop ? 36 : Platform.OS === "web" ? 67 : 16),
+              paddingHorizontal: desktop ? metrics.gutter : 20,
+            },
+          ]}
         >
-          <View style={styles.headerRow}>
-            <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
-              <Ionicons name="arrow-back" size={22} color={Colors.white} />
-            </Pressable>
-            <Text style={styles.headerTitle}>Detalle del Proceso</Text>
-            <View style={{ width: 38 }} />
-          </View>
+          <View style={[styles.headerShell, desktop && { maxWidth: desktopShellWidth }]}>
+            <View style={styles.headerRow}>
+              <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
+                <Ionicons name="arrow-back" size={22} color={Colors.white} />
+              </Pressable>
+              <Text style={styles.headerTitle}>Detalle del Proceso</Text>
+              <View style={{ width: 38 }} />
+            </View>
 
-          {/* Radicado + estado */}
-          <View style={styles.headerCard}>
-            <View style={styles.headerCardLeft}>
-              <Text style={styles.radicado}>{proceso.radicado}</Text>
-              <Text style={styles.tipoProceso}>{proceso.tipoProceso?.nombre || "Proceso"}</Text>
-            </View>
-            <View style={[styles.estadoBadge, { backgroundColor: estadoConfig.color + "20" }]}>
-              <View style={[styles.estadoDot, { backgroundColor: estadoConfig.color }]} />
-              <Text style={[styles.estadoText, { color: estadoConfig.color }]}>
-                {estadoConfig.label}
-              </Text>
-            </View>
-          </View>
-
-          {/* Summary row */}
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryItem}>
-              <Ionicons name="business-outline" size={14} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.summaryText} numberOfLines={1}>{proceso.juzgado}</Text>
-            </View>
-            {abogado && (
-              <View style={styles.summaryItem}>
-                <Ionicons name="briefcase-outline" size={14} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.summaryText} numberOfLines={1}>{abogado.nombre}</Text>
+            {/* Radicado + estado */}
+            <View style={[styles.headerCard, desktop && styles.desktopHeaderCard]}>
+              <View style={styles.headerCardLeft}>
+                {desktop && <Text style={styles.desktopHeaderEyebrow}>Portal del cliente</Text>}
+                <Text style={styles.radicado}>{proceso.radicado}</Text>
+                <Text style={styles.tipoProceso}>{proceso.tipoProceso?.nombre || "Proceso"}</Text>
               </View>
-            )}
+              <View style={[styles.estadoBadge, { backgroundColor: estadoConfig.color + "20" }]}>
+                <View style={[styles.estadoDot, { backgroundColor: estadoConfig.color }]} />
+                <Text style={[styles.estadoText, { color: estadoConfig.color }]}>
+                  {estadoConfig.label}
+                </Text>
+              </View>
+            </View>
+
+            {/* Summary row */}
+            <View style={[styles.summaryRow, desktop && styles.desktopSummaryRow]}>
+              <View style={styles.summaryItem}>
+                <Ionicons name="business-outline" size={14} color="rgba(255,255,255,0.7)" />
+                <Text style={styles.summaryText} numberOfLines={1}>{proceso.juzgado}</Text>
+              </View>
+              {abogado && (
+                <View style={styles.summaryItem}>
+                  <Ionicons name="briefcase-outline" size={14} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.summaryText} numberOfLines={1}>{abogado.nombre}</Text>
+                </View>
+              )}
+              {desktop && (
+                <View style={styles.summaryItem}>
+                  <Ionicons name="calendar-outline" size={14} color="rgba(255,255,255,0.7)" />
+                  <Text style={styles.summaryText} numberOfLines={1}>
+                    {new Date(proceso.fechaCreacion).toLocaleDateString("es-CO", {
+                      year: "numeric", month: "short", day: "numeric"
+                    })}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </LinearGradient>
 
-        <View style={styles.content}>
+        <View style={[styles.content, desktop && { paddingHorizontal: metrics.gutter }]}>
+          <View style={[styles.contentShell, desktop && { maxWidth: desktopShellWidth }]}>
+          <View style={[styles.contentLayout, desktop && styles.desktopContentLayout]}>
+          <View style={styles.mainColumn}>
           {/* ── Info card ── */}
           <View style={styles.infoCard}>
             <View style={[styles.infoRow, styles.infoRowBorder]}>
@@ -355,253 +451,299 @@ export default function ClientCaseDetailScreen() {
             </View>
           </View>
 
-          {/* ── Etapa procesal ── */}
-          {legalStages && (
-            <LegalStageStepper
-              data={legalStages}
-              canAdvance={false}
-            />
-          )}
-
-          {/* ── Descripción ── */}
+          {/* ── Hechos jurídicamente relevantes ── */}
           {!!proceso.descripcionEstado && (
             <View style={styles.descripcionCard}>
               <View style={styles.descripcionHeader}>
-                <Ionicons name="information-circle-outline" size={16} color={PORTAL_BLUE} />
-                <Text style={styles.descripcionLabel}>Estado del proceso</Text>
+                <Ionicons name="document-text-outline" size={16} color={PORTAL_BLUE} />
+                <Text style={styles.descripcionLabel}>Descripción de los hechos jurídicamente relevantes</Text>
               </View>
               <Text style={styles.descripcionText}>{proceso.descripcionEstado}</Text>
             </View>
           )}
 
-          {/* ── Quick actions ── */}
-          <View style={styles.quickActions}>
-            <Pressable
-              style={[styles.quickAction, activeTab === "timeline" && styles.quickActionActive]}
-              onPress={() => setActiveTab("timeline")}
-            >
-              <View style={[styles.quickActionIcon, {
-                backgroundColor: activeTab === "timeline" ? Colors.warning : Colors.warning + "15"
-              }]}>
-                <Ionicons name="time-outline" size={20} color={activeTab === "timeline" ? Colors.white : Colors.warning} />
-              </View>
-              <Text style={[styles.quickActionText, activeTab === "timeline" && styles.quickActionTextActive]}>
-                Historial
-              </Text>
-            </Pressable>
+          {/* ── Etapa procesal ── */}
+          {legalStages && (
+            <LegalStageStepper
+              data={legalStages}
+              canAdvance={false}
+              ultimosEstadosPorEtapa={ultimosEstadosPorEtapa}
+              selectedStageCode={stageFilter}
+              onShowStageHistory={(etapa) => {
+                setEtapaHistorialFocus(etapa.codigo);
+                setEtapaHistorialOpen(true);
+              }}
+              onStagePress={(etapa) => handleStageFilter(etapa.codigo)}
+            />
+          )}
 
-            <Pressable
-              style={[styles.quickAction, activeTab === "documents" && styles.quickActionActive]}
-              onPress={() => setActiveTab("documents")}
-            >
-              <View style={[styles.quickActionIcon, {
-                backgroundColor: activeTab === "documents" ? PORTAL_BLUE : PORTAL_BLUE + "15"
-              }]}>
-                <Ionicons name="folder-open-outline" size={20} color={activeTab === "documents" ? Colors.white : PORTAL_BLUE} />
+          {focusedStage && (
+            <View style={styles.stageFocusCard}>
+              <View style={styles.stageFocusHeader}>
+                <View style={styles.stageFocusHeaderMain}>
+                  <View style={[styles.stageFocusDot, { backgroundColor: focusedStage.color || PORTAL_BLUE }]} />
+                  <View style={styles.stageFocusCopy}>
+                    <Text style={styles.stageFocusEyebrow}>Etapa actual</Text>
+                    <Text style={styles.stageFocusTitle}>{focusedStage.nombre}</Text>
+                    {!!focusedStage.descripcion && (
+                      <Text style={styles.stageFocusDescription}>{focusedStage.descripcion}</Text>
+                    )}
+                  </View>
+                </View>
+
+                <View style={styles.stageFocusHeaderMeta}>
+                  <View style={[styles.stageFocusBadge, { backgroundColor: (focusedStage.color || PORTAL_BLUE) + "18" }]}>
+                    <Text style={[styles.stageFocusBadgeText, { color: focusedStage.color || PORTAL_BLUE }]}>
+                      {focusedStageStatus}
+                    </Text>
+                  </View>
+                  {focusedStage.diasRestantes != null && (
+                    <View style={styles.stageFocusSecondaryBadge}>
+                      <Text style={styles.stageFocusSecondaryBadgeText}>
+                        {focusedStage.diasRestantes < 0
+                          ? `${Math.abs(focusedStage.diasRestantes)} d vencida`
+                          : `${focusedStage.diasRestantes} d restantes`}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </View>
-              <Text style={[styles.quickActionText, activeTab === "documents" && styles.quickActionTextActive]}>
-                Documentos
-              </Text>
-              {documentos.length > 0 && (
-                <View style={styles.quickActionBadge}>
-                  <Text style={styles.quickActionBadgeText}>{documentos.length}</Text>
+
+              <View style={styles.stageFocusMetrics}>
+                <View style={styles.stageFocusMetric}>
+                  <Text style={styles.stageFocusMetricValue}>{stageEventsForFilter.length}</Text>
+                  <Text style={styles.stageFocusMetricLabel}>eventos de etapa</Text>
+                </View>
+                <View style={styles.stageFocusMetric}>
+                  <Text style={styles.stageFocusMetricValue}>{stageDocumentsCount}</Text>
+                  <Text style={styles.stageFocusMetricLabel}>documentos visibles</Text>
+                </View>
+                <View style={styles.stageFocusMetric}>
+                  <Text style={styles.stageFocusMetricValue}>{actualizaciones.length}</Text>
+                  <Text style={styles.stageFocusMetricLabel}>actualizaciones</Text>
+                </View>
+              </View>
+
+              <View style={styles.stageGuideCard}>
+                <View style={styles.stageGuideHeader}>
+                  <Ionicons name="compass-outline" size={16} color={PORTAL_BLUE} />
+                  <Text style={styles.stageGuideTitle}>Que mirar ahora</Text>
+                </View>
+                <Text style={styles.stageGuideText}>
+                  Revise primero la actividad reciente de esta etapa. Si necesita soporte o archivos, luego consulte los documentos relacionados.
+                </Text>
+              </View>
+
+              {focusedStageIncident && (
+                <View style={[styles.stageIncidentCard, { backgroundColor: focusedStageIncident.tone + "12", borderColor: focusedStageIncident.tone + "26" }]}>
+                  <View style={styles.stageIncidentHeader}>
+                    <View style={[styles.stageIncidentIconWrap, { backgroundColor: focusedStageIncident.tone + "20" }]}>
+                      <Ionicons name={focusedStageIncident.icon} size={16} color={focusedStageIncident.tone} />
+                    </View>
+                    <View style={styles.stageIncidentCopy}>
+                      <Text style={[styles.stageIncidentTitle, { color: focusedStageIncident.tone }]}>
+                        {focusedStageIncident.label}
+                      </Text>
+                      <Text style={styles.stageIncidentText}>
+                        {focusedStageIncident.help}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               )}
+
+            </View>
+          )}
+
+          <View style={styles.contentSwitchRow}>
+            <Pressable
+              style={[styles.contentSwitchBtn, activeTab === "timeline" && styles.contentSwitchBtnActive]}
+              onPress={() => setActiveTab("timeline")}
+            >
+              <Ionicons name="time-outline" size={15} color={activeTab === "timeline" ? Colors.white : PORTAL_BLUE} />
+              <Text style={[styles.contentSwitchText, activeTab === "timeline" && styles.contentSwitchTextActive]}>
+                Actividad
+              </Text>
             </Pressable>
 
-            {abogado?.userId && (
-              <Pressable
-                style={[styles.quickAction, chatLoading && { opacity: 0.6 }]}
-                onPress={handleOpenChat}
-                disabled={chatLoading}
-              >
-                <View style={[styles.quickActionIcon, { backgroundColor: PORTAL_BLUE + "15" }]}>
-                  {chatLoading
-                    ? <ActivityIndicator size="small" color={PORTAL_BLUE} />
-                    : <Ionicons name="chatbubble-ellipses-outline" size={20} color={PORTAL_BLUE} />
-                  }
-                </View>
-                <Text style={styles.quickActionText}>Mensaje</Text>
-              </Pressable>
-            )}
-
             <Pressable
-              style={[styles.quickAction, activeTab === "etapas" && styles.quickActionActive]}
-              onPress={() => setActiveTab("etapas")}
+              style={[styles.contentSwitchBtn, activeTab === "documents" && styles.contentSwitchBtnActive]}
+              onPress={() => setActiveTab("documents")}
             >
-              <View style={[styles.quickActionIcon, {
-                backgroundColor: activeTab === "etapas" ? Colors.success : Colors.success + "15"
-              }]}>
-                <Ionicons name="git-branch-outline" size={20} color={activeTab === "etapas" ? Colors.white : Colors.success} />
-              </View>
-              <Text style={[styles.quickActionText, activeTab === "etapas" && styles.quickActionTextActive]}>
-                Etapas
+              <Ionicons name="folder-open-outline" size={15} color={activeTab === "documents" ? Colors.white : PORTAL_BLUE} />
+              <Text style={[styles.contentSwitchText, activeTab === "documents" && styles.contentSwitchTextActive]}>
+                Documentos
               </Text>
             </Pressable>
           </View>
 
-          {/* ── Filtro por etapa procesal ── */}
-          {etapasDisponibles.length > 0 && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.stageFilterRow}
-            >
-              <Pressable
-                style={[styles.stageChip, stageFilter === null && styles.stageChipActive]}
-                onPress={() => setStageFilter(null)}
-              >
-                <Text style={[styles.stageChipText, stageFilter === null && styles.stageChipTextActive]}>
-                  Todas
-                </Text>
-              </Pressable>
-              {etapasDisponibles.map(etapa => (
-                <Pressable
-                  key={etapa.codigo}
-                  style={[styles.stageChip, stageFilter === etapa.codigo && styles.stageChipActive]}
-                  onPress={() => setStageFilter(prev => prev === etapa.codigo ? null : etapa.codigo)}
-                >
-                  <Text style={[styles.stageChipText, stageFilter === etapa.codigo && styles.stageChipTextActive]}
-                    numberOfLines={1}
-                  >
-                    {etapa.nombre}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-          )}
+          <View style={styles.scopeCard}>
+            <Ionicons name={stageFilter ? "flag-outline" : "layers-outline"} size={16} color={PORTAL_BLUE} />
+            <Text style={styles.scopeCardText}>
+              {stageFilter && focusedStage
+                ? `Esta viendo el seguimiento de la etapa ${focusedStage.nombre}.`
+                : "Esta viendo el seguimiento general de todo el proceso."}
+            </Text>
+          </View>
 
           {/* ── Tab: Timeline ── */}
-          {activeTab === "timeline" && (() => {
-            // Con filtro de etapa: muestra stageEvents de esa etapa (tienen legalStageCode exacto)
-            // Sin filtro: muestra actualizaciones normales
-            if (stageFilter) {
-              if (stageEventsForFilter.length === 0) {
-                return (
+          {activeTab === "timeline" && (
+            <View style={styles.activityStack}>
+              {stageFilter && (
+                <View style={styles.activitySection}>
+                  <View style={styles.activitySectionHeader}>
+                    <View>
+                      <Text style={styles.activitySectionTitle}>Actividad específica de la etapa</Text>
+                      <Text style={styles.activitySectionSubtitle}>
+                        Eventos registrados dentro de {focusedStage?.nombre ?? "la etapa seleccionada"}.
+                      </Text>
+                    </View>
+                    <View style={styles.activitySectionBadge}>
+                      <Text style={styles.activitySectionBadgeText}>{stageEventsForFilter.length}</Text>
+                    </View>
+                  </View>
+
+                  {stageEventsForFilter.length === 0 ? (
+                    <View style={styles.activityEmptyCard}>
+                      <Ionicons name="time-outline" size={20} color={Colors.textTertiary} />
+                      <Text style={styles.activityEmptyText}>No hay eventos registrados en esta etapa procesal.</Text>
+                    </View>
+                  ) : (
+                    <View>
+                      {stageEventsForFilter.map((ev, idx) => (
+                        <View key={ev.id} style={styles.timelineItem}>
+                          <View style={styles.timelineLine}>
+                            <View style={[
+                              styles.timelineDot,
+                              idx === 0 && { backgroundColor: PORTAL_BLUE },
+                              ev.tipo === "documento_subido" && { backgroundColor: Colors.accent },
+                            ]}>
+                              <Ionicons
+                                name={
+                                  ev.tipo === "etapa_iniciada"   ? "flag-outline"            :
+                                  ev.tipo === "etapa_completada" ? "checkmark-circle-outline" :
+                                  ev.tipo === "documento_subido" ? "attach"                   :
+                                  ev.tipo === "tarea_completada" ? "checkmark-done-outline"   :
+                                  "create-outline"
+                                }
+                                size={9}
+                                color={Colors.white}
+                              />
+                            </View>
+                            {idx < stageEventsForFilter.length - 1 && <View style={styles.timelineConnector} />}
+                          </View>
+                          <View style={[
+                            styles.timelineCard,
+                            idx === 0 && { borderWidth: 1, borderColor: PORTAL_BLUE + "25" },
+                          ]}>
+                            <View style={styles.timelineCardHeader}>
+                              <Text style={styles.timelineDate}>
+                                {new Date(ev.createdAt).toLocaleDateString("es-CO", {
+                                  day: "numeric", month: "short", year: "numeric",
+                                  hour: "2-digit", minute: "2-digit",
+                                })}
+                              </Text>
+                            </View>
+                            <Text style={styles.timelineTitle}>{ev.descripcion}</Text>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.activitySection}>
+                <View style={styles.activitySectionHeader}>
+                  <View>
+                    <Text style={styles.activitySectionTitle}>Actividad general del proceso</Text>
+                    <Text style={styles.activitySectionSubtitle}>
+                      Actualizaciones globales del expediente y novedades del proceso completo.
+                    </Text>
+                  </View>
+                  <View style={styles.activitySectionBadge}>
+                    <Text style={styles.activitySectionBadgeText}>{actualizaciones.length}</Text>
+                  </View>
+                </View>
+
+                {actualizaciones.length === 0 ? (
                   <View style={styles.emptyState}>
                     <View style={styles.emptyIconWrap}>
                       <Ionicons name="time-outline" size={32} color={PORTAL_BLUE} />
                     </View>
-                    <Text style={styles.emptyTitle}>Sin historial en esta etapa</Text>
-                    <Text style={styles.emptySubtitle}>No hay eventos registrados para esta etapa procesal</Text>
+                    <Text style={styles.emptyTitle}>Sin actualizaciones</Text>
+                    <Text style={styles.emptySubtitle}>Las actualizaciones del proceso aparecerán aquí</Text>
                   </View>
-                );
-              }
-              return (
-                <View>
-                  {stageEventsForFilter.map((ev, idx) => (
-                    <View key={ev.id} style={styles.timelineItem}>
-                      <View style={styles.timelineLine}>
+                ) : (
+                  <View>
+                    {actualizaciones.map((act, idx) => (
+                      <View key={act.id} style={styles.timelineItem}>
+                        <View style={styles.timelineLine}>
+                          <View style={[
+                            styles.timelineDot,
+                            idx === 0 && { backgroundColor: PORTAL_BLUE },
+                            act.tipo?.nombre === "documento" && { backgroundColor: Colors.accent },
+                          ]}>
+                            <Ionicons
+                              name={getTipoIcon(act.tipo?.nombre ?? "")}
+                              size={9}
+                              color={Colors.white}
+                            />
+                          </View>
+                          {idx < actualizaciones.length - 1 && <View style={styles.timelineConnector} />}
+                        </View>
                         <View style={[
-                          styles.timelineDot,
-                          idx === 0 && { backgroundColor: PORTAL_BLUE },
-                          ev.tipo === "documento_subido" && { backgroundColor: Colors.accent },
+                          styles.timelineCard,
+                          idx === 0 && { borderWidth: 1, borderColor: PORTAL_BLUE + "25" },
                         ]}>
-                          <Ionicons
-                            name={
-                              ev.tipo === "etapa_iniciada"   ? "flag-outline"            :
-                              ev.tipo === "etapa_completada" ? "checkmark-circle-outline" :
-                              ev.tipo === "documento_subido" ? "attach"                   :
-                              ev.tipo === "tarea_completada" ? "checkmark-done-outline"   :
-                              "create-outline"
-                            }
-                            size={9}
-                            color={Colors.white}
-                          />
-                        </View>
-                        {idx < stageEventsForFilter.length - 1 && <View style={styles.timelineConnector} />}
-                      </View>
-                      <View style={[
-                        styles.timelineCard,
-                        idx === 0 && { borderWidth: 1, borderColor: PORTAL_BLUE + "25" },
-                      ]}>
-                        <View style={styles.timelineCardHeader}>
-                          <Text style={styles.timelineDate}>
-                            {new Date(ev.createdAt).toLocaleDateString("es-CO", {
-                              day: "numeric", month: "short", year: "numeric",
-                              hour: "2-digit", minute: "2-digit",
-                            })}
-                          </Text>
-                        </View>
-                        <Text style={styles.timelineTitle}>{ev.descripcion}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              );
-            }
-
-            // Sin filtro: actualizaciones normales
-            if (actualizaciones.length === 0) {
-              return (
-                <View style={styles.emptyState}>
-                  <View style={styles.emptyIconWrap}>
-                    <Ionicons name="time-outline" size={32} color={PORTAL_BLUE} />
-                  </View>
-                  <Text style={styles.emptyTitle}>Sin actualizaciones</Text>
-                  <Text style={styles.emptySubtitle}>Las actualizaciones del proceso aparecerán aquí</Text>
-                </View>
-              );
-            }
-            return (
-              <View>
-                {actualizaciones.map((act, idx) => (
-                  <View key={act.id} style={styles.timelineItem}>
-                    <View style={styles.timelineLine}>
-                      <View style={[
-                        styles.timelineDot,
-                        idx === 0 && { backgroundColor: PORTAL_BLUE },
-                        act.tipo?.nombre === "documento" && { backgroundColor: Colors.accent },
-                      ]}>
-                        <Ionicons
-                          name={getTipoIcon(act.tipo?.nombre ?? "")}
-                          size={9}
-                          color={Colors.white}
-                        />
-                      </View>
-                      {idx < actualizaciones.length - 1 && <View style={styles.timelineConnector} />}
-                    </View>
-                    <View style={[
-                      styles.timelineCard,
-                      idx === 0 && { borderWidth: 1, borderColor: PORTAL_BLUE + "25" },
-                    ]}>
-                      <View style={styles.timelineCardHeader}>
-                        <Text style={styles.timelineDate}>
-                          {new Date(act.fecha).toLocaleDateString("es-CO", {
-                            day: "numeric", month: "short", year: "numeric",
-                            hour: "2-digit", minute: "2-digit",
-                          })}
-                        </Text>
-                        {act.tipo?.nombre === "documento" && (
-                          <View style={styles.docBadge}>
-                            <Ionicons name="attach" size={11} color={Colors.accent} />
-                            <Text style={styles.docBadgeText}>Documento</Text>
-                            {act.documentoId && (
-                              <Pressable
-                                onPress={() => act.documentoId && handleDownloadDocById(act.documentoId)}
-                                hitSlop={4}
-                              >
-                                <Ionicons name="download-outline" size={11} color={Colors.accent} />
-                              </Pressable>
+                          <View style={styles.timelineCardHeader}>
+                            <Text style={styles.timelineDate}>
+                              {new Date(act.fecha).toLocaleDateString("es-CO", {
+                                day: "numeric", month: "short", year: "numeric",
+                                hour: "2-digit", minute: "2-digit",
+                              })}
+                            </Text>
+                            {act.tipo?.nombre === "documento" && (
+                              <View style={styles.docBadge}>
+                                <Ionicons name="attach" size={11} color={Colors.accent} />
+                                <Text style={styles.docBadgeText}>Documento</Text>
+                                {act.documentoId && (
+                                  <Pressable
+                                    onPress={() => act.documentoId && handleDownloadDocById(act.documentoId)}
+                                    hitSlop={4}
+                                  >
+                                    <Ionicons name="download-outline" size={11} color={Colors.accent} />
+                                  </Pressable>
+                                )}
+                              </View>
                             )}
                           </View>
-                        )}
+                          <Text style={styles.timelineTitle}>{act.titulo}</Text>
+                          {!!act.descripcion && (
+                            <Text style={styles.timelineDesc}>{act.descripcion}</Text>
+                          )}
+                        </View>
                       </View>
-                      <Text style={styles.timelineTitle}>{act.titulo}</Text>
-                      {!!act.descripcion && (
-                        <Text style={styles.timelineDesc}>{act.descripcion}</Text>
-                      )}
-                    </View>
-                  </View>
-                ))}
-                {actualizacionesLoading && (
-                  <View style={styles.loadingMore}>
-                    <ActivityIndicator size="small" color={PORTAL_BLUE} />
+                    ))}
+                    {actualizacionesLoading && (
+                      <View style={styles.loadingMore}>
+                        <ActivityIndicator size="small" color={PORTAL_BLUE} />
+                      </View>
+                    )}
                   </View>
                 )}
               </View>
-            );
-          })()}
+            </View>
+          )}
+
+          {activeTab === "documents" && (
+            <View style={styles.flowSectionHeader}>
+              <Text style={styles.flowSectionTitle}>Documentos y soporte</Text>
+              <Text style={styles.flowSectionSubtitle}>
+                Archivos y evidencias vinculados a la etapa enfocada o al proceso completo.
+              </Text>
+            </View>
+          )}
 
           {/* ── Tab: Documentos ── */}
           {activeTab === "documents" && (
@@ -684,107 +826,95 @@ export default function ClientCaseDetailScreen() {
             </>
           )}
 
-          {/* ── Tab: Etapas ── */}
-          {activeTab === "etapas" && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Historial de Etapas</Text>
-                <Text style={styles.sectionSubtitle}>
-                  Seguimiento completo del progreso del proceso
-                </Text>
+          </View>
+
+          {desktop && (
+            <View style={styles.desktopAside}>
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Resumen</Text>
+                <Text style={styles.desktopAsideTitle}>Estado actual</Text>
+                <View style={styles.desktopMetaList}>
+                  <View style={styles.desktopMetaRow}>
+                    <Text style={styles.desktopMetaKey}>Proceso</Text>
+                    <Text style={styles.desktopMetaValue}>{proceso.tipoProceso?.nombre || "Proceso"}</Text>
+                  </View>
+                  <View style={styles.desktopMetaRow}>
+                    <Text style={styles.desktopMetaKey}>Estado</Text>
+                    <Text style={styles.desktopMetaValue}>{estadoConfig.label}</Text>
+                  </View>
+                  <View style={styles.desktopMetaRow}>
+                    <Text style={styles.desktopMetaKey}>Documentos</Text>
+                    <Text style={styles.desktopMetaValue}>{documentos.length}</Text>
+                  </View>
+                  <View style={styles.desktopMetaRow}>
+                    <Text style={styles.desktopMetaKey}>Actualizaciones</Text>
+                    <Text style={styles.desktopMetaValue}>{actualizaciones.length}</Text>
+                  </View>
+                </View>
               </View>
 
-              {etapaHistorial.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <Ionicons name="git-branch-outline" size={48} color={Colors.textTertiary} />
-                  <Text style={styles.emptyStateTitle}>Sin historial de etapas</Text>
-                  <Text style={styles.emptyStateText}>
-                    El historial de cambios en las etapas aparecerá aquí
+              {abogado && (
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Responsable</Text>
+                  <Text style={styles.desktopAsideTitle}>{abogado.nombre}</Text>
+                  <Text style={styles.desktopAsideText}>
+                    {proceso.responsable ? "Abogado responsable del proceso." : "Profesional asignado para tu caso."}
                   </Text>
-                </View>
-              ) : (
-                <View style={styles.etapasTimeline}>
-                  {etapaHistorial
-                    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
-                    .map((registro, index) => {
-                      const isLast = index === etapaHistorial.length - 1;
-                      const getEstadoColor = (estado: string) => {
-                        switch (estado) {
-                          case 'COMPLETADA': return Colors.success;
-                          case 'INICIADA':
-                          case 'EN_PROCESO': return Colors.primary;
-                          case 'NO_ADMITIDA':
-                          case 'FALLIDA':
-                          case 'CANCELADA': return Colors.danger;
-                          case 'SUBSANADA':
-                          case 'REINTENTO': return Colors.warning;
-                          case 'APLAZADA': return Colors.info;
-                          case 'SUSPENDIDA': return Colors.textSecondary;
-                          default: return Colors.textSecondary;
-                        }
-                      };
-
-                      const getEstadoIcon = (estado: string) => {
-                        switch (estado) {
-                          case 'COMPLETADA': return 'checkmark-circle';
-                          case 'NO_ADMITIDA':
-                          case 'FALLIDA':
-                          case 'CANCELADA': return 'close-circle';
-                          case 'APLAZADA': return 'pause-circle';
-                          case 'REINTENTO': return 'refresh-circle';
-                          case 'SUBSANADA': return 'arrow-undo-circle';
-                          default: return 'ellipse';
-                        }
-                      };
-
-                      const formatFecha = (fecha: string) => {
-                        return new Date(fecha).toLocaleDateString("es-ES", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
-                      };
-
-                      return (
-                        <View key={registro.id} style={styles.etapaTimelineItem}>
-                          {/* Línea vertical */}
-                          <View style={styles.etapaTimelineConnector}>
-                            <View style={[styles.etapaTimelineDot, { backgroundColor: getEstadoColor(registro.estado) }]} />
-                            {!isLast && <View style={styles.etapaTimelineLine} />}
-                          </View>
-
-                          {/* Contenido */}
-                          <View style={styles.etapaTimelineContent}>
-                            <View style={styles.etapaTimelineHeader}>
-                              <View style={[styles.etapaEstadoBadge, { backgroundColor: getEstadoColor(registro.estado) + "20" }]}>
-                                <Ionicons name={getEstadoIcon(registro.estado) as any} size={14} color={getEstadoColor(registro.estado)} />
-                                <Text style={[styles.etapaEstadoText, { color: getEstadoColor(registro.estado) }]}>
-                                  {registro.estado.replace('_', ' ')}
-                                </Text>
-                              </View>
-                              <Text style={styles.etapaFechaText}>{formatFecha(registro.fecha)}</Text>
-                            </View>
-
-                            <View style={styles.etapaBadge}>
-                              <Ionicons name="document-text-outline" size={12} color={Colors.primary} />
-                              <Text style={styles.etapaNombreText}>{registro.etapa}</Text>
-                            </View>
-
-                            {registro.observacion && (
-                              <Text style={styles.etapaObservacionText}>{registro.observacion}</Text>
-                            )}
-                          </View>
-                        </View>
-                      );
-                    })}
+                  {abogado.userId && (
+                    <Pressable
+                      onPress={handleOpenChat}
+                      style={[styles.desktopPrimaryAction, chatLoading && { opacity: 0.6 }]}
+                      disabled={chatLoading}
+                    >
+                      {chatLoading
+                        ? <ActivityIndicator size="small" color={Colors.white} />
+                        : <Ionicons name="chatbubble-ellipses-outline" size={16} color={Colors.white} />
+                      }
+                      <Text style={styles.desktopPrimaryActionText}>Abrir chat</Text>
+                    </Pressable>
+                  )}
                 </View>
               )}
-            </>
+
+              <View style={styles.desktopAsideCard}>
+                <Text style={styles.desktopAsideLabel}>Siguiente paso</Text>
+                <Text style={styles.desktopAsideText}>
+                  Empiece por la actividad de la etapa actual. Si necesita respaldo, pase despues a documentos.
+                </Text>
+                <View style={styles.desktopAsideTabs}>
+                  <Pressable style={[styles.desktopAsideTab, activeTab === "timeline" && styles.desktopAsideTabActive]} onPress={() => setActiveTab("timeline")}>
+                    <Text style={[styles.desktopAsideTabText, activeTab === "timeline" && styles.desktopAsideTabTextActive]}>Actividad</Text>
+                  </Pressable>
+                  <Pressable style={[styles.desktopAsideTab, activeTab === "documents" && styles.desktopAsideTabActive]} onPress={() => setActiveTab("documents")}>
+                    <Text style={[styles.desktopAsideTabText, activeTab === "documents" && styles.desktopAsideTabTextActive]}>Documentos</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.desktopAsideTab}
+                    onPress={() => {
+                      setEtapaHistorialFocus(stageFilter);
+                      setEtapaHistorialOpen(true);
+                    }}
+                  >
+                    <Text style={styles.desktopAsideTabText}>Historial formal</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
           )}
+          </View>
+          </View>
         </View>
       </ScrollView>
+
+      {proceso && (
+        <EtapaHistorialTimeline
+          procesoId={proceso.id}
+          visible={etapaHistorialOpen}
+          onClose={() => setEtapaHistorialOpen(false)}
+          canEdit={false}
+          focusEtapa={etapaHistorialFocus}
+        />
+      )}
     </View>
   );
 }
@@ -792,9 +922,12 @@ export default function ClientCaseDetailScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   centered: { alignItems: "center", justifyContent: "center" },
+  scrollShell: { paddingBottom: 48 },
 
   // ── Header ──────────────────────────────────────────────────
   header: { paddingHorizontal: 20, paddingBottom: 20 },
+  desktopHeader: { paddingBottom: 28 },
+  headerShell: { width: "100%", alignSelf: "center" },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -813,7 +946,18 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 14,
   },
+  desktopHeaderCard: {
+    marginBottom: 18,
+  },
   headerCardLeft: { flex: 1, marginRight: 12 },
+  desktopHeaderEyebrow: {
+    fontSize: 11,
+    letterSpacing: 1.6,
+    color: "rgba(255,255,255,0.45)",
+    fontFamily: "Inter_500Medium",
+    textTransform: "uppercase",
+    marginBottom: 6,
+  },
   radicado: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.white },
   tipoProceso: {
     fontSize: 13, fontFamily: "Inter_400Regular",
@@ -826,6 +970,7 @@ const styles = StyleSheet.create({
   estadoDot: { width: 7, height: 7, borderRadius: 3.5 },
   estadoText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
   summaryRow: { flexDirection: "row", gap: 16 },
+  desktopSummaryRow: { gap: 18 },
   summaryItem: { flexDirection: "row", alignItems: "center", gap: 5, flex: 1 },
   summaryText: {
     fontSize: 12, fontFamily: "Inter_400Regular",
@@ -834,6 +979,96 @@ const styles = StyleSheet.create({
 
   // ── Content ──────────────────────────────────────────────────
   content: { padding: 16, gap: 14 },
+  contentShell: { width: "100%", alignSelf: "center" },
+  contentLayout: { width: "100%" },
+  desktopContentLayout: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  mainColumn: { flex: 1, minWidth: 0, maxWidth: 920, gap: 16 },
+  desktopAside: { width: 340, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  desktopAsideLabel: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideTitle: {
+    fontSize: 18,
+    lineHeight: 24,
+    color: Colors.text,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopAsideText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+  },
+  desktopMetaList: { gap: 10 },
+  desktopMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  desktopMetaKey: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontFamily: "Inter_500Medium",
+  },
+  desktopMetaValue: {
+    flexShrink: 1,
+    textAlign: "right",
+    fontSize: 13,
+    color: Colors.text,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopPrimaryAction: {
+    minHeight: 44,
+    borderRadius: 14,
+    backgroundColor: PORTAL_BLUE,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  desktopPrimaryActionText: {
+    fontSize: 13,
+    color: Colors.white,
+    fontFamily: "Inter_700Bold",
+  },
+  desktopAsideTabs: { gap: 8 },
+  desktopAsideTab: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  desktopAsideTabActive: {
+    backgroundColor: PORTAL_BLUE + "12",
+    borderWidth: 1,
+    borderColor: PORTAL_BLUE + "25",
+  },
+  desktopAsideTabText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_600SemiBold",
+  },
+  desktopAsideTabTextActive: {
+    color: PORTAL_BLUE,
+  },
 
   // ── Info card ────────────────────────────────────────────────
   infoCard: {
@@ -872,6 +1107,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 14,
     padding: 14,
+    marginTop: 14,
     borderLeftWidth: 3,
     borderLeftColor: PORTAL_BLUE,
     gap: 6,
@@ -882,47 +1118,325 @@ const styles = StyleSheet.create({
     fontSize: 13, fontFamily: "Inter_400Regular",
     color: Colors.textSecondary, lineHeight: 20,
   },
-
-  // ── Quick actions ────────────────────────────────────────────
-  quickActions: {
+  stageFocusCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 18,
+    padding: 16,
+    gap: 14,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  stageFocusHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  stageFocusHeaderMain: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    flex: 1,
+    minWidth: 240,
+  },
+  stageFocusDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginTop: 4,
+  },
+  stageFocusCopy: {
+    flex: 1,
+    gap: 4,
+  },
+  stageFocusEyebrow: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  stageFocusTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  stageFocusDescription: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: Colors.textSecondary,
+    fontFamily: "Inter_400Regular",
+  },
+  stageFocusHeaderMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  stageFocusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  stageFocusBadgeText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
+  stageFocusSecondaryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: Colors.surfaceSecondary,
+  },
+  stageFocusSecondaryBadgeText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  stageFocusMetrics: {
     flexDirection: "row",
     gap: 10,
+    flexWrap: "wrap",
   },
-  quickAction: {
+  stageFocusMetric: {
     flex: 1,
-    alignItems: "center",
+    minWidth: 140,
+    paddingHorizontal: 14,
     paddingVertical: 12,
-    backgroundColor: Colors.white,
     borderRadius: 14,
+    backgroundColor: Colors.surfaceSecondary,
+    gap: 2,
+  },
+  stageFocusMetricValue: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  stageFocusMetricLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  stageGuideCard: {
+    borderRadius: 14,
+    padding: 13,
+    backgroundColor: PORTAL_BLUE + "0E",
+    borderWidth: 1,
+    borderColor: PORTAL_BLUE + "18",
     gap: 6,
+  },
+  stageGuideHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  stageGuideTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: PORTAL_BLUE,
+  },
+  stageGuideText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  stageFocusActions: {
+    flexDirection: "row",
+    gap: 8,
+    width: "100%",
+  },
+  stageFocusAction: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    minHeight: 48,
+  },
+  stageFocusActionActive: {
+    backgroundColor: PORTAL_BLUE,
+    borderColor: PORTAL_BLUE,
+  },
+  stageFocusActionText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: PORTAL_BLUE,
+  },
+  stageFocusActionTextActive: {
+    color: Colors.white,
+  },
+  stageIncidentCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 13,
+    gap: 8,
+  },
+  stageIncidentHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  stageIncidentIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stageIncidentCopy: {
+    flex: 1,
+    gap: 3,
+  },
+  stageIncidentTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+  },
+  stageIncidentText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  contentSwitchRow: {
+    flexDirection: "row",
+    gap: 10,
+    width: "100%",
+  },
+  contentSwitchBtn: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 14,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 4,
     elevation: 1,
   },
-  quickActionActive: {
-    borderWidth: 1.5,
-    borderColor: PORTAL_BLUE + "30",
-  },
-  quickActionIcon: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-  },
-  quickActionText: {
-    fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.textSecondary,
-  },
-  quickActionTextActive: { color: PORTAL_BLUE, fontFamily: "Inter_600SemiBold" },
-  quickActionBadge: {
-    position: "absolute",
-    top: 8, right: 8,
+  contentSwitchBtnActive: {
     backgroundColor: PORTAL_BLUE,
-    borderRadius: 8,
-    minWidth: 16, height: 16,
-    alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 3,
+    borderColor: PORTAL_BLUE,
   },
-  quickActionBadgeText: { fontSize: 9, fontFamily: "Inter_700Bold", color: Colors.white },
+  contentSwitchText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: PORTAL_BLUE,
+  },
+  contentSwitchTextActive: {
+    color: Colors.white,
+  },
+  scopeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    marginTop: 2,
+  },
+  scopeCardText: {
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
+  },
+  activityStack: {
+    gap: 14,
+  },
+  activitySection: {
+    gap: 10,
+  },
+  activitySectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingHorizontal: 4,
+  },
+  activitySectionTitle: {
+    fontSize: 15,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  activitySectionSubtitle: {
+    marginTop: 3,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    maxWidth: 620,
+  },
+  activitySectionBadge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    paddingHorizontal: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: PORTAL_BLUE + "12",
+  },
+  activitySectionBadgeText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: PORTAL_BLUE,
+  },
+  activityEmptyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+  },
+  activityEmptyText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  flowSectionHeader: {
+    gap: 4,
+    paddingHorizontal: 4,
+    paddingTop: 2,
+  },
+  flowSectionTitle: {
+    fontSize: 16,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  flowSectionSubtitle: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    maxWidth: 640,
+  },
 
   // ── Timeline ─────────────────────────────────────────────────
   timelineItem: { flexDirection: "row", marginBottom: 10 },
@@ -962,114 +1476,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary, marginTop: 5, lineHeight: 18,
   },
   loadingMore: { paddingVertical: 16, alignItems: "center" },
-
-  // ── Etapas ────────────────────────────────────────────────────
-  sectionHeader: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontFamily: "Inter_700Bold",
-    color: Colors.text,
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
-  },
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 60,
-    gap: 12,
-  },
-  emptyStateTitle: {
-    fontSize: 16,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.textSecondary,
-    textAlign: "center",
-  },
-  emptyStateText: {
-    fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
-    textAlign: "center",
-    lineHeight: 20,
-  },
-  etapasTimeline: {
-    gap: 16,
-  },
-  etapaTimelineItem: {
-    flexDirection: "row",
-  },
-  etapaTimelineConnector: {
-    alignItems: "center",
-    width: 40,
-  },
-  etapaTimelineDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  etapaTimelineLine: {
-    width: 2,
-    height: 40,
-    backgroundColor: Colors.border,
-    marginTop: 8,
-  },
-  etapaTimelineContent: {
-    flex: 1,
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 12,
-    padding: 12,
-    marginLeft: 8,
-  },
-  etapaTimelineHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  etapaEstadoBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  etapaEstadoText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-  etapaFechaText: {
-    fontSize: 11,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textTertiary,
-  },
-  etapaBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    alignSelf: "flex-start",
-    backgroundColor: Colors.primary + "15",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  etapaNombreText: {
-    fontSize: 11,
-    color: Colors.primary,
-    fontFamily: "Inter_500Medium",
-  },
-  etapaObservacionText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-
   // ── Documents ────────────────────────────────────────────────
   downloadBtn: {
     width: 36, height: 36, borderRadius: 10,
@@ -1119,35 +1525,6 @@ const styles = StyleSheet.create({
     fontSize: 11, fontFamily: "Inter_400Regular",
     color: Colors.textSecondary, marginTop: 3,
   },
-
-  // ── Filtro por etapa ─────────────────────────────────────────
-  stageFilterRow: {
-    flexDirection: "row",
-    gap: 8,
-    paddingVertical: 2,
-  },
-  stageChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-  },
-  stageChipActive: {
-    backgroundColor: PORTAL_BLUE,
-    borderColor: PORTAL_BLUE,
-  },
-  stageChipText: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-    color: Colors.textSecondary,
-  },
-  stageChipTextActive: {
-    color: Colors.white,
-    fontFamily: "Inter_600SemiBold",
-  },
-
   // ── Empty ─────────────────────────────────────────────────────
   emptyState: {
     alignItems: "center", paddingVertical: 40, gap: 8,

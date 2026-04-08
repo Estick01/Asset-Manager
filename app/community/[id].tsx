@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Modal,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Modal, useWindowDimensions,
   TouchableOpacity, Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,8 +21,9 @@ import {
 import { getProcesos } from "@/lib/services/procesoService";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
 import RecommendedLawyers from "@/components/community/RecommendedLawyers";
-import { EnumRol, users } from "@/shared/schema/user.schema";
-import { C, T, S, R, shadow, CASE_META, getAvatarColor, formatDate } from "@/constants/community-theme";
+import { EnumRol } from "@/shared/schema/user.schema";
+import { C, getAvatarColor, formatDate } from "@/constants/community-theme";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Design tokens (aliases from community-theme) ──────────────────────────
 const NAVY = C.NAVY, WHITE = C.WHITE, BG = C.BG, TEXT = C.TEXT;
@@ -387,6 +388,10 @@ export default function PostDetailScreen() {
   const { id }   = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
   const insets   = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics = getDesktopMetrics(width);
+  const shellWidth = Math.min(1520, Math.max(1180, width - metrics.gutter * 2));
 
   const [post, setPost]             = useState<PostDTO | null>(null);
   const [comments, setComments]     = useState<CommentDTO[]>([]);
@@ -740,6 +745,11 @@ export default function PostDetailScreen() {
   const authorName = isAnon ? "Anónimo" : (post.author?.name ?? "Usuario");
   const initial    = isAnon ? "?" : (post.author?.name?.[0]?.toUpperCase() ?? "?");
   const av         = getAvatarColor(isAnon ? "?" : authorName);
+  const statusLabel = postStatus === "open"
+    ? "Buscando abogado"
+    : postStatus === "in_progress"
+    ? `En atención${takenByName ? ` · ${takenByName}` : ""}`
+    : "Caso resuelto";
 
   const postSheetItems: ActionItem[] = isOwnPost
     ? [
@@ -757,31 +767,33 @@ export default function PostDetailScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         {/* ── Top bar navy ── */}
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
-            hitSlop={12}
-          >
-            <Ionicons name="chevron-back" size={24} color={WHITE} />
-          </Pressable>
-
-          <View style={styles.topBarRight}>
-            <View style={styles.topBarMeta}>
-              <Ionicons name="eye-outline" size={13} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.topBarMetaText}>{post.viewCount ?? 0}</Text>
-            </View>
-            <View style={styles.topBarMeta}>
-              <Ionicons name="chatbubble-outline" size={13} color="rgba(255,255,255,0.6)" />
-              <Text style={styles.topBarMetaText}>{post.commentCount}</Text>
-            </View>
+        <View style={[styles.topBar, desktop && { paddingHorizontal: metrics.gutter }]}>
+          <View style={[styles.topBarShell, desktop && { maxWidth: shellWidth }]}>
             <Pressable
-              onPress={() => setPostSheetOpen(true)}
-              style={({ pressed }) => [styles.topBarMore, pressed && { opacity: 0.7 }]}
-              hitSlop={8}
+              onPress={() => router.back()}
+              style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.7 }]}
+              hitSlop={12}
             >
-              <Ionicons name="ellipsis-horizontal" size={20} color="rgba(255,255,255,0.8)" />
+              <Ionicons name="chevron-back" size={24} color={WHITE} />
             </Pressable>
+
+            <View style={styles.topBarRight}>
+              <View style={styles.topBarMeta}>
+                <Ionicons name="eye-outline" size={13} color="rgba(255,255,255,0.6)" />
+                <Text style={styles.topBarMetaText}>{post.viewCount ?? 0}</Text>
+              </View>
+              <View style={styles.topBarMeta}>
+                <Ionicons name="chatbubble-outline" size={13} color="rgba(255,255,255,0.6)" />
+                <Text style={styles.topBarMetaText}>{post.commentCount}</Text>
+              </View>
+              <Pressable
+                onPress={() => setPostSheetOpen(true)}
+                style={({ pressed }) => [styles.topBarMore, pressed && { opacity: 0.7 }]}
+                hitSlop={8}
+              >
+                <Ionicons name="ellipsis-horizontal" size={20} color="rgba(255,255,255,0.8)" />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -789,11 +801,13 @@ export default function PostDetailScreen() {
         <View style={styles.bodyBg}>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, desktop && styles.desktopScrollContent]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Post card */}
+            <View style={[styles.contentShell, desktop && { maxWidth: shellWidth }]}>
+            <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
+            <View style={styles.desktopMainColumn}>
             <View style={styles.postCard}>
               <View style={styles.postAccent} />
               <View style={styles.postInner}>
@@ -860,11 +874,7 @@ export default function PostDetailScreen() {
                       postStatus === "in_progress" ? C.TEAL :
                       C.TEXT3,
                   }}>
-                    {postStatus === "open"
-                      ? "Buscando abogado"
-                      : postStatus === "in_progress"
-                      ? `En atención${takenByName ? ` · ${takenByName}` : ""}`
-                      : "Caso resuelto"}
+                    {statusLabel}
                   </Text>
                 </View>
 
@@ -1276,7 +1286,10 @@ export default function PostDetailScreen() {
                 )}
               </View>
             </View>
-
+            
+            {desktop && (
+              <View style={styles.desktopMobileGap} />
+            )}
 
             {/* Recommended lawyers — only visible to clients, not to lawyers/firms */}
             {![EnumRol.ABOGADO.nombre, EnumRol.BUFETE.nombre].includes((user?.user as any)?.rol.nombre) && (
@@ -1320,53 +1333,117 @@ export default function PostDetailScreen() {
                 </View>
               )}
             </View>
+            </View>
+            {desktop && (
+              <View style={styles.desktopAside}>
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Resumen</Text>
+                  <Text style={styles.desktopAsideTitle}>{statusLabel}</Text>
+                  <View style={styles.desktopMetaList}>
+                    <View style={styles.desktopMetaRow}>
+                      <Text style={styles.desktopMetaKey}>Autor</Text>
+                      <Text style={styles.desktopMetaValue}>{authorName}</Text>
+                    </View>
+                    <View style={styles.desktopMetaRow}>
+                      <Text style={styles.desktopMetaKey}>Vistas</Text>
+                      <Text style={styles.desktopMetaValue}>{post.viewCount ?? 0}</Text>
+                    </View>
+                    <View style={styles.desktopMetaRow}>
+                      <Text style={styles.desktopMetaKey}>Comentarios</Text>
+                      <Text style={styles.desktopMetaValue}>{post.commentCount}</Text>
+                    </View>
+                    {post.city ? (
+                      <View style={styles.desktopMetaRow}>
+                        <Text style={styles.desktopMetaKey}>Ciudad</Text>
+                        <Text style={styles.desktopMetaValue}>{post.city}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Accesos</Text>
+                  {!isAnon && (
+                    <Pressable style={styles.desktopAsideAction} onPress={() => router.push(`/community/profile/${post.userId}` as any)}>
+                      <Ionicons name="person-outline" size={16} color={TEXT2} />
+                      <Text style={styles.desktopAsideActionText}>Ver perfil</Text>
+                    </Pressable>
+                  )}
+                  {canChat && (
+                    <Pressable style={styles.desktopAsideAction} onPress={handleStartChat} disabled={startingChat}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={16} color={TEXT2} />
+                      <Text style={styles.desktopAsideActionText}>{startingChat ? "Abriendo chat..." : "Abrir chat"}</Text>
+                    </Pressable>
+                  )}
+                  <Pressable style={styles.desktopAsideAction} onPress={handleShare}>
+                    <Ionicons name="share-social-outline" size={16} color={TEXT2} />
+                    <Text style={styles.desktopAsideActionText}>Compartir publicación</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.desktopAsideCard}>
+                  <Text style={styles.desktopAsideLabel}>Contexto</Text>
+                  <Text style={styles.desktopAsideText}>
+                    {post.caseType ? `${CASE_TYPES.find(c => c.key === post.caseType)?.label ?? post.caseType} · ` : ""}
+                    {post.isUrgent === 1 ? "Urgente" : "Sin urgencia marcada"}
+                  </Text>
+                  <Text style={styles.desktopAsideText}>
+                    {comments.length === 0 ? "Aún no hay respuestas en la conversación." : `${comments.length} respuesta${comments.length !== 1 ? "s" : ""} publicadas.`}
+                  </Text>
+                </View>
+              </View>
+            )}
+            </View>
 
             <View style={{ height: 100 }} />
+            </View>
           </ScrollView>
 
           {/* ── Input bar ── */}
-          <View style={[styles.inputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 12 }]}>
-            {replyTo && (
-              <View style={styles.replyBanner}>
-                <View style={styles.replyBannerLeft}>
-                  <Ionicons name="return-down-forward-outline" size={13} color={TEAL} />
-                  <Text style={styles.replyBannerText}>
-                    Respondiendo a{" "}
-                    <Text style={{ fontFamily: "Inter_700Bold", color: TEXT }}>{replyTo.name}</Text>
-                  </Text>
+          <View style={[styles.inputBar, desktop && styles.desktopInputBar, { paddingBottom: insets.bottom > 0 ? insets.bottom : 12 }]}>
+            <View style={[styles.inputBarShell, desktop && { maxWidth: shellWidth }]}>
+              {replyTo && (
+                <View style={styles.replyBanner}>
+                  <View style={styles.replyBannerLeft}>
+                    <Ionicons name="return-down-forward-outline" size={13} color={TEAL} />
+                    <Text style={styles.replyBannerText}>
+                      Respondiendo a{" "}
+                      <Text style={{ fontFamily: "Inter_700Bold", color: TEXT }}>{replyTo.name}</Text>
+                    </Text>
+                  </View>
+                  <Pressable onPress={() => setReplyTo(null)} hitSlop={8}>
+                    <Ionicons name="close" size={16} color={TEXT3} />
+                  </Pressable>
                 </View>
-                <Pressable onPress={() => setReplyTo(null)} hitSlop={8}>
-                  <Ionicons name="close" size={16} color={TEXT3} />
-                </Pressable>
+              )}
+              <View style={[styles.inputRow, desktop && styles.desktopInputRow]}>
+                <TextInput
+                  ref={inputRef}
+                  style={[styles.textInput, desktop && styles.desktopTextInput]}
+                  placeholder={isLawyerUser ? "Responde como abogado..." : "Comparte más detalles..."}
+                  placeholderTextColor={TEXT3}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  multiline
+                  maxLength={1000}
+                />
+                <Tooltip label="Enviar comentario">
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.sendBtn,
+                      (!commentText.trim() || submitting) && styles.sendBtnDisabled,
+                      pressed && { opacity: 0.8 },
+                    ]}
+                    onPress={handleSubmit}
+                    disabled={!commentText.trim() || submitting}
+                  >
+                    {submitting
+                      ? <ActivityIndicator size="small" color={WHITE} />
+                      : <Ionicons name="send" size={16} color={WHITE} />
+                    }
+                  </Pressable>
+                </Tooltip>
               </View>
-            )}
-            <View style={styles.inputRow}>
-              <TextInput
-                ref={inputRef}
-                style={styles.textInput}
-                placeholder={isLawyerUser ? "Responde como abogado..." : "Comparte más detalles..."}
-                placeholderTextColor={TEXT3}
-                value={commentText}
-                onChangeText={setCommentText}
-                multiline
-                maxLength={1000}
-              />
-              <Tooltip label="Enviar comentario">
-                <Pressable
-                  style={({ pressed }) => [
-                    styles.sendBtn,
-                    (!commentText.trim() || submitting) && styles.sendBtnDisabled,
-                    pressed && { opacity: 0.8 },
-                  ]}
-                  onPress={handleSubmit}
-                  disabled={!commentText.trim() || submitting}
-                >
-                  {submitting
-                    ? <ActivityIndicator size="small" color={WHITE} />
-                    : <Ionicons name="send" size={16} color={WHITE} />
-                  }
-                </Pressable>
-              </Tooltip>
             </View>
           </View>
         </View>
@@ -1611,6 +1688,52 @@ const styles = StyleSheet.create({
   screen:   { flex: 1, backgroundColor: NAVY },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 60 },
   notFoundText: { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT2 },
+  topBarShell: { width: "100%", alignSelf: "center", flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  contentShell: { width: "100%", alignSelf: "center" },
+  inputBarShell: { width: "100%", alignSelf: "center" },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  desktopMainColumn: { flex: 1, minWidth: 0 },
+  desktopAside: { width: 340, gap: 16 },
+  desktopAsideCard: {
+    backgroundColor: WHITE,
+    borderRadius: 20,
+    padding: 18,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E1E8F0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  desktopAsideLabel: {
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.7,
+  },
+  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: TEXT, fontFamily: "Inter_700Bold" },
+  desktopAsideText: { fontSize: 13, lineHeight: 20, color: TEXT2, fontFamily: "Inter_400Regular" },
+  desktopMetaList: { gap: 10 },
+  desktopMetaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopMetaKey: { fontSize: 12, color: TEXT3, fontFamily: "Inter_500Medium" },
+  desktopMetaValue: { flexShrink: 1, textAlign: "right", fontSize: 13, color: TEXT, fontFamily: "Inter_600SemiBold" },
+  desktopAsideAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: "#E4EAF1",
+  },
+  desktopAsideActionText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_600SemiBold" },
+  desktopMobileGap: { height: 4 },
 
   // Top bar
   topBar: {
@@ -1658,6 +1781,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
   },
   scrollContent: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20 },
+  desktopScrollContent: { paddingHorizontal: 24, paddingTop: 28, paddingBottom: 28 },
 
   // Post card
   postCard: {
@@ -1982,6 +2106,11 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
+  desktopInputBar: {
+    paddingHorizontal: 24,
+    paddingTop: 14,
+    borderTopColor: "#DDE5ED",
+  },
   replyBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -1997,6 +2126,7 @@ const styles = StyleSheet.create({
   replyBannerLeft: { flexDirection: "row", alignItems: "center", gap: 6, flex: 1 },
   replyBannerText: { fontSize: 12, fontFamily: "Inter_400Regular", color: TEXT2 },
   inputRow: { flexDirection: "row", alignItems: "flex-end", gap: 10 },
+  desktopInputRow: { gap: 12 },
   textInput: {
     flex: 1,
     backgroundColor: BG,
@@ -2010,6 +2140,13 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: TEXT,
     maxHeight: 100,
+  },
+  desktopTextInput: {
+    minHeight: 52,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 14,
   },
   sendBtn: {
     width: 42,

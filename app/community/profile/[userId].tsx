@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable,
-  ActivityIndicator,
+  ActivityIndicator, useWindowDimensions, Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
@@ -21,6 +21,7 @@ import {
   type ClientRequestStatus,
 } from "@/lib/services/clientRequestService";
 import RatingModal from "@/components/community/RatingModal";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
 const NAVY  = "#0F2640";
@@ -121,6 +122,10 @@ export default function CommunityProfileScreen() {
   const { userId }         = useLocalSearchParams<{ userId: string }>();
   const { user: authUser } = useAuth();
   const insets             = useSafeAreaInsets();
+  const { width }          = useWindowDimensions();
+  const desktop            = Platform.OS === "web" && isDesktopViewport(width);
+  const metrics            = getDesktopMetrics(width);
+  const shellWidth         = Math.min(1480, Math.max(1160, width - metrics.gutter * 2));
 
   const [profile,       setProfile]       = useState<CommunityUserProfile | null>(null);
   const [ratings,       setRatings]       = useState<RatingDTO[]>([]);
@@ -240,11 +245,158 @@ export default function CommunityProfileScreen() {
     !isOwnProfile && authUser && profile.role === "cliente" &&
     (viewerRole === "abogado" || viewerRole === "bufete");
   const rc           = rolColor(profile.role);
+  const profileInfoCards = (
+    <>
+      {communityStats && (
+        <View style={s.communityCard}>
+          <View style={s.communityCardHeader}>
+            <View style={s.communityCardIconBox}>
+              <Ionicons name="globe-outline" size={14} color={TEAL} />
+            </View>
+            <Text style={s.communityCardTitle}>Actividad en comunidad</Text>
+          </View>
+
+          <View style={s.communityStats}>
+            <View style={s.cStatItem}>
+              <Text style={s.cStatValue}>{communityStats.casesTaken}</Text>
+              <Text style={s.cStatLabel}>Casos tomados</Text>
+            </View>
+            <View style={s.cStatDivider} />
+            <View style={s.cStatItem}>
+              <Text style={s.cStatValue}>{communityStats.processesLinked}</Text>
+              <Text style={s.cStatLabel}>Procesos creados</Text>
+            </View>
+            <View style={s.cStatDivider} />
+            <View style={s.cStatItem}>
+              <Text style={[s.cStatValue, communityStats.conversionRate >= 80 ? { color: GREEN } : communityStats.conversionRate >= 50 ? { color: AMBER } : { color: RED }]}>
+                {communityStats.casesTaken > 0 ? `${communityStats.conversionRate}%` : "—"}
+              </Text>
+              <Text style={s.cStatLabel}>Conversión</Text>
+            </View>
+          </View>
+
+          {communityStats.badges.length > 0 && (
+            <View style={s.badgesWrap}>
+              {communityStats.badges.map(key => {
+                const b = BADGE_META[key];
+                return (
+                  <View key={key} style={[s.badge, { borderColor: b.color + "40", backgroundColor: b.color + "12" }]}>
+                    <Ionicons name={b.icon as any} size={13} color={b.color} />
+                    <Text style={[s.badgeLabel, { color: b.color }]}>{b.label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+      )}
+
+      {profile.lawyerInfo && (
+        <View style={s.infoCard}>
+          {profile.lawyerInfo.specialization && (
+            <InfoRow icon="briefcase-outline" text={profile.lawyerInfo.specialization} />
+          )}
+          {profile.lawyerInfo.licenseNumber && (
+            <InfoRow icon="card-outline" text={`Tarjeta profesional ${profile.lawyerInfo.licenseNumber}`} />
+          )}
+          {profile.lawyerInfo.firmName && (
+            <InfoRow icon="business-outline" text={profile.lawyerInfo.firmName} />
+          )}
+        </View>
+      )}
+
+      {profile.firmInfo && (
+        <View style={s.infoCard}>
+          <InfoRow icon="document-text-outline" text={`NIT: ${profile.firmInfo.nit}`} />
+          {profile.firmInfo.address && <InfoRow icon="location-outline" text={profile.firmInfo.address} />}
+          {profile.firmInfo.phone && <InfoRow icon="call-outline" text={profile.firmInfo.phone} />}
+        </View>
+      )}
+
+      {canSeeClientRequest && (
+        <View style={{ marginBottom: 4 }}>
+          {crStatus?.isClient ? (
+            <Pressable
+              style={({ pressed }) => [s.crBtn, s.crBtnActive, pressed && { opacity: 0.85 }]}
+              onPress={() => router.push(`/(${viewerRole === "bufete" ? "firm" : "lawyer"}-tabs)/clients` as any)}
+            >
+              <View style={[s.crBtnIcon, { backgroundColor: GREEN + "20" }]}>
+                <Ionicons name="people" size={16} color={GREEN} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.crBtnTitle, { color: GREEN }]}>Ya es tu cliente</Text>
+                <Text style={s.crBtnSub}>Toca para crear un proceso</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={GREEN} />
+            </Pressable>
+          ) : crStatus?.request?.status === "pending" ? (
+            <View style={[s.crBtn, s.crBtnPending]}>
+              <View style={[s.crBtnIcon, { backgroundColor: TEXT3 + "25" }]}>
+                <Ionicons name="time-outline" size={16} color={TEXT2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.crBtnTitle, { color: TEXT }]}>Solicitud enviada</Text>
+                <Text style={s.crBtnSub}>En espera de respuesta</Text>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [s.crBtn, s.crBtnSend, sendingReq && { opacity: 0.6 }, pressed && !sendingReq && { opacity: 0.85 }]}
+              onPress={handleSendRequest}
+              disabled={sendingReq}
+            >
+              <View style={[s.crBtnIcon, { backgroundColor: WHITE + "20" }]}>
+                {sendingReq ? <ActivityIndicator size="small" color={WHITE} /> : <Ionicons name="person-add-outline" size={16} color={WHITE} />}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.crBtnTitle, { color: WHITE }]}>{sendingReq ? "Enviando solicitud..." : "Solicitar como cliente"}</Text>
+                <Text style={[s.crBtnSub, { color: "rgba(255,255,255,0.7)" }]}>Se le notificará al cliente</Text>
+              </View>
+              {!sendingReq && <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />}
+            </Pressable>
+          )}
+        </View>
+      )}
+
+      {!isOwnProfile && authUser && (
+        <View style={[s.actionRow, desktop && s.desktopActionColumn]}>
+          <Pressable
+            style={({ pressed }) => [s.actionBtn, s.chatBtn, startingChat && { opacity: 0.6 }, pressed && !startingChat && { opacity: 0.88 }]}
+            onPress={handleStartChat}
+            disabled={startingChat}
+          >
+            {startingChat ? <ActivityIndicator size="small" color={WHITE} /> : <Ionicons name="chatbubble-ellipses" size={18} color={WHITE} />}
+            <Text style={[s.actionBtnText, { color: WHITE }]}>{startingChat ? "Abriendo..." : "Enviar mensaje"}</Text>
+          </Pressable>
+
+          {isRatable && (
+            <Pressable
+              style={({ pressed }) => [
+                s.actionBtn,
+                hasRated ? s.rateBtnDone : canRate ? [s.rateBtnReady, pressed && { opacity: 0.88 }] : s.rateBtnLocked,
+              ]}
+              onPress={() => canRate && !hasRated && setRatingModal(true)}
+              disabled={!canRate || hasRated}
+            >
+              <Ionicons
+                name={hasRated ? "checkmark-circle" : canRate ? "star" : "lock-closed-outline"}
+                size={18}
+                color={hasRated ? GREEN : canRate ? AMBER : TEXT3}
+              />
+              <Text style={[s.actionBtnText, { color: hasRated ? GREEN : canRate ? TEXT : TEXT3 }]}>
+                {hasRated ? "Ya calificaste" : canRate ? "Calificar" : "Sin proceso"}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      )}
+    </>
+  );
 
   return (
     <View style={[s.screen, { paddingTop: insets.top }]}>
-      {/* ── Fixed top bar ── */}
-      <View style={s.topBar}>
+      <View style={[s.topBar, desktop && { paddingHorizontal: metrics.gutter }]}>
+        <View style={[s.topBarShell, desktop && { maxWidth: shellWidth }]}>
         <Pressable
           onPress={() => router.back()}
           style={({ pressed }) => [s.backBtn, pressed && { opacity: 0.7 }]}
@@ -252,11 +404,12 @@ export default function CommunityProfileScreen() {
         >
           <Ionicons name="arrow-back" size={22} color={WHITE} />
         </Pressable>
+        </View>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1 }}>
-        {/* ─────────── HERO ─────────── */}
-        <View style={s.hero}>
+        <View style={[s.hero, desktop && { paddingHorizontal: metrics.gutter, paddingBottom: 58 }]}>
+          <View style={[s.heroShell, desktop && { maxWidth: shellWidth }]}>
           {/* Avatar + decorative rings, all centered in the same wrapper */}
           <View style={s.avatarWrapper}>
             <View style={[s.avatarRing2, { borderColor: rc + "18" }]} />
@@ -292,13 +445,12 @@ export default function CommunityProfileScreen() {
           {isRatable && summary.count === 0 && !isOwnProfile && (
             <Text style={s.heroNoRating}>Sin calificaciones aún</Text>
           )}
+          </View>
         </View>
 
-        {/* ─────────── MAIN CONTAINER ─────────── */}
-        <View style={s.mainContainer}>
-
-          {/* ── Stats strip ── */}
-          <View style={s.statsCard}>
+        <View style={[s.mainContainer, desktop && { paddingHorizontal: metrics.gutter, paddingTop: 24 }]}>
+          <View style={[s.contentShell, desktop && { maxWidth: shellWidth }]}>
+          <View style={[s.statsCard, desktop && s.desktopStatsCard]}>
             <View style={s.statItem}>
               <Text style={s.statValue}>{profile.posts.length}</Text>
               <Text style={s.statLabel}>Post{profile.posts.length !== 1 ? "s" : ""}</Text>
@@ -324,284 +476,93 @@ export default function CommunityProfileScreen() {
             )}
           </View>
 
-          {/* ── Community stats + badges (lawyers only) ── */}
-          {communityStats && (
-            <View style={s.communityCard}>
-              <View style={s.communityCardHeader}>
-                <View style={s.communityCardIconBox}>
-                  <Ionicons name="globe-outline" size={14} color={TEAL} />
-                </View>
-                <Text style={s.communityCardTitle}>Actividad en comunidad</Text>
-              </View>
+          <View style={[s.desktopLayout, desktop && s.desktopLayoutActive]}>
+            <View style={s.desktopMainColumn}>
+              {!desktop && profileInfoCards}
 
-              {/* Metric row */}
-              <View style={s.communityStats}>
-                <View style={s.cStatItem}>
-                  <Text style={s.cStatValue}>{communityStats.casesTaken}</Text>
-                  <Text style={s.cStatLabel}>Casos tomados</Text>
-                </View>
-                <View style={s.cStatDivider} />
-                <View style={s.cStatItem}>
-                  <Text style={s.cStatValue}>{communityStats.processesLinked}</Text>
-                  <Text style={s.cStatLabel}>Procesos creados</Text>
-                </View>
-                <View style={s.cStatDivider} />
-                <View style={s.cStatItem}>
-                  <Text style={[s.cStatValue, communityStats.conversionRate >= 80 ? { color: GREEN } : communityStats.conversionRate >= 50 ? { color: AMBER } : { color: RED }]}>
-                    {communityStats.casesTaken > 0 ? `${communityStats.conversionRate}%` : "—"}
-                  </Text>
-                  <Text style={s.cStatLabel}>Conversión</Text>
-                </View>
-              </View>
-
-              {/* Badges */}
-              {communityStats.badges.length > 0 && (
-                <View style={s.badgesWrap}>
-                  {communityStats.badges.map(key => {
-                    const b = BADGE_META[key];
+              {isRatable && ratings.length > 0 && (
+                <View style={s.section}>
+                  <SectionHeader icon="star" title="Reseñas" count={ratings.length} />
+                  {ratings.map((r) => {
+                    const sc = scoreColor(r.score);
                     return (
-                      <View key={key} style={[s.badge, { borderColor: b.color + "40", backgroundColor: b.color + "12" }]}>
-                        <Ionicons name={b.icon as any} size={13} color={b.color} />
-                        <Text style={[s.badgeLabel, { color: b.color }]}>{b.label}</Text>
+                      <View key={r.id} style={s.reviewCard}>
+                        <View style={[s.scoreBadge, { backgroundColor: sc + "18" }]}>
+                          <Ionicons name="star" size={11} color={sc} />
+                          <Text style={[s.scoreBadgeText, { color: sc }]}>{r.score}</Text>
+                        </View>
+                        <View style={s.reviewTopRow}>
+                          <View style={[s.reviewAvatar, { backgroundColor: TEAL + "18" }]}>
+                            <Text style={s.reviewAvatarText}>{r.fromUser.name?.[0]?.toUpperCase() ?? "?"}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.reviewAuthor}>{r.fromUser.name}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                              <Stars value={r.score} size={11} />
+                              <Text style={s.reviewDate}>{formatDate(r.createdAt)}</Text>
+                            </View>
+                          </View>
+                        </View>
+                        {r.comment ? <Text style={s.reviewComment}>{r.comment}</Text> : <Text style={s.reviewNoComment}>Sin comentario</Text>}
                       </View>
                     );
                   })}
                 </View>
               )}
-            </View>
-          )}
 
-          {/* ── Lawyer info ── */}
-          {profile.lawyerInfo && (
-            <View style={s.infoCard}>
-              {profile.lawyerInfo.specialization && (
-                <InfoRow icon="briefcase-outline" text={profile.lawyerInfo.specialization} />
-              )}
-              {profile.lawyerInfo.licenseNumber && (
-                <InfoRow icon="card-outline" text={`Tarjeta profesional ${profile.lawyerInfo.licenseNumber}`} />
-              )}
-              {profile.lawyerInfo.firmName && (
-                <InfoRow icon="business-outline" text={profile.lawyerInfo.firmName} />
-              )}
-            </View>
-          )}
-
-          {/* ── Firm info ── */}
-          {profile.firmInfo && (
-            <View style={s.infoCard}>
-              <InfoRow icon="document-text-outline" text={`NIT: ${profile.firmInfo.nit}`} />
-              {profile.firmInfo.address && <InfoRow icon="location-outline" text={profile.firmInfo.address} />}
-              {profile.firmInfo.phone && <InfoRow icon="call-outline" text={profile.firmInfo.phone} />}
-            </View>
-          )}
-
-          {/* ── Client-request button ── */}
-          {canSeeClientRequest && (
-            <View style={{ marginBottom: 4 }}>
-              {crStatus?.isClient ? (
-                <Pressable
-                  style={({ pressed }) => [s.crBtn, s.crBtnActive, pressed && { opacity: 0.85 }]}
-                  onPress={() => router.push(`/(${viewerRole === "bufete" ? "firm" : "lawyer"}-tabs)/clients` as any)}
-                >
-                  <View style={[s.crBtnIcon, { backgroundColor: GREEN + "20" }]}>
-                    <Ionicons name="people" size={16} color={GREEN} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.crBtnTitle, { color: GREEN }]}>Ya es tu cliente</Text>
-                    <Text style={s.crBtnSub}>Toca para crear un proceso</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={16} color={GREEN} />
-                </Pressable>
-              ) : crStatus?.request?.status === "pending" ? (
-                <View style={[s.crBtn, s.crBtnPending]}>
-                  <View style={[s.crBtnIcon, { backgroundColor: TEXT3 + "25" }]}>
-                    <Ionicons name="time-outline" size={16} color={TEXT2} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.crBtnTitle, { color: TEXT }]}>Solicitud enviada</Text>
-                    <Text style={s.crBtnSub}>En espera de respuesta</Text>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  style={({ pressed }) => [
-                    s.crBtn, s.crBtnSend,
-                    sendingReq && { opacity: 0.6 },
-                    pressed && !sendingReq && { opacity: 0.85 },
-                  ]}
-                  onPress={handleSendRequest}
-                  disabled={sendingReq}
-                >
-                  <View style={[s.crBtnIcon, { backgroundColor: WHITE + "20" }]}>
-                    {sendingReq
-                      ? <ActivityIndicator size="small" color={WHITE} />
-                      : <Ionicons name="person-add-outline" size={16} color={WHITE} />
-                    }
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[s.crBtnTitle, { color: WHITE }]}>
-                      {sendingReq ? "Enviando solicitud..." : "Solicitar como cliente"}
-                    </Text>
-                    <Text style={[s.crBtnSub, { color: "rgba(255,255,255,0.7)" }]}>
-                      Se le notificará al cliente
-                    </Text>
-                  </View>
-                  {!sendingReq && <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />}
-                </Pressable>
-              )}
-            </View>
-          )}
-
-          {/* ── Action buttons ── */}
-          {!isOwnProfile && authUser && (
-            <View style={s.actionRow}>
-              {/* Chat */}
-              <Pressable
-                style={({ pressed }) => [
-                  s.actionBtn, s.chatBtn,
-                  startingChat && { opacity: 0.6 },
-                  pressed && !startingChat && { opacity: 0.88 },
-                ]}
-                onPress={handleStartChat}
-                disabled={startingChat}
-              >
-                {startingChat
-                  ? <ActivityIndicator size="small" color={WHITE} />
-                  : <Ionicons name="chatbubble-ellipses" size={18} color={WHITE} />
-                }
-                <Text style={[s.actionBtnText, { color: WHITE }]}>
-                  {startingChat ? "Abriendo..." : "Enviar mensaje"}
-                </Text>
-              </Pressable>
-
-              {/* Rate */}
-              {isRatable && (
-                <Pressable
-                  style={({ pressed }) => [
-                    s.actionBtn,
-                    hasRated        ? s.rateBtnDone
-                    : canRate       ? [s.rateBtnReady, pressed && { opacity: 0.88 }]
-                    :                 s.rateBtnLocked,
-                  ]}
-                  onPress={() => canRate && !hasRated && setRatingModal(true)}
-                  disabled={!canRate || hasRated}
-                >
-                  <Ionicons
-                    name={hasRated ? "checkmark-circle" : canRate ? "star" : "lock-closed-outline"}
-                    size={18}
-                    color={hasRated ? GREEN : canRate ? AMBER : TEXT3}
-                  />
-                  <Text style={[
-                    s.actionBtnText,
-                    { color: hasRated ? GREEN : canRate ? TEXT : TEXT3 },
-                  ]}>
-                    {hasRated ? "Ya calificaste" : canRate ? "Calificar" : "Sin proceso"}
-                  </Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-
-          {/* ── Reviews ── */}
-          {isRatable && ratings.length > 0 && (
-            <View style={s.section}>
-              <SectionHeader icon="star" title="Reseñas" count={ratings.length} />
-              {ratings.map((r) => {
-                const sc = scoreColor(r.score);
-                return (
-                  <View key={r.id} style={s.reviewCard}>
-                    {/* Score badge top-right */}
-                    <View style={[s.scoreBadge, { backgroundColor: sc + "18" }]}>
-                      <Ionicons name="star" size={11} color={sc} />
-                      <Text style={[s.scoreBadgeText, { color: sc }]}>{r.score}</Text>
+              <View style={s.section}>
+                <SectionHeader icon="document-text-outline" title="Publicaciones" count={profile.posts.length} />
+                {profile.posts.length === 0 ? (
+                  <View style={s.emptyState}>
+                    <View style={s.emptyIcon}>
+                      <Ionicons name="document-text-outline" size={28} color={TEXT3} />
                     </View>
-
-                    <View style={s.reviewTopRow}>
-                      <View style={[s.reviewAvatar, { backgroundColor: TEAL + "18" }]}>
-                        <Text style={s.reviewAvatarText}>
-                          {r.fromUser.name?.[0]?.toUpperCase() ?? "?"}
-                        </Text>
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.reviewAuthor}>{r.fromUser.name}</Text>
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
-                          <Stars value={r.score} size={11} />
-                          <Text style={s.reviewDate}>{formatDate(r.createdAt)}</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    {r.comment ? (
-                      <Text style={s.reviewComment}>{r.comment}</Text>
-                    ) : (
-                      <Text style={s.reviewNoComment}>Sin comentario</Text>
-                    )}
+                    <Text style={s.emptyTitle}>Sin publicaciones</Text>
+                    <Text style={s.emptySub}>Este usuario no ha publicado nada aún</Text>
                   </View>
-                );
-              })}
-            </View>
-          )}
-
-          {/* ── Posts ── */}
-          <View style={s.section}>
-            <SectionHeader
-              icon="document-text-outline"
-              title="Publicaciones"
-              count={profile.posts.length}
-            />
-            {profile.posts.length === 0 ? (
-              <View style={s.emptyState}>
-                <View style={s.emptyIcon}>
-                  <Ionicons name="document-text-outline" size={28} color={TEXT3} />
-                </View>
-                <Text style={s.emptyTitle}>Sin publicaciones</Text>
-                <Text style={s.emptySub}>Este usuario no ha publicado nada aún</Text>
-              </View>
-            ) : (
-              profile.posts.map((post) => {
-                const hasLawyer = post.clientAccepted === 1 && !!post.takenByLawyerId;
-                return (
-                <Pressable
-                  key={post.id}
-                  style={({ pressed }) => [s.postCard, pressed && { opacity: 0.93 }]}
-                  onPress={() => router.push(`/community/${post.id}` as any)}
-                >
-                  {/* Left accent — green when lawyer confirmed */}
-                  <View style={[s.postAccent, { backgroundColor: hasLawyer ? GREEN : rc }]} />
-                  <View style={s.postBody}>
-                    <Text style={s.postTitle} numberOfLines={2}>{post.title}</Text>
-
-                    {/* Lawyer confirmed badge */}
-                    {hasLawyer && (
-                      <View style={s.lawyerBadge}>
-                        <Ionicons name="shield-checkmark" size={11} color={GREEN} />
-                        <Text style={s.lawyerBadgeText} numberOfLines={1}>
-                          {post.takenByName ?? "Abogado confirmado"}
-                        </Text>
-                      </View>
-                    )}
-
-                    <Text style={s.postSnippet} numberOfLines={2}>{post.content}</Text>
-                    <View style={s.postFooter}>
-                      <Text style={s.postDate}>{formatDate(post.createdAt)}</Text>
-                      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                        {post.commentCount > 0 && (
-                          <View style={s.postStat}>
-                            <Ionicons name="chatbubble-outline" size={12} color={TEXT3} />
-                            <Text style={s.postStatText}>{post.commentCount}</Text>
+                ) : (
+                  profile.posts.map((post) => {
+                    const hasLawyer = post.clientAccepted === 1 && !!post.takenByLawyerId;
+                    return (
+                    <Pressable
+                      key={post.id}
+                      style={({ pressed }) => [s.postCard, pressed && { opacity: 0.93 }]}
+                      onPress={() => router.push(`/community/${post.id}` as any)}
+                    >
+                      <View style={[s.postAccent, { backgroundColor: hasLawyer ? GREEN : rc }]} />
+                      <View style={s.postBody}>
+                        <Text style={s.postTitle} numberOfLines={2}>{post.title}</Text>
+                        {hasLawyer && (
+                          <View style={s.lawyerBadge}>
+                            <Ionicons name="shield-checkmark" size={11} color={GREEN} />
+                            <Text style={s.lawyerBadgeText} numberOfLines={1}>{post.takenByName ?? "Abogado confirmado"}</Text>
                           </View>
                         )}
-                        <Text style={s.postCta}>Ver más</Text>
+                        <Text style={s.postSnippet} numberOfLines={2}>{post.content}</Text>
+                        <View style={s.postFooter}>
+                          <Text style={s.postDate}>{formatDate(post.createdAt)}</Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            {post.commentCount > 0 && (
+                              <View style={s.postStat}>
+                                <Ionicons name="chatbubble-outline" size={12} color={TEXT3} />
+                                <Text style={s.postStatText}>{post.commentCount}</Text>
+                              </View>
+                            )}
+                            <Text style={s.postCta}>Ver más</Text>
+                          </View>
+                        </View>
                       </View>
-                    </View>
-                  </View>
-                </Pressable>
-                );
-              })
-            )}
-          </View>
+                    </Pressable>
+                    );
+                  })
+                )}
+              </View>
+            </View>
 
+            {desktop && <View style={s.desktopAside}>{profileInfoCards}</View>}
+          </View>
           <View style={{ height: 32 }} />
+          </View>
         </View>
       </ScrollView>
 
@@ -623,6 +584,18 @@ export default function CommunityProfileScreen() {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: NAVY },
+  topBarShell: { width: "100%", alignSelf: "center" },
+  heroShell: { width: "100%", alignSelf: "center", alignItems: "center" },
+  contentShell: { width: "100%", alignSelf: "center" },
+  desktopLayout: { width: "100%" },
+  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  desktopMainColumn: { flex: 1, minWidth: 0, gap: 12 },
+  desktopAside: { width: 340, gap: 16 },
+  desktopStatsCard: {
+    marginBottom: 16,
+    paddingHorizontal: 18,
+  },
+  desktopActionColumn: { flexDirection: "column" },
 
   // Top bar
   topBar: {
