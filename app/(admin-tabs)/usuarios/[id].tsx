@@ -114,6 +114,20 @@ export default function UsuarioDetailScreen() {
     onError: () => setErrorReset("Error al generar el token de reset."),
   });
 
+  const planesDisponibles = plans.filter((plan: AdminPlanRow) => {
+    if (!plan.state) return false;
+    if (rolNombre === "abogado" || rolNombre === "bufete") {
+      return plan.tipo === rolNombre;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (!modalPlan || selectedPlanId || !user?.suscripcionActiva) return;
+    const actual = planesDisponibles.find((plan) => plan.nombre === user.suscripcionActiva?.planNombre);
+    if (actual) setSelectedPlanId(actual.id);
+  }, [modalPlan, selectedPlanId, planesDisponibles, user?.suscripcionActiva]);
+
   if (isLoading) {
     return (
       <AdminShell title="Usuario">
@@ -134,20 +148,6 @@ export default function UsuarioDetailScreen() {
       </AdminShell>
     );
   }
-
-  const planesDisponibles = plans.filter((plan: AdminPlanRow) => {
-    if (!plan.state) return false;
-    if (rolNombre === "abogado" || rolNombre === "bufete") {
-      return plan.tipo === rolNombre;
-    }
-    return true;
-  });
-
-  useEffect(() => {
-    if (!modalPlan || selectedPlanId || !user?.suscripcionActiva) return;
-    const actual = planesDisponibles.find((plan) => plan.nombre === user.suscripcionActiva?.planNombre);
-    if (actual) setSelectedPlanId(actual.id);
-  }, [modalPlan, selectedPlanId, planesDisponibles, user?.suscripcionActiva]);
 
   return (
     <AdminShell title={user.name ?? user.email} scrollable={false}>
