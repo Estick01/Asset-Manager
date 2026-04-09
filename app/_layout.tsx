@@ -4,7 +4,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UnifiedAuthProvider, useAuth } from "@/lib/auth-context";
-import { View, StyleSheet, Platform, LogBox } from "react-native";
+import { View, StyleSheet, Platform, LogBox, Text } from "react-native";
 import "./global.css";
 
 import {
@@ -118,6 +118,16 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function WebBootMarker() {
+  if (Platform.OS !== "web") return null;
+
+  return (
+    <View pointerEvents="none" style={styles.webBootMarker}>
+      <Text style={styles.webBootMarkerText}>ProcesoClaro web OK</Text>
+    </View>
+  );
+}
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     Inter_400Regular,
@@ -138,12 +148,24 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-  if (!loaded) return null;
+  if (!loaded) {
+    return (
+      <GestureHandlerRootView style={styles.container}>
+        <SafeAreaProvider>
+          <View style={styles.loadingScreen}>
+            <WebBootMarker />
+            <Text style={styles.loadingText}>Cargando ProcesoClaro...</Text>
+          </View>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider>
         <View style={styles.contentWrapper}>
+          <WebBootMarker />
           <QueryClientProvider client={queryClient}>
             <UnifiedAuthProvider>
               <SubscriptionProvider>
@@ -183,5 +205,31 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     alignSelf: 'stretch',
+  },
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#ffffff",
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#0F2640",
+    fontWeight: "600",
+  },
+  webBootMarker: {
+    position: "fixed" as any,
+    top: 12,
+    left: 12,
+    zIndex: 9999,
+    backgroundColor: "#0F2640",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  webBootMarkerText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });
