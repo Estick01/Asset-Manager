@@ -16,7 +16,7 @@ export default function LoginScreen() {
   const { width } = useWindowDimensions();
   const desktop = Platform.OS === "web" && isDesktopViewport(width);
   const metrics = getDesktopMetrics(width);
-  const shellWidth = Math.min(1360, Math.max(1120, width - metrics.gutter * 2));
+  const shellWidth = Math.min(1140, Math.max(960, width - metrics.gutter * 2));
   const { login, user } = useAuth();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
@@ -107,129 +107,205 @@ const handleLogin = async () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
-          <View style={[styles.layout, desktop && styles.desktopLayout]}>
-          <View style={[styles.brandPanel, desktop && styles.desktopBrandPanel]}>
-            <View style={styles.logoSection}>
-              <View style={styles.iconCircle}>
-                <Ionicons name="briefcase" size={40} color={Colors.accent} />
-              </View>
-              <Text style={styles.brandName}>ProcesoClaro</Text>
-              <Text style={styles.brandSub}>Sistema de Seguimiento Juridico</Text>
-            </View>
-
-            {desktop && (
-              <View style={styles.desktopBrandContent}>
-                <Text style={styles.desktopBrandTitle}>Accede a tu espacio de trabajo legal</Text>
-                <Text style={styles.desktopBrandText}>
-                  Gestiona procesos, conversaciones, alertas y comunidad desde una interfaz más clara para escritorio.
-                </Text>
-                <View style={styles.desktopFeatureList}>
-                  <View style={styles.desktopFeatureItem}>
-                    <View style={styles.desktopFeatureIcon}>
-                      <Ionicons name="shield-checkmark-outline" size={18} color={Colors.white} />
-                    </View>
-                    <Text style={styles.desktopFeatureText}>Acceso seguro para clientes, bufetes y abogados.</Text>
-                  </View>
-                  <View style={styles.desktopFeatureItem}>
-                    <View style={styles.desktopFeatureIcon}>
-                      <Ionicons name="grid-outline" size={18} color={Colors.white} />
-                    </View>
-                    <Text style={styles.desktopFeatureText}>Procesos, documentos y mensajes en un solo lugar.</Text>
-                  </View>
-                  <View style={styles.desktopFeatureItem}>
-                    <View style={styles.desktopFeatureIcon}>
-                      <Ionicons name="sparkles-outline" size={18} color={Colors.white} />
-                    </View>
-                    <Text style={styles.desktopFeatureText}>Seguimiento centralizado de actuaciones, documentos y comunicación legal.</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-          </View>
-
-          <View style={[styles.formColumn, desktop && styles.desktopFormColumn]}>
-            <View style={[styles.formCard, desktop && styles.desktopFormCard]}>
-              <Text style={styles.formTitle}>Iniciar Sesion</Text>
-              {desktop && <Text style={styles.formSubtitle}>Ingresa con tu correo y contraseña para continuar.</Text>}
-
-              {!!error && (
-                <View style={styles.errorBox}>
-                  <Ionicons name="alert-circle" size={16} color={Colors.danger} />
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Correo electronico</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="mail-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                  <TextInput
-                    style={styles.input}
-                    value={correo}
-                    onChangeText={setCorreo}
-                    placeholder="tu@correo.com"
-                    placeholderTextColor={Colors.textTertiary}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                  />
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Contrasena</Text>
-                <View style={styles.inputWrapper}>
-                  <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
-                  <TextInput
-                    style={[styles.input, styles.passwordInput]}
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="Tu contrasena"
-                    placeholderTextColor={Colors.textTertiary}
-                    secureTextEntry={!showPassword}
-                  />
-                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                    <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textTertiary} />
-                  </Pressable>
-                </View>
-              </View>
-
+            <View style={styles.topBar}>
               <Pressable
-                onPress={handleLogin}
-                disabled={loading}
-                style={({ pressed }) => [styles.loginBtn, pressed && styles.loginBtnPressed, loading && styles.loginBtnDisabled]}
+                onPress={() => router.push("/landing")}
+                style={({ pressed }) => [styles.backLink, pressed && styles.backLinkPressed]}
               >
-                {loading ? (
-                  <ActivityIndicator color={Colors.white} />
-                ) : (
-                  <Text style={styles.loginBtnText}>Ingresar</Text>
-                )}
+                <Ionicons name="arrow-back" size={16} color={Colors.white} />
+                <Text style={styles.backLinkText}>Volver a la landing</Text>
               </Pressable>
-
-              <Pressable
-                onPress={() => router.push("/(auth)/forgot-password")}
-                style={styles.forgotBtn}
-              >
-                <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
-              </Pressable>
-
-              <View style={[styles.footer, desktop && styles.desktopFooter]}>
-                <Text style={[styles.footerText, desktop && styles.desktopFooterText]}>No tienes cuenta?</Text>
-                <Pressable onPress={() => router.push("/(auth)/register-type")}>
-                  <Text style={styles.footerLink}>Registrate</Text>
-                </Pressable>
-              </View>
 
               <Pressable
                 onPress={() => router.push("/planes")}
-                style={[styles.verPlanesBtn, desktop && styles.desktopVerPlanesBtn]}
+                style={({ pressed }) => [styles.topBarGhostBtn, pressed && styles.backLinkPressed]}
               >
-                <Ionicons name="albums-outline" size={16} color={Colors.primary} />
-                <Text style={[styles.verPlanesBtnText, desktop && styles.desktopVerPlanesBtnText]}>Ver planes y precios</Text>
+                <Text style={styles.topBarGhostText}>Ver planes</Text>
               </Pressable>
             </View>
-          </View>
-          </View>
+
+            <View style={[styles.layout, desktop && styles.desktopLayout]}>
+              {desktop ? (
+                <View style={[styles.brandPanel, styles.desktopBrandPanel]}>
+                  <View style={styles.desktopPanelHeader}>
+                    <View style={styles.logoSection}>
+                      <View style={styles.iconCircle}>
+                        <Ionicons name="briefcase-outline" size={24} color={Colors.white} />
+                      </View>
+                      <View style={styles.brandTextStack}>
+                        <Text style={styles.brandName}>ProcesoClaro</Text>
+                        <Text style={styles.brandSub}>Acceso seguro a tu operacion juridica</Text>
+                      </View>
+                    </View>
+                    <View style={styles.desktopStatusPill}>
+                      <Text style={styles.desktopStatusText}>Plataforma legal</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.desktopBrandContent}>
+                    <Text style={styles.desktopBrandTitle}>Inicia sesion y continua con tu trabajo legal</Text>
+                    <Text style={styles.desktopBrandText}>
+                      Una entrada clara para abogados, bufetes y clientes que necesitan revisar procesos, documentos, mensajes y seguimiento en un entorno profesional.
+                    </Text>
+                    <View style={styles.desktopFeatureList}>
+                      <View style={styles.desktopFeatureItem}>
+                        <View style={styles.desktopFeatureIcon}>
+                          <Ionicons name="shield-checkmark-outline" size={16} color={Colors.white} />
+                        </View>
+                        <Text style={styles.desktopFeatureText}>Acceso seguro y segmentado por perfil de usuario.</Text>
+                      </View>
+                      <View style={styles.desktopFeatureItem}>
+                        <View style={styles.desktopFeatureIcon}>
+                          <Ionicons name="documents-outline" size={16} color={Colors.white} />
+                        </View>
+                        <Text style={styles.desktopFeatureText}>Procesos, documentos y conversaciones centralizados.</Text>
+                      </View>
+                      <View style={styles.desktopFeatureItem}>
+                        <View style={styles.desktopFeatureIcon}>
+                          <Ionicons name="time-outline" size={16} color={Colors.white} />
+                        </View>
+                        <Text style={styles.desktopFeatureText}>Seguimiento juridico con mejor trazabilidad y contexto.</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.desktopTrustRow}>
+                    <View style={styles.desktopTrustItem}>
+                      <Text style={styles.desktopTrustValue}>Clientes</Text>
+                      <Text style={styles.desktopTrustLabel}>Portal y seguimiento</Text>
+                    </View>
+                    <View style={styles.desktopTrustDivider} />
+                    <View style={styles.desktopTrustItem}>
+                      <Text style={styles.desktopTrustValue}>Bufetes</Text>
+                      <Text style={styles.desktopTrustLabel}>Operacion centralizada</Text>
+                    </View>
+                    <View style={styles.desktopTrustDivider} />
+                    <View style={styles.desktopTrustItem}>
+                      <Text style={styles.desktopTrustValue}>Abogados</Text>
+                      <Text style={styles.desktopTrustLabel}>Control diario del caso</Text>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
+              <View style={[styles.formColumn, desktop && styles.desktopFormColumn]}>
+                <View style={[styles.formCard, desktop && styles.desktopFormCard]}>
+                  {!desktop ? (
+                    <View style={styles.mobileBrandHeader}>
+                      <View style={styles.mobileBrandRow}>
+                        <View style={styles.mobileBrandIcon}>
+                          <Ionicons name="briefcase-outline" size={18} color={Colors.white} />
+                        </View>
+                        <View style={styles.mobileBrandTextWrap}>
+                          <Text style={styles.mobileBrandName}>ProcesoClaro</Text>
+                          <Text style={styles.mobileBrandSub}>Acceso a tu espacio juridico</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ) : null}
+
+                  <View style={styles.formHeader}>
+                    <View style={styles.formHeaderBadge}>
+                      <Text style={styles.formHeaderBadgeText}>Acceso</Text>
+                    </View>
+                    <Text style={styles.formTitle}>Iniciar Sesion</Text>
+                    <Text style={styles.formSubtitle}>Ingresa con tu correo y contrasena para continuar.</Text>
+                  </View>
+
+                  {!!error && (
+                    <View style={styles.errorBox}>
+                      <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                      <Text style={styles.errorText}>{error}</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.formFields}>
+                    <View style={styles.inputGroup}>
+                      <Text style={styles.label}>Correo electronico</Text>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="mail-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput
+                          style={styles.input}
+                          value={correo}
+                          onChangeText={setCorreo}
+                          placeholder="tu@correo.com"
+                          placeholderTextColor={Colors.textTertiary}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoCorrect={false}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.inputGroup}>
+                      <View style={styles.passwordLabelRow}>
+                        <Text style={styles.label}>Contrasena</Text>
+                        <Pressable
+                          onPress={() => router.push("/(auth)/forgot-password")}
+                          style={({ pressed }) => [styles.inlineForgotBtn, pressed && styles.inlineForgotBtnPressed]}
+                        >
+                          <Text style={styles.inlineForgotText}>Recuperar acceso</Text>
+                        </Pressable>
+                      </View>
+                      <View style={styles.inputWrapper}>
+                        <Ionicons name="lock-closed-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                        <TextInput
+                          style={[styles.input, styles.passwordInput]}
+                          value={password}
+                          onChangeText={setPassword}
+                          placeholder="Tu contrasena"
+                          placeholderTextColor={Colors.textTertiary}
+                          secureTextEntry={!showPassword}
+                        />
+                        <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                          <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textTertiary} />
+                        </Pressable>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Pressable
+                    onPress={handleLogin}
+                    disabled={loading}
+                    style={({ pressed }) => [styles.loginBtn, pressed && styles.loginBtnPressed, loading && styles.loginBtnDisabled]}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color={Colors.white} />
+                    ) : (
+                      <>
+                        <Text style={styles.loginBtnText}>Ingresar</Text>
+                        <Ionicons name="arrow-forward" size={16} color={Colors.white} />
+                      </>
+                    )}
+                  </Pressable>
+
+                  <View style={styles.helpCard}>
+                    <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
+                    <View style={styles.helpCardTextWrap}>
+                      <Text style={styles.helpCardTitle}>Acceso seguro</Text>
+                      <Text style={styles.helpCardText}>Tus credenciales te llevan al panel segun tu perfil: abogado, bufete, cliente o administrador.</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.formDivider} />
+
+                  <View style={[styles.footer, desktop && styles.desktopFooter]}>
+                    <Text style={[styles.footerText, desktop && styles.desktopFooterText]}>No tienes cuenta?</Text>
+                    <Pressable onPress={() => router.push("/(auth)/register-type")}>
+                      <Text style={styles.footerLink}>Registrate</Text>
+                    </Pressable>
+                  </View>
+
+                  <Pressable
+                    onPress={() => router.push("/planes")}
+                    style={[styles.verPlanesBtn, desktop && styles.desktopVerPlanesBtn]}
+                  >
+                    <Ionicons name="albums-outline" size={16} color={Colors.primary} />
+                    <Text style={[styles.verPlanesBtnText, desktop && styles.desktopVerPlanesBtnText]}>Ver planes y precios</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -252,14 +328,57 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 18,
+  },
+  backLink: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  backLinkPressed: {
+    opacity: 0.86,
+  },
+  backLinkText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.white,
+  },
+  topBarGhostBtn: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  topBarGhostText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.86)",
+  },
   layout: {
     width: "100%",
   },
   desktopLayout: {
-    minHeight: 720,
+    minHeight: 620,
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 28,
+    gap: 22,
   },
   brandPanel: {
     alignItems: "center",
@@ -267,58 +386,80 @@ const styles = StyleSheet.create({
   desktopBrandPanel: {
     flex: 1,
     minWidth: 0,
-    padding: 36,
-    borderRadius: 30,
-    backgroundColor: "rgba(255,255,255,0.08)",
+    padding: 32,
+    borderRadius: 24,
+    backgroundColor: "rgba(8,18,31,0.24)",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     alignItems: "flex-start",
     justifyContent: "space-between",
   },
   logoSection: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 32,
+    gap: 12,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
   },
+  brandTextStack: { gap: 2 },
   brandName: {
-    fontSize: 32,
+    fontSize: 24,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
-    letterSpacing: 1,
+    letterSpacing: 0.2,
   },
   brandSub: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.7)",
-    marginTop: 4,
+    color: "rgba(255,255,255,0.72)",
+  },
+  desktopPanelHeader: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  desktopStatusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  desktopStatusText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.84)",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
   },
   desktopBrandContent: {
-    gap: 18,
-    maxWidth: 520,
+    gap: 16,
+    maxWidth: 500,
   },
   desktopBrandTitle: {
-    fontSize: 34,
-    lineHeight: 40,
+    fontSize: 30,
+    lineHeight: 36,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
-    letterSpacing: -0.6,
+    letterSpacing: -0.4,
   },
   desktopBrandText: {
     fontSize: 15,
-    lineHeight: 24,
+    lineHeight: 23,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.76)",
   },
   desktopFeatureList: {
-    gap: 14,
+    gap: 12,
   },
   desktopFeatureItem: {
     flexDirection: "row",
@@ -326,9 +467,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   desktopFeatureIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
@@ -336,29 +477,105 @@ const styles = StyleSheet.create({
   desktopFeatureText: {
     flex: 1,
     fontSize: 14,
-    lineHeight: 21,
+    lineHeight: 20,
     fontFamily: "Inter_500Medium",
     color: "rgba(255,255,255,0.82)",
   },
+  desktopTrustRow: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: 12,
+    paddingTop: 22,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  desktopTrustItem: {
+    flex: 1,
+    gap: 4,
+  },
+  desktopTrustDivider: {
+    width: 1,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  desktopTrustValue: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+  },
+  desktopTrustLabel: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.68)",
+  },
   formColumn: {},
   desktopFormColumn: {
-    width: 460,
+    width: 420,
     justifyContent: "center",
   },
   formCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
+    borderRadius: 18,
     padding: 24,
-    gap: 16,
+    gap: 18,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
   },
   desktopFormCard: {
-    borderRadius: 28,
-    padding: 32,
+    borderRadius: 22,
+    padding: 28,
     shadowColor: "#0F2640",
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 0.16,
-    shadowRadius: 30,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  formHeader: {
+    gap: 8,
+  },
+  formHeaderBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: Colors.primaryLight + "16",
+  },
+  formHeaderBadgeText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  mobileBrandHeader: {
+    paddingBottom: 4,
+  },
+  mobileBrandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  mobileBrandIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mobileBrandTextWrap: {
+    gap: 2,
+  },
+  mobileBrandName: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: Colors.text,
+  },
+  mobileBrandSub: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
   },
   formTitle: {
     fontSize: 22,
@@ -371,15 +588,19 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
-    marginTop: -4,
+  },
+  formFields: {
+    gap: 14,
   },
   errorBox: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     backgroundColor: Colors.dangerLight,
     padding: 12,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(220,38,38,0.12)",
   },
   errorText: {
     fontSize: 13,
@@ -390,6 +611,12 @@ const styles = StyleSheet.create({
   inputGroup: {
     gap: 6,
   },
+  passwordLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   label: {
     fontSize: 13,
     fontFamily: "Inter_600SemiBold",
@@ -399,10 +626,11 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.surfaceSecondary,
-    borderRadius: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: "rgba(15,38,64,0.1)",
+    minHeight: 52,
   },
   inputIcon: {
     marginLeft: 14,
@@ -423,12 +651,27 @@ const styles = StyleSheet.create({
     right: 12,
     padding: 4,
   },
+  inlineForgotBtn: {
+    paddingVertical: 2,
+  },
+  inlineForgotBtnPressed: {
+    opacity: 0.76,
+  },
+  inlineForgotText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primary,
+  },
   loginBtn: {
     backgroundColor: Colors.primary,
+    minHeight: 52,
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: 8,
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 2,
   },
   loginBtnPressed: {
     opacity: 0.9,
@@ -442,19 +685,39 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     color: Colors.white,
   },
-  forgotBtn: {
-    alignItems: "center",
-    paddingVertical: 4,
+  helpCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.primaryLight + "10",
+    borderWidth: 1,
+    borderColor: Colors.primaryLight + "22",
   },
-  forgotText: {
+  helpCardTextWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  helpCardTitle: {
     fontSize: 13,
-    fontFamily: "Inter_500Medium",
-    color: Colors.primary,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  helpCardText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  formDivider: {
+    height: 1,
+    backgroundColor: "rgba(15,38,64,0.08)",
   },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 24,
+    marginTop: 20,
     gap: 6,
   },
   desktopFooter: {

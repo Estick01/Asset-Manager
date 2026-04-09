@@ -82,6 +82,7 @@ function ClassicTabLayout() {
         brand="ProcesoClaro"
         title={desktopMeta.title}
         subtitle={desktopMeta.subtitle}
+        showTopbarCopy={false}
         navItems={desktopNav}
         activeKey={activeSegment}
         onNavigate={(href) => router.push(href as any)}

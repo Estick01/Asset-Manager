@@ -1,13 +1,15 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
+  LayoutChangeEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-import { router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,20 +23,78 @@ const CONTENT_MAX_WIDTH = 1100;
 
 // ── Sub-componentes ────────────────────────────────────────────────────────────
 
-function Navbar({ onLogin }: { onLogin: () => void }) {
+function Navbar({
+  onLogin,
+  onRegister,
+  onNavigateSection,
+  activeSection,
+}: {
+  onLogin: () => void;
+  onRegister: () => void;
+  onNavigateSection: (key: string) => void;
+  activeSection: string;
+}) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.navbar, { paddingTop: insets.top + 12 }]}>
-      <View style={styles.navInner}>
-        <View style={styles.navBrand}>
-          <View style={styles.navLogoCircle}>
-            <Ionicons name="scale-outline" size={20} color={Colors.accent} />
+      <View style={styles.navShell}>
+        <View style={styles.navInner}>
+          <View style={styles.navBrandBlock}>
+            <View style={styles.navBrand}>
+              <View style={styles.navLogoCircle}>
+                <Ionicons name="scale-outline" size={18} color={Colors.white} />
+              </View>
+              <View style={styles.navBrandTextWrap}>
+                <Text style={styles.navBrandName}>ProcesoClaro</Text>
+                {!IS_MOBILE_LAYOUT ? (
+                  <Text style={styles.navBrandSubtitle}>Software legal para abogados y bufetes</Text>
+                ) : null}
+              </View>
+            </View>
           </View>
-          <Text style={styles.navBrandName}>ProcesoClaro</Text>
+          <View style={styles.navActions}>
+            <Pressable
+              style={({ pressed }) => [styles.navSecondaryBtn, pressed && styles.navButtonPressed]}
+              onPress={onLogin}
+              hitSlop={8}
+            >
+              <Text style={styles.navSecondaryBtnText}>Iniciar sesión</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.navPrimaryBtn, pressed && styles.navButtonPressed]}
+              onPress={onRegister}
+              hitSlop={8}
+            >
+              <Text style={styles.navPrimaryBtnText}>Solicitar acceso</Text>
+            </Pressable>
+          </View>
         </View>
-        <Pressable style={styles.navLoginBtn} onPress={onLogin} hitSlop={8}>
-          <Text style={styles.navLoginText}>Iniciar sesión</Text>
-        </Pressable>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.navQuickRow}
+        >
+        {QUICK_NAV_ITEMS.map((item) => (
+          <Pressable
+            key={item.key}
+            onPress={() => onNavigateSection(item.key)}
+            accessibilityRole="button"
+            accessibilityLabel={`Ir a la seccion ${item.label}`}
+            style={({ pressed }) => [
+              styles.navQuickChip,
+              activeSection === item.key && styles.navQuickChipActive,
+              pressed && styles.navQuickChipPressed,
+            ]}
+          >
+            <Text style={[
+              styles.navQuickChipText,
+              activeSection === item.key && styles.navQuickChipTextActive,
+            ]}>
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
+      </ScrollView>
       </View>
     </View>
   );
@@ -187,25 +247,210 @@ const PLANES_HIGHLIGHT = [
   },
 ];
 
+const CASOS_DE_USO = [
+  {
+    icon: "briefcase-outline" as const,
+    title: "Software para abogados independientes",
+    description:
+      "Organiza clientes, procesos, documentos y agenda desde un solo lugar, sin depender de hojas de calculo ni mensajes sueltos.",
+    bullets: ["Seguimiento de procesos", "Portal y chat con clientes", "Control total de informacion privada"],
+  },
+  {
+    icon: "business-outline" as const,
+    title: "Software de gestion juridica para bufetes",
+    description:
+      "Centraliza la operacion de la firma con roles, permisos, clientes compartidos, clientes privados y visibilidad del equipo.",
+    bullets: ["Dashboard de la firma", "Roles y permisos", "Privacidad por abogado"],
+  },
+  {
+    icon: "phone-portrait-outline" as const,
+    title: "Portal para clientes legales",
+    description:
+      "Entrega una experiencia moderna a tus clientes con acceso al estado del caso, documentos, mensajes y notificaciones.",
+    bullets: ["Menos llamadas repetidas", "Mas confianza del cliente", "Mejor experiencia postventa"],
+  },
+];
+
+const FAQS = [
+  {
+    question: "¿ProcesoClaro sirve para abogados independientes y bufetes?",
+    answer:
+      "Si. La plataforma cubre el trabajo diario del abogado independiente y tambien la operacion de firmas con varios usuarios, roles y control de acceso.",
+  },
+  {
+    question: "¿Puedo dar seguimiento a procesos judiciales y documentos en un mismo lugar?",
+    answer:
+      "Si. Cada caso concentra estado, etapas, historial, archivos, responsables, calendario y comunicacion con el cliente.",
+  },
+  {
+    question: "¿Los clientes pueden ver el estado de su proceso?",
+    answer:
+      "Si. El portal del cliente permite consultar avances, recibir notificaciones y conversar con su abogado sin depender de WhatsApp.",
+  },
+  {
+    question: "¿La informacion de mis clientes queda protegida dentro del bufete?",
+    answer:
+      "Si. ProcesoClaro permite manejar clientes privados por abogado para limitar el acceso incluso dentro de la firma cuando asi se requiera.",
+  },
+];
+
+const SEO_LINKS = [
+  {
+    title: "Software para abogados",
+    description: "Una pagina enfocada en abogados independientes que necesitan ordenar clientes, procesos y seguimiento.",
+    href: "/software-para-abogados",
+  },
+  {
+    title: "Software para bufetes",
+    description: "Pensada para firmas que necesitan roles, privacidad por abogado y control operativo del equipo.",
+    href: "/software-para-bufetes",
+  },
+  {
+    title: "Portal del cliente",
+    description: "Explica como mejorar la experiencia del cliente con acceso, notificaciones y seguimiento del caso.",
+    href: "/portal-del-cliente",
+  },
+  {
+    title: "Gestion de procesos legales",
+    description: "Contenido orientado a seguimiento de casos, trazabilidad y reduccion de desorden operativo.",
+    href: "/gestion-de-procesos-legales",
+  },
+  {
+    title: "Software juridico en Colombia",
+    description: "Aterriza la propuesta al contexto local y al tipo de operacion juridica que buscan despachos colombianos.",
+    href: "/software-juridico-colombia",
+  },
+  {
+    title: "Precios software legal",
+    description: "Conecta el valor del producto con la estructura de planes y la decision economica de implementarlo.",
+    href: "/precios-software-legal",
+  },
+];
+
+const QUICK_NAV_ITEMS = [
+  { key: "problema", label: "Problema", icon: "alert-circle-outline" as const },
+  { key: "funcionalidades", label: "Funciones", icon: "grid-outline" as const },
+  { key: "comunidad", label: "Comunidad", icon: "people-outline" as const },
+  { key: "portal", label: "Portal cliente", icon: "phone-portrait-outline" as const },
+  { key: "planes", label: "Planes", icon: "card-outline" as const },
+  { key: "faq", label: "FAQ", icon: "help-circle-outline" as const },
+];
+
 // ── Pantalla principal ─────────────────────────────────────────────────────────
 
 export default function LandingScreen() {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
+  const sectionPositions = useRef<Record<string, number>>({});
+  const [activeSection, setActiveSection] = useState(QUICK_NAV_ITEMS[0].key);
 
   const irARegistro = () => router.push("/(auth)/register-type");
   const irALogin = () => router.push("/(auth)/login");
   const irAPlanes = () => router.push("/planes");
+  const irAFaq = () => router.push("/faq");
+  const irAContacto = () => router.push("/contacto");
+  const irASobreNosotros = () => router.push("/sobre-nosotros");
+  const irASoftwareAbogados = () => router.push("/software-para-abogados");
+  const irASoftwareBufetes = () => router.push("/software-para-bufetes");
+  const irAPortalCliente = () => router.push("/portal-del-cliente");
+  const irAGestionProcesos = () => router.push("/gestion-de-procesos-legales");
+  const irASoftwareColombia = () => router.push("/software-juridico-colombia");
+  const irAPreciosSoftware = () => router.push("/precios-software-legal");
+
+  function registerSection(key: string) {
+    return (event: LayoutChangeEvent) => {
+      sectionPositions.current[key] = event.nativeEvent.layout.y;
+    };
+  }
+
+  function goToSection(key: string) {
+    const targetY = sectionPositions.current[key];
+    if (typeof targetY !== "number") return;
+
+    const topOffset = IS_MOBILE_LAYOUT ? 18 : 126;
+    scrollRef.current?.scrollTo({
+      y: Math.max(targetY - topOffset, 0),
+      animated: true,
+    });
+  }
+
+  function handleScroll(event: any) {
+    const scrollY = event.nativeEvent.contentOffset.y;
+    const threshold = scrollY + (IS_MOBILE_LAYOUT ? 90 : 150);
+
+    let current = QUICK_NAV_ITEMS[0].key;
+    for (const item of QUICK_NAV_ITEMS) {
+      const y = sectionPositions.current[item.key];
+      if (typeof y === "number" && threshold >= y) {
+        current = item.key;
+      }
+    }
+
+    setActiveSection((prev) => (prev === current ? prev : current));
+  }
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+
+    const title = "ProcesoClaro | Software para abogados, bufetes y gestion juridica";
+    const description =
+      "Software de gestion juridica para abogados y bufetes en Colombia. Centraliza procesos legales, clientes, documentos, calendario y portal del cliente.";
+    const canonicalHref = "https://procesoclaro.co/landing";
+
+    document.title = title;
+
+    const ensureMeta = (selector: string, attributes: Record<string, string>) => {
+      let element = document.head.querySelector(selector) as HTMLMetaElement | HTMLLinkElement | null;
+      if (!element) {
+        element = document.createElement(attributes.rel ? "link" : "meta") as
+          | HTMLMetaElement
+          | HTMLLinkElement;
+        document.head.appendChild(element);
+      }
+      Object.entries(attributes).forEach(([key, value]) => {
+        element?.setAttribute(key, value);
+      });
+    };
+
+    ensureMeta('meta[name="description"]', {
+      name: "description",
+      content: description,
+    });
+    ensureMeta('meta[property="og:title"]', {
+      property: "og:title",
+      content: title,
+    });
+    ensureMeta('meta[property="og:description"]', {
+      property: "og:description",
+      content: description,
+    });
+    ensureMeta('meta[property="og:url"]', {
+      property: "og:url",
+      content: canonicalHref,
+    });
+    ensureMeta('link[rel="canonical"]', {
+      rel: "canonical",
+      href: canonicalHref,
+    });
+  }, []);
 
   return (
     <View style={styles.root}>
-      <Navbar onLogin={irALogin} />
+      <Stack.Screen options={{ title: "ProcesoClaro | Software legal" }} />
+      <Navbar
+        onLogin={irALogin}
+        onRegister={irARegistro}
+        onNavigateSection={goToSection}
+        activeSection={activeSection}
+      />
 
       <ScrollView
         ref={scrollRef}
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         {/* ── HERO ── */}
         <LinearGradient
@@ -265,7 +510,7 @@ export default function LandingScreen() {
         </LinearGradient>
 
         {/* ── PROBLEMA ── */}
-        <View style={[styles.section, styles.sectionWhite]}>
+        <View style={[styles.section, styles.sectionWhite]} onLayout={registerSection("problema")}>
           <View style={styles.sectionInner}>
             <SectionTitle
               label="El problema"
@@ -318,7 +563,7 @@ export default function LandingScreen() {
         </LinearGradient>
 
         {/* ── FUNCIONALIDADES ── */}
-        <View style={[styles.section, styles.sectionGray]}>
+        <View style={[styles.section, styles.sectionGray]} onLayout={registerSection("funcionalidades")}>
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Funcionalidades"
@@ -418,6 +663,7 @@ export default function LandingScreen() {
         <LinearGradient
           colors={["#0F2640", "#1B3A5C", "#0F3460"]}
           style={[styles.section, styles.sectionDark]}
+          onLayout={registerSection("comunidad")}
         >
           <View style={styles.sectionInner}>
             <SectionTitle
@@ -715,7 +961,7 @@ export default function LandingScreen() {
         </View>
 
         {/* ── PORTAL CLIENTE ── */}
-        <View style={[styles.section, styles.sectionWhite]}>
+        <View style={[styles.section, styles.sectionWhite]} onLayout={registerSection("portal")}>
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Portal del cliente"
@@ -866,8 +1112,38 @@ export default function LandingScreen() {
           </View>
         </View>
 
-        {/* ── PLANES ── */}
+        {/* ── CASOS DE USO SEO ── */}
         <View style={[styles.section, styles.sectionWhite]}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Casos de uso"
+              title={"Software juridico para\ncrecer sin desorden"}
+              subtitle="Si alguien busca software para abogados, gestion juridica o portal del cliente, esto es exactamente lo que resuelve ProcesoClaro."
+            />
+            <View style={styles.useCasesGrid}>
+              {CASOS_DE_USO.map((item) => (
+                <View key={item.title} style={styles.useCaseCard}>
+                  <View style={styles.useCaseIconWrap}>
+                    <Ionicons name={item.icon} size={24} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.useCaseTitle}>{item.title}</Text>
+                  <Text style={styles.useCaseDescription}>{item.description}</Text>
+                  <View style={styles.useCaseBullets}>
+                    {item.bullets.map((bullet) => (
+                      <View key={bullet} style={styles.useCaseBulletRow}>
+                        <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                        <Text style={styles.useCaseBulletText}>{bullet}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* ── PLANES ── */}
+        <View style={[styles.section, styles.sectionWhite]} onLayout={registerSection("planes")}>
           <View style={styles.sectionInner}>
             <SectionTitle
               label="Planes"
@@ -940,6 +1216,55 @@ export default function LandingScreen() {
           </View>
         </View>
 
+        {/* ── FAQ ── */}
+        <View style={[styles.section, styles.sectionGray]} onLayout={registerSection("faq")}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Preguntas frecuentes"
+              title={"Respuestas claras antes\nde empezar"}
+              subtitle="Bloque pensado para resolver dudas comerciales y reforzar terminos de busqueda relevantes."
+            />
+            <View style={styles.faqList}>
+              {FAQS.map((item) => (
+                <View key={item.question} style={styles.faqCard}>
+                  <View style={styles.faqQuestionRow}>
+                    <Ionicons name="help-circle-outline" size={20} color={Colors.primary} />
+                    <Text style={styles.faqQuestion}>{item.question}</Text>
+                  </View>
+                  <Text style={styles.faqAnswer}>{item.answer}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* ── EXPLORA MÁS ── */}
+        <View style={[styles.section, styles.sectionWhite]}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Explora mas"
+              title={"Rutas utiles para\nentender el producto"}
+              subtitle="Estas paginas ayudan a explorar ProcesoClaro segun la necesidad concreta de cada despacho o abogado."
+            />
+            <View style={styles.seoLinksGrid}>
+              {SEO_LINKS.map((item) => (
+                <Pressable
+                  key={item.href}
+                  onPress={() => router.push(item.href as any)}
+                  style={({ pressed }) => [styles.seoLinkCard, pressed && styles.ctaPressed]}
+                >
+                  <Text style={styles.seoLinkTitle}>{item.title}</Text>
+                  <Text style={styles.seoLinkDescription}>{item.description}</Text>
+                  <View style={styles.seoLinkAction}>
+                    <Text style={styles.seoLinkActionText}>Abrir pagina</Text>
+                    <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+
         {/* ── CTA FINAL ── */}
         <LinearGradient
           colors={[Colors.accent, Colors.accentDark]}
@@ -979,8 +1304,44 @@ export default function LandingScreen() {
               Plataforma de gestión legal para abogados y bufetes en Colombia.
             </Text>
             <View style={styles.footerLinks}>
+              <Pressable onPress={irASoftwareAbogados} hitSlop={8}>
+                <Text style={styles.footerLink}>Software abogados</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irASoftwareBufetes} hitSlop={8}>
+                <Text style={styles.footerLink}>Software bufetes</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irAPortalCliente} hitSlop={8}>
+                <Text style={styles.footerLink}>Portal cliente</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irAGestionProcesos} hitSlop={8}>
+                <Text style={styles.footerLink}>Procesos legales</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irASoftwareColombia} hitSlop={8}>
+                <Text style={styles.footerLink}>Software juridico CO</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irAPreciosSoftware} hitSlop={8}>
+                <Text style={styles.footerLink}>Precios</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
               <Pressable onPress={irAPlanes} hitSlop={8}>
                 <Text style={styles.footerLink}>Planes</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irAFaq} hitSlop={8}>
+                <Text style={styles.footerLink}>FAQ</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irASobreNosotros} hitSlop={8}>
+                <Text style={styles.footerLink}>Sobre nosotros</Text>
+              </Pressable>
+              <Text style={styles.footerLinkDivider}>·</Text>
+              <Pressable onPress={irAContacto} hitSlop={8}>
+                <Text style={styles.footerLink}>Contacto</Text>
               </Pressable>
               <Text style={styles.footerLinkDivider}>·</Text>
               <Pressable onPress={irARegistro} hitSlop={8}>
@@ -1012,54 +1373,142 @@ const w = <T,>(desktop: T, mobile: T): T => (IS_MOBILE_LAYOUT ? mobile : desktop
 const SECTION_PX = w(40, 16);
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
-  scroll: { flex: 1 },
+  root: { flex: 1, backgroundColor: "#0F2640" },
+  scroll: { flex: 1, backgroundColor: "#0F2640" },
 
   // ── Navbar ────────────────────────────────────────────────────────────────
   navbar: {
-    position: w("absolute" as const, "relative" as const),
+    position: Platform.OS === "web" ? ("sticky" as const) : w("absolute" as const, "relative" as const),
     top: 0,
     left: 0,
     right: 0,
     zIndex: 100,
     paddingHorizontal: SECTION_PX,
-    paddingBottom: 14,
-    backgroundColor: "rgba(15,38,64,0.95)",
+    paddingBottom: w(14, 10),
+    paddingTop: 2,
+    backgroundColor: "transparent",
+    backdropFilter: Platform.OS === "web" ? ("blur(12px)" as any) : undefined,
+  },
+  navShell: {
+    maxWidth: CONTENT_MAX_WIDTH,
+    width: "100%",
+    alignSelf: "center",
+    backgroundColor: "rgba(15, 38, 64, 0.98)",
+    borderWidth: 1,
+    borderColor: "rgba(117, 152, 191, 0.22)",
+    borderRadius: 16,
+    paddingHorizontal: w(20, 12),
+    paddingVertical: w(14, 10),
+    shadowColor: Colors.primaryDark,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   navInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    maxWidth: CONTENT_MAX_WIDTH,
-    alignSelf: "center",
-    width: "100%",
+    gap: 16,
+    flexWrap: "wrap",
   },
-  navBrand: { flexDirection: "row", alignItems: "center", gap: 8 },
+  navBrandBlock: {
+    flex: 1,
+    minWidth: 220,
+    gap: 4,
+  },
+  navQuickRow: {
+    gap: 10,
+    paddingTop: w(12, 10),
+    paddingBottom: 2,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(117, 152, 191, 0.16)",
+  },
+  navBrand: { flexDirection: "row", alignItems: "center", gap: 10 },
+  navBrandTextWrap: { gap: 2 },
   navLogoCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(212,168,83,0.15)",
+    width: w(36, 32),
+    height: w(36, 32),
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
     alignItems: "center",
     justifyContent: "center",
   },
   navBrandName: {
-    fontSize: 18,
+    fontSize: w(17, 16),
     fontFamily: "Inter_700Bold",
     color: Colors.white,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
-  navLoginBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+  navBrandSubtitle: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.62)",
+  },
+  navActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginLeft: "auto",
+  },
+  navPrimaryBtn: {
+    minHeight: 44,
+    paddingHorizontal: w(16, 14),
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navPrimaryBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primaryDark,
+  },
+  navSecondaryBtn: {
+    minHeight: 44,
+    paddingHorizontal: w(14, 12),
+    paddingVertical: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "rgba(255,255,255,0.12)",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  navLoginText: {
+  navSecondaryBtnText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
     color: Colors.white,
+  },
+  navButtonPressed: { opacity: 0.86 },
+  navQuickChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 34,
+    paddingHorizontal: w(4, 2),
+    paddingVertical: w(7, 6),
+    borderRadius: 0,
+    backgroundColor: "transparent",
+    borderBottomWidth: 2,
+    borderBottomColor: "transparent",
+  },
+  navQuickChipPressed: {
+    opacity: 0.8,
+  },
+  navQuickChipActive: {
+    borderBottomColor: Colors.accent,
+  },
+  navQuickChipText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.74)",
+  },
+  navQuickChipTextActive: {
+    color: Colors.white,
+    fontFamily: "Inter_600SemiBold",
   },
 
   // ── Sección base ──────────────────────────────────────────────────────────
@@ -1110,7 +1559,8 @@ const styles = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   hero: {
-    paddingTop: w(120, 32),
+    marginTop: w(-108, -72),
+    paddingTop: w(228, 104),
     paddingBottom: 0,
     paddingHorizontal: SECTION_PX,
   },
@@ -1520,6 +1970,57 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
 
+  // ── Casos de uso SEO ──────────────────────────────────────────────────────
+  useCasesGrid: {
+    flexDirection: w("row" as const, "column" as const),
+    gap: 16,
+  },
+  useCaseCard: {
+    flex: w(1, undefined),
+    backgroundColor: Colors.background,
+    borderRadius: 18,
+    padding: w(24, 18),
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 12,
+  },
+  useCaseIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: Colors.infoLight,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  useCaseTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+    lineHeight: 24,
+  },
+  useCaseDescription: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 22,
+  },
+  useCaseBullets: {
+    gap: 10,
+    marginTop: 4,
+  },
+  useCaseBulletRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  useCaseBulletText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: Colors.text,
+    lineHeight: 19,
+  },
+
   // ── Planes ────────────────────────────────────────────────────────────────
   planesGrid: {
     flexDirection: w("row" as const, "column" as const),
@@ -1609,6 +2110,77 @@ const styles = StyleSheet.create({
   },
   verTodosPlanesText: {
     fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.primary,
+  },
+
+  // ── FAQ ───────────────────────────────────────────────────────────────────
+  faqList: {
+    gap: 14,
+  },
+  faqCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: w(22, 18),
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: 10,
+  },
+  faqQuestionRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  faqQuestion: {
+    flex: 1,
+    fontSize: 17,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primaryDark,
+    lineHeight: 24,
+  },
+  faqAnswer: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 22,
+    paddingLeft: 30,
+  },
+
+  // ── Explora mas ───────────────────────────────────────────────────────────
+  seoLinksGrid: {
+    flexDirection: w("row" as const, "column" as const),
+    flexWrap: w("wrap" as const, "nowrap" as const),
+    gap: 14,
+  },
+  seoLinkCard: {
+    width: w("31.5%" as any, "100%"),
+    backgroundColor: Colors.background,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: w(20, 18),
+    gap: 10,
+  },
+  seoLinkTitle: {
+    fontSize: 17,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.primaryDark,
+    lineHeight: 24,
+  },
+  seoLinkDescription: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  seoLinkAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 4,
+  },
+  seoLinkActionText: {
+    fontSize: 13,
     fontFamily: "Inter_500Medium",
     color: Colors.primary,
   },

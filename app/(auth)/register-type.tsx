@@ -36,7 +36,7 @@ export default function RegisterTypeScreen() {
   const { width } = useWindowDimensions();
   const desktop = Platform.OS === "web" && isDesktopViewport(width);
   const metrics = getDesktopMetrics(width);
-  const shellWidth = Math.min(1360, Math.max(1120, width - metrics.gutter * 2));
+  const shellWidth = Math.min(1120, Math.max(940, width - metrics.gutter * 2));
 
   const handleSelectType = (type: "lawyer" | "firm" | "client") => {
     const routes = {
@@ -53,15 +53,24 @@ export default function RegisterTypeScreen() {
       style={styles.container}
     >
       <View style={[styles.shell, desktop && { maxWidth: shellWidth, paddingHorizontal: metrics.gutter, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 28 }]}>
-        <View style={[styles.topSection, desktop && styles.desktopTopSection, { paddingTop: desktop ? 0 : insets.top + (Platform.OS === "web" ? 67 : 24) }]}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color="rgba(255,255,255,0.8)" />
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.push("/landing")} style={styles.topBarBtn} hitSlop={8}>
+            <Ionicons name="arrow-back" size={16} color={Colors.white} />
+            <Text style={styles.topBarBtnText}>Volver a la landing</Text>
           </Pressable>
 
-          <View style={[styles.titleSection, desktop && styles.desktopTitleSection]}>
+          <Pressable onPress={() => router.push("/login")} style={styles.topBarGhostBtn} hitSlop={8}>
+            <Text style={styles.topBarGhostText}>Ya tengo cuenta</Text>
+          </Pressable>
+        </View>
+
+        <View style={[styles.topSection, desktop && styles.desktopTopSection, { paddingTop: desktop ? 0 : insets.top + (Platform.OS === "web" ? 12 : 10) }]}>
+          <View style={styles.titleHeader}>
             <View style={styles.titleIconWrap}>
-              <Ionicons name="shield-checkmark" size={28} color={Colors.white} />
+              <Ionicons name="shield-checkmark" size={24} color={Colors.white} />
             </View>
+
+          <View style={[styles.titleSection, desktop && styles.desktopTitleSection]}>
             <Text style={styles.title}>Crear Cuenta</Text>
             <Text style={styles.subtitle}>
               Elige el tipo de cuenta que mejor describe tu rol
@@ -73,10 +82,12 @@ export default function RegisterTypeScreen() {
             )}
           </View>
         </View>
+        </View>
 
         <View style={[styles.cardsContainer, desktop && styles.desktopCardsContainer]}>
           {desktop && (
             <View style={styles.desktopInfoPanel}>
+              <Text style={styles.desktopInfoEyebrow}>Registro guiado</Text>
               <Text style={styles.desktopInfoTitle}>Un mismo sistema, accesos distintos</Text>
               <Text style={styles.desktopInfoText}>
                 Cada registro activa permisos, vistas y flujos específicos para clientes, abogados independientes o firmas jurídicas.
@@ -128,8 +139,9 @@ export default function RegisterTypeScreen() {
 
         <View style={[styles.footer, desktop && styles.desktopFooter, { paddingBottom: desktop ? 0 : insets.bottom + 24 }]}>
           <Text style={styles.footerText}>¿Ya tienes cuenta?</Text>
-          <Pressable onPress={() => router.push("/login")} hitSlop={8}>
+          <Pressable onPress={() => router.push("/login")} hitSlop={8} style={styles.footerAction}>
             <Text style={styles.footerLink}>Iniciar sesión</Text>
+            <Ionicons name="arrow-forward" size={14} color={Colors.white} />
           </Pressable>
         </View>
       </View>
@@ -139,33 +151,75 @@ export default function RegisterTypeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  shell: { flex: 1 },
+  shell: { flex: 1, alignSelf: "center", width: "100%", paddingHorizontal: 20 },
+
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  topBarBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  topBarBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.white,
+  },
+  topBarGhostBtn: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  topBarGhostText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.86)",
+  },
 
   // ── Top ──────────────────────────────────────────────────────
   topSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 28,
+    paddingHorizontal: 0,
+    paddingBottom: 18,
   },
   desktopTopSection: {
     paddingHorizontal: 0,
-    paddingBottom: 22,
+    paddingBottom: 18,
   },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center", justifyContent: "center",
-    marginBottom: 24,
+  titleHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
   },
-  titleSection: { gap: 8 },
-  desktopTitleSection: { maxWidth: 720 },
+  titleSection: { gap: 6, flex: 1 },
+  desktopTitleSection: { maxWidth: 680 },
   titleIconWrap: {
-    width: 56, height: 56, borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.12)",
     alignItems: "center", justifyContent: "center",
-    marginBottom: 4,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
     letterSpacing: -0.5,
@@ -186,32 +240,39 @@ const styles = StyleSheet.create({
 
   // ── Cards ─────────────────────────────────────────────────────
   cardsContainer: {
-    flex: 1,
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderRadius: 28,
     padding: 20,
-    paddingTop: 24,
-    gap: 12,
+    paddingTop: 22,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
   },
   desktopCardsContainer: {
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
+    borderRadius: 28,
     padding: 28,
     flexDirection: "row",
     alignItems: "stretch",
-    gap: 24,
+    gap: 22,
+    alignSelf: "stretch",
   },
   desktopInfoPanel: {
     flex: 1,
-    borderRadius: 24,
+    borderRadius: 22,
     padding: 24,
-    backgroundColor: Colors.primary,
-    gap: 16,
+    backgroundColor: "rgba(15, 38, 64, 0.96)",
+    gap: 14,
+  },
+  desktopInfoEyebrow: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.72)",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
   desktopInfoTitle: {
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 32,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
   },
@@ -231,19 +292,21 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.88)",
   },
   cardsColumn: { gap: 12 },
-  desktopCardsColumn: { width: 520, justifyContent: "center", gap: 16 },
+  desktopCardsColumn: { width: 460, justifyContent: "center", gap: 14 },
   card: {
     flexDirection: "row",
     backgroundColor: Colors.white,
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    shadowColor: "#0F2640",
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  desktopCard: { minHeight: 132 },
+  desktopCard: { minHeight: 118 },
   cardPressed: {
     opacity: 0.88,
     transform: [{ scale: 0.99 }],
@@ -253,27 +316,27 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
+    padding: 18,
     gap: 14,
   },
   iconWrap: {
-    width: 48, height: 48, borderRadius: 14,
+    width: 46, height: 46, borderRadius: 14,
     alignItems: "center", justifyContent: "center",
   },
   cardContent: { flex: 1, gap: 3 },
   cardTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: "Inter_700Bold",
     color: Colors.text,
   },
   cardDescription: {
-    fontSize: 12,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   cardArrow: {
-    width: 28, height: 28, borderRadius: 14,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: Colors.background,
     alignItems: "center", justifyContent: "center",
   },
@@ -282,23 +345,34 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 6,
-    backgroundColor: Colors.background,
-    paddingTop: 8,
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 18,
     paddingHorizontal: 24,
   },
   desktopFooter: {
-    backgroundColor: Colors.background,
     paddingTop: 18,
   },
   footerText: {
     fontSize: 14,
-    fontFamily: "Inter_400Regular",
-    color: Colors.textSecondary,
+    fontFamily: "Inter_500Medium",
+    color: "rgba(255,255,255,0.78)",
+  },
+  footerAction: {
+    minHeight: 40,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
   },
   footerLink: {
     fontSize: 14,
     fontFamily: "Inter_700Bold",
-    color: Colors.primary,
+    color: Colors.white,
   },
 });

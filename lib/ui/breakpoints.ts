@@ -21,7 +21,7 @@ export function getDesktopMetrics(width: number): DesktopMetrics {
 
   switch (tier) {
     case "ultrawide":
-      return { tier, gutter: 32, contentGap: 24, sidebarWidth: 288, topbarHeight: 82 };
+      return { tier, gutter: 24, contentGap: 24, sidebarWidth: 288, topbarHeight: 82 };
     case "wide":
       return { tier, gutter: 28, contentGap: 22, sidebarWidth: 276, topbarHeight: 78 };
     case "desktop":

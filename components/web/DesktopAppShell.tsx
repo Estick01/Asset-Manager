@@ -34,6 +34,7 @@ export function DesktopAppShell({
   brand,
   title,
   subtitle,
+  showTopbarCopy = true,
   navItems,
   activeKey,
   actions = [],
@@ -43,6 +44,7 @@ export function DesktopAppShell({
   brand: string;
   title: string;
   subtitle?: string;
+  showTopbarCopy?: boolean;
   navItems: DesktopNavItem[];
   activeKey: string;
   actions?: DesktopActionItem[];
@@ -102,15 +104,23 @@ export function DesktopAppShell({
           style={[
             styles.topbar,
             {
-              height: metrics.topbarHeight,
+              height: showTopbarCopy ? metrics.topbarHeight : 58,
               paddingHorizontal: metrics.gutter,
             },
           ]}
         >
-          <View style={styles.topbarCopy}>
-            <Text style={styles.topbarTitle}>{title}</Text>
-            {subtitle ? <Text style={styles.topbarSubtitle}>{subtitle}</Text> : null}
-          </View>
+          {showTopbarCopy ? (
+            <View style={styles.topbarCopy}>
+              <Text style={styles.topbarTitle}>{title}</Text>
+              {subtitle ? <Text style={styles.topbarSubtitle}>{subtitle}</Text> : null}
+            </View>
+          ) : (
+            <View style={styles.utilityCopy}>
+              <Text style={styles.utilityBrand}>{brand}</Text>
+              <View style={styles.utilityDivider} />
+              <Text style={styles.utilityLabel}>Workspace web</Text>
+            </View>
+          )}
 
           <View style={styles.topbarActions}>
             {actions.map((action) => (
@@ -126,7 +136,7 @@ export function DesktopAppShell({
           </View>
         </View>
 
-        <View style={[styles.contentViewport, { padding: metrics.gutter }]}>
+        <View style={styles.contentViewport}>
           <View style={styles.contentSurface}>{children}</View>
         </View>
       </View>
@@ -241,6 +251,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
+  },
+  utilityCopy: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  utilityBrand: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  utilityDivider: {
+    width: 1,
+    height: 14,
+    backgroundColor: "rgba(15,38,64,0.12)",
+  },
+  utilityLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.textSecondary,
   },
   actionButton: {
     width: 42,

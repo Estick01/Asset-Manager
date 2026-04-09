@@ -4,6 +4,39 @@ const path = require("path");
 const distDir = path.resolve(__dirname, "..", "dist");
 const assetsDir = path.join(distDir, "assets");
 const outputFontsDir = path.join(assetsDir, "fonts");
+const projectRoot = path.resolve(__dirname, "..");
+const appJsonPath = path.join(projectRoot, "app.json");
+const appJson = fs.existsSync(appJsonPath)
+  ? JSON.parse(fs.readFileSync(appJsonPath, "utf8"))
+  : {};
+const expoConfig = appJson.expo ?? {};
+const appName = expoConfig.name ?? "ProcesoClaro";
+const baseUrl = resolveBaseUrl();
+
+function resolveBaseUrl() {
+  const configured =
+    process.env.APP_URL ||
+    process.env.EXPO_PUBLIC_APP_URL ||
+    process.env.EXPO_PUBLIC_DOMAIN;
+
+  if (!configured) {
+    return "https://procesoclaro.co";
+  }
+
+  if (/^https?:\/\//i.test(configured)) {
+    return configured.replace(/\/+$/, "");
+  }
+
+  return `https://${configured.replace(/\/+$/, "")}`;
+}
+
+function escapeHtml(value) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 const sourceRoots = [
   path.join(
@@ -96,6 +129,178 @@ function rewriteReferences(replacements) {
   }
 }
 
+function buildSeoPayload() {
+  const title = "ProcesoClaro | Software de gestion juridica para abogados y bufetes";
+  const description =
+    "ProcesoClaro centraliza procesos legales, clientes, documentos, chat y seguimiento para firmas juridicas, abogados independientes y clientes en Colombia.";
+  const canonical = `${baseUrl}/`;
+  const ogImage = `${baseUrl}/assets/images/favicon.png`;
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: appName,
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web, iOS, Android",
+    description,
+    url: canonical,
+    offers: {
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "COP",
+    },
+    publisher: {
+      "@type": "Organization",
+      name: appName,
+      url: canonical,
+    },
+  };
+
+  return {
+    title,
+    description,
+    canonical,
+    ogImage,
+    schema,
+  };
+}
+
+function injectSeoMetadata() {
+  const indexPath = path.join(distDir, "index.html");
+  if (!fs.existsSync(indexPath)) return false;
+
+  const seo = buildSeoPayload();
+  let html = fs.readFileSync(indexPath, "utf8");
+
+  html = html.replace(/<html(\s|>)/i, '<html lang="es-CO"$1');
+  html = html.replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(seo.title)}</title>`);
+
+  const headInsert = [
+    `<meta name="description" content="${escapeHtml(seo.description)}" />`,
+    `<meta name="robots" content="index,follow,max-image-preview:large" />`,
+    `<link rel="canonical" href="${seo.canonical}" />`,
+    `<meta property="og:type" content="website" />`,
+    `<meta property="og:locale" content="es_CO" />`,
+    `<meta property="og:site_name" content="${escapeHtml(appName)}" />`,
+    `<meta property="og:title" content="${escapeHtml(seo.title)}" />`,
+    `<meta property="og:description" content="${escapeHtml(seo.description)}" />`,
+    `<meta property="og:url" content="${seo.canonical}" />`,
+    `<meta property="og:image" content="${seo.ogImage}" />`,
+    `<meta name="twitter:card" content="summary_large_image" />`,
+    `<meta name="twitter:title" content="${escapeHtml(seo.title)}" />`,
+    `<meta name="twitter:description" content="${escapeHtml(seo.description)}" />`,
+    `<meta name="twitter:image" content="${seo.ogImage}" />`,
+    `<meta name="theme-color" content="#0F2640" />`,
+    `<link rel="manifest" href="/site.webmanifest" />`,
+    `<script type="application/ld+json">${JSON.stringify(seo.schema)}</script>`,
+  ].join("\n    ");
+
+  if (!html.includes('name="description"')) {
+    html = html.replace("</head>", `    ${headInsert}\n  </head>`);
+  }
+
+  fs.writeFileSync(indexPath, html);
+  return true;
+}
+
+function writeRobots() {
+  const robots = `User-agent: *
+Allow: /
+Disallow: /(admin-tabs)
+Disallow: /(lawyer-tabs)
+Disallow: /(firm-tabs)
+Disallow: /portal
+Disallow: /portal-empresa
+Disallow: /chat
+Disallow: /case
+Disallow: /client
+Disallow: /profile
+Disallow: /firm-components
+Disallow: /lawyer-componts
+
+Sitemap: ${baseUrl}/sitemap.xml
+`;
+
+  fs.writeFileSync(path.join(distDir, "robots.txt"), robots);
+}
+
+function writeSitemap() {
+  const publicRoutes = [
+    "/",
+    "/landing",
+    "/login",
+    "/planes",
+    "/software-para-abogados",
+    "/software-para-bufetes",
+    "/portal-del-cliente",
+    "/gestion-de-procesos-legales",
+    "/software-juridico-colombia",
+    "/precios-software-legal",
+    "/faq",
+    "/contacto",
+    "/sobre-nosotros",
+    "/forgot-password",
+    "/register-type",
+    "/register-lawyer",
+    "/register-firm",
+    "/register-cliente",
+    "/register-empresa",
+    "/register-professional",
+    "/verify-email",
+  ];
+  const now = new Date().toISOString();
+  const entries = publicRoutes
+    .map((route) => {
+      const normalized = route === "/" ? "" : route;
+      return [
+        "  <url>",
+        `    <loc>${baseUrl}${normalized}</loc>`,
+        `    <lastmod>${now}</lastmod>`,
+        route === "/" ? "    <priority>1.0</priority>" : "    <priority>0.7</priority>",
+        "  </url>",
+      ].join("\n");
+    })
+    .join("\n");
+
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${entries}
+</urlset>
+`;
+
+  fs.writeFileSync(path.join(distDir, "sitemap.xml"), sitemap);
+}
+
+function writeWebManifest() {
+  const manifest = {
+    name: appName,
+    short_name: appName,
+    start_url: "/",
+    scope: "/",
+    display: "standalone",
+    background_color: "#ffffff",
+    theme_color: "#0F2640",
+    description:
+      "Software de gestion juridica para abogados, bufetes y clientes.",
+    icons: [
+      {
+        src: "/assets/images/icon.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+      {
+        src: "/assets/images/favicon.png",
+        sizes: "48x48",
+        type: "image/png",
+      },
+    ],
+  };
+
+  fs.writeFileSync(
+    path.join(distDir, "site.webmanifest"),
+    JSON.stringify(manifest, null, 2)
+  );
+}
+
 function main() {
   if (!fs.existsSync(distDir)) {
     console.error("dist directory not found. Run the web export first.");
@@ -104,9 +309,13 @@ function main() {
 
   const replacements = copyFontsAndBuildMap();
   rewriteReferences(replacements);
+  const seoInjected = injectSeoMetadata();
+  writeRobots();
+  writeSitemap();
+  writeWebManifest();
 
   console.log(
-    `[postprocess-web-build] Rewrote ${replacements.size} font asset reference(s).`
+    `[postprocess-web-build] Rewrote ${replacements.size} font asset reference(s) and ${seoInjected ? "applied" : "skipped"} SEO metadata injection.`
   );
 }
 

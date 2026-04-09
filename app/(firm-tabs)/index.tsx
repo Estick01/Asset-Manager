@@ -288,7 +288,11 @@ export default function FirmDashboardScreen() {
     return (
       <ScrollView
         style={styles.desktopScreen}
-        contentContainerStyle={{ paddingBottom: metrics.gutter }}
+        contentContainerStyle={{
+          paddingHorizontal: metrics.gutter,
+          paddingTop: 20,
+          paddingBottom: metrics.gutter,
+        }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
@@ -574,35 +578,35 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: Colors.background },
   desktopScreen: { flex: 1, backgroundColor: Colors.background },
-  desktopHero: { borderRadius: 28, overflow: "hidden" },
-  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
-  desktopHeroTop: { gap: 20 },
-  desktopBrandCluster: { flexDirection: "row", alignItems: "center", gap: 18 },
+  desktopHero: { borderRadius: 22, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 24, paddingVertical: 22 },
+  desktopHeroTop: { gap: 18 },
+  desktopBrandCluster: { flexDirection: "row", alignItems: "center", gap: 16 },
   desktopBrandIcon: {
-    width: 74,
-    height: 74,
-    borderRadius: 24,
+    width: 64,
+    height: 64,
+    borderRadius: 20,
     backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
   },
-  desktopHeroTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroTitle: { fontSize: 30, fontFamily: "Inter_700Bold", color: Colors.white },
   desktopHeroStrip: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "rgba(255,255,255,0.11)",
-    borderRadius: 22,
-    paddingVertical: 16,
+    borderRadius: 18,
+    paddingVertical: 14,
     paddingHorizontal: 18,
   },
   desktopHeroMetric: { flex: 1, alignItems: "center" },
-  desktopHeroMetricValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroMetricValue: { fontSize: 22, fontFamily: "Inter_700Bold", color: Colors.white },
   desktopHeroMetricLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.65)", marginTop: 2, textAlign: "center" },
   desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.16)" },
   desktopStatsGrid: { flexDirection: "row", flexWrap: "wrap" },
   desktopColumns: { flexDirection: "row", alignItems: "flex-start" },
-  desktopMainColumn: { flex: 1.5, gap: 20 },
-  desktopSideColumn: { width: 360, gap: 20 },
+  desktopMainColumn: { flex: 1.5, gap: 18 },
+  desktopSideColumn: { width: 360, gap: 18 },
   panel: {
     backgroundColor: Colors.white,
     borderRadius: 22,

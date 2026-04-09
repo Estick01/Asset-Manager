@@ -235,7 +235,11 @@ export default function DashboardScreen() {
     return (
       <ScrollView
         style={styles.desktopScreen}
-        contentContainerStyle={{ paddingBottom: metrics.gutter }}
+        contentContainerStyle={{
+          paddingHorizontal: metrics.gutter,
+          paddingTop: 20,
+          paddingBottom: metrics.gutter,
+        }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
@@ -503,12 +507,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   desktopHero: {
-    borderRadius: 28,
+    borderRadius: 22,
     overflow: "hidden",
   },
   desktopHeroGradient: {
-    paddingHorizontal: 28,
-    paddingVertical: 26,
+    paddingHorizontal: 24,
+    paddingVertical: 22,
   },
   desktopHeroMain: {
     flexDirection: "row",
@@ -523,9 +527,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   desktopAvatar: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 60,
+    height: 60,
+    borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.14)",
     alignItems: "center",
     justifyContent: "center",
@@ -544,32 +548,32 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   desktopName: {
-    fontSize: 34,
+    fontSize: 30,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
   },
   desktopSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: "Inter_400Regular",
     color: "rgba(255,255,255,0.72)",
     marginTop: 4,
   },
   desktopHeroStats: {
-    minWidth: 320,
+    minWidth: 300,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
   },
   desktopHeroStat: {
     flex: 1,
     alignItems: "center",
   },
   desktopHeroValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: Colors.white,
   },
@@ -594,11 +598,11 @@ const styles = StyleSheet.create({
   },
   desktopMainColumn: {
     flex: 1.45,
-    gap: 20,
+    gap: 18,
   },
   desktopSideColumn: {
     width: 360,
-    gap: 20,
+    gap: 18,
   },
   panel: {
     backgroundColor: Colors.white,

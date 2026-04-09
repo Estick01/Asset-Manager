@@ -56,7 +56,7 @@ const ROLE_ROUTES: Record<string, AppRoute> = {
   admin_finanzas: "/(admin-tabs)/dashboard",
 };
 
-const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","(auth)", "checkout"];
+const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","(auth)", "(public)", "checkout"];
 
 const PUBLIC_GRUPS_FIRM = ["firm-components","firm-info"]
 
@@ -84,7 +84,7 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
 
 
   if (!isLoggedIn) {
-    if (currentGroup !== "(auth)") {
+    if (currentGroup !== "(auth)" && currentGroup !== "(public)") {
       return <Redirect href="/landing" />;
     }
     return <>{children}</>;
@@ -176,6 +176,7 @@ export default function RootLayout() {
                     <AuthRouteProtection>
                       <Stack screenOptions={{ headerShown: false }}>
                         <Stack.Screen name="(auth)" />
+                        <Stack.Screen name="(public)" />
                         <Stack.Screen name="(lawyer-tabs)" />
                         <Stack.Screen name="(firm-tabs)" />
                         <Stack.Screen name="(admin-tabs)" />
