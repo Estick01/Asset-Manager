@@ -1,5 +1,5 @@
 import { Redirect, Stack, useSegments } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -135,7 +135,18 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
-  const fontsReady = Platform.OS === "web" ? true : loaded;
+  const [webFontTimeoutReached, setWebFontTimeoutReached] = useState(Platform.OS !== "web");
+  const fontsReady = loaded || webFontTimeoutReached;
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || loaded) return;
+
+    const timeout = setTimeout(() => {
+      setWebFontTimeoutReached(true);
+    }, 1500);
+
+    return () => clearTimeout(timeout);
+  }, [loaded]);
 
   useEffect(() => {
     if (fontsReady) {
