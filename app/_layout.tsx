@@ -118,16 +118,6 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function WebBootMarker() {
-  if (Platform.OS !== "web") return null;
-
-  return (
-    <View pointerEvents="none" style={styles.webBootMarker}>
-      <Text style={styles.webBootMarkerText}>ProcesoClaro web OK</Text>
-    </View>
-  );
-}
-
 export default function RootLayout() {
   const [loaded] = useFonts({
     Inter_400Regular,
@@ -165,7 +155,6 @@ export default function RootLayout() {
       <GestureHandlerRootView style={styles.container}>
         <SafeAreaProvider>
           <View style={styles.loadingScreen}>
-            <WebBootMarker />
             <Text style={styles.loadingText}>Cargando ProcesoClaro...</Text>
           </View>
         </SafeAreaProvider>
@@ -177,7 +166,6 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider>
         <View style={styles.contentWrapper}>
-          <WebBootMarker />
           <QueryClientProvider client={queryClient}>
             <UnifiedAuthProvider>
               <SubscriptionProvider>
@@ -228,20 +216,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#0F2640",
     fontWeight: "600",
-  },
-  webBootMarker: {
-    position: "fixed" as any,
-    top: 12,
-    left: 12,
-    zIndex: 9999,
-    backgroundColor: "#0F2640",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  webBootMarkerText: {
-    color: "#ffffff",
-    fontSize: 11,
-    fontWeight: "700",
   },
 });
