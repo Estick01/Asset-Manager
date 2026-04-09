@@ -135,9 +135,10 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const fontsReady = Platform.OS === "web" ? true : loaded;
 
   useEffect(() => {
-    if (loaded) {
+    if (fontsReady) {
       SplashScreen.hideAsync().catch((error: any) => {
         // Silently ignore splash screen errors on iOS during transitions
         if (error?.message?.includes("splash screen") || error?.message?.includes("view controller")) {
@@ -146,9 +147,9 @@ export default function RootLayout() {
         console.warn("SplashScreen hide error:", error);
       });
     }
-  }, [loaded]);
+  }, [fontsReady]);
 
-  if (!loaded) {
+  if (!fontsReady) {
     return (
       <GestureHandlerRootView style={styles.container}>
         <SafeAreaProvider>
