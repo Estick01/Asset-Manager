@@ -1,6 +1,7 @@
 import { Redirect, Stack, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { UnifiedAuthProvider, useAuth } from "@/lib/auth-context";
 import { View, StyleSheet, Platform, LogBox } from "react-native";
@@ -141,32 +142,34 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <View style={styles.contentWrapper}>
-        <QueryClientProvider client={queryClient}>
-          <UnifiedAuthProvider>
-            <SubscriptionProvider>
-            <GlobalSocketProvider>
-              <InvitationsProvider>
-                <ChatNotificationProvider>
-                  <NotificationsProvider>
-                  <AuthRouteProtection>
-                    <Stack screenOptions={{ headerShown: false }}>
-                      <Stack.Screen name="(auth)" />
-                      <Stack.Screen name="(lawyer-tabs)" />
-                      <Stack.Screen name="(firm-tabs)" />
-                      <Stack.Screen name="(admin-tabs)" />
-                      <Stack.Screen name="portal" />
-                    </Stack>
-                  </AuthRouteProtection>
-                  </NotificationsProvider>
-                </ChatNotificationProvider>
-              </InvitationsProvider>
-            </GlobalSocketProvider>
-            </SubscriptionProvider>
-          </UnifiedAuthProvider>
-        </QueryClientProvider>
-        <Toaster />
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.contentWrapper}>
+          <QueryClientProvider client={queryClient}>
+            <UnifiedAuthProvider>
+              <SubscriptionProvider>
+              <GlobalSocketProvider>
+                <InvitationsProvider>
+                  <ChatNotificationProvider>
+                    <NotificationsProvider>
+                    <AuthRouteProtection>
+                      <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="(auth)" />
+                        <Stack.Screen name="(lawyer-tabs)" />
+                        <Stack.Screen name="(firm-tabs)" />
+                        <Stack.Screen name="(admin-tabs)" />
+                        <Stack.Screen name="portal" />
+                      </Stack>
+                    </AuthRouteProtection>
+                    </NotificationsProvider>
+                  </ChatNotificationProvider>
+                </InvitationsProvider>
+              </GlobalSocketProvider>
+              </SubscriptionProvider>
+            </UnifiedAuthProvider>
+          </QueryClientProvider>
+          <Toaster />
+        </View>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
