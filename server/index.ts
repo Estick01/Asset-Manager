@@ -367,7 +367,13 @@ function setupErrorHandler(app: express.Application) {
   setupBodyParsing(app);
   setupRequestLogging(app);
 
-  configureExpoAndLanding(app);
+  if (!isProduction) {
+    configureExpoAndLanding(app);
+  } else {
+    app.get("/", (_req: Request, res: Response) => {
+      res.json({ status: "ok", app: "ProcesoClaro API" });
+    });
+  }
 
   const server = await registerRoutes(app);
 
