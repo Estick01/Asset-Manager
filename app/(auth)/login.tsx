@@ -224,7 +224,7 @@ const handleLogin = async () => {
                 onPress={() => router.push("/planes")}
                 style={[styles.verPlanesBtn, desktop && styles.desktopVerPlanesBtn]}
               >
-                <Ionicons name="albums-outline" size={16} color={desktop ? Colors.primary : "rgba(255,255,255,0.8)"} />
+                <Ionicons name="albums-outline" size={16} color={Colors.primary} />
                 <Text style={[styles.verPlanesBtnText, desktop && styles.desktopVerPlanesBtnText]}>Ver planes y precios</Text>
               </Pressable>
             </View>
@@ -463,7 +463,7 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 14,
     fontFamily: "Inter_400Regular",
-    color: "rgba(255,255,255,0.7)",
+    color: Colors.textSecondary,
   },
   desktopFooterText: {
     color: Colors.textSecondary,
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
   verPlanesBtnText: {
     fontSize: 14,
     fontFamily: "Inter_500Medium",
-    color: "rgba(255,255,255,0.8)",
+    color: Colors.primary,
   },
   desktopVerPlanesBtnText: {
     color: Colors.primary,
