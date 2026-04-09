@@ -215,7 +215,7 @@ export default function LawyerSettingsScreen() {
         pathname: "/chat/[id]",
         params: {
           id: conversation.id,
-          name: conversation.name ?? "Soporte LexTrack",
+          name: conversation.name ?? "Soporte ProcesoClaro",
           from: "/lawyer-componts/lawyer-settings",
           support: "1",
         },
@@ -244,7 +244,7 @@ export default function LawyerSettingsScreen() {
       title: "Información",
       items: [
         { icon: "help-circle-outline",   label: "Ayuda y soporte",        sublabel: "Respuesta por chat", onPress: openSupportChat },
-        { icon: "information-circle-outline", label: "Acerca de",         sublabel: "LexTrack v1.0.0",      onPress: () => {} },
+        { icon: "information-circle-outline", label: "Acerca de",         sublabel: "ProcesoClaro v1.0.0",      onPress: () => {} },
       ],
     },
   ];
@@ -469,7 +469,7 @@ export default function LawyerSettingsScreen() {
             )}
           </View>
 
-          <Text style={styles.version}>LexTrack v1.0.0</Text>
+          <Text style={styles.version}>ProcesoClaro v1.0.0</Text>
         </View>
       </ScrollView>
 

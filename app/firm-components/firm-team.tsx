@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "@/lib/auth-context";
+import { useSubscription, getFeatureMinPlan } from "@/lib/subscription-context";
 import { getAbogadosByFirma } from "@/lib/services/procesoLawyerService";
 import { getFirmInvitations, removeFromFirm, type FirmInvitation } from "@/lib/services/firmInvitationService";
 import { getOrCreateConversation } from "@/lib/services/chatService";
@@ -56,7 +57,7 @@ interface TeamMember {
   userId: string;
 }
 
-function MemberCard({ item, index, currentUserId, onRemove, onError }: { item: TeamMember; index: number; currentUserId?: string; onRemove: (member: TeamMember) => void; onError: (msg: string) => void }) {
+function MemberCard({ item, index, currentUserId, canAssignCustomRoles, onAssignRole, onRemove, onError }: { item: TeamMember; index: number; currentUserId?: string; canAssignCustomRoles: boolean; onAssignRole: (member: TeamMember) => void; onRemove: (member: TeamMember) => void; onError: (msg: string) => void }) {
   const anim = useRef(new Animated.Value(0)).current;
   const av = avatarColor(item.nombre || "?");
   const showEmail = item.correo?.includes("@");
@@ -159,11 +160,16 @@ function MemberCard({ item, index, currentUserId, onRemove, onError }: { item: T
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.msgBtn, { backgroundColor: "#EEE8FD" }, pressed && { opacity: 0.75 }]}
-            onPress={() => router.push(`/firm-components/firm-assign-role?lawyerId=${item.id}&nombre=${encodeURIComponent(item.nombre)}` as any)}
+            onPress={() => onAssignRole(item)}
             hitSlop={6}
           >
-            <Ionicons name="shield-outline" size={18} color="#7B5EA7" />
+            <Ionicons name={canAssignCustomRoles ? "shield-outline" : "lock-closed-outline"} size={18} color="#7B5EA7" />
           </Pressable>
+          {!canAssignCustomRoles && (
+            <View style={styles.premiumMiniBadge}>
+              <Text style={styles.premiumMiniBadgeText}>PRO</Text>
+            </View>
+          )}
           {currentUserId !== item.userId && (
             <Pressable
               style={({ pressed }) => [styles.msgBtn, { backgroundColor: "#FDEAEA" }, pressed && { opacity: 0.75 }]}
@@ -184,6 +190,7 @@ function MemberCard({ item, index, currentUserId, onRemove, onError }: { item: T
 export default function FirmTeamScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { hasFeature } = useSubscription();
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -193,6 +200,7 @@ export default function FirmTeamScreen() {
 
   const firmId = (user?.profile as FirmProfile)?.id;
   const currentUserId = user?.user?.id;
+  const canAssignCustomRoles = hasFeature("roles_custom");
 
 
   const fetchTeamData = useCallback(async () => {
@@ -236,6 +244,18 @@ export default function FirmTeamScreen() {
 
   const handleRemoveMember = (member: TeamMember) => {
     setRemoveModal({ visible: true, member });
+  };
+
+  const handleAssignRole = (member: TeamMember) => {
+    if (!canAssignCustomRoles) {
+      setErrorModal({
+        visible: true,
+        message: `Los roles personalizados están disponibles desde el plan ${getFeatureMinPlan("roles_custom", user?.user?.rol?.nombre)}.`,
+      });
+      return;
+    }
+
+    router.push(`/firm-components/firm-assign-role?lawyerId=${member.id}&nombre=${encodeURIComponent(member.nombre)}` as any);
   };
 
   const confirmRemoveMember = async () => {
@@ -372,6 +392,8 @@ export default function FirmTeamScreen() {
                 item={item}
                 index={index}
                 currentUserId={currentUserId}
+                canAssignCustomRoles={canAssignCustomRoles}
+                onAssignRole={handleAssignRole}
                 onRemove={handleRemoveMember}
                 onError={(msg) => setErrorModal({ visible: true, message: msg })}
               />
@@ -642,5 +664,18 @@ const styles = StyleSheet.create({
     width: 34, height: 34, borderRadius: 17,
     backgroundColor: "#E8F4FD",
     alignItems: "center", justifyContent: "center",
+  },
+  premiumMiniBadge: {
+    backgroundColor: "#FFF4D6",
+    borderRadius: 999,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    marginLeft: -6,
+  },
+  premiumMiniBadgeText: {
+    fontSize: 9,
+    fontFamily: "Inter_700Bold",
+    color: "#7B5E00",
+    letterSpacing: 0.6,
   },
 });

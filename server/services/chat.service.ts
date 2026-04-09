@@ -79,7 +79,7 @@ export class ChatService {
     await storage.chat.createConversation({
       id: convId,
       type,
-      name: type === "admin_support" ? "Soporte LexTrack" : null,
+      name: type === "admin_support" ? "Soporte ProcesoClaro" : null,
     });
 
     await storage.chat.addParticipant({

@@ -38,7 +38,7 @@ async function _doRefresh(): Promise<boolean> {
     if (data.token) {
       if (!isWeb) await AsyncStorage.setItem(STORAGE_KEYS.AUTH_TOKEN, data.token);
       // WS token needed on all platforms
-      await AsyncStorage.setItem('lextrack_ws_token', data.token);
+      await AsyncStorage.setItem('procesoclaro_ws_token', data.token);
     }
     if (data.refreshToken && !isWeb) {
       await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, data.refreshToken);

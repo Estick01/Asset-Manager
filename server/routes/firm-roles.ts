@@ -20,6 +20,7 @@ import { z } from "zod";
 import { authenticate } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
 import { EnumRol } from "@/shared/schema/user.schema.js";
+import { requireFeature } from "../middleware/require-feature.js";
 
 const router = Router();
 
@@ -32,7 +33,7 @@ function requireBufete(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-const guardBufete = [authenticate, requireBufete];
+const guardBufete = [authenticate, requireBufete, requireFeature("roles_custom")];
 
 /**
  * Returns the firm profile ID from the JWT — no DB call needed.

@@ -661,7 +661,7 @@ export default function ConversationScreen() {
             <View style={styles.desktopAside}>
               <View style={styles.desktopAsideCard}>
                 <Text style={styles.desktopAsideLabel}>Resumen</Text>
-                <Text style={styles.desktopAsideTitle}>{isSupportChat ? "Soporte LexTrack" : name ?? "Contacto"}</Text>
+                <Text style={styles.desktopAsideTitle}>{isSupportChat ? "Soporte ProcesoClaro" : name ?? "Contacto"}</Text>
                 <Text style={styles.desktopAsideText}>
                   {isSupportChat
                     ? "Canal para resolver incidencias operativas o dudas de plataforma."

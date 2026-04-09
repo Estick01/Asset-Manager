@@ -12,7 +12,7 @@ export { apiRequest };
 // --- Token Management ---
 
 // Token storage key for WebSocket (we need this even on web)
-const WS_TOKEN_KEY = "lextrack_ws_token";
+const WS_TOKEN_KEY = "procesoclaro_ws_token";
 
 export async function saveAuthToken(token: string): Promise<void> {
   if (Platform.OS !== 'web') {

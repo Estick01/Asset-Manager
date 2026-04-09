@@ -72,7 +72,6 @@ export function DesktopAppShell({
               <Pressable
                 key={item.key}
                 onPress={() => onNavigate(item.href)}
-                disabled={item.disabled}
                 style={({ pressed }) => [
                   styles.navItem,
                   active && styles.navItemActive,

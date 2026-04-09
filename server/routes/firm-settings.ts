@@ -6,9 +6,10 @@
 
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { z } from "zod";
-import { authenticate, requirePermission } from "../auth.js";
+import { authenticate } from "../auth.js";
 import { storage } from "../storage/storeage/database-storage.js";
 import { validate } from "../middleware/validation.js";
+import { subscriptionService } from "../services/subscription.service.js";
 
 const router = Router();
 
@@ -17,6 +18,12 @@ const updateFirmSettingsSchema = z.object({
   allowPrivateProcesos: z.boolean().optional(),
   defaultClienteEsCompartido: z.boolean().optional(),
   defaultProcesoEsCompartido: z.boolean().optional(),
+  notifMensajes: z.boolean().optional(),
+  notifVencimientos: z.boolean().optional(),
+  notifCambiosProcesos: z.boolean().optional(),
+  notifEquipoInvitaciones: z.boolean().optional(),
+  notifAlertasPlan: z.boolean().optional(),
+  notifResumenSemanal: z.boolean().optional(),
 });
 
 /**
@@ -62,6 +69,36 @@ router.patch(
         return res.status(403).json({
           error: "Solo los bufetes pueden modificar esta configuración"
         });
+      }
+
+      const requested = req.body as z.infer<typeof updateFirmSettingsSchema>;
+      const needsBasicPrivacy =
+        requested.allowPrivateClientes !== undefined ||
+        requested.defaultClienteEsCompartido !== undefined;
+      const needsAdvancedPrivacy =
+        requested.allowPrivateProcesos !== undefined ||
+        requested.defaultProcesoEsCompartido !== undefined;
+
+      if (needsBasicPrivacy) {
+        const hasBasicPrivacy = await subscriptionService.hasFeature(user.id, "privacidad_basica");
+        if (!hasBasicPrivacy) {
+          return res.status(402).json({
+            error: "FEATURE_NOT_AVAILABLE",
+            feature: "privacidad_basica",
+            mensaje: "Tu plan actual no incluye configuraciones de clientes privados.",
+          });
+        }
+      }
+
+      if (needsAdvancedPrivacy) {
+        const hasAdvancedPrivacy = await subscriptionService.hasFeature(user.id, "privacidad_avanzada");
+        if (!hasAdvancedPrivacy) {
+          return res.status(402).json({
+            error: "FEATURE_NOT_AVAILABLE",
+            feature: "privacidad_avanzada",
+            mensaje: "Tu plan actual no incluye configuraciones de procesos privados.",
+          });
+        }
       }
 
       const updated = await storage.firmSettings.upsert(user.idProfile, req.body);

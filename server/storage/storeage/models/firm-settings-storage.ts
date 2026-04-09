@@ -9,6 +9,12 @@ const DEFAULTS: Omit<FirmSettingsDTO, "firmId"> = {
   allowPrivateProcesos:       false,
   defaultClienteEsCompartido: true,
   defaultProcesoEsCompartido: true,
+  notifMensajes:              true,
+  notifVencimientos:          true,
+  notifCambiosProcesos:       true,
+  notifEquipoInvitaciones:    true,
+  notifAlertasPlan:           true,
+  notifResumenSemanal:        false,
 };
 
 export class FirmSettingsStorage {
@@ -57,6 +63,12 @@ export class FirmSettingsStorage {
       allowPrivateProcesos:       row.allowPrivateProcesos,
       defaultClienteEsCompartido: row.defaultClienteEsCompartido,
       defaultProcesoEsCompartido: row.defaultProcesoEsCompartido,
+      notifMensajes:              row.notifMensajes,
+      notifVencimientos:          row.notifVencimientos,
+      notifCambiosProcesos:       row.notifCambiosProcesos,
+      notifEquipoInvitaciones:    row.notifEquipoInvitaciones,
+      notifAlertasPlan:           row.notifAlertasPlan,
+      notifResumenSemanal:        row.notifResumenSemanal,
     };
   }
 }

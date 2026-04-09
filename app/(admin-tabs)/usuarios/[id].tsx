@@ -1,5 +1,5 @@
 // app/(admin-tabs)/usuarios/[id].tsx
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import { AdminShell } from "../_shell/AdminShell";
 import { StyledModal } from "@/components/StyledModal";
 import {
   adminUsersService,
+  adminPlansService,
+  type AdminPlanRow,
   type UserAdminDetail,
   type SuscripcionResumen,
 } from "@/lib/services/adminService";
@@ -58,6 +60,7 @@ export default function UsuarioDetailScreen() {
   const [modalPlan,       setModalPlan]       = useState(false);
   const [modalReset,      setModalReset]      = useState(false);
   const [resetToken,      setResetToken]      = useState<string | null>(null);
+  const [selectedPlanId,  setSelectedPlanId]  = useState<string | null>(null);
   const [errorEstado,  setErrorEstado]  = useState<string | null>(null);
   const [errorPlan,    setErrorPlan]    = useState<string | null>(null);
   const [errorReset,   setErrorReset]   = useState<string | null>(null);
@@ -69,6 +72,13 @@ export default function UsuarioDetailScreen() {
   });
 
   const user: UserAdminDetail | undefined = data?.data;
+  const rolNombre = user?.rol.nombre;
+
+  const { data: plans = [] } = useQuery({
+    queryKey: ["admin-plans"],
+    queryFn: adminPlansService.list,
+    enabled: modalPlan,
+  });
 
   // Mutaciones
   const mutEstado = useMutation({
@@ -82,13 +92,14 @@ export default function UsuarioDetailScreen() {
     onError: () => setErrorEstado("Error al cambiar el estado del usuario."),
   });
 
-  useMutation({
+  const mutPlan = useMutation({
     mutationFn: (planId: string) => adminUsersService.updatePlan(id, planId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-user",  id] });
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setModalPlan(false);
       setErrorPlan(null);
+      setSelectedPlanId(null);
     },
     onError: () => setErrorPlan("Error al cambiar el plan."),
   });
@@ -123,6 +134,20 @@ export default function UsuarioDetailScreen() {
       </AdminShell>
     );
   }
+
+  const planesDisponibles = plans.filter((plan: AdminPlanRow) => {
+    if (!plan.state) return false;
+    if (rolNombre === "abogado" || rolNombre === "bufete") {
+      return plan.tipo === rolNombre;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (!modalPlan || selectedPlanId || !user?.suscripcionActiva) return;
+    const actual = planesDisponibles.find((plan) => plan.nombre === user.suscripcionActiva?.planNombre);
+    if (actual) setSelectedPlanId(actual.id);
+  }, [modalPlan, selectedPlanId, planesDisponibles, user?.suscripcionActiva]);
 
   return (
     <AdminShell title={user.name ?? user.email} scrollable={false}>
@@ -240,7 +265,10 @@ export default function UsuarioDetailScreen() {
             icon="layers-outline"
             label="Cambiar plan"
             color="#2563EB"
-            onPress={() => setModalPlan(true)}
+            onPress={() => {
+              setSelectedPlanId(null);
+              setModalPlan(true);
+            }}
             disabled={!user.suscripcionActiva}
           />
           {errorPlan && (
@@ -277,19 +305,58 @@ export default function UsuarioDetailScreen() {
       {/* Modal: cambiar plan */}
       <StyledModal
         visible={modalPlan}
-        onClose={() => setModalPlan(false)}
+        onClose={() => {
+          setModalPlan(false);
+          setSelectedPlanId(null);
+        }}
         title="Cambiar plan"
-        confirmText="Confirmar"
+        confirmText={mutPlan.isPending ? "Guardando..." : "Confirmar"}
         confirmVariant="primary"
         onConfirm={() => {
-          // TODO Fase 3: conectar con selector de planes dinámico.
-          // Por ahora el modal informa que esta función se completa en Fase 3.
+          if (!selectedPlanId || mutPlan.isPending) return;
+          mutPlan.mutate(selectedPlanId);
         }}
-        hideConfirm
       >
         <Text style={styles.modalBody}>
-          El selector de planes se habilitará en la Fase 3 (módulo de Planes).
+          Selecciona el nuevo plan para {user.name ?? user.email}.
         </Text>
+        <View style={styles.planPickerList}>
+          {planesDisponibles.map((plan) => {
+            const isSelected = selectedPlanId === plan.id;
+            const isCurrent = user.suscripcionActiva?.planNombre === plan.nombre;
+            return (
+              <Pressable
+                key={plan.id}
+                onPress={() => setSelectedPlanId(plan.id)}
+                style={({ pressed }) => [
+                  styles.planOption,
+                  isSelected && styles.planOptionSelected,
+                  pressed && styles.planOptionPressed,
+                ]}
+              >
+                <View style={styles.planOptionMain}>
+                  <View style={styles.planRadioWrap}>
+                    <View style={[styles.planRadioOuter, isSelected && styles.planRadioOuterSelected]}>
+                      {isSelected ? <View style={styles.planRadioInner} /> : null}
+                    </View>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.planOptionTop}>
+                      <Text style={styles.planOptionName}>{plan.nombre}</Text>
+                      {isCurrent ? <Text style={styles.planCurrentBadge}>Actual</Text> : null}
+                    </View>
+                    <Text style={styles.planOptionMeta}>
+                      {plan.tipo} · COP {plan.precioMensualCop}/mes
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+        {planesDisponibles.length === 0 ? (
+          <Text style={styles.emptyText}>No hay planes disponibles para este usuario.</Text>
+        ) : null}
       </StyledModal>
 
       {/* Modal: reset password */}
@@ -554,6 +621,75 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     color: "#475569",
     lineHeight: 22,
+  },
+  planPickerList: {
+    gap: 10,
+    marginTop: 12,
+  },
+  planOption: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+  },
+  planOptionSelected: {
+    borderColor: "#2563EB",
+    backgroundColor: "#EFF6FF",
+  },
+  planOptionPressed: { opacity: 0.85 },
+  planOptionMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  planRadioWrap: {
+    width: 24,
+    alignItems: "center",
+  },
+  planRadioOuter: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  planRadioOuterSelected: {
+    borderColor: "#2563EB",
+  },
+  planRadioInner: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#2563EB",
+  },
+  planOptionTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  planOptionName: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "#0F172A",
+  },
+  planCurrentBadge: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+    color: "#2563EB",
+    backgroundColor: "#DBEAFE",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  planOptionMeta: {
+    fontSize: 12,
+    fontFamily: "Inter_400Regular",
+    color: "#64748B",
   },
   inlineError: {
     fontSize: 12,

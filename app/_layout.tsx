@@ -88,8 +88,6 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
     }
     return <>{children}</>;
   }
-  console.log(currentGroup);
-
 
   const targetRoute = resolveTargetRoute(user?.user?.rol?.nombre, Platform.OS === "web");
 
@@ -110,9 +108,6 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   if (PUBLIC_GROUPS.includes(currentGroup)) {
     return <>{children}</>;
   }
-
-  console.log("Target route:", targetRoute);
-
 
   const targetGroup = targetRoute.replace("/", "");
   if (currentGroup !== targetGroup) {

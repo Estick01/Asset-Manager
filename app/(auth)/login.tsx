@@ -113,7 +113,7 @@ const handleLogin = async () => {
               <View style={styles.iconCircle}>
                 <Ionicons name="briefcase" size={40} color={Colors.accent} />
               </View>
-              <Text style={styles.brandName}>LexTrack</Text>
+              <Text style={styles.brandName}>ProcesoClaro</Text>
               <Text style={styles.brandSub}>Sistema de Seguimiento Juridico</Text>
             </View>
 

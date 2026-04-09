@@ -2,7 +2,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable,
-  TextInput, ActivityIndicator, Platform
+  TextInput, ActivityIndicator, Platform, useWindowDimensions
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +17,9 @@ import { StyledModal } from "@/components/StyledModal";
 
 export default function InviteLawyerScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1180;
+  const isWideDesktop = width >= 1480;
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<LawyerProfile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -132,38 +135,63 @@ export default function InviteLawyerScreen() {
         colors={[Colors.primaryDark, Colors.primary]}
         style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
       >
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={Colors.white} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Invitar Abogado</Text>
-            <Text style={styles.headerSubtitle}>Busca y agrega abogados a tu firma</Text>
+        <View style={[styles.headerInner, isWideDesktop && styles.headerInnerWide]}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={22} color={Colors.white} />
+            </Pressable>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Invitar Abogado</Text>
+              <Text style={styles.headerSubtitle}>Busca y agrega abogados a tu firma</Text>
+            </View>
+            <Pressable onPress={() => router.push("/firm-components/firm-invitations" as any)} style={styles.headerBtn} hitSlop={8}>
+              <Ionicons name="list-outline" size={22} color={Colors.white} />
+            </Pressable>
           </View>
-          <Pressable onPress={() => router.push("/firm-components/firm-invitations" as any)} style={styles.headerBtn} hitSlop={8}>
-            <Ionicons name="list-outline" size={22} color={Colors.white} />
-          </Pressable>
-        </View>
 
-        {/* Barra de búsqueda dentro del header */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search-outline" size={18} color={Colors.textTertiary} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Nombre, especialidad o licencia..."
-            placeholderTextColor={Colors.textTertiary}
-            value={search}
-            onChangeText={handleSearch}
-            autoFocus
-          />
-          {loading
-            ? <ActivityIndicator size="small" color={Colors.primary} />
-            : search.length > 0 && (
-              <Pressable onPress={() => { setSearch(""); setResults([]); }} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
-              </Pressable>
-            )
-          }
+          {isDesktop && (
+            <View style={styles.desktopHero}>
+              <View style={styles.desktopHeroCopy}>
+                <Text style={styles.desktopHeroEyebrow}>CRECIMIENTO DEL EQUIPO</Text>
+                <Text style={styles.desktopHeroTitle}>Encuentra abogados y extiende tu firma</Text>
+                <Text style={styles.desktopHeroText}>
+                  Usa esta vista amplia para filtrar mejor por nombre, especialidad o licencia y enviar invitaciones con contexto.
+                </Text>
+              </View>
+
+              <View style={styles.desktopHeroPanel}>
+                <View style={styles.desktopHeroPill}>
+                  <Ionicons name="search-outline" size={14} color={Colors.white} />
+                  <Text style={styles.desktopHeroPillText}>Búsqueda rápida</Text>
+                </View>
+                <View style={styles.desktopHeroPill}>
+                  <Ionicons name="paper-plane-outline" size={14} color={Colors.white} />
+                  <Text style={styles.desktopHeroPillText}>Invitación inmediata</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Barra de búsqueda dentro del header */}
+          <View style={[styles.searchContainer, isDesktop && styles.searchContainerDesktop]}>
+            <Ionicons name="search-outline" size={18} color={Colors.textTertiary} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Nombre, especialidad o licencia..."
+              placeholderTextColor={Colors.textTertiary}
+              value={search}
+              onChangeText={handleSearch}
+              autoFocus
+            />
+            {loading
+              ? <ActivityIndicator size="small" color={Colors.primary} />
+              : search.length > 0 && (
+                <Pressable onPress={() => { setSearch(""); setResults([]); }} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={Colors.textTertiary} />
+                </Pressable>
+              )
+            }
+          </View>
         </View>
       </LinearGradient>
 
@@ -195,7 +223,7 @@ export default function InviteLawyerScreen() {
             data={results}
             keyExtractor={item => item.id}
             renderItem={renderLawyer}
-            contentContainerStyle={styles.list}
+            contentContainerStyle={[styles.list, isDesktop && styles.listDesktop, isWideDesktop && styles.listWideDesktop]}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           />
         </>
@@ -302,6 +330,8 @@ const styles = StyleSheet.create({
 
   // Header
   header: { paddingHorizontal: 20, paddingBottom: 20 },
+  headerInner: { width: "100%", alignSelf: "center" },
+  headerInnerWide: { maxWidth: 1520, alignSelf: "center" },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -316,6 +346,54 @@ const styles = StyleSheet.create({
   headerCenter: { alignItems: "center" },
   headerTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: Colors.white },
   headerSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.7)", marginTop: 2 },
+  desktopHero: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 24,
+    marginBottom: 18,
+  },
+  desktopHeroCopy: { maxWidth: 760 },
+  desktopHeroEyebrow: {
+    fontSize: 11,
+    letterSpacing: 2,
+    color: "rgba(255,255,255,0.6)",
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 8,
+  },
+  desktopHeroTitle: {
+    fontSize: 30,
+    lineHeight: 36,
+    color: Colors.white,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.6,
+    marginBottom: 10,
+  },
+  desktopHeroText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.76)",
+    fontFamily: "Inter_400Regular",
+  },
+  desktopHeroPanel: {
+    minWidth: 290,
+    gap: 10,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  desktopHeroPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  desktopHeroPillText: { fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.white },
 
   // Search
   searchContainer: {
@@ -327,6 +405,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  searchContainerDesktop: { maxWidth: 1520, alignSelf: "center", width: "100%" },
   searchInput: {
     flex: 1,
     fontSize: 14,
@@ -341,6 +420,8 @@ const styles = StyleSheet.create({
 
   // List
   list: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 40 },
+  listDesktop: { maxWidth: 1240, alignSelf: "center", width: "100%", paddingTop: 22, paddingBottom: 56 },
+  listWideDesktop: { maxWidth: 1380 },
 
   // Card
   card: {

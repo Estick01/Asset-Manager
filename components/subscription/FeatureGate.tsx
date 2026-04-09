@@ -3,7 +3,8 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Colors from "@/constants/colors";
-import { useSubscription, FEATURE_LABELS, FEATURE_MIN_PLAN } from "@/lib/subscription-context";
+import { useSubscription, FEATURE_LABELS, getFeatureMinPlan } from "@/lib/subscription-context";
+import { useAuth } from "@/lib/auth-context";
 
 interface FeatureGateProps {
   featureCode: string;
@@ -18,6 +19,7 @@ interface FeatureGateProps {
  */
 export function FeatureGate({ featureCode, children, fallback }: FeatureGateProps) {
   const { hasFeature, isLoading } = useSubscription();
+  const { user } = useAuth();
 
   // Mientras carga → asumir acceso para no parpadear
   if (isLoading) return <>{children}</>;
@@ -27,7 +29,7 @@ export function FeatureGate({ featureCode, children, fallback }: FeatureGateProp
   if (fallback) return <>{fallback}</>;
 
   const nombre  = FEATURE_LABELS[featureCode]  ?? featureCode;
-  const minPlan = FEATURE_MIN_PLAN[featureCode] ?? "Pro";
+  const minPlan = getFeatureMinPlan(featureCode, user?.user?.rol?.nombre);
 
   return (
     <View style={styles.container}>

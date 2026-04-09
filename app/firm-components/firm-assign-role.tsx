@@ -18,11 +18,14 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
+import { FeatureGate } from "@/components/subscription/FeatureGate";
 import { FirmRol, getFirmRoles, getLawyerFirmRol, assignFirmRolToLawyer } from "@/lib/services/firmRolesService";
+import { useSubscription } from "@/lib/subscription-context";
 
 export default function FirmAssignRoleScreen() {
   const insets = useSafeAreaInsets();
   const { lawyerId, nombre } = useLocalSearchParams<{ lawyerId: string; nombre: string }>();
+  const { hasFeature, isLoading } = useSubscription();
 
   const [roles, setRoles] = useState<FirmRol[]>([]);
   // undefined = still loading; null = no firm role; number = role id
@@ -43,6 +46,12 @@ export default function FirmAssignRoleScreen() {
       .finally(() => setLoading(false));
   }, [lawyerId]);
 
+  useEffect(() => {
+    if (!isLoading && !hasFeature("roles_custom")) {
+      router.replace("/(firm-tabs)/team" as any);
+    }
+  }, [hasFeature, isLoading]);
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -59,7 +68,8 @@ export default function FirmAssignRoleScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <FeatureGate featureCode="roles_custom">
+      <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
@@ -165,7 +175,8 @@ export default function FirmAssignRoleScreen() {
           </Pressable>
         </ScrollView>
       )}
-    </View>
+      </View>
+    </FeatureGate>
   );
 }
 

@@ -190,9 +190,8 @@ export class DatabaseStorage {
     setInterval(() => this.otps.deleteExpired(), 60 * 60 * 1000);
   }
 
-  // Backwards compatibility wrapper methods for routes
-  // These delegate to the individual storage classes or return mock data
-  // TODO: Complete implementation to match old storage interface
+  // Backwards-compatibility facade used by older routes while the storage
+  // layer is progressively split into specialized modules.
 
   async getProcesosByIds(ids: string[], filter?: any) {
     return this.procesos.getProcesosByIds(ids, filter);
@@ -590,7 +589,6 @@ export class DatabaseStorage {
   }
 
   async getUserProfile(userId: string, rolNombre: string) {
-    console.log(rolNombre,'rolNombre', userId,'userId')
     switch (rolNombre) {
       case "admin":
       case "admin_super":

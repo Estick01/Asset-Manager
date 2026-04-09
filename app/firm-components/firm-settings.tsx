@@ -346,7 +346,7 @@ export default function FirmSettingsScreen() {
         pathname: "/chat/[id]",
         params: {
           id: conversation.id,
-          name: conversation.name ?? "Soporte LexTrack",
+          name: conversation.name ?? "Soporte ProcesoClaro",
           from: "/firm-components/firm-settings",
           support: "1",
         },
@@ -389,7 +389,7 @@ export default function FirmSettingsScreen() {
       title: "Información",
       items: [
         { icon: "help-circle-outline",   label: "Ayuda y soporte",         sublabel: "Respuesta por chat",   onPress: openSupportChat },
-        { icon: "information-circle-outline", label: "Acerca de",          sublabel: "LexTrack v1.0.0",        onPress: () => {} },
+        { icon: "information-circle-outline", label: "Acerca de",          sublabel: "ProcesoClaro v1.0.0",        onPress: () => {} },
       ],
     },
   ];
@@ -490,7 +490,7 @@ export default function FirmSettingsScreen() {
           <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
         </Pressable>
 
-        <Text style={styles.version}>LexTrack v1.0.0 · {plan?.nombre ?? "Gratis"}</Text>
+        <Text style={styles.version}>ProcesoClaro v1.0.0 · {plan?.nombre ?? "Gratis"}</Text>
       </ScrollView>
 
       <LogoutModal

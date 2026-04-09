@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "LexTrack",
-    "slug": "lextrack",
+    "name": "ProcesoClaro",
+    "slug": "procesoclaro",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "procesoclaro",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -44,8 +44,6 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "extra": {
-      "localIp": "192.168.1.192"
-    }
+    "extra": {}
   }
 }

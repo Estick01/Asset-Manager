@@ -41,7 +41,7 @@ const FEATURE_LABELS: Record<string, string> = {
   etapas_procesales: "Etapas procesales",
   privacidad_basica: "Privacidad básica",
   privacidad_avanzada: "Privacidad avanzada",
-  comunidad: "Comunidad LexTrack",
+  comunidad: "Comunidad ProcesoClaro",
   chat: "Chat con clientes",
   dashboard_bufete: "Dashboard de firma",
   roles_custom: "Roles personalizados",

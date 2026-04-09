@@ -59,7 +59,7 @@ function ConversationCard({ conv, currentUserId, index }: {
   const anim = useRef(new Animated.Value(0)).current;
   const other = conv.participants.find(p => p.userId !== currentUserId);
   const displayName = conv.type === "admin_support"
-    ? conv.name || "Soporte LexTrack"
+    ? conv.name || "Soporte ProcesoClaro"
     : other?.name || "Abogado";
   const av = avatarColor(displayName);
   const hasUnread = conv.unreadCount > 0;
@@ -157,7 +157,7 @@ export default function ClientChatScreen() {
         pathname: "/chat/[id]",
         params: {
           id: conversation.id,
-          name: conversation.name ?? "Soporte LexTrack",
+          name: conversation.name ?? "Soporte ProcesoClaro",
           from: "/portal/chat",
           support: "1",
         },

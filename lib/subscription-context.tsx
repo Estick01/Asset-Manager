@@ -47,6 +47,42 @@ export const FEATURE_MIN_PLAN: Record<string, string> = {
   soporte_prioritario:  "Enterprise",
 };
 
+const FEATURE_MIN_PLAN_BY_ROLE: Record<"abogado" | "bufete", Record<string, string>> = {
+  abogado: {
+    calendario: "Esencial",
+    etapas_procesales: "Esencial",
+    comunidad: "Pro",
+    chat: "Pro",
+    privacidad_basica: "Esencial",
+    privacidad_avanzada: "Pro",
+    dashboard_bufete: "Starter",
+    roles_custom: "Business",
+    soporte_prioritario: "Enterprise",
+  },
+  bufete: {
+    calendario: "Starter",
+    etapas_procesales: "Starter",
+    comunidad: "Business",
+    chat: "Business",
+    privacidad_basica: "Starter",
+    privacidad_avanzada: "Starter",
+    dashboard_bufete: "Starter",
+    roles_custom: "Business",
+    soporte_prioritario: "Enterprise",
+  },
+};
+
+export function getFeatureMinPlan(featureCode: string, role?: string | null): string {
+  const normalizedRole = role?.toLowerCase();
+  if (normalizedRole === "bufete") {
+    return FEATURE_MIN_PLAN_BY_ROLE.bufete[featureCode] ?? FEATURE_MIN_PLAN[featureCode] ?? "Pro";
+  }
+  if (normalizedRole === "abogado") {
+    return FEATURE_MIN_PLAN_BY_ROLE.abogado[featureCode] ?? FEATURE_MIN_PLAN[featureCode] ?? "Pro";
+  }
+  return FEATURE_MIN_PLAN[featureCode] ?? "Pro";
+}
+
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
 interface SubscriptionContextValue {

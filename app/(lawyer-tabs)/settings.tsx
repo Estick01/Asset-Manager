@@ -55,7 +55,7 @@ export default function LawyerSettingsScreen() {
         pathname: "/chat/[id]",
         params: {
           id: conversation.id,
-          name: conversation.name ?? "Soporte LexTrack",
+          name: conversation.name ?? "Soporte ProcesoClaro",
           from: "/(lawyer-tabs)/settings",
           support: "1",
         },
@@ -106,7 +106,7 @@ export default function LawyerSettingsScreen() {
       title: "Aplicación",
       items: [
         { icon: "help-circle-outline", label: "Ayuda y Soporte", onPress: openSupportChat },
-        { icon: "information-circle-outline", label: "Acerca de", onPress: () => Alert.alert("LexTrack", "Versión 1.0.0\nSistema de Seguimiento Jurídico") },
+        { icon: "information-circle-outline", label: "Acerca de", onPress: () => Alert.alert("ProcesoClaro", "Versión 1.0.0\nSistema de gestión jurídica") },
       ],
     },
   ];
@@ -162,7 +162,7 @@ export default function LawyerSettingsScreen() {
           <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
         </Pressable>
 
-        <Text style={styles.version}>LexTrack v1.0.0</Text>
+        <Text style={styles.version}>ProcesoClaro v1.0.0</Text>
       </ScrollView>
 
       <LogoutModal

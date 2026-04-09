@@ -49,7 +49,6 @@ export class MatchingService {
         post.createdAt ? new Date(post.createdAt as any) : new Date(),
       );
 
-      console.log(`[Matching] ${candidates.length} candidates for post "${post.id}" (${post.caseType})`);
       if (candidates.length === 0) return;
 
       const results = await Promise.allSettled(

@@ -91,7 +91,7 @@ export function Sidebar({ rol }: Props) {
     <View style={styles.sidebar}>
       <View style={styles.logoContainer}>
         <Ionicons name="scale-outline" size={22} color="#2563EB" />
-        <Text style={styles.logoText}>LexTrack</Text>
+        <Text style={styles.logoText}>ProcesoClaro</Text>
       </View>
       <Text style={styles.sectionLabel}>ADMINISTRACIÓN</Text>
       <ScrollView showsVerticalScrollIndicator={false}>

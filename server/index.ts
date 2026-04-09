@@ -30,10 +30,6 @@ declare module "http" {
 }
 
 async function seedDatabase() {
-  if (process.env.NODE_ENV === "production") {
-    log("[seed] WARNING: Running database seed on startup in production. Consider moving this to a dedicated migration/seed script.");
-  }
-
   // Idempotent seed: always checks before inserting
   const defaultPlanId = "default-plan-id";
   const defaultPlan = await storage.getPlan(defaultPlanId);
@@ -71,6 +67,20 @@ async function seedDatabase() {
   await seedAdminRoles(db);
 }
 
+function shouldRunStartupSeeds(): boolean {
+  if (process.env.RUN_STARTUP_SEEDS === "true") {
+    log("[seed] RUN_STARTUP_SEEDS=true, executing startup seeds.");
+    return true;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    log("[seed] Startup seeds are disabled in production. Run migrations/seeds explicitly.");
+    return false;
+  }
+
+  return true;
+}
+
 function setupCors(app: express.Application) {
   app.use((req, res, next) => {
     const origins = new Set<string>();
@@ -82,6 +92,13 @@ function setupCors(app: express.Application) {
     if (process.env.REPLIT_DOMAINS) {
       process.env.REPLIT_DOMAINS.split(",").forEach((d) => {
         origins.add(`https://${d.trim()}`);
+      });
+    }
+
+    if (process.env.CORS_ALLOWED_ORIGINS) {
+      process.env.CORS_ALLOWED_ORIGINS.split(",").forEach((origin) => {
+        const normalized = origin.trim();
+        if (normalized) origins.add(normalized);
       });
     }
 
@@ -311,7 +328,9 @@ function setupErrorHandler(app: express.Application) {
 }
 
 (async () => {
-  await seedDatabase();
+  if (shouldRunStartupSeeds()) {
+    await seedDatabase();
+  }
   const isProduction = process.env.NODE_ENV === "production";
 
   // Trust the first proxy hop (Nginx / Cloudflare) so req.ip reflects the

@@ -2,7 +2,7 @@
 import React, { useState, useCallback } from "react";
 import {
   View, Text, StyleSheet, FlatList,
-  Pressable, ActivityIndicator, Platform,
+  Pressable, ActivityIndicator, Platform, useWindowDimensions,
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,6 +36,9 @@ const STATUS_ICONS: Record<string, string> = {
 
 export default function FirmInvitationsScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1180;
+  const isWideDesktop = width >= 1480;
   const [invitations, setInvitations] = useState<FirmInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -158,26 +161,55 @@ export default function FirmInvitationsScreen() {
         colors={[Colors.primaryDark, Colors.primary]}
         style={[styles.header, { paddingTop: insets.top + (Platform.OS === "web" ? 67 : 16) }]}
       >
-        <View style={styles.headerRow}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-            <Ionicons name="arrow-back" size={22} color={Colors.white} />
-          </Pressable>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>Invitaciones</Text>
-            <Text style={styles.headerSubtitle}>{invitations.length} en total</Text>
+        <View style={[styles.headerInner, isWideDesktop && styles.headerInnerWide]}>
+          <View style={styles.headerRow}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+              <Ionicons name="arrow-back" size={22} color={Colors.white} />
+            </Pressable>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>Invitaciones</Text>
+              <Text style={styles.headerSubtitle}>{invitations.length} en total</Text>
+            </View>
+            <Pressable
+              onPress={() => router.push("/firm-components/firm-invite-lawyer" as any)}
+              style={styles.newBtn}
+              hitSlop={8}
+            >
+              <Ionicons name="person-add-outline" size={18} color={Colors.white} />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => router.push("/firm-components/firm-invite-lawyer" as any)}
-            style={styles.newBtn}
-            hitSlop={8}
-          >
-            <Ionicons name="person-add-outline" size={18} color={Colors.white} />
-          </Pressable>
+
+          {isDesktop && (
+            <View style={styles.desktopHero}>
+              <View style={styles.desktopHeroCopy}>
+                <Text style={styles.desktopHeroEyebrow}>COLABORACIÓN DEL BUFETE</Text>
+                <Text style={styles.desktopHeroTitle}>Invitaciones activas y trazabilidad del equipo</Text>
+                <Text style={styles.desktopHeroText}>
+                  Revisa respuestas, pendientes y rechazos desde una vista más clara para escritorio.
+                </Text>
+              </View>
+
+              <View style={styles.desktopHeroCard}>
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroStatValue}>{counts.pendiente ?? 0}</Text>
+                  <Text style={styles.desktopHeroStatLabel}>Pendientes</Text>
+                </View>
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroStatValue}>{counts.aceptada ?? 0}</Text>
+                  <Text style={styles.desktopHeroStatLabel}>Aceptadas</Text>
+                </View>
+                <View style={styles.desktopHeroStat}>
+                  <Text style={styles.desktopHeroStatValue}>{counts.rechazada ?? 0}</Text>
+                  <Text style={styles.desktopHeroStatLabel}>Rechazadas</Text>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Resumen de estados */}
         {invitations.length > 0 && (
-          <View style={styles.summaryRow}>
+          <View style={[styles.summaryRow, isDesktop && styles.summaryRowDesktop]}>
             {Object.entries(STATUS_LABELS).map(([key, label]) =>
               counts[key] ? (
                 <View key={key} style={styles.summaryItem}>
@@ -217,7 +249,7 @@ export default function FirmInvitationsScreen() {
           data={invitations}
           keyExtractor={item => item.id}
           renderItem={renderInvitation}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, isDesktop && styles.listDesktop, isWideDesktop && styles.listWideDesktop]}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           onRefresh={loadData}
           refreshing={loading}
@@ -233,6 +265,8 @@ const styles = StyleSheet.create({
 
   // Header
   header: { paddingHorizontal: 20, paddingBottom: 20 },
+  headerInner: { width: "100%", alignSelf: "center" },
+  headerInnerWide: { maxWidth: 1520, alignSelf: "center" },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -258,6 +292,48 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  desktopHero: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 24,
+    marginBottom: 18,
+  },
+  desktopHeroCopy: { maxWidth: 760 },
+  desktopHeroEyebrow: {
+    fontSize: 11,
+    letterSpacing: 2,
+    color: "rgba(255,255,255,0.6)",
+    fontFamily: "Inter_600SemiBold",
+    marginBottom: 8,
+  },
+  desktopHeroTitle: {
+    fontSize: 30,
+    lineHeight: 36,
+    color: Colors.white,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: -0.6,
+    marginBottom: 10,
+  },
+  desktopHeroText: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: "rgba(255,255,255,0.76)",
+    fontFamily: "Inter_400Regular",
+  },
+  desktopHeroCard: {
+    minWidth: 310,
+    flexDirection: "row",
+    gap: 10,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center", gap: 2 },
+  desktopHeroStatValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: Colors.white },
+  desktopHeroStatLabel: { fontSize: 12, fontFamily: "Inter_500Medium", color: "rgba(255,255,255,0.72)" },
 
   // Summary
   summaryRow: {
@@ -267,12 +343,15 @@ const styles = StyleSheet.create({
     padding: 12,
     justifyContent: "space-around",
   },
+  summaryRowDesktop: { maxWidth: 1520, alignSelf: "center", width: "100%" },
   summaryItem: { alignItems: "center", gap: 2 },
   summaryCount: { fontSize: 20, fontFamily: "Inter_700Bold" },
   summaryLabel: { fontSize: 11, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)" },
 
   // List
   list: { padding: 16, paddingBottom: 40 },
+  listDesktop: { maxWidth: 1240, alignSelf: "center", width: "100%", paddingTop: 22, paddingBottom: 56 },
+  listWideDesktop: { maxWidth: 1380 },
 
   // Card
   card: {

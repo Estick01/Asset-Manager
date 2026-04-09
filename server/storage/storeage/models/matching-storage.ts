@@ -216,8 +216,6 @@ export class MatchingStorage {
 
     const rows = ((result as any[])[0] ?? []) as any[];
 
-    console.log(`[Matching] findCandidates: ${rows.length} lawyers — caseType="${caseType}" city="${city}"`);
-
     // ── Freshness boost (computed once for the post) ──────────────────────
     const postAgeMs      = Date.now() - postCreatedAt.getTime();
     const freshnessBoost = postAgeMs < 3_600_000   ? 3   // < 1 hour  → high urgency

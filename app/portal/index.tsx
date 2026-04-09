@@ -73,7 +73,7 @@ export default function ClientPortalScreen() {
         pathname: "/chat/[id]",
         params: {
           id: conversation.id,
-          name: conversation.name ?? "Soporte LexTrack",
+          name: conversation.name ?? "Soporte ProcesoClaro",
           from: "/portal/chat",
           support: "1",
         },

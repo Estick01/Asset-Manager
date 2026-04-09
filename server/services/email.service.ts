@@ -11,8 +11,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const FROM = process.env.SMTP_FROM || `"LexTrack" <${process.env.SMTP_USER}>`;
-const APP_NAME = "LexTrack";
+const FROM = process.env.SMTP_FROM || `"ProcesoClaro" <${process.env.SMTP_USER}>`;
+const APP_NAME = "ProcesoClaro";
 
 // ── Templates ──────────────────────────────────────────────────────────────
 

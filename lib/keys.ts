@@ -7,19 +7,19 @@
 
 export const STORAGE_KEYS = {
   // Auth tokens
-  AUTH_TOKEN: 'lextrack_auth_token',
-  REFRESH_TOKEN: 'lextrack_refresh_token',
+  AUTH_TOKEN: 'procesoclaro_auth_token',
+  REFRESH_TOKEN: 'procesoclaro_refresh_token',
   
   // Unified user data (new SaaS system)
-  USER: 'lextrack_user',
+  USER: 'procesoclaro_user',
   
   // Abogado (Lawyer) data (legacy)
-  ABOGADO: 'lextrack_abogado',
+  ABOGADO: 'procesoclaro_abogado',
   
   // Cliente (Client) data (legacy)
-  CLIENTE: 'lextrack_cliente',
-  CLIENT_AUTH_ID: 'lextrack_client_auth_id',
-  CLIENTES: 'lextrack_clientes', 
+  CLIENTE: 'procesoclaro_cliente',
+  CLIENT_AUTH_ID: 'procesoclaro_client_auth_id',
+  CLIENTES: 'procesoclaro_clientes', 
 } as const;
 
 // Type for key values

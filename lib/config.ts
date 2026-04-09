@@ -42,8 +42,12 @@ const getApiUrl = (): string => {
     
     return LOCAL_IP ? `http://${LOCAL_IP}:5000` : 'http://localhost:5000';
   }
-  
-  return process.env.PRODUCTION_API_URL || 'https://your-production-api.com';
+
+  return (
+    process.env.EXPO_PUBLIC_API_URL ||
+    process.env.PRODUCTION_API_URL ||
+    'https://api.procesoclaro.co'
+  );
 };
 
 export const API_URL = getApiUrl();

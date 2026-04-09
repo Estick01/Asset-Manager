@@ -220,7 +220,7 @@ export default function PlanesScreen() {
           </Pressable>
           <View style={styles.headerBrand}>
             <View style={styles.headerBrandDot} />
-            <Text style={styles.headerBrandName}>LexTrack</Text>
+            <Text style={styles.headerBrandName}>ProcesoClaro</Text>
           </View>
           <View style={{ width: 36 }} />
         </View>

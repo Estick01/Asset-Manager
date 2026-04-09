@@ -33,7 +33,7 @@ export default function LandingScreen() {
           <View style={styles.logoCircle}>
             <Ionicons name="scale-outline" size={48} color={Colors.accent} />
           </View>
-          <Text style={styles.brandName}>LexTrack</Text>
+          <Text style={styles.brandName}>ProcesoClaro</Text>
           <Text style={styles.brandSubtitle}>Sistema de Gestión Legal</Text>
         </View>
 

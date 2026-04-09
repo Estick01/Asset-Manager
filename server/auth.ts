@@ -23,12 +23,12 @@ const JWT_SECRET = (() => {
 })();
 const JWT_EXPIRES_IN = "15m";
 
-const COOKIE_NAME = "lextrack_token";
+const COOKIE_NAME = "procesoclaro_token";
 export const AUTH_COOKIE_NAME = COOKIE_NAME;
 
 const COOKIE_MAX_AGE = 15 * 60 * 1000; // 15 minutes, matches JWT_EXPIRES_IN
 
-const REFRESH_COOKIE_NAME = "lextrack_refresh";
+const REFRESH_COOKIE_NAME = "procesoclaro_refresh";
 export const AUTH_REFRESH_COOKIE_NAME = REFRESH_COOKIE_NAME;
 export const REFRESH_MAX_AGE = 14 * 24 * 60 * 60 * 1000; // 14 days (reduced from 30)
 

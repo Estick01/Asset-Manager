@@ -60,7 +60,7 @@ function ConversationCard({
   const accentColor = isLawyer ? TEAL : GREEN;
   const other = conv.participants.find(p => p.userId !== currentUserId);
   const displayName = conv.type === "admin_support"
-    ? conv.name ?? "Soporte LexTrack"
+    ? conv.name ?? "Soporte ProcesoClaro"
     : other?.name ?? "Conversación";
   const hasUnread = conv.unreadCount > 0;
   const typeLabel = conv.type === "admin_support" ? "Soporte" : TYPE_LABEL[conv.type] ?? "";
@@ -164,7 +164,7 @@ export default function FirmChatScreen() {
         pathname: "/chat/[id]",
         params: {
           id: conversation.id,
-          name: conversation.name ?? "Soporte LexTrack",
+          name: conversation.name ?? "Soporte ProcesoClaro",
           from: "/(firm-tabs)/chat",
           support: "1",
         },

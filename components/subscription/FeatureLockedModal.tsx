@@ -2,7 +2,8 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet, Modal, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Colors from "@/constants/colors";
-import { FEATURE_LABELS, FEATURE_MIN_PLAN } from "@/lib/subscription-context";
+import { FEATURE_LABELS, getFeatureMinPlan } from "@/lib/subscription-context";
+import { useAuth } from "@/lib/auth-context";
 
 interface FeatureLockedModalProps {
   visible: boolean;
@@ -17,10 +18,11 @@ export function FeatureLockedModal({
   onClose,
   onVerPlanes,
 }: FeatureLockedModalProps) {
+  const { user } = useAuth();
   if (!visible) return null;
 
   const nombre   = FEATURE_LABELS[featureCode]   ?? featureCode;
-  const minPlan  = FEATURE_MIN_PLAN[featureCode]  ?? "Pro";
+  const minPlan  = getFeatureMinPlan(featureCode, user?.user?.rol?.nombre);
 
   return (
     <Modal

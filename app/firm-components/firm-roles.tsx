@@ -21,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { toast } from "sonner-native";
 import Colors from "@/constants/colors";
+import { FeatureGate } from "@/components/subscription/FeatureGate";
 import {
   FirmRol,
   Permiso,
@@ -31,9 +32,11 @@ import {
   setFirmRolPermisos,
   getAllPermisos,
 } from "@/lib/services/firmRolesService";
+import { useSubscription } from "@/lib/subscription-context";
 
 export default function FirmRolesScreen() {
   const insets = useSafeAreaInsets();
+  const { hasFeature, isLoading } = useSubscription();
 
   const [roles, setRoles] = useState<FirmRol[]>([]);
   const [allPermisos, setAllPermisos] = useState<Permiso[]>([]);
@@ -65,6 +68,12 @@ export default function FirmRolesScreen() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!isLoading && !hasFeature("roles_custom")) {
+      router.replace("/(firm-tabs)/settings" as any);
+    }
+  }, [hasFeature, isLoading]);
 
   // Group permisos by module
   const permisosGrouped = React.useMemo(() => {
@@ -150,7 +159,8 @@ export default function FirmRolesScreen() {
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <FeatureGate featureCode="roles_custom">
+      <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.headerBtn}>
@@ -340,7 +350,8 @@ export default function FirmRolesScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </FeatureGate>
   );
 }
 

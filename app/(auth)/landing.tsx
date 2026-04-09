@@ -30,7 +30,7 @@ function Navbar({ onLogin }: { onLogin: () => void }) {
           <View style={styles.navLogoCircle}>
             <Ionicons name="scale-outline" size={20} color={Colors.accent} />
           </View>
-          <Text style={styles.navBrandName}>LexTrack</Text>
+          <Text style={styles.navBrandName}>ProcesoClaro</Text>
         </View>
         <Pressable style={styles.navLoginBtn} onPress={onLogin} hitSlop={8}>
           <Text style={styles.navLoginText}>Iniciar sesión</Text>
@@ -294,7 +294,7 @@ export default function LandingScreen() {
           <View style={styles.sectionInner}>
             <SectionTitle
               label="La solución"
-              title={"LexTrack centraliza\ntodo tu trabajo legal"}
+              title={"ProcesoClaro centraliza\ntodo tu trabajo legal"}
               subtitle="Una plataforma diseñada específicamente para abogados colombianos. Sin curvas de aprendizaje, sin complejidad innecesaria."
               light
             />
@@ -421,7 +421,7 @@ export default function LandingScreen() {
         >
           <View style={styles.sectionInner}>
             <SectionTitle
-              label="Comunidad LexTrack"
+              label="Comunidad ProcesoClaro"
               title={"Tu reputación trabaja\nmientras tú duermes"}
               subtitle="La única plataforma legal con un algoritmo que conecta clientes con el abogado correcto — automáticamente."
               light
@@ -550,7 +550,7 @@ export default function LandingScreen() {
             <SectionTitle
               label="Sistema de reputación"
               title={"Tu actividad construye\ntu posición en el ranking"}
-              subtitle="LexTrack premia a los abogados más activos y útiles. Cuanto más aportas a la comunidad, más visible eres para los clientes."
+              subtitle="ProcesoClaro premia a los abogados más activos y útiles. Cuanto más aportas a la comunidad, más visible eres para los clientes."
               light
             />
 
@@ -973,7 +973,7 @@ export default function LandingScreen() {
               <View style={styles.footerLogoCircle}>
                 <Ionicons name="scale-outline" size={16} color={Colors.accent} />
               </View>
-              <Text style={styles.footerBrandName}>LexTrack</Text>
+              <Text style={styles.footerBrandName}>ProcesoClaro</Text>
             </View>
             <Text style={styles.footerDesc}>
               Plataforma de gestión legal para abogados y bufetes en Colombia.
@@ -992,7 +992,7 @@ export default function LandingScreen() {
               </Pressable>
             </View>
             <Text style={styles.footerCopy}>
-              © {new Date().getFullYear()} LexTrack · Hecho en Colombia
+              © {new Date().getFullYear()} ProcesoClaro · Hecho en Colombia
             </Text>
           </View>
         </View>

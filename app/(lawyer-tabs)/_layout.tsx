@@ -183,7 +183,7 @@ function ClassicTabLayout() {
     return (
       <>
         <DesktopAppShell
-          brand="LexTrack"
+          brand="ProcesoClaro"
           title={desktopMeta.title}
           subtitle={desktopMeta.subtitle}
           navItems={desktopNav}

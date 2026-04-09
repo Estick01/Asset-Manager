@@ -1,4 +1,4 @@
-# LexTrack — Sistema de Seguimiento Jurídico
+# ProcesoClaro — Sistema de Gestión Jurídica
 
 Plataforma LegalTech multiplataforma (iOS, Android, Web) que conecta bufetes de abogados, abogados independientes y clientes. Permite gestionar procesos legales, documentos, comunicaciones en tiempo real y comunidad jurídica.
 
@@ -130,20 +130,28 @@ SMTP_PORT=587
 SMTP_SECURE=false
 SMTP_USER=tu-correo@gmail.com
 SMTP_PASS=xxxx-xxxx-xxxx-xxxx
-SMTP_FROM="LexTrack <tu-correo@gmail.com>"
+SMTP_FROM="ProcesoClaro <soporte@procesoclaro.co>"
 # URL pública de la app para links en correos de notificaciones
-APP_URL=https://tu-dominio.com
+APP_URL=https://procesoclaro.co
 
 # ── AWS S3 (documentos) ────────────────────────────────────────────────────────
 AWS_ACCESS_KEY_ID=tu-access-key
 AWS_SECRET_ACCESS_KEY=tu-secret-key
 AWS_REGION=us-east-2
-AWS_BUCKET_NAME=lextrack-documentos-prod
+AWS_BUCKET_NAME=procesoclaro-documentos-prod
 
 # ── Servidor ───────────────────────────────────────────────────────────────────
 PORT=5000
 LOCAL_IP=192.168.1.X          # IP de tu máquina en la red local
 EXPO_PUBLIC_LOCAL_IP=192.168.1.X
+# Frontend Expo: variable pública consumida por la app en producción
+EXPO_PUBLIC_API_URL=https://api.procesoclaro.co
+# Compatibilidad para procesos Node / scripts
+PRODUCTION_API_URL=https://api.procesoclaro.co
+# Orígenes permitidos para CORS en producción
+CORS_ALLOWED_ORIGINS=https://procesoclaro.co,https://www.procesoclaro.co
+# Mantener en false en producción; ejecutar seeds manualmente
+RUN_STARTUP_SEEDS=false
 
 # ── reCAPTCHA v3 (opcional) ────────────────────────────────────────────────────
 # Si se configura, se valida en cada intento de login
@@ -160,7 +168,7 @@ EXPO_PUBLIC_LOCAL_IP=192.168.1.X
 | `WOMPI_BASE_URL` | Sí | URL base de la API | Sandbox: `https://sandbox.wompi.co/v1` / Prod: `https://production.wompi.co/v1` |
 | `WOMPI_PRIVATE_KEY` | Sí | Llave privada | Panel Wompi → Desarrolladores → Llaves |
 | `WOMPI_EVENTS_SECRET` | Sí | Secret para verificar webhooks | Panel Wompi → Desarrolladores → Webhooks → Integrity secret |
-| `WOMPI_REDIRECT_URL` | Sí | URL de retorno post-pago | Dev: `exp://localhost:8081/--/checkout/result` · Prod: tu dominio |
+| `WOMPI_REDIRECT_URL` | Sí | URL de retorno post-pago | Dev: `exp://localhost:8081/--/checkout/result` · Prod: `https://procesoclaro.co/checkout/result` |
 
 > **Nota:** Para Gmail, se debe usar una **App Password** (no la contraseña de la cuenta). Activar en Google Account → Seguridad → Verificación en dos pasos → Contraseñas de aplicación.
 
@@ -177,6 +185,8 @@ npm run server:dev        # Inicia Express (backend) con hot reload en puerto 50
 npm run server:build      # Compila backend con esbuild → dist/
 npm run server:prod       # Ejecuta el build compilado
 npm run expo:static:build # Build estático de Expo (web)
+# Si necesitas poblar datos base manualmente:
+RUN_STARTUP_SEEDS=true npm run server:dev
 
 # ── Base de datos ──────────────────────────────────────────────────────────────
 npm run db:push           # Sincroniza el schema Drizzle con la BD (dev)
@@ -192,7 +202,7 @@ npm run lint:fix          # Corrige automáticamente con ESLint
 ## Arquitectura
 
 ```
-lextrack/
+procesoclaro/
 ├── app/                        # Frontend (Expo Router)
 │   ├── (auth)/                 # Login, registro, recuperar contraseña
 │   ├── (firm-tabs)/            # Panel bufete (tabs: Bufete, Procesos, Clientes, Chat, Comunidad)
