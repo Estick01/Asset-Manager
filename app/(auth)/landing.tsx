@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
+import { PublicSupportModal } from "@/components/web/PublicSupportModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Layout decisions based on viewport width, not platform.
@@ -26,11 +27,13 @@ const CONTENT_MAX_WIDTH = 1100;
 function Navbar({
   onLogin,
   onRegister,
+  onSupport,
   onNavigateSection,
   activeSection,
 }: {
   onLogin: () => void;
   onRegister: () => void;
+  onSupport: () => void;
   onNavigateSection: (key: string) => void;
   activeSection: string;
 }) {
@@ -59,6 +62,13 @@ function Navbar({
               hitSlop={8}
             >
               <Text style={styles.navSecondaryBtnText}>Iniciar sesión</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.navSupportBtn, pressed && styles.navButtonPressed]}
+              onPress={onSupport}
+              hitSlop={8}
+            >
+              <Text style={styles.navSupportBtnText}>Soporte</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.navPrimaryBtn, pressed && styles.navButtonPressed]}
@@ -344,6 +354,7 @@ export default function LandingScreen() {
   const sectionPositions = useRef<Record<string, number>>({});
   const [activeSection, setActiveSection] = useState(QUICK_NAV_ITEMS[0].key);
   const [deferSecondarySections, setDeferSecondarySections] = useState(Platform.OS !== "web");
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   const irARegistro = () => router.push("/(auth)/register-type");
   const irALogin = () => router.push("/(auth)/login");
@@ -453,18 +464,19 @@ export default function LandingScreen() {
       <Navbar
         onLogin={irALogin}
         onRegister={irARegistro}
+        onSupport={() => setSupportModalVisible(true)}
         onNavigateSection={goToSection}
         activeSection={activeSection}
       />
 
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
-        onScroll={handleScroll}
-        scrollEventThrottle={16}
-      >
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
+          onScroll={deferSecondarySections ? handleScroll : undefined}
+          scrollEventThrottle={Platform.OS === "web" ? 64 : 16}
+        >
         {/* ── HERO ── */}
         <LinearGradient
           colors={["#0F2640", "#1B3A5C", "#2A5A8C"]}
@@ -1376,6 +1388,13 @@ export default function LandingScreen() {
           </>
         ) : null}
       </ScrollView>
+      <PublicSupportModal
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+        source="landing"
+        title="Hablar con soporte"
+        subtitle="Déjanos tus datos y te ayudamos con dudas comerciales, acceso o implementación."
+      />
     </View>
   );
 }
@@ -1500,6 +1519,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_500Medium",
     color: Colors.white,
+  },
+  navSupportBtn: {
+    minHeight: 44,
+    paddingHorizontal: w(14, 12),
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(212,168,83,0.24)",
+    backgroundColor: "rgba(212,168,83,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navSupportBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: Colors.accentLight,
   },
   navButtonPressed: { opacity: 0.86 },
   navQuickChip: {

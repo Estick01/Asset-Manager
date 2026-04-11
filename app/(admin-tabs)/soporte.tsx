@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AdminShell } from "./_shell/AdminShell";
 import { adminSupportService } from "@/lib/services/adminService";
-import { EmptyState, SectionCard, StatCard, TableHeader } from "./_components/AdminUi";
+import { ActionButton, EmptyState, SectionCard, StatCard, StatusBadge, TableHeader } from "./_components/AdminUi";
 import { useAuth } from "@/lib/auth-context";
+import { toast } from "sonner-native";
 
 function formatRelative(date: string | null | undefined) {
   if (!date) return "Sin actividad";
@@ -24,12 +25,18 @@ function formatRelative(date: string | null | undefined) {
 
 export default function AdminSoporteScreen() {
   const [search, setSearch] = useState("");
+  const [requestStatusFilter, setRequestStatusFilter] = useState("");
   const { user } = useAuth();
   const adminId = user?.user.id;
+  const queryClient = useQueryClient();
   const { data: overview } = useQuery({ queryKey: ["admin-support-overview"], queryFn: adminSupportService.getOverview });
   const { data: conversations } = useQuery({
     queryKey: ["admin-support-conversations", search],
     queryFn: () => adminSupportService.listConversations({ search, limit: 24 }),
+  });
+  const { data: publicRequests } = useQuery({
+    queryKey: ["admin-support-public-requests", search, requestStatusFilter],
+    queryFn: () => adminSupportService.listPublicRequests({ search, status: requestStatusFilter, limit: 24 }),
   });
   const { data: events } = useQuery({
     queryKey: ["admin-support-events"],
@@ -38,12 +45,62 @@ export default function AdminSoporteScreen() {
 
   const rows = useMemo(() => conversations?.data ?? [], [conversations?.data]);
   const urgentCount = useMemo(() => rows.filter((item) => item.unreadCount > 0).length, [rows]);
+  const requestRows = useMemo(() => publicRequests?.data ?? [], [publicRequests?.data]);
+
+  const refreshSupport = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin-support-overview"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-support-public-requests"] });
+    void queryClient.invalidateQueries({ queryKey: ["admin-support-conversations"] });
+  };
+
+  const updateRequestMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "new" | "in_progress" | "resolved" | "spam" }) =>
+      adminSupportService.updatePublicRequestStatus(id, status),
+    onSuccess: () => {
+      toast.success("Estado actualizado.");
+      refreshSupport();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "No se pudo actualizar la solicitud.");
+    },
+  });
+
+  const openConversationMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      const conversation = await adminSupportService.openPublicRequestConversation(requestId);
+      refreshSupport();
+      return conversation;
+    },
+    onSuccess: (conversation) => {
+      router.push({
+        pathname: "/chat/[id]",
+        params: {
+          id: conversation.id,
+          name: conversation.name ?? "Soporte ProcesoClaro",
+          from: "/(admin-tabs)/soporte",
+          support: "1",
+        },
+      });
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "No se pudo abrir la conversación.");
+    },
+  });
+
+  const requestToneByStatus = {
+    new: "amber",
+    in_progress: "blue",
+    resolved: "green",
+    spam: "slate",
+  } as const;
 
   return (
     <AdminShell title="Soporte">
       <View style={styles.statsGrid}>
         <StatCard label="Chats de soporte" value={overview?.support.total ?? 0} />
         <StatCard label="Pendientes" value={urgentCount} tone="amber" />
+        <StatCard label="Consultas públicas" value={overview?.support.publicRequests ?? 0} tone="blue" />
+        <StatCard label="Públicas activas" value={overview?.support.publicPending ?? 0} tone="green" />
         <StatCard label="Eventos seguridad" value={overview?.security.total ?? 0} tone="slate" />
         <StatCard label="Bloqueos" value={overview?.security.blocked ?? 0} tone="red" />
       </View>
@@ -102,6 +159,74 @@ export default function AdminSoporteScreen() {
         })}
       </SectionCard>
 
+      <SectionCard
+        title="Consultas públicas"
+        action={(
+          <View style={styles.filterRow}>
+            {[
+              { label: "Todas", value: "" },
+              { label: "Nuevas", value: "new" },
+              { label: "En curso", value: "in_progress" },
+              { label: "Resueltas", value: "resolved" },
+            ].map((item) => (
+              <Pressable
+                key={item.label}
+                onPress={() => setRequestStatusFilter(item.value)}
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  requestStatusFilter === item.value && styles.filterChipActive,
+                  pressed && { opacity: 0.84 },
+                ]}
+              >
+                <Text style={[styles.filterChipText, requestStatusFilter === item.value && styles.filterChipTextActive]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      >
+        <TableHeader columns={[
+          { label: "Contacto", flex: 1.5 },
+          { label: "Mensaje", flex: 2.1 },
+          { label: "Origen", flex: 0.8 },
+          { label: "Estado", flex: 0.9 },
+          { label: "Acciones", flex: 1.7 },
+        ]} />
+        {!requestRows.length ? (
+          <EmptyState label="No hay consultas públicas registradas." icon="mail-open-outline" />
+        ) : requestRows.map((item) => (
+          <View key={item.id} style={[styles.row, styles.requestRow]}>
+            <View style={[styles.cellBox, { flex: 1.5 }]}>
+              <Text style={styles.primaryText} numberOfLines={1}>{item.name}</Text>
+              <Text style={styles.secondaryText} numberOfLines={1}>{item.email}</Text>
+              <Text style={styles.secondaryText}>{formatRelative(item.createdAt)}</Text>
+            </View>
+            <View style={[styles.cellBox, { flex: 2.1 }]}>
+              <Text style={styles.primaryText} numberOfLines={3}>{item.message}</Text>
+              {item.conversationId ? (
+                <Text style={styles.linkedText}>Conversación vinculada</Text>
+              ) : item.userId ? (
+                <Text style={styles.secondaryText}>Usuario registrado vinculado</Text>
+              ) : (
+                <Text style={styles.secondaryText}>Solo contacto por email</Text>
+              )}
+            </View>
+            <Text style={[styles.primaryText, { flex: 0.8 }]}>{item.source === "login" ? "Login" : "Landing"}</Text>
+            <View style={{ flex: 0.9 }}>
+              <StatusBadge label={item.status} tone={requestToneByStatus[item.status]} />
+            </View>
+            <View style={[styles.requestActions, { flex: 1.7 }]}>
+              <ActionButton label="En curso" onPress={() => updateRequestMutation.mutate({ id: item.id, status: "in_progress" })} tone="muted" />
+              <ActionButton label="Resolver" onPress={() => updateRequestMutation.mutate({ id: item.id, status: "resolved" })} />
+              {item.userId && !item.conversationId ? (
+                <ActionButton label="Abrir chat" onPress={() => openConversationMutation.mutate(item.id)} tone="primary" />
+              ) : null}
+            </View>
+          </View>
+        ))}
+      </SectionCard>
+
       <SectionCard title="Eventos recientes de seguridad">
         <TableHeader columns={[
           { label: "Email", flex: 1.5 },
@@ -128,6 +253,32 @@ export default function AdminSoporteScreen() {
 
 const styles = StyleSheet.create({
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  filterChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  filterChipActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "#475569",
+  },
+  filterChipTextActive: {
+    color: "#2563EB",
+  },
   input: {
     height: 42,
     borderWidth: 1,
@@ -147,6 +298,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
   },
+  requestRow: {
+    alignItems: "flex-start",
+  },
   cellBox: {
     gap: 4,
   },
@@ -164,6 +318,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     color: "#B45309",
+  },
+  linkedText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#2563EB",
+  },
+  requestActions: {
+    gap: 8,
   },
   openBtn: {
     width: 36,

@@ -489,3 +489,10 @@ export {
   type AdminAuditLog,
   type InsertAdminAuditLog,
 } from "./admin-audit-log.schema";
+
+export {
+  publicSupportRequests,
+  type PublicSupportRequest,
+  type PublicSupportRequestSource,
+  type PublicSupportRequestStatus,
+} from "./public-support-request.schema";

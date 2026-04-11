@@ -164,6 +164,18 @@ function RouteScopedProviders() {
   );
 }
 
+function RouteScopedAuthProvider({ children }: { children: React.ReactNode }) {
+  const segments = useSegments();
+  const currentGroup = segments[0] ?? "";
+  const deferInitialSessionCheck = LIGHTWEIGHT_GROUPS.has(currentGroup);
+
+  return (
+    <UnifiedAuthProvider deferInitialSessionCheck={deferInitialSessionCheck}>
+      {children}
+    </UnifiedAuthProvider>
+  );
+}
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     Inter_400Regular,
@@ -202,9 +214,9 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <View style={styles.contentWrapper}>
           <QueryClientProvider client={queryClient}>
-            <UnifiedAuthProvider>
+            <RouteScopedAuthProvider>
               <RouteScopedProviders />
-            </UnifiedAuthProvider>
+            </RouteScopedAuthProvider>
           </QueryClientProvider>
           <Toaster />
         </View>

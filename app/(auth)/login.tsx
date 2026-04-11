@@ -8,6 +8,7 @@ import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 import { AuthRequestError } from "@/lib/auth/unified";
+import { PublicSupportModal } from "@/components/web/PublicSupportModal";
 
 async function triggerHaptic(type: "success" | "error") {
   if (Platform.OS === "web") return;
@@ -34,6 +35,7 @@ export default function LoginScreen() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showDesktopBrandPanel, setShowDesktopBrandPanel] = useState(!desktop);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   // Redirect based on user role after successful login
   useEffect(() => {
@@ -391,12 +393,27 @@ const handleVerifyTwoFactor = async () => {
                     <Ionicons name="albums-outline" size={16} color={Colors.primary} />
                     <Text style={[styles.verPlanesBtnText, desktop && styles.desktopVerPlanesBtnText]}>Ver planes y precios</Text>
                   </Pressable>
+                  <Pressable
+                    onPress={() => setSupportModalVisible(true)}
+                    style={[styles.supportBtn, desktop && styles.desktopSupportBtn]}
+                  >
+                    <Ionicons name="headset-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.supportBtnText}>Contactar soporte</Text>
+                  </Pressable>
                 </View>
               </View>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <PublicSupportModal
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+        source="login"
+        initialEmail={correo}
+        title="Soporte de acceso"
+        subtitle="Si tienes problemas para entrar, déjanos tu mensaje y te contactamos."
+      />
     </LinearGradient>
   );
 }
@@ -850,6 +867,22 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   desktopVerPlanesBtnText: {
+    color: Colors.primary,
+  },
+  supportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+  },
+  desktopSupportBtn: {
+    borderRadius: 14,
+    backgroundColor: Colors.infoLight,
+  },
+  supportBtnText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
     color: Colors.primary,
   },
   portalLink: {

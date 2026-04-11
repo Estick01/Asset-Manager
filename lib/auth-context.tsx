@@ -6,7 +6,8 @@
  * This is the new authentication context for the SaaS architecture.
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode, useRef } from 'react';
+import { Platform } from 'react-native';
 import {
   loginUnified,
   logoutUnified,
@@ -56,13 +57,30 @@ export interface ClienteUser extends UnifiedUser {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
+declare global {
+  interface Window {
+    requestIdleCallback?: (callback: () => void) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  }
+}
+
+export function UnifiedAuthProvider({
+  children,
+  deferInitialSessionCheck = false,
+}: {
+  children: ReactNode;
+  deferInitialSessionCheck?: boolean;
+}) {
   const [user, setUser] = useState<UnifiedUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const didBootstrapRef = useRef(false);
 
   // Check session on mount
   useEffect(() => {
+    if (didBootstrapRef.current) return;
+
     const bootstrap = async () => {
+      didBootstrapRef.current = true;
       try {
         const data = await verifyUnifiedSession();
         if (data.authenticated && data?.user && data.profile) {
@@ -80,8 +98,35 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    bootstrap();
-  }, []);
+    if (deferInitialSessionCheck && Platform.OS === "web") {
+      const idleCallback = globalThis.window?.requestIdleCallback;
+      const cancelIdleCallback = globalThis.window?.cancelIdleCallback;
+
+      if (typeof idleCallback === "function") {
+        const idleId = idleCallback(() => {
+          void bootstrap();
+        });
+
+        return () => {
+          if (!didBootstrapRef.current && typeof cancelIdleCallback === "function") {
+            cancelIdleCallback(idleId);
+          }
+        };
+      }
+
+      const timeout = setTimeout(() => {
+        void bootstrap();
+      }, 250);
+
+      return () => {
+        if (!didBootstrapRef.current) {
+          clearTimeout(timeout);
+        }
+      };
+    }
+
+    void bootstrap();
+  }, [deferInitialSessionCheck]);
 
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     const loggedInUser = await loginUnified(email, password);

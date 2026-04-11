@@ -620,6 +620,8 @@ export interface SupportOverview {
   support: {
     total: number;
     open: number;
+    publicRequests: number;
+    publicPending: number;
   };
   audit: Array<{
     id: number;
@@ -629,6 +631,21 @@ export interface SupportOverview {
     detalle: string | null;
     createdAt: string;
   }>;
+}
+
+export interface PublicSupportRequestRow {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  source: "landing" | "login";
+  status: "new" | "in_progress" | "resolved" | "spam";
+  userId: string | null;
+  assignedAdminId: string | null;
+  conversationId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt: string | null;
 }
 
 export interface SecurityEventRow {
@@ -856,6 +873,30 @@ export const adminSupportService = {
 
   openConversation: async (targetUserId: string): Promise<SupportConversationRow> => {
     const response = await apiRequest("POST", "/api/admin/support/conversations", { targetUserId });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data;
+  },
+
+  listPublicRequests: async (params: { limit?: number; offset?: number; search?: string; status?: string } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && String(value) !== "") query.set(key, String(value));
+    });
+    const response = await apiRequest("GET", `/api/admin/support/public-requests${query.toString() ? `?${query}` : ""}`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    return response.json() as Promise<{ success: boolean; data: PublicSupportRequestRow[]; meta: { total: number; limit: number; offset: number } }>;
+  },
+
+  updatePublicRequestStatus: async (id: string, status: PublicSupportRequestRow["status"]) => {
+    const response = await apiRequest("PATCH", `/api/admin/support/public-requests/${id}`, { status });
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data as PublicSupportRequestRow;
+  },
+
+  openPublicRequestConversation: async (id: string): Promise<SupportConversationRow> => {
+    const response = await apiRequest("POST", `/api/admin/support/public-requests/${id}/open-conversation`);
     if (!response.ok) throw new Error(`Error ${response.status}`);
     const body = await response.json();
     return body.data;
