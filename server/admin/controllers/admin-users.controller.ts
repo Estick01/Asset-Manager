@@ -25,6 +25,42 @@ const updatePlanSchema = z.object({
   planId: z.string().min(1),
 });
 
+const updateProfileSchema = z.object({
+  name: z.string().max(120).optional(),
+  email: z.string().email().optional(),
+  lawyer: z.object({
+    firstName: z.string().max(100).optional(),
+    lastName: z.string().max(100).optional(),
+    phone: z.string().max(50).optional(),
+    document: z.string().max(50).optional(),
+    address: z.string().max(255).optional(),
+    specialization: z.string().max(255).optional(),
+    licenseNumber: z.string().max(50).optional(),
+  }).optional(),
+  firm: z.object({
+    name: z.string().max(255).optional(),
+    nit: z.string().max(50).optional(),
+    address: z.string().max(255).optional(),
+    phone: z.string().max(50).optional(),
+  }).optional(),
+  clientNatural: z.object({
+    firstName: z.string().max(100).optional(),
+    lastName: z.string().max(100).optional(),
+    phone: z.string().max(50).optional(),
+    document: z.string().max(50).optional(),
+    address: z.string().max(255).optional(),
+  }).optional(),
+  clientEmpresa: z.object({
+    companyName: z.string().max(255).optional(),
+    nit: z.string().max(50).optional(),
+    sector: z.string().max(100).optional(),
+  }).optional(),
+  admin: z.object({
+    displayName: z.string().max(120).optional(),
+    adminType: z.string().max(50).optional(),
+  }).optional(),
+});
+
 const lawyerVerificationListSchema = z.object({
   status: z.enum(["pendiente", "verificado", "rechazado"]).default("pendiente"),
 });
@@ -115,6 +151,30 @@ export async function updatePlan(
       accion:   "usuario.cambiar_plan",
       targetId: userId,
       detalle:  JSON.stringify({ planId }),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateProfile(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const payload = updateProfileSchema.parse(req.body);
+    const userId = req.params.id;
+
+    await adminUsersService.updateProfile(userId, payload);
+
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.actualizar_perfil",
+      targetId: userId,
+      detalle: JSON.stringify(payload),
     });
 
     res.json({ success: true });

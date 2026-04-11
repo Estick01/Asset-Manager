@@ -29,7 +29,7 @@ export function AdminShell({ children, title, scrollable = true }: Props) {
             {children}
           </ScrollView>
         ) : (
-          <View style={styles.content}>{children}</View>
+          <View style={styles.contentFixed}>{children}</View>
         )}
       </View>
     </View>
@@ -51,6 +51,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
+    padding: 28,
+    gap: 20,
+  },
+  contentFixed: {
+    flex: 1,
+    minHeight: 0,
     padding: 28,
     gap: 20,
   },

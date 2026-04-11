@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   ScrollView,
+  TextInput,
 } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -59,11 +60,14 @@ export default function UsuarioDetailScreen() {
   const [modalEstado,     setModalEstado]     = useState(false);
   const [modalPlan,       setModalPlan]       = useState(false);
   const [modalReset,      setModalReset]      = useState(false);
+  const [modalEditar,     setModalEditar]     = useState(false);
   const [resetToken,      setResetToken]      = useState<string | null>(null);
   const [selectedPlanId,  setSelectedPlanId]  = useState<string | null>(null);
+  const [editForm,        setEditForm]        = useState<Record<string, string>>({});
   const [errorEstado,  setErrorEstado]  = useState<string | null>(null);
   const [errorPlan,    setErrorPlan]    = useState<string | null>(null);
   const [errorReset,   setErrorReset]   = useState<string | null>(null);
+  const [errorEditar,  setErrorEditar]  = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-user", id],
@@ -114,6 +118,19 @@ export default function UsuarioDetailScreen() {
     onError: () => setErrorReset("Error al generar el token de reset."),
   });
 
+  const mutProfile = useMutation({
+    mutationFn: (payload: any) => adminUsersService.updateProfile(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-user", id] });
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setModalEditar(false);
+      setErrorEditar(null);
+    },
+    onError: (error: any) => {
+      setErrorEditar(error?.message ?? "Error al actualizar los datos del usuario.");
+    },
+  });
+
   const planesDisponibles = plans.filter((plan: AdminPlanRow) => {
     if (!plan.state) return false;
     if (rolNombre === "abogado" || rolNombre === "bufete") {
@@ -127,6 +144,114 @@ export default function UsuarioDetailScreen() {
     const actual = planesDisponibles.find((plan) => plan.nombre === user.suscripcionActiva?.planNombre);
     if (actual) setSelectedPlanId(actual.id);
   }, [modalPlan, selectedPlanId, planesDisponibles, user?.suscripcionActiva]);
+
+  useEffect(() => {
+    if (!modalEditar || !user?.editableProfile) return;
+
+    const nextForm: Record<string, string> = {
+      name: user.editableProfile.common.name ?? "",
+      email: user.editableProfile.common.email ?? "",
+    };
+
+    if (user.editableProfile.lawyer) {
+      nextForm.firstName = user.editableProfile.lawyer.firstName ?? "";
+      nextForm.lastName = user.editableProfile.lawyer.lastName ?? "";
+      nextForm.phone = user.editableProfile.lawyer.phone ?? "";
+      nextForm.document = user.editableProfile.lawyer.document ?? "";
+      nextForm.address = user.editableProfile.lawyer.address ?? "";
+      nextForm.specialization = user.editableProfile.lawyer.specialization ?? "";
+      nextForm.licenseNumber = user.editableProfile.lawyer.licenseNumber ?? "";
+    }
+
+    if (user.editableProfile.firm) {
+      nextForm.firmName = user.editableProfile.firm.name ?? "";
+      nextForm.nit = user.editableProfile.firm.nit ?? "";
+      nextForm.address = user.editableProfile.firm.address ?? "";
+      nextForm.phone = user.editableProfile.firm.phone ?? "";
+    }
+
+    if (user.editableProfile.clientNatural) {
+      nextForm.firstName = user.editableProfile.clientNatural.firstName ?? "";
+      nextForm.lastName = user.editableProfile.clientNatural.lastName ?? "";
+      nextForm.phone = user.editableProfile.clientNatural.phone ?? "";
+      nextForm.document = user.editableProfile.clientNatural.document ?? "";
+      nextForm.address = user.editableProfile.clientNatural.address ?? "";
+    }
+
+    if (user.editableProfile.clientEmpresa) {
+      nextForm.companyName = user.editableProfile.clientEmpresa.companyName ?? "";
+      nextForm.nit = user.editableProfile.clientEmpresa.nit ?? "";
+      nextForm.sector = user.editableProfile.clientEmpresa.sector ?? "";
+    }
+
+    if (user.editableProfile.admin) {
+      nextForm.displayName = user.editableProfile.admin.displayName ?? "";
+      nextForm.adminType = user.editableProfile.admin.adminType ?? "";
+    }
+
+    setEditForm(nextForm);
+    setErrorEditar(null);
+  }, [modalEditar, user]);
+
+  function updateField(key: string, value: string) {
+    setEditForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function buildProfilePayload() {
+    const roleType = user?.editableProfile?.roleType;
+    const payload: any = {
+      name: editForm.name?.trim(),
+      email: editForm.email?.trim(),
+    };
+
+    if (roleType === "abogado") {
+      payload.lawyer = {
+        firstName: editForm.firstName?.trim(),
+        lastName: editForm.lastName?.trim(),
+        phone: editForm.phone?.trim(),
+        document: editForm.document?.trim(),
+        address: editForm.address?.trim(),
+        specialization: editForm.specialization?.trim(),
+        licenseNumber: editForm.licenseNumber?.trim(),
+      };
+    }
+
+    if (roleType === "bufete") {
+      payload.firm = {
+        name: editForm.firmName?.trim(),
+        nit: editForm.nit?.trim(),
+        address: editForm.address?.trim(),
+        phone: editForm.phone?.trim(),
+      };
+    }
+
+    if (roleType === "cliente_natural") {
+      payload.clientNatural = {
+        firstName: editForm.firstName?.trim(),
+        lastName: editForm.lastName?.trim(),
+        phone: editForm.phone?.trim(),
+        document: editForm.document?.trim(),
+        address: editForm.address?.trim(),
+      };
+    }
+
+    if (roleType === "cliente_empresa") {
+      payload.clientEmpresa = {
+        companyName: editForm.companyName?.trim(),
+        nit: editForm.nit?.trim(),
+        sector: editForm.sector?.trim(),
+      };
+    }
+
+    if (roleType === "admin") {
+      payload.admin = {
+        displayName: editForm.displayName?.trim(),
+        adminType: editForm.adminType?.trim(),
+      };
+    }
+
+    return payload;
+  }
 
   if (isLoading) {
     return (
@@ -253,6 +378,15 @@ export default function UsuarioDetailScreen() {
           )}
 
           <ActionButton
+            icon="create-outline"
+            label="Editar datos"
+            color="#0F766E"
+            onPress={() => setModalEditar(true)}
+          />
+          {errorEditar && (
+            <Text style={styles.inlineError}>{errorEditar}</Text>
+          )}
+          <ActionButton
             icon={user.isActive ? "ban-outline" : "checkmark-circle-outline"}
             label={user.isActive ? "Suspender usuario" : "Activar usuario"}
             color={user.isActive ? "#DC2626" : "#16A34A"}
@@ -287,6 +421,75 @@ export default function UsuarioDetailScreen() {
       </View>
 
       {/* Modal: cambiar estado */}
+      <StyledModal
+        visible={modalEditar}
+        onClose={() => setModalEditar(false)}
+        title="Editar usuario"
+        confirmText={mutProfile.isPending ? "Guardando..." : "Guardar cambios"}
+        confirmVariant="primary"
+        fullHeight
+        onConfirm={() => {
+          if (!mutProfile.isPending) mutProfile.mutate(buildProfilePayload());
+        }}
+      >
+        <View style={styles.formSection}>
+          <Text style={styles.formSectionTitle}>Datos base</Text>
+          <LabeledInput label="Nombre" value={editForm.name ?? ""} onChangeText={(value) => updateField("name", value)} />
+          <LabeledInput label="Correo" value={editForm.email ?? ""} onChangeText={(value) => updateField("email", value)} keyboardType="email-address" autoCapitalize="none" />
+        </View>
+
+        {user.editableProfile?.roleType === "abogado" && (
+          <View style={styles.formSection}>
+            <Text style={styles.formSectionTitle}>Perfil abogado</Text>
+            <LabeledInput label="Nombre" value={editForm.firstName ?? ""} onChangeText={(value) => updateField("firstName", value)} />
+            <LabeledInput label="Apellido" value={editForm.lastName ?? ""} onChangeText={(value) => updateField("lastName", value)} />
+            <LabeledInput label="Teléfono" value={editForm.phone ?? ""} onChangeText={(value) => updateField("phone", value)} keyboardType="phone-pad" />
+            <LabeledInput label="Documento" value={editForm.document ?? ""} onChangeText={(value) => updateField("document", value)} />
+            <LabeledInput label="Dirección" value={editForm.address ?? ""} onChangeText={(value) => updateField("address", value)} />
+            <LabeledInput label="Especialidad" value={editForm.specialization ?? ""} onChangeText={(value) => updateField("specialization", value)} />
+            <LabeledInput label="Tarjeta profesional" value={editForm.licenseNumber ?? ""} onChangeText={(value) => updateField("licenseNumber", value)} />
+          </View>
+        )}
+
+        {user.editableProfile?.roleType === "bufete" && (
+          <View style={styles.formSection}>
+            <Text style={styles.formSectionTitle}>Perfil bufete</Text>
+            <LabeledInput label="Nombre del bufete" value={editForm.firmName ?? ""} onChangeText={(value) => updateField("firmName", value)} />
+            <LabeledInput label="NIT" value={editForm.nit ?? ""} onChangeText={(value) => updateField("nit", value)} />
+            <LabeledInput label="Dirección" value={editForm.address ?? ""} onChangeText={(value) => updateField("address", value)} />
+            <LabeledInput label="Teléfono" value={editForm.phone ?? ""} onChangeText={(value) => updateField("phone", value)} keyboardType="phone-pad" />
+          </View>
+        )}
+
+        {user.editableProfile?.roleType === "cliente_natural" && (
+          <View style={styles.formSection}>
+            <Text style={styles.formSectionTitle}>Cliente natural</Text>
+            <LabeledInput label="Nombre" value={editForm.firstName ?? ""} onChangeText={(value) => updateField("firstName", value)} />
+            <LabeledInput label="Apellido" value={editForm.lastName ?? ""} onChangeText={(value) => updateField("lastName", value)} />
+            <LabeledInput label="Teléfono" value={editForm.phone ?? ""} onChangeText={(value) => updateField("phone", value)} keyboardType="phone-pad" />
+            <LabeledInput label="Documento" value={editForm.document ?? ""} onChangeText={(value) => updateField("document", value)} />
+            <LabeledInput label="Dirección" value={editForm.address ?? ""} onChangeText={(value) => updateField("address", value)} />
+          </View>
+        )}
+
+        {user.editableProfile?.roleType === "cliente_empresa" && (
+          <View style={styles.formSection}>
+            <Text style={styles.formSectionTitle}>Cliente empresa</Text>
+            <LabeledInput label="Razón social" value={editForm.companyName ?? ""} onChangeText={(value) => updateField("companyName", value)} />
+            <LabeledInput label="NIT" value={editForm.nit ?? ""} onChangeText={(value) => updateField("nit", value)} />
+            <LabeledInput label="Sector" value={editForm.sector ?? ""} onChangeText={(value) => updateField("sector", value)} />
+          </View>
+        )}
+
+        {user.editableProfile?.roleType === "admin" && (
+          <View style={styles.formSection}>
+            <Text style={styles.formSectionTitle}>Perfil administrador</Text>
+            <LabeledInput label="Display name" value={editForm.displayName ?? ""} onChangeText={(value) => updateField("displayName", value)} />
+            <LabeledInput label="Tipo admin" value={editForm.adminType ?? ""} onChangeText={(value) => updateField("adminType", value)} />
+          </View>
+        )}
+      </StyledModal>
+
       <StyledModal
         visible={modalEstado}
         onClose={() => setModalEstado(false)}
@@ -443,6 +646,34 @@ function ActionButton({
   );
 }
 
+function LabeledInput({
+  label,
+  value,
+  onChangeText,
+  keyboardType,
+  autoCapitalize = "sentences",
+}: {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  keyboardType?: "default" | "email-address" | "phone-pad";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
+}) {
+  return (
+    <View style={styles.inputGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        placeholderTextColor="#94A3B8"
+      />
+    </View>
+  );
+}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -467,14 +698,17 @@ const styles = StyleSheet.create({
   },
   layout: {
     flex: 1,
+    minHeight: 0,
     flexDirection: "row",
     gap: 24,
   },
   leftCol: {
     flex: 2,
+    minHeight: 0,
   },
   rightCol: {
     width: 260,
+    minHeight: 0,
     gap: 10,
   },
   sectionTitle: {
@@ -697,5 +931,35 @@ const styles = StyleSheet.create({
     color: "#DC2626",
     marginTop: -4,
     marginBottom: 4,
+  },
+  formSection: {
+    gap: 10,
+    marginBottom: 18,
+  },
+  formSectionTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#334155",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  inputGroup: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#64748B",
+  },
+  input: {
+    height: 42,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: "#0F172A",
   },
 });

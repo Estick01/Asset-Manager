@@ -347,6 +347,44 @@ export interface UserAdminDetail extends UserAdminRow {
   firma:                  { id: string; nombre: string } | null;
   suscripcionActiva:      SuscripcionResumen | null;
   historialSuscripciones: SuscripcionResumen[];
+  editableProfile?: {
+    roleType: string;
+    common: {
+      name: string;
+      email: string;
+    };
+    lawyer?: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      document: string;
+      address: string;
+      specialization: string;
+      licenseNumber: string;
+    };
+    firm?: {
+      name: string;
+      nit: string;
+      address: string;
+      phone: string;
+    };
+    clientNatural?: {
+      firstName: string;
+      lastName: string;
+      phone: string;
+      document: string;
+      address: string;
+    };
+    clientEmpresa?: {
+      companyName: string;
+      nit: string;
+      sector: string;
+    };
+    admin?: {
+      displayName: string;
+      adminType: string;
+    };
+  };
   lawyerVerification: {
     profileId: string;
     licenseNumber: string | null;
@@ -411,6 +449,20 @@ export const adminUsersService = {
   updatePlan: async (id: string, planId: string): Promise<void> => {
     const response = await apiRequest("PATCH", `/api/admin/users/${id}/plan`, { planId });
     if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  updateProfile: async (
+    id: string,
+    payload: Partial<NonNullable<UserAdminDetail["editableProfile"]>> & {
+      name?: string;
+      email?: string;
+    },
+  ): Promise<void> => {
+    const response = await apiRequest("PATCH", `/api/admin/users/${id}/profile`, payload);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error ?? `Error ${response.status}`);
+    }
   },
 
   resetPassword: async (id: string): Promise<{ token: string; expiresIn: string }> => {

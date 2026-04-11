@@ -12,6 +12,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { AdminShell } from "../_shell/AdminShell";
 import { adminUsersService, type LawyerVerificationRow } from "@/lib/services/adminService";
+import { ConfirmDialog, type ConfirmDialogConfig } from "@/components/ConfirmDialog";
 
 type StatusFilter = "pendiente" | "verificado" | "rechazado";
 
@@ -48,6 +49,8 @@ function VerificationBadge({ status }: { status: StatusFilter }) {
 
 export default function LawyerVerificationScreen() {
   const [status, setStatus] = useState<StatusFilter>("pendiente");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<ConfirmDialogConfig | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading, isError, isFetching } = useQuery({
@@ -64,18 +67,29 @@ export default function LawyerVerificationScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-lawyer-verifications"] });
       queryClient.invalidateQueries({ queryKey: ["admin-user"] });
+      Alert.alert("Verificacion actualizada", "El estado del abogado se actualizo correctamente.");
+      setProcessingId(null);
+    },
+    onError: () => {
+      Alert.alert("Error", "No se pudo actualizar la verificacion del abogado.");
+      setProcessingId(null);
     },
   });
 
   function confirmAction(row: LawyerVerificationRow, nextStatus: "verificado" | "rechazado") {
-    Alert.alert(
-      nextStatus === "verificado" ? "Aprobar abogado" : "Rechazar abogado",
-      `${row.name ?? row.email}\nTarjeta: ${row.licenseNumber ?? "Sin tarjeta"}\n\n¿Deseas marcarlo como ${nextStatus}?`,
-      [
-        { text: "Cancelar", style: "cancel" },
-        { text: "Confirmar", onPress: () => mutation.mutate({ id: row.profileId, nextStatus }) },
-      ],
-    );
+    const actionLabel = nextStatus === "verificado" ? "aprobar" : "rechazar";
+    const lawyerLabel = row.name ?? row.email;
+    setDialog({
+      title: nextStatus === "verificado" ? "Aprobar abogado" : "Rechazar abogado",
+      message: `${lawyerLabel}\nTarjeta: ${row.licenseNumber ?? "Sin tarjeta"}\n\nDeseas ${actionLabel} este abogado?`,
+      confirmText: nextStatus === "verificado" ? "Aprobar" : "Rechazar",
+      cancelText: "Cancelar",
+      variant: nextStatus === "verificado" ? "primary" : "danger",
+      onConfirm: async () => {
+        setProcessingId(row.profileId);
+        await mutation.mutateAsync({ id: row.profileId, nextStatus });
+      },
+    });
   }
 
   return (
@@ -155,24 +169,38 @@ export default function LawyerVerificationScreen() {
                         styles.actionBtn,
                         styles.approveBtn,
                         pressed && { opacity: 0.9 },
+                        processingId === row.profileId && styles.actionBtnDisabled,
                       ]}
                       onPress={() => confirmAction(row, "verificado")}
                       disabled={mutation.isPending}
                     >
-                      <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
-                      <Text style={styles.actionBtnText}>Aprobar</Text>
+                      {processingId === row.profileId ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                          <Text style={styles.actionBtnText}>Aprobar</Text>
+                        </>
+                      )}
                     </Pressable>
                     <Pressable
                       style={({ pressed }) => [
                         styles.actionBtn,
                         styles.rejectBtn,
                         pressed && { opacity: 0.9 },
+                        processingId === row.profileId && styles.actionBtnDisabled,
                       ]}
                       onPress={() => confirmAction(row, "rechazado")}
                       disabled={mutation.isPending}
                     >
-                      <Ionicons name="close-circle-outline" size={16} color="#B91C1C" />
-                      <Text style={styles.rejectBtnText}>Rechazar</Text>
+                      {processingId === row.profileId ? (
+                        <ActivityIndicator size="small" color="#B91C1C" />
+                      ) : (
+                        <>
+                          <Ionicons name="close-circle-outline" size={16} color="#B91C1C" />
+                          <Text style={styles.rejectBtnText}>Rechazar</Text>
+                        </>
+                      )}
                     </Pressable>
                   </View>
                 </View>
@@ -181,6 +209,7 @@ export default function LawyerVerificationScreen() {
           </ScrollView>
         )}
       </View>
+      <ConfirmDialog config={dialog} onClose={() => setDialog(null)} />
     </AdminShell>
   );
 }
@@ -265,6 +294,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
     borderRadius: 12,
+  },
+  actionBtnDisabled: {
+    opacity: 0.7,
   },
   approveBtn: { backgroundColor: "#15803D" },
   rejectBtn: { backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },

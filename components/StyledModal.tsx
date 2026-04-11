@@ -60,7 +60,7 @@ export function StyledModal({
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={[styles.modalContainer, fullHeight && styles.modalContainerFullHeight]}
         >
-          <Pressable accessible={false}>
+          <Pressable style={styles.modalInner} accessible={false}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{title}</Text>
               <Pressable
@@ -75,6 +75,7 @@ export function StyledModal({
             </View>
             <ScrollView
               style={styles.modalContent}
+              contentContainerStyle={styles.modalContentContainer}
               nestedScrollEnabled={true}
               keyboardDismissMode="on-drag"
               keyboardShouldPersistTaps="handled"
@@ -124,6 +125,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: "100%",
     maxWidth: 400,
+    maxHeight: "90%",
     borderRadius: 16,
     backgroundColor: Colors.white,
     overflow: "hidden",
@@ -141,7 +143,11 @@ const styles = StyleSheet.create({
     })
   },
   modalContainerFullHeight: {
-    maxHeight: 500,
+    maxHeight: "90%",
+  },
+  modalInner: {
+    flexShrink: 1,
+    minHeight: 0,
   },
   modalHeader: {
     flexDirection: "row",
@@ -165,7 +171,12 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   modalContent: {
+    flexShrink: 1,
+    minHeight: 0,
     padding: 20,
+  },
+  modalContentContainer: {
+    paddingBottom: 4,
   },
   modalFooter: {
     flexDirection: "row",

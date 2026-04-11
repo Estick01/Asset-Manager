@@ -10,6 +10,7 @@ import {
   getUserById,
   updateEstado,
   updatePlan,
+  updateProfile,
   resetPassword,
   revokeSessions,
   listLawyerVerifications,
@@ -35,6 +36,11 @@ router.patch(
   "/:id/plan",
   requireAdminRole("admin_super"),
   updatePlan,
+);
+router.patch(
+  "/:id/profile",
+  requireAdminRole("admin_super", "admin_soporte"),
+  updateProfile,
 );
 router.post(
   "/:id/reset-password",
