@@ -352,7 +352,7 @@ const handleVerifyTwoFactor = async () => {
                     <Ionicons name="shield-checkmark-outline" size={18} color={Colors.primary} />
                     <View style={styles.helpCardTextWrap}>
                       <Text style={styles.helpCardTitle}>Acceso seguro</Text>
-                      <Text style={styles.helpCardText}>Tus credenciales te llevan al panel segun tu perfil: abogado, bufete, cliente o administrador.</Text>
+                      <Text style={styles.helpCardText}>Tus credenciales te llevan al panel segun tu perfil.</Text>
                     </View>
                   </View>
 
