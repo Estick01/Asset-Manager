@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
+import { View, Text, TextInput, StyleSheet, Pressable, Modal, ActivityIndicator } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { AdminShell } from "./_shell/AdminShell";
-import { adminSupportService } from "@/lib/services/adminService";
+import { adminSupportService, type PublicSupportRequestRow } from "@/lib/services/adminService";
 import { ActionButton, EmptyState, SectionCard, StatCard, StatusBadge, TableHeader } from "./_components/AdminUi";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner-native";
@@ -26,6 +26,10 @@ function formatRelative(date: string | null | undefined) {
 export default function AdminSoporteScreen() {
   const [search, setSearch] = useState("");
   const [requestStatusFilter, setRequestStatusFilter] = useState("");
+  const [replyTarget, setReplyTarget] = useState<PublicSupportRequestRow | null>(null);
+  const [replySubject, setReplySubject] = useState("");
+  const [replyMessage, setReplyMessage] = useState("");
+  const [replyResolve, setReplyResolve] = useState(false);
   const { user } = useAuth();
   const adminId = user?.user.id;
   const queryClient = useQueryClient();
@@ -86,6 +90,29 @@ export default function AdminSoporteScreen() {
       toast.error(error instanceof Error ? error.message : "No se pudo abrir la conversación.");
     },
   });
+
+  const replyRequestMutation = useMutation({
+    mutationFn: ({ id, subject, message, markAsResolved }: { id: string; subject: string; message: string; markAsResolved: boolean }) =>
+      adminSupportService.replyPublicRequest(id, { subject, message, markAsResolved }),
+    onSuccess: () => {
+      toast.success("Respuesta enviada por correo.");
+      setReplyTarget(null);
+      setReplySubject("");
+      setReplyMessage("");
+      setReplyResolve(false);
+      refreshSupport();
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "No se pudo enviar la respuesta.");
+    },
+  });
+
+  const openReplyModal = (item: PublicSupportRequestRow) => {
+    setReplyTarget(item);
+    setReplySubject(item.source === "login" ? "Ayuda con tu acceso a ProcesoClaro" : "Respuesta a tu consulta sobre ProcesoClaro");
+    setReplyMessage("");
+    setReplyResolve(item.status === "resolved");
+  };
 
   const requestToneByStatus = {
     new: "amber",
@@ -219,6 +246,7 @@ export default function AdminSoporteScreen() {
             <View style={[styles.requestActions, { flex: 1.7 }]}>
               <ActionButton label="En curso" onPress={() => updateRequestMutation.mutate({ id: item.id, status: "in_progress" })} tone="muted" />
               <ActionButton label="Resolver" onPress={() => updateRequestMutation.mutate({ id: item.id, status: "resolved" })} />
+              <ActionButton label="Responder" onPress={() => openReplyModal(item)} tone="primary" />
               {item.userId && !item.conversationId ? (
                 <ActionButton label="Abrir chat" onPress={() => openConversationMutation.mutate(item.id)} tone="primary" />
               ) : null}
@@ -226,6 +254,91 @@ export default function AdminSoporteScreen() {
           </View>
         ))}
       </SectionCard>
+
+      <Modal visible={!!replyTarget} transparent animationType="fade" onRequestClose={() => setReplyTarget(null)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setReplyTarget(null)} />
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIcon}>
+                <Ionicons name="mail-outline" size={18} color="#2563EB" />
+              </View>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.modalTitle}>Responder consulta pública</Text>
+                <Text style={styles.modalSubtitle}>
+                  {replyTarget ? `${replyTarget.name} · ${replyTarget.email}` : ""}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Asunto</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={replySubject}
+                onChangeText={setReplySubject}
+                placeholder="Asunto del correo"
+                placeholderTextColor="#94A3B8"
+              />
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Mensaje</Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalTextarea]}
+                value={replyMessage}
+                onChangeText={setReplyMessage}
+                placeholder="Escribe la respuesta que recibirá el usuario"
+                placeholderTextColor="#94A3B8"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            <Pressable
+              onPress={() => setReplyResolve((current) => !current)}
+              style={({ pressed }) => [styles.resolveToggle, pressed && { opacity: 0.84 }]}
+            >
+              <View style={[styles.resolveCheck, replyResolve && styles.resolveCheckActive]}>
+                {replyResolve ? <Ionicons name="checkmark" size={14} color="#FFFFFF" /> : null}
+              </View>
+              <Text style={styles.resolveToggleText}>Marcar como resuelta al enviar</Text>
+            </Pressable>
+
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setReplyTarget(null)} disabled={replyRequestMutation.isPending}>
+                <Text style={styles.modalCancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalSubmitBtn, replyRequestMutation.isPending && styles.modalSubmitBtnDisabled]}
+                onPress={() => {
+                  if (!replyTarget) return;
+                  if (!replySubject.trim() || !replyMessage.trim()) {
+                    toast.error("Completa asunto y mensaje.");
+                    return;
+                  }
+                  replyRequestMutation.mutate({
+                    id: replyTarget.id,
+                    subject: replySubject.trim(),
+                    message: replyMessage.trim(),
+                    markAsResolved: replyResolve,
+                  });
+                }}
+                disabled={replyRequestMutation.isPending}
+              >
+                {replyRequestMutation.isPending ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Text style={styles.modalSubmitText}>Enviar respuesta</Text>
+                    <Ionicons name="send-outline" size={16} color="#FFFFFF" />
+                  </>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <SectionCard title="Eventos recientes de seguridad">
         <TableHeader columns={[
@@ -336,5 +449,133 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderWidth: 1,
     borderColor: "#BFDBFE",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,23,42,0.56)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 560,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 20,
+    gap: 14,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  modalIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "#EFF6FF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalHeaderText: {
+    flex: 1,
+    gap: 4,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: "Inter_700Bold",
+    color: "#0F172A",
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    fontFamily: "Inter_400Regular",
+    color: "#64748B",
+  },
+  field: {
+    gap: 6,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: "#334155",
+  },
+  modalInput: {
+    minHeight: 46,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    color: "#0F172A",
+  },
+  modalTextarea: {
+    minHeight: 140,
+  },
+  resolveToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  resolveCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  resolveCheckActive: {
+    backgroundColor: "#2563EB",
+    borderColor: "#2563EB",
+  },
+  resolveToggleText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#334155",
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  modalCancelBtn: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCancelText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: "#475569",
+  },
+  modalSubmitBtn: {
+    minHeight: 44,
+    borderRadius: 12,
+    backgroundColor: "#2563EB",
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+  },
+  modalSubmitBtnDisabled: {
+    opacity: 0.7,
+  },
+  modalSubmitText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: "#FFFFFF",
   },
 });

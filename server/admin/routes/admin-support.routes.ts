@@ -6,6 +6,7 @@ import { storage } from "../../storage/storeage/database-storage.js";
 import { publicSupportRequests, securityEvents, users } from "@/shared/schema";
 import { chatService } from "../../services/chat.service.js";
 import { auditService } from "../services/audit.service.js";
+import { sendSupportReplyEmail } from "../../services/email.service.js";
 
 const router = Router();
 
@@ -222,6 +223,54 @@ router.post("/public-requests/:id/open-conversation", requireAdminRole("admin_su
     });
 
     res.status(201).json({ success: true, data: conversation });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/public-requests/:id/reply", requireAdminRole("admin_super", "admin_soporte"), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const db = (storage as any).db;
+    const adminId = (req as any).user?.id as string;
+    const id = req.params.id;
+    const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    const markAsResolved = req.body?.markAsResolved === true;
+
+    if (!subject || !message) {
+      return res.status(400).json({ error: "subject y message son requeridos" });
+    }
+
+    const requestRow = await db.query.publicSupportRequests.findFirst({
+      where: eq(publicSupportRequests.id, id),
+    });
+
+    if (!requestRow) {
+      return res.status(404).json({ error: "Solicitud no encontrada" });
+    }
+
+    await sendSupportReplyEmail(requestRow.email, subject, message);
+
+    await db.update(publicSupportRequests)
+      .set({
+        assignedAdminId: adminId,
+        status: markAsResolved ? "resolved" : "in_progress",
+        resolvedAt: markAsResolved ? new Date() : null,
+      })
+      .where(eq(publicSupportRequests.id, id));
+
+    await auditService.log({
+      adminId,
+      accion: "public_support_request_replied",
+      targetId: id,
+      detalle: `Respuesta enviada a ${requestRow.email} con asunto: ${subject}`,
+    });
+
+    const updated = await db.query.publicSupportRequests.findFirst({
+      where: eq(publicSupportRequests.id, id),
+    });
+
+    res.status(201).json({ success: true, data: updated });
   } catch (err) {
     next(err);
   }

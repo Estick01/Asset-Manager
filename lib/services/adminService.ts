@@ -648,6 +648,12 @@ export interface PublicSupportRequestRow {
   resolvedAt: string | null;
 }
 
+export interface ReplyPublicSupportRequestInput {
+  subject: string;
+  message: string;
+  markAsResolved?: boolean;
+}
+
 export interface SecurityEventRow {
   id: string;
   email: string;
@@ -900,6 +906,13 @@ export const adminSupportService = {
     if (!response.ok) throw new Error(`Error ${response.status}`);
     const body = await response.json();
     return body.data;
+  },
+
+  replyPublicRequest: async (id: string, payload: ReplyPublicSupportRequestInput) => {
+    const response = await apiRequest("POST", `/api/admin/support/public-requests/${id}/reply`, payload);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+    const body = await response.json();
+    return body.data as PublicSupportRequestRow;
   },
 };
 

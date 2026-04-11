@@ -224,6 +224,24 @@ export async function sendNotificationEmail(
   );
 }
 
+export async function sendSupportReplyEmail(
+  toEmail: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  await withTimeout(
+    transporter.sendMail({
+      from: FROM,
+      to: toEmail,
+      subject: `${subject} — ${APP_NAME}`,
+      html: notificationEmailHtml(subject, body),
+      text: `${subject}\n\n${body}\n\nEste es un mensaje de soporte de ${APP_NAME}.`,
+    }),
+    10_000,
+    "email.sendSupportReplyEmail",
+  );
+}
+
 export function queueNotificationEmail(
   toEmail: string | null | undefined,
   title: string,
