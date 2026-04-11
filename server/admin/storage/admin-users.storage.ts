@@ -46,6 +46,11 @@ export interface UserAdminDetail extends UserAdminRow {
   suscripcionActiva:       SuscripcionResumen | null;
   historialSuscripciones:  SuscripcionResumen[];
   editableProfile?: any;
+  twoFactor?: {
+    enabled: boolean;
+    enabledAt: string | null;
+    recoveryCodesRemaining: number;
+  };
   lawyerVerification: {
     profileId: string;
     licenseNumber: string | null;

@@ -1,5 +1,6 @@
 // server/admin/services/admin-users.service.ts
 import { storage } from "../../storage/storeage/database-storage.js";
+import { queueNotificationEmail } from "../../services/email.service.js";
 import type {
   ListUsersParams,
   ListUsersResult,
@@ -139,10 +140,26 @@ export const adminUsersService = {
 
     const user = await storage.getUserById(id);
     const profile = user?.rol?.nombre ? await storage.getUserProfile(id, user.rol.nombre) : null;
+    const twoFactor = await storage.userTwoFactor.getByUserId(id);
+    const recoveryCodesRemaining = twoFactor?.recoveryCodes
+      ? (() => {
+          try {
+            const parsed = JSON.parse(twoFactor.recoveryCodes);
+            return Array.isArray(parsed) ? parsed.length : 0;
+          } catch {
+            return 0;
+          }
+        })()
+      : 0;
 
     return {
       ...detail,
       editableProfile: buildEditableProfile(user, profile),
+      twoFactor: {
+        enabled: !!twoFactor?.enabledAt,
+        enabledAt: twoFactor?.enabledAt?.toISOString?.() ?? null,
+        recoveryCodesRemaining,
+      },
     };
   },
 
@@ -258,6 +275,27 @@ export const adminUsersService = {
 
   async revokeSessions(id: string): Promise<void> {
     await storage.sessions.revokeAllForUser(id);
+  },
+
+  async resetTwoFactor(id: string, reason: string): Promise<void> {
+    const user = await storage.getUserById(id);
+    if (!user) throw new Error("Usuario no encontrado");
+
+    await storage.userTwoFactor.disable(id);
+    await storage.sessions.revokeAllForUser(id);
+
+    queueNotificationEmail(
+      user.email,
+      "Autenticación en dos pasos restablecida",
+      [
+        "Un administrador restableció la autenticación en dos pasos de tu cuenta.",
+        "",
+        `Motivo registrado: ${reason}`,
+        "",
+        "Por seguridad, todas tus sesiones activas fueron cerradas.",
+        "Cuando vuelvas a ingresar deberás configurar nuevamente la autenticación en dos pasos.",
+      ].join("\n")
+    );
   },
 
   async listLawyerVerifications(status?: LawyerProfessionalVerificationStatus): Promise<LawyerVerificationRow[]> {

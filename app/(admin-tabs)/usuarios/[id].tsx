@@ -67,6 +67,7 @@ export default function UsuarioDetailScreen() {
   const [modalEstado,     setModalEstado]     = useState(false);
   const [modalPlan,       setModalPlan]       = useState(false);
   const [modalReset,      setModalReset]      = useState(false);
+  const [modalReset2FA,   setModalReset2FA]   = useState(false);
   const [modalEditar,     setModalEditar]     = useState(false);
   const [resetToken,      setResetToken]      = useState<string | null>(null);
   const [resetLink,       setResetLink]       = useState<string | null>(null);
@@ -75,7 +76,9 @@ export default function UsuarioDetailScreen() {
   const [errorEstado,  setErrorEstado]  = useState<string | null>(null);
   const [errorPlan,    setErrorPlan]    = useState<string | null>(null);
   const [errorReset,   setErrorReset]   = useState<string | null>(null);
+  const [errorReset2FA,setErrorReset2FA]= useState<string | null>(null);
   const [errorEditar,  setErrorEditar]  = useState<string | null>(null);
+  const [resetTwoFactorReason, setResetTwoFactorReason] = useState("");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin-user", id],
@@ -137,6 +140,19 @@ export default function UsuarioDetailScreen() {
     },
     onError: (error: any) => {
       setErrorEditar(error?.message ?? "Error al actualizar los datos del usuario.");
+    },
+  });
+
+  const mutReset2FA = useMutation({
+    mutationFn: (reason: string) => adminUsersService.resetTwoFactor(id, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-user", id] });
+      setModalReset2FA(false);
+      setErrorReset2FA(null);
+      setResetTwoFactorReason("");
+    },
+    onError: (error: any) => {
+      setErrorReset2FA(error?.message ?? "Error al restablecer la autenticación en dos pasos.");
     },
   });
 
@@ -323,6 +339,26 @@ export default function UsuarioDetailScreen() {
               value={user.isActive ? "Activo" : "Suspendido"}
               valueColor={user.isActive ? "#16A34A" : "#DC2626"}
             />
+            <InfoRow
+              icon="lock-closed-outline"
+              label="2FA"
+              value={user.twoFactor?.enabled ? "Activo" : "Inactivo"}
+              valueColor={user.twoFactor?.enabled ? "#16A34A" : "#64748B"}
+            />
+            {user.twoFactor?.enabledAt ? (
+              <InfoRow
+                icon="time-outline"
+                label="2FA activado"
+                value={formatDate(user.twoFactor.enabledAt)}
+              />
+            ) : null}
+            {user.twoFactor?.enabled ? (
+              <InfoRow
+                icon="keypad-outline"
+                label="Recovery codes"
+                value={String(user.twoFactor.recoveryCodesRemaining)}
+              />
+            ) : null}
           </View>
 
           {user.lawyerVerification && (
@@ -425,8 +461,22 @@ export default function UsuarioDetailScreen() {
             color="#9333EA"
             onPress={() => setModalReset(true)}
           />
+          <ActionButton
+            icon="shield-half-outline"
+            label="Restablecer 2FA"
+            color="#B45309"
+            onPress={() => {
+              setErrorReset2FA(null);
+              setResetTwoFactorReason("");
+              setModalReset2FA(true);
+            }}
+            disabled={!user.twoFactor?.enabled}
+          />
           {errorReset && (
             <Text style={styles.inlineError}>{errorReset}</Text>
+          )}
+          {errorReset2FA && (
+            <Text style={styles.inlineError}>{errorReset2FA}</Text>
           )}
         </View>
       </View>
@@ -589,6 +639,42 @@ export default function UsuarioDetailScreen() {
           </Text>
           . El enlace se mostrará aquí para que puedas compartirlo con el usuario.
         </Text>
+      </StyledModal>
+
+      <StyledModal
+        visible={modalReset2FA}
+        onClose={() => setModalReset2FA(false)}
+        title="Restablecer autenticación en dos pasos"
+        confirmText={mutReset2FA.isPending ? "Restableciendo..." : "Restablecer 2FA"}
+        confirmVariant="danger"
+        onConfirm={() => {
+          const reason = resetTwoFactorReason.trim();
+          if (reason.length < 10) {
+            setErrorReset2FA("El motivo debe tener al menos 10 caracteres.");
+            return;
+          }
+          if (!mutReset2FA.isPending) mutReset2FA.mutate(reason);
+        }}
+      >
+        <Text style={styles.modalBody}>
+          Esta acción eliminará la configuración de 2FA de{" "}
+          <Text style={{ fontFamily: "Inter_600SemiBold" }}>{user.name ?? user.email}</Text>,
+          invalidará sus recovery codes y cerrará todas sus sesiones activas.
+        </Text>
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Motivo de la recuperación</Text>
+          <TextInput
+            style={[styles.input, styles.textarea]}
+            value={resetTwoFactorReason}
+            onChangeText={(value) => {
+              setResetTwoFactorReason(value);
+              if (errorReset2FA) setErrorReset2FA(null);
+            }}
+            placeholder="Ej. El cliente perdió el dispositivo donde tenía configurado el 2FA"
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
       </StyledModal>
     </AdminShell>
   );
@@ -972,5 +1058,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_400Regular",
     color: "#0F172A",
+  },
+  textarea: {
+    minHeight: 110,
   },
 });

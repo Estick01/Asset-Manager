@@ -73,6 +73,10 @@ const updateLawyerVerificationSchema = z.object({
   reviewNotes: z.string().max(1000).optional(),
 });
 
+const resetTwoFactorSchema = z.object({
+  reason: z.string().trim().min(10, "El motivo debe tener al menos 10 caracteres").max(500),
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getAdminId(req: Request): string {
@@ -246,6 +250,36 @@ export async function revokeSessions(
       accion: "usuario.revocar_sesiones",
       targetId: userId,
       detalle: JSON.stringify({ email: user.email }),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function resetTwoFactor(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const userId = req.params.id;
+    const { reason } = resetTwoFactorSchema.parse(req.body);
+    const user = await adminUsersService.getById(userId);
+
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+
+    await adminUsersService.resetTwoFactor(userId, reason);
+
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.reset_2fa",
+      targetId: userId,
+      detalle: JSON.stringify({ email: user.email, reason }),
     });
 
     res.json({ success: true });

@@ -12,6 +12,7 @@ import {
   updatePlan,
   updateProfile,
   resetPassword,
+  resetTwoFactor,
   revokeSessions,
   listLawyerVerifications,
   updateLawyerVerification,
@@ -51,6 +52,11 @@ router.post(
   "/:id/revoke-sessions",
   requireAdminRole("admin_super", "admin_soporte"),
   revokeSessions,
+);
+router.post(
+  "/:id/reset-2fa",
+  requireAdminRole("admin_super", "admin_soporte"),
+  resetTwoFactor,
 );
 router.patch(
   "/lawyer-verifications/:id",

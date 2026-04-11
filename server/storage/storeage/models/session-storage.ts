@@ -1,4 +1,4 @@
-import { eq, and, lt } from "drizzle-orm";
+import { eq, and, lt, isNull } from "drizzle-orm";
 import { sessions, type InsertSession, type Session } from "@/shared/schema";
 import type { Database } from "../database-storage";
 
@@ -43,7 +43,7 @@ export class SessionStorage {
         and(
           eq(sessions.userId, userId),
           // Only revoke non-already-revoked sessions
-          eq(sessions.revokedAt, null as any)
+          isNull(sessions.revokedAt)
         )
       );
   }
@@ -57,7 +57,7 @@ export class SessionStorage {
         and(
           eq(sessions.userId, userId),
           eq(sessions.deviceId, deviceId),
-          eq(sessions.revokedAt, null as any)
+          isNull(sessions.revokedAt)
         )
       );
   }

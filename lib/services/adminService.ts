@@ -385,6 +385,11 @@ export interface UserAdminDetail extends UserAdminRow {
       adminType: string;
     };
   };
+  twoFactor?: {
+    enabled: boolean;
+    enabledAt: string | null;
+    recoveryCodesRemaining: number;
+  };
   lawyerVerification: {
     profileId: string;
     licenseNumber: string | null;
@@ -475,6 +480,14 @@ export const adminUsersService = {
   revokeSessions: async (id: string): Promise<void> => {
     const response = await apiRequest("POST", `/api/admin/users/${id}/revoke-sessions`);
     if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
+  resetTwoFactor: async (id: string, reason: string): Promise<void> => {
+    const response = await apiRequest("POST", `/api/admin/users/${id}/reset-2fa`, { reason });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.error ?? `Error ${response.status}`);
+    }
   },
 
   listLawyerVerifications: async (status: "pendiente" | "verificado" | "rechazado" = "pendiente"): Promise<LawyerVerificationRow[]> => {
