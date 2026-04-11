@@ -67,7 +67,7 @@ function resolveTargetRoute(roleName: string | undefined, isWeb: boolean): AppRo
 
   const normalizedRole = roleName.toLowerCase();
   if (normalizedRole.startsWith("admin_")) {
-    return isWeb ? "/(admin-tabs)" : null;
+    return isWeb ? "/(admin-tabs)/dashboard" : null;
   }
 
   return ROLE_ROUTES[normalizedRole] ?? null;
@@ -110,7 +110,7 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  const targetGroup = targetRoute.replace("/", "");
+  const targetGroup = targetRoute.split("/").filter(Boolean)[0];
   if (currentGroup !== targetGroup) {
     return <Redirect href={targetRoute} />;
   }
