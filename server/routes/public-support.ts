@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { Router, type Request, type Response, type NextFunction } from "express";
-import { eq } from "drizzle-orm";
-import { publicSupportRequests, users } from "@/shared/schema";
+import { eq, inArray } from "drizzle-orm";
+import { publicSupportRequests, roles, users } from "@/shared/schema";
 import { storage } from "../storage/storeage/database-storage.js";
 
 const router = Router();
@@ -37,6 +37,28 @@ router.post("/public/support-request", async (req: Request, res: Response, next:
       source,
       userId: existingUser?.id ?? null,
     });
+
+    const adminRoles = await db.select({ id: roles.id }).from(roles).where(inArray(roles.nombre, ["admin_super", "admin_soporte"]));
+    const adminRoleIds = adminRoles.map((role: { id: number }) => role.id);
+
+    if (adminRoleIds.length > 0) {
+      const adminUsers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(inArray(users.rolId, adminRoleIds));
+
+      await Promise.all(
+        adminUsers.map((admin: { id: string }) =>
+          storage.appNotifications.createNotification(
+            admin.id,
+            "support_public_request",
+            "Nueva consulta pública",
+            `${name} dejó una consulta desde ${source === "login" ? "login" : "landing"}.`,
+            { route: "/(admin-tabs)/soporte", source, email }
+          )
+        )
+      );
+    }
 
     res.status(201).json({
       success: true,

@@ -26,6 +26,7 @@ function formatRelative(date: string | null | undefined) {
 export default function AdminSoporteScreen() {
   const [search, setSearch] = useState("");
   const [requestStatusFilter, setRequestStatusFilter] = useState("");
+  const [requestOwnerFilter, setRequestOwnerFilter] = useState<"all" | "mine" | "unassigned">("all");
   const [replyTarget, setReplyTarget] = useState<PublicSupportRequestRow | null>(null);
   const [replySubject, setReplySubject] = useState("");
   const [replyMessage, setReplyMessage] = useState("");
@@ -49,7 +50,16 @@ export default function AdminSoporteScreen() {
 
   const rows = useMemo(() => conversations?.data ?? [], [conversations?.data]);
   const urgentCount = useMemo(() => rows.filter((item) => item.unreadCount > 0).length, [rows]);
-  const requestRows = useMemo(() => publicRequests?.data ?? [], [publicRequests?.data]);
+  const requestRows = useMemo(() => {
+    const baseRows = publicRequests?.data ?? [];
+    if (requestOwnerFilter === "mine") {
+      return baseRows.filter((item) => item.assignedAdminId === adminId);
+    }
+    if (requestOwnerFilter === "unassigned") {
+      return baseRows.filter((item) => !item.assignedAdminId);
+    }
+    return baseRows;
+  }, [adminId, publicRequests?.data, requestOwnerFilter]);
 
   const refreshSupport = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin-support-overview"] });
@@ -112,6 +122,23 @@ export default function AdminSoporteScreen() {
     setReplySubject(item.source === "login" ? "Ayuda con tu acceso a ProcesoClaro" : "Respuesta a tu consulta sobre ProcesoClaro");
     setReplyMessage("");
     setReplyResolve(item.status === "resolved");
+  };
+
+  const applyReplyTemplate = (template: "access" | "followup" | "demo") => {
+    if (template === "access") {
+      setReplySubject("Ayuda con tu acceso a ProcesoClaro");
+      setReplyMessage("Hola,\n\nGracias por contactarnos. Estamos revisando tu caso de acceso.\n\nPor favor responde este correo indicando el email con el que intentas ingresar y, si aplica, una captura del mensaje de error.\n\nNuestro equipo continuará contigo a la mayor brevedad.");
+      return;
+    }
+
+    if (template === "followup") {
+      setReplySubject("Seguimiento a tu solicitud en ProcesoClaro");
+      setReplyMessage("Hola,\n\nGracias por escribirnos. Ya recibimos tu solicitud y la dejamos en revisión con el equipo correspondiente.\n\nSi tienes más contexto, compártelo respondiendo este correo para acelerar la gestión.");
+      return;
+    }
+
+    setReplySubject("Información sobre ProcesoClaro");
+    setReplyMessage("Hola,\n\nGracias por tu interés en ProcesoClaro.\n\nCon gusto podemos orientarte sobre funcionamiento, planes y proceso de activación. Si deseas, responde este correo con tu necesidad principal y te contactamos con la información adecuada.");
   };
 
   const requestToneByStatus = {
@@ -189,27 +216,50 @@ export default function AdminSoporteScreen() {
       <SectionCard
         title="Consultas públicas"
         action={(
-          <View style={styles.filterRow}>
-            {[
-              { label: "Todas", value: "" },
-              { label: "Nuevas", value: "new" },
-              { label: "En curso", value: "in_progress" },
-              { label: "Resueltas", value: "resolved" },
-            ].map((item) => (
-              <Pressable
-                key={item.label}
-                onPress={() => setRequestStatusFilter(item.value)}
-                style={({ pressed }) => [
-                  styles.filterChip,
-                  requestStatusFilter === item.value && styles.filterChipActive,
-                  pressed && { opacity: 0.84 },
-                ]}
-              >
-                <Text style={[styles.filterChipText, requestStatusFilter === item.value && styles.filterChipTextActive]}>
-                  {item.label}
-                </Text>
-              </Pressable>
-            ))}
+          <View style={styles.filterGroups}>
+            <View style={styles.filterRow}>
+              {[
+                { label: "Todas", value: "" },
+                { label: "Nuevas", value: "new" },
+                { label: "En curso", value: "in_progress" },
+                { label: "Resueltas", value: "resolved" },
+              ].map((item) => (
+                <Pressable
+                  key={item.label}
+                  onPress={() => setRequestStatusFilter(item.value)}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    requestStatusFilter === item.value && styles.filterChipActive,
+                    pressed && { opacity: 0.84 },
+                  ]}
+                >
+                  <Text style={[styles.filterChipText, requestStatusFilter === item.value && styles.filterChipTextActive]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.filterRow}>
+              {[
+                { label: "Todos", value: "all" as const },
+                { label: "Asignadas a mí", value: "mine" as const },
+                { label: "Sin asignar", value: "unassigned" as const },
+              ].map((item) => (
+                <Pressable
+                  key={item.label}
+                  onPress={() => setRequestOwnerFilter(item.value)}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    requestOwnerFilter === item.value && styles.filterChipActive,
+                    pressed && { opacity: 0.84 },
+                  ]}
+                >
+                  <Text style={[styles.filterChipText, requestOwnerFilter === item.value && styles.filterChipTextActive]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         )}
       >
@@ -284,6 +334,17 @@ export default function AdminSoporteScreen() {
 
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Mensaje</Text>
+              <View style={styles.templateRow}>
+                <Pressable onPress={() => applyReplyTemplate("access")} style={styles.templateChip}>
+                  <Text style={styles.templateChipText}>Acceso</Text>
+                </Pressable>
+                <Pressable onPress={() => applyReplyTemplate("followup")} style={styles.templateChip}>
+                  <Text style={styles.templateChipText}>Seguimiento</Text>
+                </Pressable>
+                <Pressable onPress={() => applyReplyTemplate("demo")} style={styles.templateChip}>
+                  <Text style={styles.templateChipText}>Info general</Text>
+                </Pressable>
+              </View>
               <TextInput
                 style={[styles.modalInput, styles.modalTextarea]}
                 value={replyMessage}
@@ -371,6 +432,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     flexWrap: "wrap",
+  },
+  filterGroups: {
+    alignItems: "flex-end",
+    gap: 8,
   },
   filterChip: {
     borderRadius: 999,
@@ -496,6 +561,24 @@ const styles = StyleSheet.create({
   },
   field: {
     gap: 6,
+  },
+  templateRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  templateChip: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+  },
+  templateChipText: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: "#334155",
   },
   fieldLabel: {
     fontSize: 13,

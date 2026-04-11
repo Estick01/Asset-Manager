@@ -15,6 +15,9 @@ function joinAppUrl(path: string): string | undefined {
 
 function buildNotificationLink(data?: Record<string, any>): { actionUrl?: string; actionLabel?: string } {
   if (!data) return {};
+  if (typeof data.route === "string" && data.route) {
+    return { actionUrl: joinAppUrl(data.route), actionLabel: "Abrir soporte" };
+  }
   if (typeof data.postId === "string" && data.postId) {
     return { actionUrl: joinAppUrl(`/community/${data.postId}`), actionLabel: "Ver publicación" };
   }
