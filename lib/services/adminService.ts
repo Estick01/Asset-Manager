@@ -420,6 +420,11 @@ export const adminUsersService = {
     return body.data;
   },
 
+  revokeSessions: async (id: string): Promise<void> => {
+    const response = await apiRequest("POST", `/api/admin/users/${id}/revoke-sessions`);
+    if (!response.ok) throw new Error(`Error ${response.status}`);
+  },
+
   listLawyerVerifications: async (status: "pendiente" | "verificado" | "rechazado" = "pendiente"): Promise<LawyerVerificationRow[]> => {
     const response = await apiRequest("GET", `/api/admin/users/lawyer-verifications?status=${status}`);
     if (!response.ok) throw new Error(`Error ${response.status}`);

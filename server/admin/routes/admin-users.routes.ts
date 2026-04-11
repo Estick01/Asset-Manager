@@ -11,6 +11,7 @@ import {
   updateEstado,
   updatePlan,
   resetPassword,
+  revokeSessions,
   listLawyerVerifications,
   updateLawyerVerification,
 } from "../controllers/admin-users.controller.js";
@@ -39,6 +40,11 @@ router.post(
   "/:id/reset-password",
   requireAdminRole("admin_super"),
   resetPassword,
+);
+router.post(
+  "/:id/revoke-sessions",
+  requireAdminRole("admin_super", "admin_soporte"),
+  revokeSessions,
 );
 router.patch(
   "/lawyer-verifications/:id",

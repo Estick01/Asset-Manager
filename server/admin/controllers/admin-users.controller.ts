@@ -162,6 +162,35 @@ export async function resetPassword(
   }
 }
 
+export async function revokeSessions(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    const userId = req.params.id;
+    const user = await adminUsersService.getById(userId);
+
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+
+    await adminUsersService.revokeSessions(userId);
+
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.revocar_sesiones",
+      targetId: userId,
+      detalle: JSON.stringify({ email: user.email }),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listLawyerVerifications(
   req: Request,
   res: Response,

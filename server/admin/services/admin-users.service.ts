@@ -25,6 +25,10 @@ export const adminUsersService = {
     return storage.adminUsers.updatePlan(id, planId);
   },
 
+  async revokeSessions(id: string): Promise<void> {
+    await storage.sessions.revokeAllForUser(id);
+  },
+
   async listLawyerVerifications(status?: LawyerProfessionalVerificationStatus): Promise<LawyerVerificationRow[]> {
     return storage.adminUsers.listLawyerVerifications(status);
   },

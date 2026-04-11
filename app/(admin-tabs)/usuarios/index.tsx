@@ -88,6 +88,7 @@ export default function UsuariosScreen() {
 
   const usuarios: UserAdminRow[] = data?.data ?? [];
   const meta = data?.meta;
+  const [revokingUserId, setRevokingUserId] = useState<string | null>(null);
 
   function handleSearch() {
     setSearch(searchInput.trim());
@@ -118,6 +119,35 @@ export default function UsuariosScreen() {
       });
     } catch {
       Alert.alert("Soporte", "No se pudo abrir la conversación con el usuario.");
+    }
+  }
+
+  async function handleRevokeSessions(user: UserAdminRow) {
+    const userLabel = user.name ?? user.email;
+    const confirmed =
+      typeof globalThis.confirm === "function"
+        ? globalThis.confirm(`Se cerrara la sesion de ${userLabel} en todos sus dispositivos. Deseas continuar?`)
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert(
+              "Revocar sesiones",
+              `Se cerrara la sesion de ${userLabel} en todos sus dispositivos.`,
+              [
+                { text: "Cancelar", style: "cancel", onPress: () => resolve(false) },
+                { text: "Revocar", style: "destructive", onPress: () => resolve(true) },
+              ],
+            );
+          });
+
+    if (!confirmed) return;
+
+    try {
+      setRevokingUserId(user.id);
+      await adminUsersService.revokeSessions(user.id);
+      Alert.alert("Sesiones revocadas", "La sesion del usuario fue cerrada en todos sus dispositivos.");
+    } catch {
+      Alert.alert("Error", "No se pudieron revocar las sesiones del usuario.");
+    } finally {
+      setRevokingUserId(null);
     }
   }
 
@@ -187,6 +217,7 @@ export default function UsuariosScreen() {
               <Text style={[styles.headerCell, { flex: 1 }]}>Tipo</Text>
               <Text style={[styles.headerCell, { flex: 1.5 }]}>Plan</Text>
               <Text style={[styles.headerCell, { flex: 1 }]}>Estado</Text>
+              <Text style={[styles.headerCell, { width: 72, textAlign: "center" }]}>Sesion</Text>
               <Text style={[styles.headerCell, { width: 56, textAlign: "center" }]}>Chat</Text>
             </View>
 
@@ -222,6 +253,24 @@ export default function UsuariosScreen() {
                   <View style={{ flex: 1 }}>
                     <EstadoBadge activo={u.isActive} />
                   </View>
+                  <Pressable
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      void handleRevokeSessions(u);
+                    }}
+                    disabled={revokingUserId === u.id}
+                    style={({ pressed }) => [
+                      styles.revokeBtn,
+                      pressed && revokingUserId !== u.id && { opacity: 0.8 },
+                      revokingUserId === u.id && styles.revokeBtnDisabled,
+                    ]}
+                  >
+                    {revokingUserId === u.id ? (
+                      <ActivityIndicator size="small" color="#DC2626" />
+                    ) : (
+                      <Ionicons name="log-out-outline" size={18} color="#DC2626" />
+                    )}
+                  </Pressable>
                   <Pressable
                     onPress={(event) => {
                       event.stopPropagation();
@@ -411,6 +460,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#EFF6FF",
     borderWidth: 1,
     borderColor: "#BFDBFE",
+  },
+  revokeBtn: {
+    width: 40,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    marginRight: 8,
+  },
+  revokeBtnDisabled: {
+    opacity: 0.65,
   },
   badge: {
     alignSelf: "flex-start",
