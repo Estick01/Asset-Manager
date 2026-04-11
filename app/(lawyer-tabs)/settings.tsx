@@ -93,9 +93,14 @@ export default function LawyerSettingsScreen() {
       items: [
         { icon: "person-outline", label: "Editar Perfil", onPress: () => router.push("/profile/lawyer") },
         { icon: "key-outline", label: "Cambiar Contraseña", onPress: openPwdModal },
+        { icon: "mail-outline", label: "Invitaciones de Firmas", onPress: () => router.push("/lawyer-componts/lawyer-invitations" as any) },
+      ],
+    },
+    {
+      title: "Seguridad",
+      items: [
         { icon: "lock-closed-outline", label: "Autenticacion en dos pasos", onPress: () => router.push("/security/two-factor" as any) },
         { icon: "shield-checkmark-outline", label: "Dispositivos e Inicio de Sesion", onPress: () => router.push("/security/devices" as any) },
-        { icon: "mail-outline", label: "Invitaciones de Firmas", onPress: () => router.push("/lawyer-componts/lawyer-invitations" as any) },
       ],
     },
     {

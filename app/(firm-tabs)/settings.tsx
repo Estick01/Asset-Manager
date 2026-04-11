@@ -187,6 +187,11 @@ export default function FirmSettingsScreen() {
         { icon: "business-outline", label: "Informacion del Bufete", onPress: () => router.push("/firm-info") },
         { icon: "person-outline", label: "Editar Perfil", onPress: () => router.push("/profile/firm") },
         { icon: "key-outline", label: "Cambiar Contrasena", onPress: openPwdModal },
+      ],
+    },
+    {
+      title: "Seguridad",
+      items: [
         { icon: "lock-closed-outline", label: "Autenticacion en dos pasos", onPress: () => router.push("/security/two-factor" as any) },
         { icon: "shield-checkmark-outline", label: "Dispositivos e Inicio de Sesion", onPress: () => router.push("/security/devices" as any) },
       ],

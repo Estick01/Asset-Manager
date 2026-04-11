@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -91,6 +91,10 @@ export default function TwoFactorScreen() {
     }
   }, [disablePassword, loadStatus]);
 
+  const qrUrl = setupData
+    ? `https://quickchart.io/qr?size=240&margin=2&text=${encodeURIComponent(setupData.otpAuthUrl)}`
+    : null;
+
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <View style={styles.header}>
@@ -141,8 +145,14 @@ export default function TwoFactorScreen() {
             <View style={styles.setupCard}>
               <Text style={styles.setupTitle}>Configura tu app autenticadora</Text>
               <Text style={styles.setupText}>
-                En Google Authenticator, Authy o 1Password elige agregar cuenta manualmente y usa esta clave secreta.
+                Escanea este QR con Google Authenticator, Authy o 1Password. Si no puedes escanearlo, usa la clave manual.
               </Text>
+
+              {qrUrl ? (
+                <View style={styles.qrCard}>
+                  <Image source={{ uri: qrUrl }} style={styles.qrImage} resizeMode="contain" />
+                </View>
+              ) : null}
 
               <View style={styles.secretBox}>
                 <Text style={styles.secretLabel}>Clave manual</Text>
@@ -241,6 +251,18 @@ const styles = StyleSheet.create({
   setupCard: { backgroundColor: Colors.surface, borderRadius: 18, borderWidth: 1, borderColor: Colors.border, padding: 18, gap: 12 },
   setupTitle: { fontSize: 18, fontFamily: "Inter_600SemiBold", color: Colors.text },
   setupText: { fontSize: 14, lineHeight: 21, color: Colors.textSecondary },
+  qrCard: {
+    alignSelf: "center",
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  qrImage: {
+    width: 220,
+    height: 220,
+  },
   secretBox: { backgroundColor: Colors.surfaceSecondary, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.border },
   secretLabel: { fontSize: 12, color: Colors.textTertiary, marginBottom: 6 },
   secretValue: { fontSize: 18, lineHeight: 24, fontFamily: "Inter_700Bold", color: Colors.text },

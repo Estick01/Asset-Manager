@@ -32,6 +32,13 @@ function formatDate(iso: string): string {
   });
 }
 
+function buildAdminResetLink(token: string): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return `${window.location.origin}/reset-password?token=${encodeURIComponent(token)}`;
+  }
+  return `/reset-password?token=${encodeURIComponent(token)}`;
+}
+
 function EstadoBadge({ estado }: { estado: string }) {
   const isActiva = estado === "activa";
   return (
@@ -62,6 +69,7 @@ export default function UsuarioDetailScreen() {
   const [modalReset,      setModalReset]      = useState(false);
   const [modalEditar,     setModalEditar]     = useState(false);
   const [resetToken,      setResetToken]      = useState<string | null>(null);
+  const [resetLink,       setResetLink]       = useState<string | null>(null);
   const [selectedPlanId,  setSelectedPlanId]  = useState<string | null>(null);
   const [editForm,        setEditForm]        = useState<Record<string, string>>({});
   const [errorEstado,  setErrorEstado]  = useState<string | null>(null);
@@ -112,6 +120,7 @@ export default function UsuarioDetailScreen() {
     mutationFn: () => adminUsersService.resetPassword(id),
     onSuccess: (result) => {
       setResetToken(result.token);
+      setResetLink(buildAdminResetLink(result.token));
       setModalReset(false);
       setErrorReset(null);
     },
@@ -369,7 +378,9 @@ export default function UsuarioDetailScreen() {
           {/* Reset token generado */}
           {resetToken && (
             <View style={styles.tokenBox}>
-              <Text style={styles.tokenLabel}>Token de reset (válido 1 hora):</Text>
+              <Text style={styles.tokenLabel}>Enlace de reset (válido 1 hora):</Text>
+              {resetLink ? <Text style={styles.tokenValue} selectable>{resetLink}</Text> : null}
+              <Text style={[styles.tokenLabel, { marginTop: 10 }]}>Token:</Text>
               <Text style={styles.tokenValue} selectable>{resetToken}</Text>
               <Pressable onPress={() => setResetToken(null)} style={styles.tokenClose}>
                 <Ionicons name="close-outline" size={16} color="#64748B" />
@@ -572,11 +583,11 @@ export default function UsuarioDetailScreen() {
         onConfirm={() => { if (!mutReset.isPending) mutReset.mutate(); }}
       >
         <Text style={styles.modalBody}>
-          Se generará un token de reset válido por 1 hora para{" "}
+          Se generará un enlace de restablecimiento válido por 1 hora para{" "}
           <Text style={{ fontFamily: "Inter_600SemiBold" }}>
             {user.name ?? user.email}
           </Text>
-          . El token se mostrará aquí para que puedas compartirlo con el usuario.
+          . El enlace se mostrará aquí para que puedas compartirlo con el usuario.
         </Text>
       </StyledModal>
     </AdminShell>

@@ -235,6 +235,13 @@ export default function LawyerSettingsScreen() {
       ],
     },
     {
+      title: "Seguridad",
+      items: [
+        { icon: "lock-closed-outline",   label: "Autenticación en dos pasos",                            onPress: () => router.push("/security/two-factor" as any) },
+        { icon: "shield-checkmark-outline", label: "Dispositivos e inicio de sesión",                    onPress: () => router.push("/security/devices" as any) },
+      ],
+    },
+    {
       title: "Notificaciones",
       items: [
         { icon: "notifications-outline", label: "Ver notificaciones",                                    onPress: () => router.push("/lawyer-componts/lawyer-notifications" as any) },

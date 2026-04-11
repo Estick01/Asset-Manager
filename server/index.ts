@@ -112,12 +112,17 @@ function setupCors(app: express.Application) {
         origin?.startsWith("http://127.0.0.1:"));
 
     if (origin && (origins.has(origin) || isLocalhost)) {
+      const requestedHeaders = req.header("access-control-request-headers");
+      const allowedHeaders = requestedHeaders
+        ? requestedHeaders
+        : "Content-Type, Authorization, x-device-id, x-device-name, x-device-platform";
+
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, PATCH, DELETE, OPTIONS",
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.header("Access-Control-Allow-Headers", allowedHeaders);
       res.header("Access-Control-Allow-Credentials", "true");
     }
 

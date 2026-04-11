@@ -12,6 +12,7 @@ export {
   saveStoredUser,
   clearStoredUser,
   loginUnified,
+  verifyTwoFactorLogin,
   registerUnified,
   verifyUnifiedSession,
   logoutUnified,

@@ -7,6 +7,9 @@ import type { JWTPayload } from "@/shared/model.schema.js";
 import jwt from "jsonwebtoken";
 import type { LawyerProfessionalVerificationStatus } from "@/shared/schema";
 
+const ADMIN_RESET_TOKEN_EXPIRES = "15m";
+const RESET_TOKEN_TYPE = "password_reset";
+
 // ── Schemas Zod ───────────────────────────────────────────────────────────────
 
 const listSchema = z.object({
@@ -204,9 +207,9 @@ export async function resetPassword(
     }
 
     const token = jwt.sign(
-      { userId, purpose: "password_reset" },
+      { sub: userId, type: RESET_TOKEN_TYPE },
       secret,
-      { expiresIn: "1h" },
+      { expiresIn: ADMIN_RESET_TOKEN_EXPIRES },
     );
 
     await auditService.log({
@@ -216,7 +219,7 @@ export async function resetPassword(
       detalle:  JSON.stringify({ email: user.email }),
     });
 
-    res.json({ success: true, data: { token, expiresIn: "1h" } });
+    res.json({ success: true, data: { token, expiresIn: ADMIN_RESET_TOKEN_EXPIRES } });
   } catch (err) {
     next(err);
   }

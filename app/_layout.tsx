@@ -56,7 +56,7 @@ const ROLE_ROUTES: Record<string, AppRoute> = {
   admin_finanzas: "/(admin-tabs)/dashboard",
 };
 
-const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","(auth)", "(public)", "checkout"];
+const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","security","(auth)", "(public)", "checkout"];
 
 const PUBLIC_GRUPS_FIRM = ["firm-components","firm-info"]
 
@@ -180,6 +180,7 @@ export default function RootLayout() {
                         <Stack.Screen name="(lawyer-tabs)" />
                         <Stack.Screen name="(firm-tabs)" />
                         <Stack.Screen name="(admin-tabs)" />
+                        <Stack.Screen name="security" />
                         <Stack.Screen name="portal" />
                       </Stack>
                     </AuthRouteProtection>
