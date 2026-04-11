@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, ScrollView,
@@ -9,7 +9,6 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { toast } from "sonner-native";
 import { API_URL } from "@/lib/config";
@@ -20,6 +19,16 @@ import {
 } from "@/lib/services/ubicacionService";
 import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 type TipoCliente = "natural" | "empresa";
+
+async function triggerHaptic(type: "success" | "error") {
+  if (Platform.OS === "web") return;
+  const Haptics = await import("expo-haptics");
+  await Haptics.notificationAsync(
+    type === "success"
+      ? Haptics.NotificationFeedbackType.Success
+      : Haptics.NotificationFeedbackType.Error,
+  );
+}
 
 // ─── Componente reutilizable de campo ────────────────────────────────────────
 function Field({
@@ -164,8 +173,8 @@ export default function RegisterClienteScreen() {
   const [tiposDocumento, setTiposDocumento] = useState<TipoDocumento[]>([]);
   const [departamentos, setDepartamentos]   = useState<Departamento[]>([]);
   const [municipios, setMunicipios]         = useState<Municipio[]>([]);
-  const [loadingTipos, setLoadingTipos]     = useState(true);
-  const [loadingDeptos, setLoadingDeptos]   = useState(true);
+  const [loadingTipos, setLoadingTipos]     = useState(false);
+  const [loadingDeptos, setLoadingDeptos]   = useState(false);
   const [loadingMun, setLoadingMun]         = useState(false);
   const [loadingMoreMun, setLoadingMoreMun] = useState(false);
 
@@ -188,10 +197,35 @@ export default function RegisterClienteScreen() {
 
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    getTiposDocumento().then(setTiposDocumento).finally(() => setLoadingTipos(false));
-    getDepartamentos().then(setDepartamentos).finally(() => setLoadingDeptos(false));
-  }, []);
+  const loadTiposDocumento = useCallback(async () => {
+    if (tiposDocumento.length > 0 || loadingTipos) return;
+    setLoadingTipos(true);
+    try {
+      setTiposDocumento(await getTiposDocumento());
+    } finally {
+      setLoadingTipos(false);
+    }
+  }, [tiposDocumento.length, loadingTipos]);
+
+  const loadDepartamentos = useCallback(async () => {
+    if (departamentos.length > 0 || loadingDeptos) return;
+    setLoadingDeptos(true);
+    try {
+      setDepartamentos(await getDepartamentos());
+    } finally {
+      setLoadingDeptos(false);
+    }
+  }, [departamentos.length, loadingDeptos]);
+
+  const openTipoModal = useCallback(async () => {
+    await loadTiposDocumento();
+    setShowTipoModal(true);
+  }, [loadTiposDocumento]);
+
+  const openDeptoModal = useCallback(async () => {
+    await loadDepartamentos();
+    setShowDeptoModal(true);
+  }, [loadDepartamentos]);
 
   const loadMunicipios = useCallback(async (deptoId: string, page = 1, search = "") => {
     if (page === 1) setLoadingMun(true);
@@ -206,6 +240,14 @@ export default function RegisterClienteScreen() {
       setLoadingMoreMun(false);
     }
   }, []);
+
+  const openMunModal = useCallback(async () => {
+    if (!departamentoId) return;
+    if (municipios.length === 0 && !loadingMun) {
+      await loadMunicipios(departamentoId, 1, munSearch);
+    }
+    setShowMunModal(true);
+  }, [departamentoId, loadingMun, loadMunicipios, municipios.length, munSearch]);
 
   const handleSelectDepto = (depto: Departamento) => {
     setDepartamentoId(depto.id);
@@ -241,10 +283,10 @@ export default function RegisterClienteScreen() {
         });
         if (!response.ok) {
           toast.error(await extractApiErrorMessage(response, "Error al registrar."));
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
+          void triggerHaptic("error"); return;
         }
         const data = await response.json();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void triggerHaptic("success");
         toast.success(data.message || "Revisa tu correo para verificar la cuenta.");
         router.replace({
           pathname: "/(auth)/verify-email",
@@ -272,10 +314,10 @@ export default function RegisterClienteScreen() {
         });
         if (!response.ok) {
           toast.error(await extractApiErrorMessage(response, "Error al registrar."));
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); return;
+          void triggerHaptic("error"); return;
         }
         const data = await response.json();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        void triggerHaptic("success");
         toast.success(data.message || "Revisa tu correo para verificar la cuenta.");
         router.replace({
           pathname: "/(auth)/verify-email",
@@ -429,7 +471,7 @@ export default function RegisterClienteScreen() {
                           isSelect
                           value={selectedTipo?.codigo}
                           placeholder="Selec."
-                          onPress={() => setShowTipoModal(true)}
+                          onPress={openTipoModal}
                           rightIcon="chevron-down"
                         />
                       )}
@@ -457,7 +499,7 @@ export default function RegisterClienteScreen() {
                       isSelect
                       value={selectedDeptoName}
                       placeholder="Seleccionar departamento"
-                      onPress={() => setShowDeptoModal(true)}
+                      onPress={openDeptoModal}
                       rightIcon="chevron-down"
                     />
                   )}
@@ -468,7 +510,7 @@ export default function RegisterClienteScreen() {
                     isSelect
                     value={selectedMunName}
                     placeholder={departamentoId ? "Seleccionar municipio" : "Primero selecciona un departamento"}
-                    onPress={() => departamentoId && setShowMunModal(true)}
+                    onPress={openMunModal}
                     disabled={!departamentoId}
                     rightIcon={departamentoId ? "chevron-down" : undefined}
                   />

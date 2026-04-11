@@ -4,12 +4,20 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { useAuth } from "@/lib/auth-context";
 import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 import { AuthRequestError } from "@/lib/auth/unified";
 
+async function triggerHaptic(type: "success" | "error") {
+  if (Platform.OS === "web") return;
+  const Haptics = await import("expo-haptics");
+  await Haptics.notificationAsync(
+    type === "success"
+      ? Haptics.NotificationFeedbackType.Success
+      : Haptics.NotificationFeedbackType.Error,
+  );
+}
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -25,6 +33,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showDesktopBrandPanel, setShowDesktopBrandPanel] = useState(!desktop);
 
   // Redirect based on user role after successful login
   useEffect(() => {
@@ -51,6 +60,20 @@ export default function LoginScreen() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!desktop) {
+      setShowDesktopBrandPanel(false);
+      return;
+    }
+
+    setShowDesktopBrandPanel(false);
+    const frame = requestAnimationFrame(() => {
+      setShowDesktopBrandPanel(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [desktop]);
+
 
 const handleLogin = async () => {
   if (!correo.trim() || !password.trim()) {
@@ -64,16 +87,12 @@ const handleLogin = async () => {
   try {
     const success = await login(correo.trim(), password);
     if (success) {
-      Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Success
-      );
+      void triggerHaptic("success");
       // Redirect is handled by useEffect when user state changes
 
     } else {
       setError("Correo o contrasena incorrectos");
-      Haptics.notificationAsync(
-        Haptics.NotificationFeedbackType.Error
-      );
+      void triggerHaptic("error");
     }
 
   } catch (error) {
@@ -161,7 +180,7 @@ const handleVerifyTwoFactor = async () => {
             </View>
 
             <View style={[styles.layout, desktop && styles.desktopLayout]}>
-              {desktop ? (
+              {desktop && showDesktopBrandPanel ? (
                 <View style={[styles.brandPanel, styles.desktopBrandPanel]}>
                   <View style={styles.desktopPanelHeader}>
                     <View style={styles.logoSection}>

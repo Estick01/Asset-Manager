@@ -1,5 +1,5 @@
 import { Redirect, Stack, useSegments } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -34,13 +34,15 @@ const SPLASH_SCREEN_ERRORS = [
 LogBox.ignoreLogs(SPLASH_SCREEN_ERRORS);
 
 // Also handle any uncaught promise errors related to splash screen
-SplashScreen.preventAutoHideAsync().catch((error: any) => {
-  // Silently ignore splash screen errors on iOS during transitions
-  if (error?.message?.includes("splash screen") || error?.message?.includes("view controller")) {
-    return;
-  }
-  console.warn("SplashScreen error:", error);
-});
+if (Platform.OS !== "web") {
+  SplashScreen.preventAutoHideAsync().catch((error: any) => {
+    // Silently ignore splash screen errors on iOS during transitions
+    if (error?.message?.includes("splash screen") || error?.message?.includes("view controller")) {
+      return;
+    }
+    console.warn("SplashScreen error:", error);
+  });
+}
 
 const queryClient = new QueryClient();
 
@@ -57,6 +59,7 @@ const ROLE_ROUTES: Record<string, AppRoute> = {
 };
 
 const PUBLIC_GROUPS = ["profile", "client", "case", "update", "chat", "portal", "community","notifications","security","(auth)", "(public)", "checkout"];
+const LIGHTWEIGHT_GROUPS = new Set(["(auth)", "(public)"]);
 
 const PUBLIC_GRUPS_FIRM = ["firm-components","firm-info"]
 
@@ -77,10 +80,14 @@ function resolveTargetRoute(roleName: string | undefined, isWeb: boolean): AppRo
 function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isLoading, user } = useAuth();
   const segments = useSegments();
-
-  if (isLoading) return null;
-
   const currentGroup = segments[0];
+
+  if (isLoading) {
+    if (currentGroup === "(auth)" || currentGroup === "(public)") {
+      return <>{children}</>;
+    }
+    return null;
+  }
 
 
   if (!isLoggedIn) {
@@ -118,6 +125,45 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AppNavigator() {
+  return (
+    <AuthRouteProtection>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(public)" />
+        <Stack.Screen name="(lawyer-tabs)" />
+        <Stack.Screen name="(firm-tabs)" />
+        <Stack.Screen name="(admin-tabs)" />
+        <Stack.Screen name="security" />
+        <Stack.Screen name="portal" />
+      </Stack>
+    </AuthRouteProtection>
+  );
+}
+
+function RouteScopedProviders() {
+  const segments = useSegments();
+  const currentGroup = segments[0] ?? "";
+
+  if (LIGHTWEIGHT_GROUPS.has(currentGroup)) {
+    return <AppNavigator />;
+  }
+
+  return (
+    <SubscriptionProvider>
+      <GlobalSocketProvider>
+        <InvitationsProvider>
+          <ChatNotificationProvider>
+            <NotificationsProvider>
+              <AppNavigator />
+            </NotificationsProvider>
+          </ChatNotificationProvider>
+        </InvitationsProvider>
+      </GlobalSocketProvider>
+    </SubscriptionProvider>
+  );
+}
+
 export default function RootLayout() {
   const [loaded] = useFonts({
     Inter_400Regular,
@@ -125,21 +171,10 @@ export default function RootLayout() {
     Inter_600SemiBold,
     Inter_700Bold,
   });
-  const [webFontTimeoutReached, setWebFontTimeoutReached] = useState(Platform.OS !== "web");
-  const fontsReady = loaded || webFontTimeoutReached;
+  const fontsReady = Platform.OS === "web" ? true : loaded;
 
   useEffect(() => {
-    if (Platform.OS !== "web" || loaded) return;
-
-    const timeout = setTimeout(() => {
-      setWebFontTimeoutReached(true);
-    }, 1500);
-
-    return () => clearTimeout(timeout);
-  }, [loaded]);
-
-  useEffect(() => {
-    if (fontsReady) {
+    if (Platform.OS !== "web" && fontsReady) {
       SplashScreen.hideAsync().catch((error: any) => {
         // Silently ignore splash screen errors on iOS during transitions
         if (error?.message?.includes("splash screen") || error?.message?.includes("view controller")) {
@@ -168,27 +203,7 @@ export default function RootLayout() {
         <View style={styles.contentWrapper}>
           <QueryClientProvider client={queryClient}>
             <UnifiedAuthProvider>
-              <SubscriptionProvider>
-              <GlobalSocketProvider>
-                <InvitationsProvider>
-                  <ChatNotificationProvider>
-                    <NotificationsProvider>
-                    <AuthRouteProtection>
-                      <Stack screenOptions={{ headerShown: false }}>
-                        <Stack.Screen name="(auth)" />
-                        <Stack.Screen name="(public)" />
-                        <Stack.Screen name="(lawyer-tabs)" />
-                        <Stack.Screen name="(firm-tabs)" />
-                        <Stack.Screen name="(admin-tabs)" />
-                        <Stack.Screen name="security" />
-                        <Stack.Screen name="portal" />
-                      </Stack>
-                    </AuthRouteProtection>
-                    </NotificationsProvider>
-                  </ChatNotificationProvider>
-                </InvitationsProvider>
-              </GlobalSocketProvider>
-              </SubscriptionProvider>
+              <RouteScopedProviders />
             </UnifiedAuthProvider>
           </QueryClientProvider>
           <Toaster />

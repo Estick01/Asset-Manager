@@ -343,6 +343,7 @@ export default function LandingScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const sectionPositions = useRef<Record<string, number>>({});
   const [activeSection, setActiveSection] = useState(QUICK_NAV_ITEMS[0].key);
+  const [deferSecondarySections, setDeferSecondarySections] = useState(Platform.OS !== "web");
 
   const irARegistro = () => router.push("/(auth)/register-type");
   const irALogin = () => router.push("/(auth)/login");
@@ -375,6 +376,8 @@ export default function LandingScreen() {
   }
 
   function handleScroll(event: any) {
+    if (!deferSecondarySections) return;
+
     const scrollY = event.nativeEvent.contentOffset.y;
     const threshold = scrollY + (IS_MOBILE_LAYOUT ? 90 : 150);
 
@@ -432,6 +435,16 @@ export default function LandingScreen() {
       rel: "canonical",
       href: canonicalHref,
     });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const frame = requestAnimationFrame(() => {
+      setDeferSecondarySections(true);
+    });
+
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   return (
@@ -530,6 +543,9 @@ export default function LandingScreen() {
             </View>
           </View>
         </View>
+
+        {deferSecondarySections ? (
+          <>
 
         {/* ── SOLUCIÓN ── */}
         <LinearGradient
@@ -1357,6 +1373,8 @@ export default function LandingScreen() {
             </Text>
           </View>
         </View>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );
