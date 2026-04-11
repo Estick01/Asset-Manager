@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   // Auth tokens
   AUTH_TOKEN: 'procesoclaro_auth_token',
   REFRESH_TOKEN: 'procesoclaro_refresh_token',
+  DEVICE_ID: 'procesoclaro_device_id',
   
   // Unified user data (new SaaS system)
   USER: 'procesoclaro_user',

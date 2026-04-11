@@ -10,6 +10,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import {
   loginUnified,
   logoutUnified,
+  verifyTwoFactorLogin,
   verifyUnifiedSession,
   saveStoredUser,
   hasRole,
@@ -27,6 +28,7 @@ export interface AuthContextValue {
   isLawyerUser: boolean;
   isFirmUser: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  completeTwoFactorLogin: (challengeId: string, code: string) => Promise<boolean>;
   logout: () => Promise<void>;
   updateProfile: (updates: Partial<UnifiedUser>) => Promise<void>;
   checkRole: (role: Rol) => boolean;
@@ -95,6 +97,15 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const completeTwoFactorLogin = useCallback(async (challengeId: string, code: string): Promise<boolean> => {
+    const loggedInUser = await verifyTwoFactorLogin(challengeId, code);
+    if (loggedInUser && loggedInUser.user && loggedInUser.profile) {
+      setUser(loggedInUser);
+      return true;
+    }
+    return false;
+  }, []);
+
   const updateProfile = useCallback(async (updates: Partial<UnifiedUser>) => {
     if (user) {
       const updated = { ...user, ...updates };
@@ -125,12 +136,13 @@ export function UnifiedAuthProvider({ children }: { children: ReactNode }) {
       isLawyerUser: userRole.includes('abogado') || userRole.includes('lawyer'),
       isFirmUser: userRole.includes('bufete') || userRole.includes('firm') || userRole.includes('empresa'),
       login,
+      completeTwoFactorLogin,
       logout,
       updateProfile,
       checkRole,
       hasPermission,
     };
-  }, [user, isLoading, login, logout, updateProfile, checkRole, hasPermission]);
+  }, [user, isLoading, login, completeTwoFactorLogin, logout, updateProfile, checkRole, hasPermission]);
 
   return (
     <AuthContext.Provider value={value}>

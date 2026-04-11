@@ -5,6 +5,7 @@ import { Platform } from 'react-native';
 import { API_URL, IS_NGROK } from './config';
 import { STORAGE_KEYS } from './keys';
 import { toastApiError } from './api-error';
+import { getDeviceHeaders } from './device-id';
 
 // ─── Silent Refresh ───────────────────────────────────────────────────────────
 // Shared promise: concurrent 401s reuse the same refresh attempt
@@ -20,11 +21,13 @@ async function _doRefresh(): Promise<boolean> {
   try {
     const isWeb = Platform.OS === 'web';
     const refreshToken = isWeb ? null : await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
+    const deviceHeaders = await getDeviceHeaders();
 
     const res = await fetch(`${API_URL.replace(/\/$/, "")}/api/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...deviceHeaders,
         ...(IS_NGROK ? { 'ngrok-skip-browser-warning': '1' } : {}),
       },
       credentials: 'include',
@@ -82,6 +85,7 @@ export async function apiRequest(
   const url = `${API_URL.replace(/\/$/, "")}/${route.replace(/^\//, "")}`;
 
   const headers: Record<string, string> = {};
+  Object.assign(headers, await getDeviceHeaders());
 
   // Don't set Content-Type for FormData, let the browser set it with the correct boundary
   const isFormData = data instanceof FormData;

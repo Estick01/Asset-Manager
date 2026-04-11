@@ -48,6 +48,9 @@ export interface UnifiedAuthResponse {
   token?: string;
   profile?: Profile;
   permisos?: string[];
+  newDeviceDetected?: boolean;
+  requiresTwoFactor?: boolean;
+  challengeId?: string;
 }
 
 // --- Abogado Types (Legacy) ---

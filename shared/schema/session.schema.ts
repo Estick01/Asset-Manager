@@ -10,6 +10,7 @@ export const sessions = mysqlTable("sessions", {
   revokedAt:         timestamp("revoked_at"),
   ipAddress:         varchar("ip_address",         { length: 45  }),
   userAgent:         varchar("user_agent",         { length: 500 }),
+  deviceId:          varchar("device_id",          { length: 191 }),
   createdAt:         timestamp("created_at").notNull().defaultNow(),
   /** Opaque refresh token - used to issue a new access token without re-login */
   refreshToken:      varchar("refresh_token",      { length: 64  }).unique(),

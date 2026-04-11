@@ -48,6 +48,20 @@ export class SessionStorage {
       );
   }
 
+  /** Revoke all active sessions for one recognized device */
+  async revokeAllForDevice(userId: string, deviceId: string): Promise<void> {
+    await this.db
+      .update(sessions)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(
+          eq(sessions.userId, userId),
+          eq(sessions.deviceId, deviceId),
+          eq(sessions.revokedAt, null as any)
+        )
+      );
+  }
+
   /** Find session by refresh token */
   async findByRefreshToken(refreshToken: string): Promise<Session | undefined> {
     return this.db.query.sessions.findFirst({
@@ -82,6 +96,7 @@ export class SessionStorage {
       refreshExpiresAt: newRefreshExpiresAt,
       ipAddress: old?.ipAddress ?? null,
       userAgent: old?.userAgent ?? null,
+      deviceId: old?.deviceId ?? null,
     });
   }
 

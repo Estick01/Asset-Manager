@@ -206,6 +206,28 @@ export {
   type InsertSession,
 } from "./session.schema";
 
+// Recognized devices
+export {
+  userDevices,
+  userDevicesRelations,
+  type UserDevice,
+  type InsertUserDevice,
+} from "./user-device.schema";
+
+export {
+  userTwoFactor,
+  userTwoFactorRelations,
+  type UserTwoFactor,
+  type InsertUserTwoFactor,
+} from "./user-two-factor.schema";
+
+export {
+  authChallenges,
+  authChallengesRelations,
+  type AuthChallenge,
+  type InsertAuthChallenge,
+} from "./auth-challenge.schema";
+
 // Tareas
 export {
   tareas,

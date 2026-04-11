@@ -230,6 +230,7 @@ router.put("/cliente/me", authenticate, async (req: Request, res: Response, next
     // Update user email / password if provided
     if (correo || password) {
       const userUpdates: any = {};
+      let passwordChanged = false;
       if (correo) userUpdates.email = correo;
       if (password) {
         if (!currentPassword) {
@@ -242,8 +243,12 @@ router.put("/cliente/me", authenticate, async (req: Request, res: Response, next
           return res.status(401).json({ error: "La contraseña actual es incorrecta." });
         }
         userUpdates.passwordHash = await hashPassword(password);
+        passwordChanged = true;
       }
       await storage.users.updateUser(authUser.id, userUpdates);
+      if (passwordChanged) {
+        await storage.sessions.revokeAllForUser(authUser.id);
+      }
     }
 
     // Update or create representante legal for empresa clients
@@ -349,9 +354,16 @@ router.put("/clientes/:id", authenticate, requirePermission("clientes.editar"), 
     if (correo || password) {
       const { hashPassword } = await import("../auth.js");
       const userUpdates: any = {};
+      let passwordChanged = false;
       if (correo) userUpdates.email = correo;
-      if (password) userUpdates.passwordHash = await hashPassword(password);
+      if (password) {
+        userUpdates.passwordHash = await hashPassword(password);
+        passwordChanged = true;
+      }
       await storage.users.updateUser(cliente.userId!, userUpdates);
+      if (passwordChanged) {
+        await storage.sessions.revokeAllForUser(cliente.userId!);
+      }
     }
 
     // Handle representante legal for empresa clients

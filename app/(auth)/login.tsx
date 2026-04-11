@@ -17,9 +17,11 @@ export default function LoginScreen() {
   const desktop = Platform.OS === "web" && isDesktopViewport(width);
   const metrics = getDesktopMetrics(width);
   const shellWidth = Math.min(1140, Math.max(960, width - metrics.gutter * 2));
-  const { login, user } = useAuth();
+  const { login, completeTwoFactorLogin, user } = useAuth();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
+  const [twoFactorCode, setTwoFactorCode] = useState("");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,10 +83,44 @@ const handleLogin = async () => {
         pathname: "/(auth)/verify-email",
         params: { email: correo.trim(), next: "/login" },
       } as any);
+    } else if (error instanceof AuthRequestError && error.requiresTwoFactor && error.challengeId) {
+      setChallengeId(error.challengeId);
+      setTwoFactorCode("");
+      setError(error.newDeviceDetected
+        ? "Verifica este inicio de sesión con tu código 2FA. Detectamos un dispositivo nuevo."
+        : error.message);
     } else if (error instanceof Error) {
       setError(error.message || "Error al iniciar sesion");
     } else {
       setError("Error al iniciar sesion");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleVerifyTwoFactor = async () => {
+  if (!challengeId) {
+    setError("La verificación expiró. Vuelve a iniciar sesión.");
+    return;
+  }
+  if (!twoFactorCode.trim()) {
+    setError("Ingresa el código de autenticación.");
+    return;
+  }
+
+  setLoading(true);
+  setError("");
+  try {
+    const success = await completeTwoFactorLogin(challengeId, twoFactorCode.trim());
+    if (!success) {
+      setError("No fue posible completar el inicio de sesión.");
+    }
+  } catch (error) {
+    if (error instanceof Error) {
+      setError(error.message || "Error al verificar el código.");
+    } else {
+      setError("Error al verificar el código.");
     }
   } finally {
     setLoading(false);
@@ -237,35 +273,68 @@ const handleLogin = async () => {
                       </View>
                     </View>
 
-                    <View style={styles.inputGroup}>
-                      <View style={styles.passwordLabelRow}>
-                        <Text style={styles.label}>Contrasena</Text>
-                        <Pressable
-                          onPress={() => router.push("/(auth)/forgot-password")}
-                          style={({ pressed }) => [styles.inlineForgotBtn, pressed && styles.inlineForgotBtnPressed]}
-                        >
-                          <Text style={styles.inlineForgotText}>Recuperar acceso</Text>
-                        </Pressable>
+                    {!challengeId ? (
+                      <View style={styles.inputGroup}>
+                        <View style={styles.passwordLabelRow}>
+                          <Text style={styles.label}>Contrasena</Text>
+                          <Pressable
+                            onPress={() => router.push("/(auth)/forgot-password")}
+                            style={({ pressed }) => [styles.inlineForgotBtn, pressed && styles.inlineForgotBtnPressed]}
+                          >
+                            <Text style={styles.inlineForgotText}>Recuperar acceso</Text>
+                          </Pressable>
+                        </View>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="lock-closed-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                          <TextInput
+                            style={[styles.input, styles.passwordInput]}
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholder="Tu contrasena"
+                            placeholderTextColor={Colors.textTertiary}
+                            secureTextEntry={!showPassword}
+                          />
+                          <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                            <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textTertiary} />
+                          </Pressable>
+                        </View>
                       </View>
-                      <View style={styles.inputWrapper}>
-                        <Ionicons name="lock-closed-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
-                        <TextInput
-                          style={[styles.input, styles.passwordInput]}
-                          value={password}
-                          onChangeText={setPassword}
-                          placeholder="Tu contrasena"
-                          placeholderTextColor={Colors.textTertiary}
-                          secureTextEntry={!showPassword}
-                        />
-                        <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                          <Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color={Colors.textTertiary} />
-                        </Pressable>
+                    ) : (
+                      <View style={styles.inputGroup}>
+                        <View style={styles.passwordLabelRow}>
+                          <Text style={styles.label}>Codigo 2FA o recovery code</Text>
+                          <Pressable
+                            onPress={() => {
+                              setChallengeId(null);
+                              setTwoFactorCode("");
+                              setError("");
+                            }}
+                            style={({ pressed }) => [styles.inlineForgotBtn, pressed && styles.inlineForgotBtnPressed]}
+                          >
+                            <Text style={styles.inlineForgotText}>Volver</Text>
+                          </Pressable>
+                        </View>
+                        <View style={styles.inputWrapper}>
+                          <Ionicons name="shield-checkmark-outline" size={18} color={Colors.textTertiary} style={styles.inputIcon} />
+                          <TextInput
+                            style={styles.input}
+                            value={twoFactorCode}
+                            onChangeText={setTwoFactorCode}
+                            placeholder="123456 o ABCD-EFGH"
+                            placeholderTextColor={Colors.textTertiary}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                          />
+                        </View>
+                        <Text style={styles.helperText}>
+                          Usa el código de tu app autenticadora o uno de tus códigos de recuperación.
+                        </Text>
                       </View>
-                    </View>
+                    )}
                   </View>
 
                   <Pressable
-                    onPress={handleLogin}
+                    onPress={challengeId ? handleVerifyTwoFactor : handleLogin}
                     disabled={loading}
                     style={({ pressed }) => [styles.loginBtn, pressed && styles.loginBtnPressed, loading && styles.loginBtnDisabled]}
                   >
@@ -273,7 +342,7 @@ const handleLogin = async () => {
                       <ActivityIndicator color={Colors.white} />
                     ) : (
                       <>
-                        <Text style={styles.loginBtnText}>Ingresar</Text>
+                        <Text style={styles.loginBtnText}>{challengeId ? "Verificar y entrar" : "Ingresar"}</Text>
                         <Ionicons name="arrow-forward" size={16} color={Colors.white} />
                       </>
                     )}
@@ -661,6 +730,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_600SemiBold",
     color: Colors.primary,
+  },
+  helperText: {
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
   },
   loginBtn: {
     backgroundColor: Colors.primary,

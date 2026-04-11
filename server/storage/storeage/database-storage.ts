@@ -26,6 +26,9 @@ import { LawyerFirmaHistoryStorage } from "./models/lawyer-firma-history-storage
 import { FirmInvitationStorage } from "./models/firm-invitation-storage";
 import { ChatStorage } from "./models/chat-storage";
 import { SessionStorage } from "./models/session-storage";
+import { UserDeviceStorage } from "./models/user-device-storage";
+import { UserTwoFactorStorage } from "./models/user-two-factor-storage";
+import { AuthChallengeStorage } from "./models/auth-challenge-storage";
 import { TareaStorage } from "./models/tarea-storage";
 import { PersonaStorage } from "./models/persona-storage";
 import { RepresentanteLegalStorage } from "./models/representante-legal-storage";
@@ -88,6 +91,9 @@ export class DatabaseStorage {
   public FirmDashboardStorage: FirmDashboardStorage;
   public chat: ChatStorage;
   public sessions: SessionStorage;
+  public userDevices: UserDeviceStorage;
+  public userTwoFactor: UserTwoFactorStorage;
+  public authChallenges: AuthChallengeStorage;
   public tareas: TareaStorage;
   public personas: PersonaStorage;
   public representantesLegales: RepresentanteLegalStorage;
@@ -153,6 +159,9 @@ export class DatabaseStorage {
     this.FirmDashboardStorage = new FirmDashboardStorage(this.db);
     this.chat = new ChatStorage(this.db);
     this.sessions = new SessionStorage(this.db);
+    this.userDevices = new UserDeviceStorage(this.db);
+    this.userTwoFactor = new UserTwoFactorStorage(this.db);
+    this.authChallenges = new AuthChallengeStorage(this.db);
     this.tareas = new TareaStorage(this.db);
     this.personas = new PersonaStorage(this.db);
     this.representantesLegales = new RepresentanteLegalStorage(this.db);
@@ -188,6 +197,7 @@ export class DatabaseStorage {
     setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1000);
     // Cleanup expired OTPs every hour
     setInterval(() => this.otps.deleteExpired(), 60 * 60 * 1000);
+    setInterval(() => this.authChallenges.deleteExpired(), 60 * 60 * 1000);
   }
 
   // Backwards-compatibility facade used by older routes while the storage

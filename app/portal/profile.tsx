@@ -332,6 +332,14 @@ export default function ClientProfileScreen() {
                 placeholder="tu@correo.com" placeholderTextColor={Colors.textTertiary}
                 keyboardType="email-address" autoCapitalize="none" />
             </Field>
+            <Pressable style={styles.accountAction} onPress={() => router.push("/security/devices" as any)}>
+              <Ionicons name="shield-checkmark-outline" size={16} color={PORTAL_BLUE} />
+              <Text style={styles.accountActionText}>Gestionar dispositivos activos</Text>
+            </Pressable>
+            <Pressable style={styles.accountAction} onPress={() => router.push("/security/two-factor" as any)}>
+              <Ionicons name="lock-closed-outline" size={16} color={PORTAL_BLUE} />
+              <Text style={styles.accountActionText}>Autenticacion en dos pasos</Text>
+            </Pressable>
           </View>
 
           {isEmpresa ? (
@@ -783,6 +791,22 @@ const styles = StyleSheet.create({
     borderRadius: 10, borderWidth: 1, borderColor: Colors.border,
     paddingVertical: 12, paddingHorizontal: 14,
     fontSize: 15, fontFamily: "Inter_400Regular", color: Colors.text,
+  },
+  accountAction: {
+    marginTop: -2,
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: PORTAL_BLUE + "10",
+  },
+  accountActionText: {
+    fontSize: 13,
+    fontFamily: "Inter_600SemiBold",
+    color: PORTAL_BLUE,
   },
   selectBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

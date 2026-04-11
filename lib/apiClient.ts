@@ -5,6 +5,7 @@ import { API_URL, IS_NGROK } from './config';
 import { STORAGE_KEYS } from './keys';
 import { apiRequest } from './query-client';
 import { featureGateEvents } from './feature-gate-events';
+import { getDeviceHeaders } from './device-id';
 
 // Re-export apiRequest for direct use
 export { apiRequest };
@@ -74,6 +75,7 @@ export async function authenticatedFetch(
   const isFormData = options.body instanceof FormData;
 
   let headers: Record<string, string> = {};
+  Object.assign(headers, await getDeviceHeaders());
 
   // Don't set Content-Type for FormData, as the browser needs to set it
   // with the correct boundary.
@@ -152,12 +154,13 @@ async function _doRefresh(): Promise<boolean> {
   try {
     const refreshToken = await getRefreshToken();
     const isWeb = Platform.OS === 'web';
+    const deviceHeaders = await getDeviceHeaders();
 
     const body = isWeb ? undefined : JSON.stringify({ refreshToken });
 
     const res = await fetch(`${API_URL}/api/auth/refresh`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...deviceHeaders },
       credentials: 'include', // sends httpOnly refresh cookie on web
       body,
     });

@@ -26,14 +26,20 @@ import { Rol } from '@/shared/schema';
 export class AuthRequestError extends Error {
   code?: string;
   requiresEmailVerification?: boolean;
+  requiresTwoFactor?: boolean;
   email?: string;
+  challengeId?: string;
+  newDeviceDetected?: boolean;
 
-  constructor(message: string, options?: { code?: string; requiresEmailVerification?: boolean; email?: string }) {
+  constructor(message: string, options?: { code?: string; requiresEmailVerification?: boolean; requiresTwoFactor?: boolean; email?: string; challengeId?: string; newDeviceDetected?: boolean }) {
     super(message);
     this.name = "AuthRequestError";
     this.code = options?.code;
     this.requiresEmailVerification = options?.requiresEmailVerification;
+    this.requiresTwoFactor = options?.requiresTwoFactor;
     this.email = options?.email;
+    this.challengeId = options?.challengeId;
+    this.newDeviceDetected = options?.newDeviceDetected;
   }
 }
 
@@ -86,8 +92,47 @@ export async function loginUnified(
   }
 
   const authData: UnifiedAuthResponse = await response.json();
+  if (authData.requiresTwoFactor && authData.challengeId) {
+    throw new AuthRequestError(
+      'Ingresa el código de autenticación de tu app o un código de recuperación.',
+      {
+        code: 'TWO_FACTOR_REQUIRED',
+        requiresTwoFactor: true,
+        challengeId: authData.challengeId,
+        email,
+        newDeviceDetected: authData.newDeviceDetected,
+      },
+    );
+  }
 
   // Save tokens (access + refresh) for mobile; web uses httpOnly cookies
+  if (authData.token) await saveAuthToken(authData.token);
+  if ((authData as any).refreshToken) await saveRefreshToken((authData as any).refreshToken);
+
+  const user: UnifiedUser = {
+    user: authData.user,
+    profile: authData.profile,
+    permisos: authData.permisos ?? [],
+  };
+  await saveStoredUser(user);
+  return user;
+}
+
+export async function verifyTwoFactorLogin(
+  challengeId: string,
+  code: string
+): Promise<UnifiedUser | null> {
+  const response = await apiRequest("POST", "/api/auth/2fa/verify-login", { challengeId, code });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new AuthRequestError(
+      error.error || 'No se pudo verificar el código.',
+      { code: error.code }
+    );
+  }
+
+  const authData: UnifiedAuthResponse = await response.json();
   if (authData.token) await saveAuthToken(authData.token);
   if ((authData as any).refreshToken) await saveRefreshToken((authData as any).refreshToken);
 

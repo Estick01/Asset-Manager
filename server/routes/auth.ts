@@ -11,6 +11,7 @@ import { storage } from './../storage/storeage/database-storage';
  */
 
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { hashPassword, verifyPassword, verifyToken, authenticate, extractToken, AUTH_COOKIE_NAME, AUTH_REFRESH_COOKIE_NAME, REFRESH_MAX_AGE, createAuthResponse, getClearCookieOptions, generateRefreshToken, getRefreshCookieOptions } from "../auth.js";
 import { JWTPayload } from "@/shared/model.schema.js";
@@ -18,6 +19,8 @@ import { validate } from "../middleware/validation.js";
 import { loginRateLimiter, registerRateLimiter } from "../middleware/rate-limit.js";
 import { subscriptionService } from "../services/subscription.service.js";
 import { sendEmailVerificationOtp } from "../services/email.service.js";
+import { queueNotificationEmail } from "../services/email.service.js";
+import { generateOtpAuthUrl, generateRecoveryCodes, generateTwoFactorSecret, hashRecoveryCodes, verifyRecoveryCode, verifyTotpCode } from "../services/two-factor.service.js";
 import {
   recordFailure,
   recordSuccess,
@@ -85,6 +88,160 @@ const emailVerificationVerifySchema = z.object({
   code: z.string().length(6, "El código debe tener 6 dígitos"),
 });
 
+const twoFactorCodeSchema = z.object({
+  code: z.string().min(6, "Ingresa el código de autenticación"),
+});
+
+const verifyTwoFactorLoginSchema = z.object({
+  challengeId: z.string().uuid("Challenge inválido"),
+  code: z.string().min(6, "Ingresa el código de autenticación"),
+});
+
+const disableTwoFactorSchema = z.object({
+  currentPassword: z.string().min(1, "La contraseña actual es obligatoria"),
+});
+
+const deviceRevokeParamsSchema = z.object({
+  id: z.string().uuid("Dispositivo inválido"),
+});
+
+const DEVICE_ID_HEADER = "x-device-id";
+const DEVICE_NAME_HEADER = "x-device-name";
+const DEVICE_PLATFORM_HEADER = "x-device-platform";
+
+function readHeader(req: Request, header: string): string | null {
+  const raw = req.headers[header];
+  if (Array.isArray(raw)) return raw[0] ?? null;
+  return typeof raw === "string" ? raw : null;
+}
+
+function cleanHeaderValue(value: string | null | undefined, maxLength: number): string | null {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+
+function defaultDeviceName(platform: string | null): string {
+  if (platform === "web") return "Navegador web";
+  if (platform === "ios") return "Dispositivo iOS";
+  if (platform === "android") return "Dispositivo Android";
+  return "Dispositivo";
+}
+
+function buildFallbackDeviceId(req: Request, platform: string | null, userAgent: string | null): string {
+  const raw = `${req.ip ?? "unknown"}|${platform ?? "unknown"}|${userAgent ?? "unknown"}`;
+  return `legacy_${Buffer.from(raw).toString("base64url").slice(0, 160)}`;
+}
+
+function getDeviceContext(req: Request) {
+  const userAgent = cleanHeaderValue(readHeader(req, "user-agent"), 500);
+  const platform = cleanHeaderValue(readHeader(req, DEVICE_PLATFORM_HEADER), 30) ?? "unknown";
+  const deviceName = cleanHeaderValue(readHeader(req, DEVICE_NAME_HEADER), 120) ?? defaultDeviceName(platform);
+  const deviceId = cleanHeaderValue(readHeader(req, DEVICE_ID_HEADER), 191) ?? buildFallbackDeviceId(req, platform, userAgent);
+
+  return {
+    deviceId,
+    deviceName,
+    platform,
+    userAgent,
+  };
+}
+
+function parseRecoveryCodeHashes(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+async function buildUserLoginContext(userId: string) {
+  const user = await storage.getUserById(userId);
+  if (!user) throw new Error("Usuario no encontrado");
+
+  const role = await storage.getRol(user.rolId ?? 0);
+  if (!role) throw new Error("El usuario no tiene rol asignado");
+
+  const rawProfile = await storage.getUserProfile(user.id, role.nombre);
+  if (!rawProfile) throw new Error("El usuario no tiene perfil asignado");
+
+  let firmRolId: number | null = null;
+  if (role.nombre === "abogado" && rawProfile?.id) {
+    const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(rawProfile.id);
+    if (activeHistory?.firmRolId) firmRolId = activeHistory.firmRolId;
+  }
+
+  return {
+    user,
+    role,
+    profile: rawProfile as Profile,
+    firmRolId,
+  };
+}
+
+async function finalizeLogin(req: Request, res: Response, userId: string) {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const { deviceId, deviceName, platform, userAgent } = getDeviceContext(req);
+  const { user, role, profile, firmRolId } = await buildUserLoginContext(userId);
+
+  const deviceResult = await storage.userDevices.upsertSeen({
+    userId: user.id,
+    deviceId,
+    deviceName,
+    platform,
+    userAgent,
+    lastIp: ip,
+  });
+
+  const authResponse = createAuthResponse(
+    { id: user.id, email: user.email, name: user.name },
+    role, res, profile, firmRolId
+  );
+
+  const refreshToken = generateRefreshToken();
+  const isProduction = process.env.NODE_ENV === "production";
+
+  await storage.sessions.create({
+    id:               authResponse.jti,
+    userId:           user.id,
+    expiresAt:        new Date(Date.now() + 2 * 60 * 60 * 1000),
+    refreshToken,
+    refreshExpiresAt: new Date(Date.now() + REFRESH_MAX_AGE),
+    ipAddress:        ip,
+    userAgent,
+    deviceId:         deviceResult.device.deviceId,
+  });
+
+  recordSuccess(ip, user.email).catch(() => {});
+  auditLog({ email: user.email, ip, userAgent, eventType: "login_success", success: true }).catch(() => {});
+
+  if (deviceResult.isNewDevice) {
+    queueNotificationEmail(
+      user.email,
+      "Nuevo inicio de sesión detectado",
+      [
+        "Detectamos un inicio de sesión desde un dispositivo no reconocido.",
+        "",
+        `Dispositivo: ${deviceResult.device.deviceName ?? "Dispositivo nuevo"}`,
+        `Plataforma: ${deviceResult.device.platform ?? "No identificada"}`,
+        `IP aproximada: ${ip}`,
+        `Fecha: ${new Date().toLocaleString("es-CO")}`,
+        "",
+        "Si fuiste tú, no necesitas hacer nada. Si no reconoces esta actividad, cambia tu contraseña y revoca los dispositivos activos.",
+      ].join("\n")
+    );
+  }
+
+  res.cookie(AUTH_REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(isProduction));
+
+  const effectiveRolId = firmRolId ?? role.id;
+  const permisos = await storage.getPermisosByRol(effectiveRolId);
+
+  return { ...authResponse, refreshToken, permisos, newDeviceDetected: deviceResult.isNewDevice };
+}
+
 async function queueEmailVerification(email: string, userId: string): Promise<void> {
   const code = await storage.otps.createEmailVerificationOtp(userId);
   sendEmailVerificationOtp(email, code).catch((err) => {
@@ -96,7 +253,7 @@ async function queueEmailVerification(email: string, userId: string): Promise<vo
 // POST /api/login
 router.post("/login", loginRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
   const ip        = req.ip ?? req.socket.remoteAddress ?? "unknown";
-  const userAgent = (req.headers["user-agent"] ?? null) as string | null;
+  const { deviceId, deviceName, platform, userAgent } = getDeviceContext(req);
 
   try {
     const parsed = loginSchema.safeParse(req.body);
@@ -137,48 +294,26 @@ router.post("/login", loginRateLimiter, async (req: Request, res: Response, next
     }
 
     // ── Success ─────────────────────────────────────────────────────────────
-    const role = await storage.getRol(user.rolId ?? 0);
-    if (!role) throw new Error("El usuario no tiene rol asignado");
+    const twoFactor = await storage.userTwoFactor.getByUserId(user.id);
+    if (twoFactor?.enabledAt) {
+      const challengeId = randomUUID();
+      await storage.authChallenges.create({
+        id: challengeId,
+        userId: user.id,
+        challengeType: "two_factor_login",
+        deviceId: deviceId,
+        ipAddress: ip,
+        userAgent,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        createdAt: new Date(),
+      });
 
-    const rawProfile = await storage.getUserProfile(user.id, role?.nombre || "");
-    if (!rawProfile) throw new Error("El usuario no tiene perfil asignado");
-
-    const profile: Profile = rawProfile;
-
-    let firmRolId: number | null = null;
-    if (role.nombre === "abogado" && rawProfile?.id) {
-      const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(rawProfile.id);
-      if (activeHistory?.firmRolId) firmRolId = activeHistory.firmRolId;
+      return res.json({
+        requiresTwoFactor: true,
+        challengeId,
+      });
     }
-
-    const authResponse = createAuthResponse(
-      { id: user.id, email: user.email, name: user.name },
-      role, res, profile, firmRolId
-    );
-
-    const refreshToken  = generateRefreshToken();
-    const isProduction  = process.env.NODE_ENV === "production";
-
-    await storage.sessions.create({
-      id:               authResponse.jti,
-      userId:           user.id,
-      expiresAt:        new Date(Date.now() + 2 * 60 * 60 * 1000),
-      refreshToken,
-      refreshExpiresAt: new Date(Date.now() + REFRESH_MAX_AGE),
-      ipAddress:        ip,
-      userAgent,
-    });
-
-    // Clear combo counter on success + audit
-    recordSuccess(ip, email).catch(() => {});
-    auditLog({ email, ip, userAgent, eventType: "login_success", success: true }).catch(() => {});
-
-    res.cookie(AUTH_REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(isProduction));
-
-    const effectiveRolId = firmRolId ?? role.id;
-    const permisos = await storage.getPermisosByRol(effectiveRolId);
-
-    return res.json({ ...authResponse, refreshToken, permisos });
+    return res.json(await finalizeLogin(req, res, user.id));
   } catch (err) {
     next(err);
   }
@@ -437,6 +572,9 @@ router.get("/auth/token", async (req: Request, res: Response, next: NextFunction
 
 // POST /api/auth/refresh - Silent token renewal using refresh token
 router.post("/auth/refresh", async (req: Request, res: Response, next: NextFunction) => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const deviceContext = getDeviceContext(req);
+
   try {
     // Mobile sends refreshToken in body; web uses httpOnly cookie
     const refreshToken: string | undefined =
@@ -496,12 +634,173 @@ router.post("/auth/refresh", async (req: Request, res: Response, next: NextFunct
       new Date(Date.now() + REFRESH_MAX_AGE),
     );
 
+    if (session.deviceId) {
+      await storage.userDevices.upsertSeen({
+        userId: session.userId,
+        deviceId: session.deviceId,
+        deviceName: deviceContext.deviceName,
+        platform: deviceContext.platform,
+        userAgent: deviceContext.userAgent,
+        lastIp: ip,
+      });
+    }
+
     res.cookie(AUTH_REFRESH_COOKIE_NAME, newRefreshToken, getRefreshCookieOptions(isProduction));
 
     const effectiveRolId = firmRolId ?? role.id;
     const permisos = await storage.getPermisosByRol(effectiveRolId);
 
     return res.json({ ...authResponse, refreshToken: newRefreshToken, permisos });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/auth/2fa/status", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authUser = req.user!;
+    const twoFactor = await storage.userTwoFactor.getByUserId(authUser.id);
+    const recoveryCodes = parseRecoveryCodeHashes(twoFactor?.recoveryCodes);
+
+    res.json({
+      enabled: !!twoFactor?.enabledAt,
+      setupPending: !!twoFactor && !twoFactor.enabledAt,
+      recoveryCodesRemaining: recoveryCodes.length,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/2fa/setup", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authUser = req.user!;
+    const user = await storage.getUserById(authUser.id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+
+    const secret = generateTwoFactorSecret();
+    await storage.userTwoFactor.upsertSecret(authUser.id, secret);
+
+    res.json({
+      secret,
+      otpAuthUrl: generateOtpAuthUrl(user.email, secret),
+      manualEntryKey: secret,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/2fa/verify-setup", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authUser = req.user!;
+    const { code } = twoFactorCodeSchema.parse(req.body);
+    const twoFactor = await storage.userTwoFactor.getByUserId(authUser.id);
+    if (!twoFactor) {
+      return res.status(400).json({ error: "No hay una configuración de 2FA pendiente." });
+    }
+    if (!verifyTotpCode(twoFactor.secret, code)) {
+      return res.status(400).json({ error: "El código de verificación es inválido." });
+    }
+
+    const recoveryCodes = generateRecoveryCodes();
+    await storage.userTwoFactor.enable(authUser.id, twoFactor.secret, hashRecoveryCodes(recoveryCodes));
+
+    res.json({
+      message: "Autenticación en dos pasos activada.",
+      recoveryCodes,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/2fa/disable", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authUser = req.user!;
+    const { currentPassword } = disableTwoFactorSchema.parse(req.body);
+    const user = await storage.getUserById(authUser.id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+
+    const valid = await verifyPassword(currentPassword, user.passwordHash || "");
+    if (!valid) {
+      return res.status(401).json({ error: "La contraseña actual es incorrecta." });
+    }
+
+    await storage.userTwoFactor.disable(authUser.id);
+    res.json({ message: "Autenticación en dos pasos desactivada." });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/2fa/verify-login", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { challengeId, code } = verifyTwoFactorLoginSchema.parse(req.body);
+    const challenge = await storage.authChallenges.getValidById(challengeId);
+    if (!challenge || challenge.challengeType !== "two_factor_login") {
+      return res.status(400).json({ error: "El desafío de autenticación es inválido o expiró." });
+    }
+
+    const twoFactor = await storage.userTwoFactor.getByUserId(challenge.userId);
+    if (!twoFactor?.enabledAt) {
+      return res.status(400).json({ error: "La autenticación en dos pasos no está activa para esta cuenta." });
+    }
+
+    let validated = verifyTotpCode(twoFactor.secret, code);
+    if (!validated) {
+      const recoveryHashes = parseRecoveryCodeHashes(twoFactor.recoveryCodes);
+      const recoveryResult = verifyRecoveryCode(code, recoveryHashes);
+      if (recoveryResult.valid) {
+        validated = true;
+        await storage.userTwoFactor.updateRecoveryCodes(challenge.userId, recoveryResult.remaining);
+      }
+    }
+
+    if (!validated) {
+      return res.status(400).json({ error: "El código de autenticación es inválido." });
+    }
+
+    await storage.authChallenges.complete(challenge.id);
+    return res.json(await finalizeLogin(req, res, challenge.userId));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get("/auth/devices", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authUser = req.user!;
+    const currentSession = await storage.sessions.findById(authUser.jti);
+    const currentDevice = currentSession?.deviceId
+      ? await storage.userDevices.getByDeviceId(authUser.id, currentSession.deviceId)
+      : undefined;
+
+    const devices = await storage.userDevices.listForUser(authUser.id, currentDevice?.id ?? null);
+    res.json(devices);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post("/auth/devices/:id/revoke", authenticate, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const params = deviceRevokeParamsSchema.parse(req.params);
+    const authUser = req.user!;
+    const currentSession = await storage.sessions.findById(authUser.jti);
+    const currentDevice = currentSession?.deviceId
+      ? await storage.userDevices.getByDeviceId(authUser.id, currentSession.deviceId)
+      : undefined;
+
+    const revoked = await storage.userDevices.revokeById(authUser.id, params.id);
+    if (!revoked) {
+      return res.status(404).json({ error: "Dispositivo no encontrado" });
+    }
+
+    res.json({
+      message: "Dispositivo revocado correctamente",
+      currentDeviceRevoked: currentDevice?.id === revoked.id,
+    });
   } catch (err) {
     next(err);
   }
