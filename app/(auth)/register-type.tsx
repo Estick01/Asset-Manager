@@ -54,7 +54,7 @@ export default function RegisterTypeScreen() {
     >
       <View style={[styles.shell, desktop && { maxWidth: shellWidth, paddingHorizontal: metrics.gutter, paddingTop: insets.top + 28, paddingBottom: insets.bottom + 28 }]}>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.push("/landing")} style={styles.topBarBtn} hitSlop={8}>
+          <Pressable onPress={() => router.push("/")} style={styles.topBarBtn} hitSlop={8}>
             <Ionicons name="arrow-back" size={16} color={Colors.white} />
             <Text style={styles.topBarBtnText}>Volver a la landing</Text>
           </Pressable>

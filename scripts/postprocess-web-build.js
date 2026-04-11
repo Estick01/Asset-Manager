@@ -130,11 +130,13 @@ function rewriteReferences(replacements) {
 }
 
 function buildSeoPayload() {
-  const title = "ProcesoClaro | Software de gestion juridica para abogados y bufetes";
+  const title = "Software para abogados en Colombia | ProcesoClaro";
   const description =
-    "ProcesoClaro centraliza procesos legales, clientes, documentos, chat y seguimiento para firmas juridicas, abogados independientes y clientes en Colombia.";
+    "Gestiona procesos judiciales, clientes y casos en un solo lugar. Software jurídico moderno para abogados y bufetes en Colombia.";
   const canonical = `${baseUrl}/`;
   const ogImage = `${baseUrl}/assets/images/favicon.png`;
+  const ogTitle = "ProcesoClaro - Software jurídico";
+  const ogDescription = "Gestiona tu firma legal sin caos";
   const schema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -160,6 +162,8 @@ function buildSeoPayload() {
     description,
     canonical,
     ogImage,
+    ogTitle,
+    ogDescription,
     schema,
   };
 }
@@ -171,18 +175,21 @@ function injectSeoMetadata() {
   const seo = buildSeoPayload();
   let html = fs.readFileSync(indexPath, "utf8");
 
-  html = html.replace(/<html(\s|>)/i, '<html lang="es-CO"$1');
-  html = html.replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(seo.title)}</title>`);
+  html = html.replace(/<html\b([^>]*)>/i, (_match, attrs) => {
+    const normalizedAttrs = String(attrs).replace(/\s+lang="[^"]*"/gi, "");
+    return `<html lang="es-CO"${normalizedAttrs}>`;
+  });
+  html = html.replace(/<title\b[^>]*>.*?<\/title>/i, `<title>${escapeHtml(seo.title)}</title>`);
 
   const headInsert = [
     `<meta name="description" content="${escapeHtml(seo.description)}" />`,
-    `<meta name="robots" content="index,follow,max-image-preview:large" />`,
+    `<meta name="robots" content="index, follow" />`,
     `<link rel="canonical" href="${seo.canonical}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:locale" content="es_CO" />`,
     `<meta property="og:site_name" content="${escapeHtml(appName)}" />`,
-    `<meta property="og:title" content="${escapeHtml(seo.title)}" />`,
-    `<meta property="og:description" content="${escapeHtml(seo.description)}" />`,
+    `<meta property="og:title" content="${escapeHtml(seo.ogTitle)}" />`,
+    `<meta property="og:description" content="${escapeHtml(seo.ogDescription)}" />`,
     `<meta property="og:url" content="${seo.canonical}" />`,
     `<meta property="og:image" content="${seo.ogImage}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
@@ -203,20 +210,11 @@ function injectSeoMetadata() {
 }
 
 function writeRobots() {
-  const robots = `User-agent: *
+  const publicRobotsPath = path.join(projectRoot, "public", "robots.txt");
+  const robots = fs.existsSync(publicRobotsPath)
+    ? fs.readFileSync(publicRobotsPath, "utf8")
+    : `User-agent: *
 Allow: /
-Disallow: /(admin-tabs)
-Disallow: /(lawyer-tabs)
-Disallow: /(firm-tabs)
-Disallow: /portal
-Disallow: /portal-empresa
-Disallow: /chat
-Disallow: /case
-Disallow: /client
-Disallow: /profile
-Disallow: /firm-components
-Disallow: /lawyer-componts
-
 Sitemap: ${baseUrl}/sitemap.xml
 `;
 
@@ -224,46 +222,14 @@ Sitemap: ${baseUrl}/sitemap.xml
 }
 
 function writeSitemap() {
-  const publicRoutes = [
-    "/",
-    "/landing",
-    "/login",
-    "/planes",
-    "/software-para-abogados",
-    "/software-para-bufetes",
-    "/portal-del-cliente",
-    "/gestion-de-procesos-legales",
-    "/software-juridico-colombia",
-    "/precios-software-legal",
-    "/faq",
-    "/contacto",
-    "/sobre-nosotros",
-    "/forgot-password",
-    "/register-type",
-    "/register-lawyer",
-    "/register-firm",
-    "/register-cliente",
-    "/register-empresa",
-    "/register-professional",
-    "/verify-email",
-  ];
-  const now = new Date().toISOString();
-  const entries = publicRoutes
-    .map((route) => {
-      const normalized = route === "/" ? "" : route;
-      return [
-        "  <url>",
-        `    <loc>${baseUrl}${normalized}</loc>`,
-        `    <lastmod>${now}</lastmod>`,
-        route === "/" ? "    <priority>1.0</priority>" : "    <priority>0.7</priority>",
-        "  </url>",
-      ].join("\n");
-    })
-    .join("\n");
-
-  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+  const publicSitemapPath = path.join(projectRoot, "public", "sitemap.xml");
+  const sitemap = fs.existsSync(publicSitemapPath)
+    ? fs.readFileSync(publicSitemapPath, "utf8")
+    : `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${entries}
+  <url>
+    <loc>${baseUrl}/</loc>
+  </url>
 </urlset>
 `;
 

@@ -166,7 +166,7 @@ const handleVerifyTwoFactor = async () => {
           <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
             <View style={styles.topBar}>
               <Pressable
-                onPress={() => router.push("/landing")}
+                onPress={() => router.push("/")}
                 style={({ pressed }) => [styles.backLink, pressed && styles.backLinkPressed]}
               >
                 <Ionicons name="arrow-back" size={16} color={Colors.white} />

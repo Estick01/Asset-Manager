@@ -1,4 +1,4 @@
-import { Redirect, Stack, useSegments } from "expo-router";
+import { Redirect, Stack, usePathname, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -80,10 +80,13 @@ function resolveTargetRoute(roleName: string | undefined, isWeb: boolean): AppRo
 function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, isLoading, user } = useAuth();
   const segments = useSegments();
+  const pathname = usePathname();
   const currentGroup = segments[0];
+  const isPublicEntryRoute = pathname === "/";
+  const isPublicRoute = isPublicEntryRoute || currentGroup === "(auth)" || currentGroup === "(public)";
 
   if (isLoading) {
-    if (currentGroup === "(auth)" || currentGroup === "(public)") {
+    if (isPublicRoute) {
       return <>{children}</>;
     }
     return null;
@@ -91,8 +94,8 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
 
 
   if (!isLoggedIn) {
-    if (currentGroup !== "(auth)" && currentGroup !== "(public)") {
-      return <Redirect href="/landing" />;
+    if (!isPublicRoute) {
+      return <Redirect href="/" />;
     }
     return <>{children}</>;
   }
@@ -100,7 +103,7 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   const targetRoute = resolveTargetRoute(user?.user?.rol?.nombre, Platform.OS === "web");
 
   if (!targetRoute) {
-    return <Redirect href="/landing" />;
+    return <Redirect href="/" />;
   }
 
 
@@ -113,7 +116,7 @@ function AuthRouteProtection({ children }: { children: React.ReactNode }) {
   }
 
 
-  if (PUBLIC_GROUPS.includes(currentGroup)) {
+  if (isPublicEntryRoute || PUBLIC_GROUPS.includes(currentGroup)) {
     return <>{children}</>;
   }
 

@@ -9,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { router, Stack } from "expo-router";
+import { Redirect, router, Stack } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,6 +21,22 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Esto funciona en mobile nativo, web móvil, y desktop.
 const IS_MOBILE_LAYOUT = SCREEN_WIDTH < 768;
 const CONTENT_MAX_WIDTH = 1100;
+
+function SeoH1({ children, style }: { children: React.ReactNode; style: any }) {
+  if (Platform.OS === "web") {
+    return React.createElement(
+      "h1",
+      { style: { ...StyleSheet.flatten(style), margin: 0 } },
+      children
+    );
+  }
+
+  return (
+    <Text accessibilityRole="header" style={style}>
+      {children}
+    </Text>
+  );
+}
 
 // ── Sub-componentes ────────────────────────────────────────────────────────────
 
@@ -39,7 +55,7 @@ function Navbar({
 }) {
   const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.navbar, { paddingTop: insets.top + 12 }]}>
+    <View style={[styles.navbar, { paddingTop: insets.top + (Platform.OS === "web" ? 6 : 12) }]}>
       <View style={styles.navShell}>
         <View style={styles.navInner}>
           <View style={styles.navBrandBlock}>
@@ -61,22 +77,32 @@ function Navbar({
               onPress={onLogin}
               hitSlop={8}
             >
-              <Text style={styles.navSecondaryBtnText}>Iniciar sesión</Text>
+              {IS_MOBILE_LAYOUT ? (
+                <Ionicons name="log-in-outline" size={18} color={Colors.white} />
+              ) : (
+                <Text style={styles.navSecondaryBtnText}>Iniciar sesión</Text>
+              )}
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.navSupportBtn, pressed && styles.navButtonPressed]}
               onPress={onSupport}
               hitSlop={8}
             >
-              <Text style={styles.navSupportBtnText}>Soporte</Text>
+              {IS_MOBILE_LAYOUT ? (
+                <Ionicons name="headset-outline" size={18} color={Colors.accentLight} />
+              ) : (
+                <Text style={styles.navSupportBtnText}>Soporte</Text>
+              )}
             </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.navPrimaryBtn, pressed && styles.navButtonPressed]}
-              onPress={onRegister}
-              hitSlop={8}
-            >
-              <Text style={styles.navPrimaryBtnText}>Solicitar acceso</Text>
-            </Pressable>
+            {!IS_MOBILE_LAYOUT ? (
+              <Pressable
+                style={({ pressed }) => [styles.navPrimaryBtn, pressed && styles.navButtonPressed]}
+                onPress={onRegister}
+                hitSlop={8}
+              >
+                <Text style={styles.navPrimaryBtnText}>Solicitar acceso</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
         <ScrollView
@@ -348,7 +374,11 @@ const QUICK_NAV_ITEMS = [
 
 // ── Pantalla principal ─────────────────────────────────────────────────────────
 
-export default function LandingScreen() {
+export function LandingPageScreen({
+  canonicalPath = "https://procesoclaro.co/",
+}: {
+  canonicalPath?: string;
+}) {
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
   const sectionPositions = useRef<Record<string, number>>({});
@@ -406,10 +436,9 @@ export default function LandingScreen() {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
 
-    const title = "ProcesoClaro | Software para abogados, bufetes y gestion juridica";
+    const title = "Software para abogados en Colombia | ProcesoClaro";
     const description =
-      "Software de gestion juridica para abogados y bufetes en Colombia. Centraliza procesos legales, clientes, documentos, calendario y portal del cliente.";
-    const canonicalHref = "https://procesoclaro.co/landing";
+      "Gestiona procesos judiciales, clientes y casos en un solo lugar. Software jurídico moderno para abogados y bufetes en Colombia.";
 
     document.title = title;
 
@@ -430,23 +459,31 @@ export default function LandingScreen() {
       name: "description",
       content: description,
     });
+    ensureMeta('meta[name="robots"]', {
+      name: "robots",
+      content: "index, follow",
+    });
     ensureMeta('meta[property="og:title"]', {
       property: "og:title",
-      content: title,
+      content: "ProcesoClaro - Software jurídico",
     });
     ensureMeta('meta[property="og:description"]', {
       property: "og:description",
-      content: description,
+      content: "Gestiona tu firma legal sin caos",
     });
     ensureMeta('meta[property="og:url"]', {
       property: "og:url",
-      content: canonicalHref,
+      content: canonicalPath,
+    });
+    ensureMeta('meta[property="og:type"]', {
+      property: "og:type",
+      content: "website",
     });
     ensureMeta('link[rel="canonical"]', {
       rel: "canonical",
-      href: canonicalHref,
+      href: canonicalPath,
     });
-  }, []);
+  }, [canonicalPath]);
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
@@ -460,7 +497,7 @@ export default function LandingScreen() {
 
   return (
     <View style={styles.root}>
-      <Stack.Screen options={{ title: "ProcesoClaro | Software legal" }} />
+      <Stack.Screen options={{ title: "Software para abogados en Colombia | ProcesoClaro" }} />
       <Navbar
         onLogin={irALogin}
         onRegister={irARegistro}
@@ -488,13 +525,14 @@ export default function LandingScreen() {
               <Text style={styles.heroBadgeText}>Plataforma legal colombiana</Text>
             </View>
 
-            <Text style={styles.heroH1}>
-              Gestiona tu firma legal{"\n"}
-              <Text style={styles.heroH1Accent}>sin el caos</Text>
+            <SeoH1 style={styles.heroH1}>Software para abogados en Colombia</SeoH1>
+
+            <Text style={styles.heroH1Accent}>
+              Gestiona tu firma legal sin caos
             </Text>
 
             <Text style={styles.heroSubtitle}>
-              Todo lo que necesitas como abogado independiente o bufete: clientes, procesos, documentos, calendario y equipo — en una sola plataforma.
+              Gestiona procesos judiciales, clientes y casos en un solo lugar. Software jurídico moderno para abogados y bufetes en Colombia.
             </Text>
 
             <View style={styles.heroCtas}>
@@ -1399,6 +1437,10 @@ export default function LandingScreen() {
   );
 }
 
+export default function LegacyLandingRoute() {
+  return <Redirect href="/" />;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // w(desktop, mobile): retorna mobile si el viewport es < 768px,
 // sin importar si es web o nativo. Así funciona en celular real,
@@ -1422,7 +1464,7 @@ const styles = StyleSheet.create({
     zIndex: 100,
     paddingHorizontal: SECTION_PX,
     paddingBottom: w(14, 10),
-    paddingTop: 2,
+    paddingTop: 0,
     backgroundColor: "transparent",
     backdropFilter: Platform.OS === "web" ? ("blur(12px)" as any) : undefined,
   },
@@ -1456,7 +1498,7 @@ const styles = StyleSheet.create({
   },
   navQuickRow: {
     gap: 10,
-    paddingTop: w(12, 10),
+    paddingTop: w(8, 6),
     paddingBottom: 2,
     borderTopWidth: 1,
     borderTopColor: "rgba(117, 152, 191, 0.16)",
@@ -1514,6 +1556,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.04)",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: w(undefined, 44),
   },
   navSecondaryBtnText: {
     fontSize: 14,
@@ -1530,6 +1573,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(212,168,83,0.12)",
     alignItems: "center",
     justifyContent: "center",
+    minWidth: w(undefined, 44),
   },
   navSupportBtnText: {
     fontSize: 14,
@@ -1612,8 +1656,8 @@ const styles = StyleSheet.create({
 
   // ── Hero ──────────────────────────────────────────────────────────────────
   hero: {
-    marginTop: w(-108, -72),
-    paddingTop: w(228, 104),
+    marginTop: w(-84, -52),
+    paddingTop: w(188, 84),
     paddingBottom: 0,
     paddingHorizontal: SECTION_PX,
   },
@@ -1647,10 +1691,17 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: Colors.white,
     textAlign: "center",
-    lineHeight: w(62, 36),
-    marginBottom: w(20, 14),
+    lineHeight: w(4, 2),
+    marginBottom: w(6, 10),
   },
-  heroH1Accent: { color: Colors.accent },
+  heroH1Accent: {
+    fontSize: w(34, 22),
+    fontFamily: "Inter_700Bold",
+    color: Colors.accent,
+    textAlign: "center",
+    lineHeight: w(40, 28),
+    marginBottom: w(18, 12),
+  },
   heroSubtitle: {
     fontSize: w(18, 15),
     fontFamily: "Inter_400Regular",

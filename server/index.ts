@@ -271,6 +271,10 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
+    if (req.path === "/landing") {
+      return res.redirect(301, "/");
+    }
+
     if (req.path !== "/" && req.path !== "/manifest") {
       return next();
     }
