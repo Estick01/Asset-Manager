@@ -14,6 +14,13 @@ const expoConfig = appJson.expo ?? {};
 const appName = expoConfig.name ?? "ProcesoClaro";
 const baseUrl = resolveBaseUrl();
 const seoPageMap = new Map((seoPages.pages ?? []).map((page) => [page.output, page]));
+const legacyRedirects = [
+  {
+    output: "landing.html",
+    fromPath: "/landing",
+    toPath: "/",
+  },
+];
 
 function resolveBaseUrl() {
   const configured =
@@ -202,7 +209,7 @@ function buildSeoPayload(page) {
           "@type": "ListItem",
           position: 1,
           name: "Inicio",
-          item: `${baseUrl}/landing`,
+          item: `${baseUrl}/`,
         },
         {
           "@type": "ListItem",
@@ -328,6 +335,38 @@ function injectSeoMetadata(filePath, page) {
   return true;
 }
 
+function injectLegacyRedirect(filePath, redirect) {
+  if (!fs.existsSync(filePath)) return false;
+
+  const canonicalUrl = `${baseUrl}${redirect.toPath}`;
+  let html = fs.readFileSync(filePath, "utf8");
+
+  html = removeSeoTags(html);
+  html = html.replace(/<html\b([^>]*)>/i, (_match, attrs) => {
+    const normalizedAttrs = String(attrs).replace(/\s+lang="[^"]*"/gi, "");
+    return `<html lang="es-CO"${normalizedAttrs}>`;
+  });
+  html = html.replace(
+    /<title\b[^>]*>.*?<\/title>/i,
+    `<title>Redireccionando a ${escapeHtml(appName)}</title>`,
+  );
+
+  const headInsert = [
+    `<meta name="robots" content="noindex, follow" />`,
+    `<link rel="canonical" href="${canonicalUrl}" />`,
+    `<meta http-equiv="refresh" content="0; url=${canonicalUrl}" />`,
+  ].join("\n    ");
+
+  html = html.replace("</head>", `    ${headInsert}\n  </head>`);
+  html = html.replace(
+    /<body[^>]*>[\s\S]*<\/body>/i,
+    `<body><p>Redireccionando a <a href="${canonicalUrl}">${canonicalUrl}</a></p></body>`,
+  );
+
+  fs.writeFileSync(filePath, html);
+  return true;
+}
+
 function injectRouteSeoPages() {
   let updatedCount = 0;
 
@@ -339,9 +378,11 @@ function injectRouteSeoPages() {
     }
   }
 
-  const indexPath = path.join(distDir, "index.html");
-  if (fs.existsSync(indexPath)) {
-    injectSeoMetadata(indexPath, null);
+  for (const redirect of legacyRedirects) {
+    const filePath = path.join(distDir, redirect.output);
+    if (injectLegacyRedirect(filePath, redirect)) {
+      updatedCount += 1;
+    }
   }
 
   return updatedCount;
@@ -362,14 +403,9 @@ Sitemap: ${baseUrl}/sitemap.xml
 function buildSitemapXml() {
   const now = new Date().toISOString();
   const urls = [
-    {
-      loc: `${baseUrl}/`,
-      priority: "0.8",
-      changefreq: "weekly",
-    },
     ...seoPages.pages.map((page) => ({
       loc: `${baseUrl}${page.route}`,
-      priority: page.route === "/landing" ? "1.0" : "0.8",
+      priority: page.route === "/" ? "1.0" : "0.8",
       changefreq: "weekly",
     })),
   ];

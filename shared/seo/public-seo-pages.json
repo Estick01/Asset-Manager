@@ -1,11 +1,11 @@
 {
   "pages": [
     {
-      "route": "/landing",
-      "output": "landing.html",
+      "route": "/",
+      "output": "index.html",
       "title": "Software para abogados en Colombia | ProcesoClaro",
       "description": "Software para abogados en Colombia con gestion de procesos judiciales, clientes, documentos, tareas y portal del cliente en una sola plataforma.",
-      "canonicalPath": "/landing",
+      "canonicalPath": "/",
       "breadcrumbLabel": "Software para abogados en Colombia",
       "eyebrow": "Software para abogados en Colombia",
       "heroTitle": "Software para abogados en Colombia para ordenar casos, clientes y operacion legal",
