@@ -137,7 +137,6 @@ function AppNavigator() {
         <Stack.Screen name="(lawyer-tabs)" />
         <Stack.Screen name="(firm-tabs)" />
         <Stack.Screen name="(admin-tabs)" />
-        <Stack.Screen name="security" />
         <Stack.Screen name="portal" />
       </Stack>
     </AuthRouteProtection>
