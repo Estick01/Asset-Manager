@@ -17,6 +17,11 @@ export default function CrmParaAbogadosPage() {
       heroBody={page.heroBody}
       bullets={page.bullets}
       sections={page.sections}
+      primaryCtaLabel={page.primaryCtaLabel}
+      primaryCtaHref={page.primaryCtaHref}
+      secondaryCtaLabel={page.secondaryCtaLabel}
+      secondaryCtaHref={page.secondaryCtaHref}
+      faq={page.faq}
       extraSchemas={[
         {
           "@context": "https://schema.org",

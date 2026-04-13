@@ -15,6 +15,14 @@ export type PublicSeoPageContent = {
     title: string;
     body: string;
   }[];
+  primaryCtaLabel?: string;
+  primaryCtaHref?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
+  faq?: {
+    question: string;
+    answer: string;
+  }[];
 };
 
 const pages = seoPages.pages as PublicSeoPageContent[];

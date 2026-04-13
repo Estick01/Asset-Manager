@@ -25,6 +25,14 @@ type PublicSeoPageProps = {
     title: string;
     body: string;
   }[];
+  primaryCtaLabel?: string;
+  primaryCtaHref?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
+  faq?: {
+    question: string;
+    answer: string;
+  }[];
   extraSchemas?: Record<string, unknown>[];
 };
 
@@ -38,6 +46,11 @@ export function PublicSeoPage({
   heroBody,
   bullets,
   sections,
+  primaryCtaLabel = "Crear cuenta",
+  primaryCtaHref = "/(auth)/register-type",
+  secondaryCtaLabel = "Ver planes",
+  secondaryCtaHref = "/planes",
+  faq = [],
   extraSchemas = [],
 }: PublicSeoPageProps) {
   useEffect(() => {
@@ -94,6 +107,22 @@ export function PublicSeoPage({
           },
         ],
       },
+      ...(faq.length > 0
+        ? [
+            {
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: faq.map((item) => ({
+                "@type": "Question",
+                name: item.question,
+                acceptedAnswer: {
+                  "@type": "Answer",
+                  text: item.answer,
+                },
+              })),
+            },
+          ]
+        : []),
       ...extraSchemas,
     ];
 
@@ -136,7 +165,7 @@ export function PublicSeoPage({
       document.head.appendChild(schemaTag);
     }
     schemaTag.text = JSON.stringify(baseSchemas);
-  }, [breadcrumbLabel, canonicalPath, description, extraSchemas, title]);
+  }, [breadcrumbLabel, canonicalPath, description, extraSchemas, faq, title]);
 
   return (
     <View style={styles.root}>
@@ -183,12 +212,12 @@ export function PublicSeoPage({
               : <Text style={styles.heroTitle}>{heroTitle}</Text>}
             <Text style={styles.heroDescription}>{heroBody}</Text>
             <View style={styles.ctaRow}>
-              <Pressable style={styles.primaryCta} onPress={() => router.push("/(auth)/register-type")}>
-                <Text style={styles.primaryCtaText}>Crear cuenta</Text>
+              <Pressable style={styles.primaryCta} onPress={() => router.push(primaryCtaHref as any)}>
+                <Text style={styles.primaryCtaText}>{primaryCtaLabel}</Text>
                 <Ionicons name="arrow-forward" size={18} color={Colors.primaryDark} />
               </Pressable>
-              <Pressable style={styles.secondaryCta} onPress={() => router.push("/planes")}>
-                <Text style={styles.secondaryCtaText}>Ver planes</Text>
+              <Pressable style={styles.secondaryCta} onPress={() => router.push(secondaryCtaHref as any)}>
+                <Text style={styles.secondaryCtaText}>{secondaryCtaLabel}</Text>
               </Pressable>
             </View>
           </View>
@@ -215,6 +244,34 @@ export function PublicSeoPage({
                 <Text style={styles.gridBody}>{section.body}</Text>
               </View>
             ))}
+          </View>
+
+          {faq.length > 0 ? (
+            <View style={styles.faqSection}>
+              <Text style={styles.faqHeading}>Preguntas frecuentes</Text>
+              {faq.map((item) => (
+                <View key={item.question} style={styles.faqCard}>
+                  <Text style={styles.faqQuestion}>{item.question}</Text>
+                  <Text style={styles.faqAnswer}>{item.answer}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          <View style={styles.bottomCtaCard}>
+            <Text style={styles.bottomCtaTitle}>{heroTitle}</Text>
+            <Text style={styles.bottomCtaBody}>
+              Evalua si ProcesoClaro encaja con tu forma de operar y con el tipo de clientes que atiende tu despacho.
+            </Text>
+            <View style={styles.ctaRow}>
+              <Pressable style={styles.primaryCta} onPress={() => router.push(primaryCtaHref as any)}>
+                <Text style={styles.primaryCtaText}>{primaryCtaLabel}</Text>
+                <Ionicons name="arrow-forward" size={18} color={Colors.primaryDark} />
+              </Pressable>
+              <Pressable style={styles.secondaryCtaDark} onPress={() => router.push(secondaryCtaHref as any)}>
+                <Text style={styles.secondaryCtaDarkText}>{secondaryCtaLabel}</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </ScrollView>
@@ -310,7 +367,7 @@ const styles = StyleSheet.create({
   heroTitle: {
     color: Colors.white,
     fontSize: 34,
-    lineHeight: 42,
+    lineHeight: 2,
     fontFamily: "Inter_700Bold",
     maxWidth: 760,
   },
@@ -420,5 +477,65 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontFamily: "Inter_400Regular",
     color: Colors.textSecondary,
+  },
+  faqSection: {
+    gap: 12,
+  },
+  faqHeading: {
+    fontSize: 22,
+    lineHeight: 30,
+    fontFamily: "Inter_700Bold",
+    color: Colors.primaryDark,
+  },
+  faqCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 20,
+    gap: 8,
+  },
+  faqQuestion: {
+    fontSize: 17,
+    lineHeight: 24,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.text,
+  },
+  faqAnswer: {
+    fontSize: 14,
+    lineHeight: 22,
+    fontFamily: "Inter_400Regular",
+    color: Colors.textSecondary,
+  },
+  bottomCtaCard: {
+    backgroundColor: Colors.primaryDark,
+    borderRadius: 22,
+    padding: 24,
+    gap: 12,
+  },
+  bottomCtaTitle: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontFamily: "Inter_700Bold",
+    color: Colors.white,
+  },
+  bottomCtaBody: {
+    fontSize: 15,
+    lineHeight: 24,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.82)",
+  },
+  secondaryCtaDark: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.18)",
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  secondaryCtaDarkText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontFamily: "Inter_500Medium",
   },
 });

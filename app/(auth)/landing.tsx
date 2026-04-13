@@ -25,9 +25,18 @@ const CONTENT_MAX_WIDTH = 1100;
 
 function SeoH1({ children, style }: { children: React.ReactNode; style: any }) {
   if (Platform.OS === "web") {
+    const flatStyle = StyleSheet.flatten(style) ?? {};
+    const webStyle = {
+      ...flatStyle,
+      fontSize:
+        typeof flatStyle.fontSize === "number" ? `${flatStyle.fontSize}px` : flatStyle.fontSize,
+      lineHeight:
+        typeof flatStyle.lineHeight === "number" ? `${flatStyle.lineHeight}px` : flatStyle.lineHeight,
+    };
+
     return React.createElement(
       "h1",
-      { style: { ...StyleSheet.flatten(style), margin: 0 } },
+      { style: { ...webStyle, margin: 0 } },
       children
     );
   }
@@ -1283,6 +1292,33 @@ export function LandingPageScreen({
           </View>
         </View>
 
+        {/* ── EXPLORA MÁS ── */}
+        <View style={[styles.section, styles.sectionWhite]}>
+          <View style={styles.sectionInner}>
+            <SectionTitle
+              label="Paginas principales"
+              title={"Explora las rutas clave\ndel producto"}
+              subtitle="Esta grilla resume las paginas comerciales principales para abogados, firmas y clientes."
+            />
+            <View style={styles.seoLinksGrid}>
+              {SEO_LINKS.map((item) => (
+                <Pressable
+                  key={item.href}
+                  onPress={() => router.push(item.href as any)}
+                  style={({ pressed }) => [styles.seoLinkCard, pressed && styles.ctaPressed]}
+                >
+                  <Text style={styles.seoLinkTitle}>{item.title}</Text>
+                  <Text style={styles.seoLinkDescription}>{item.description}</Text>
+                  <View style={styles.seoLinkAction}>
+                    <Text style={styles.seoLinkActionText}>Abrir pagina</Text>
+                    <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+
         {/* ── FAQ ── */}
         <View style={[styles.section, styles.sectionGray]} onLayout={registerSection("faq")}>
           <View style={styles.sectionInner}>
@@ -1300,33 +1336,6 @@ export function LandingPageScreen({
                   </View>
                   <Text style={styles.faqAnswer}>{item.answer}</Text>
                 </View>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* ── EXPLORA MÁS ── */}
-        <View style={[styles.section, styles.sectionWhite]}>
-          <View style={styles.sectionInner}>
-            <SectionTitle
-              label="Explora mas"
-              title={"Rutas utiles para\nentender el producto"}
-              subtitle="Estas paginas ayudan a explorar ProcesoClaro segun la necesidad concreta de cada despacho o abogado."
-            />
-            <View style={styles.seoLinksGrid}>
-              {SEO_LINKS.map((item) => (
-                <Pressable
-                  key={item.href}
-                  onPress={() => router.push(item.href as any)}
-                  style={({ pressed }) => [styles.seoLinkCard, pressed && styles.ctaPressed]}
-                >
-                  <Text style={styles.seoLinkTitle}>{item.title}</Text>
-                  <Text style={styles.seoLinkDescription}>{item.description}</Text>
-                  <View style={styles.seoLinkAction}>
-                    <Text style={styles.seoLinkActionText}>Abrir pagina</Text>
-                    <Ionicons name="arrow-forward" size={16} color={Colors.primary} />
-                  </View>
-                </Pressable>
               ))}
             </View>
           </View>
@@ -1692,7 +1701,7 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_700Bold",
     color: Colors.white,
     textAlign: "center",
-    lineHeight: w(4, 2),
+    lineHeight: w(52, 32),
     marginBottom: w(6, 10),
   },
   heroH1Accent: {

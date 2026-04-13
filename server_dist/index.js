@@ -1113,6 +1113,7 @@ var init_session_schema = __esm({
       revokedAt: timestamp24("revoked_at"),
       ipAddress: varchar31("ip_address", { length: 45 }),
       userAgent: varchar31("user_agent", { length: 500 }),
+      deviceId: varchar31("device_id", { length: 191 }),
       createdAt: timestamp24("created_at").notNull().defaultNow(),
       /** Opaque refresh token - used to issue a new access token without re-login */
       refreshToken: varchar31("refresh_token", { length: 64 }).unique(),
@@ -1127,17 +1128,107 @@ var init_session_schema = __esm({
   }
 });
 
-// shared/schema/tarea.schema.ts
+// shared/schema/user-device.schema.ts
 import { relations as relations24 } from "drizzle-orm";
+import { index, mysqlTable as mysqlTable33, timestamp as timestamp25, uniqueIndex as uniqueIndex5, varchar as varchar32 } from "drizzle-orm/mysql-core";
+var userDevices, userDevicesRelations;
+var init_user_device_schema = __esm({
+  "shared/schema/user-device.schema.ts"() {
+    "use strict";
+    init_user_schema();
+    userDevices = mysqlTable33("user_devices", {
+      id: varchar32("id", { length: 36 }).primaryKey(),
+      userId: varchar32("user_id", { length: 36 }).notNull(),
+      deviceId: varchar32("device_id", { length: 191 }).notNull(),
+      deviceName: varchar32("device_name", { length: 120 }),
+      platform: varchar32("platform", { length: 30 }),
+      userAgent: varchar32("user_agent", { length: 500 }),
+      lastIp: varchar32("last_ip", { length: 45 }),
+      firstSeenAt: timestamp25("first_seen_at").notNull().defaultNow(),
+      lastSeenAt: timestamp25("last_seen_at").notNull().defaultNow(),
+      trustedAt: timestamp25("trusted_at").notNull().defaultNow(),
+      revokedAt: timestamp25("revoked_at"),
+      createdAt: timestamp25("created_at").notNull().defaultNow(),
+      updatedAt: timestamp25("updated_at").notNull().defaultNow().onUpdateNow()
+    }, (table) => ({
+      userDeviceUnique: uniqueIndex5("user_devices_user_device_unique").on(table.userId, table.deviceId),
+      userLastSeenIdx: index("user_devices_user_last_seen_idx").on(table.userId, table.lastSeenAt)
+    }));
+    userDevicesRelations = relations24(userDevices, ({ one }) => ({
+      user: one(users, {
+        fields: [userDevices.userId],
+        references: [users.id]
+      })
+    }));
+  }
+});
+
+// shared/schema/user-two-factor.schema.ts
+import { relations as relations25 } from "drizzle-orm";
+import { mysqlTable as mysqlTable34, text as text20, timestamp as timestamp26, varchar as varchar33 } from "drizzle-orm/mysql-core";
+var userTwoFactor, userTwoFactorRelations;
+var init_user_two_factor_schema = __esm({
+  "shared/schema/user-two-factor.schema.ts"() {
+    "use strict";
+    init_user_schema();
+    userTwoFactor = mysqlTable34("user_two_factor", {
+      userId: varchar33("user_id", { length: 36 }).primaryKey(),
+      secret: varchar33("secret", { length: 128 }).notNull(),
+      recoveryCodes: text20("recovery_codes"),
+      enabledAt: timestamp26("enabled_at"),
+      createdAt: timestamp26("created_at").notNull().defaultNow(),
+      updatedAt: timestamp26("updated_at").notNull().defaultNow().onUpdateNow()
+    });
+    userTwoFactorRelations = relations25(userTwoFactor, ({ one }) => ({
+      user: one(users, {
+        fields: [userTwoFactor.userId],
+        references: [users.id]
+      })
+    }));
+  }
+});
+
+// shared/schema/auth-challenge.schema.ts
+import { relations as relations26 } from "drizzle-orm";
+import { index as index2, mysqlTable as mysqlTable35, timestamp as timestamp27, varchar as varchar34 } from "drizzle-orm/mysql-core";
+var authChallenges, authChallengesRelations;
+var init_auth_challenge_schema = __esm({
+  "shared/schema/auth-challenge.schema.ts"() {
+    "use strict";
+    init_user_schema();
+    authChallenges = mysqlTable35("auth_challenges", {
+      id: varchar34("id", { length: 36 }).primaryKey(),
+      userId: varchar34("user_id", { length: 36 }).notNull(),
+      challengeType: varchar34("challenge_type", { length: 30 }).notNull(),
+      deviceId: varchar34("device_id", { length: 191 }),
+      ipAddress: varchar34("ip_address", { length: 45 }),
+      userAgent: varchar34("user_agent", { length: 500 }),
+      expiresAt: timestamp27("expires_at").notNull(),
+      completedAt: timestamp27("completed_at"),
+      createdAt: timestamp27("created_at").notNull().defaultNow()
+    }, (table) => ({
+      userTypeIdx: index2("auth_challenges_user_type_idx").on(table.userId, table.challengeType)
+    }));
+    authChallengesRelations = relations26(authChallenges, ({ one }) => ({
+      user: one(users, {
+        fields: [authChallenges.userId],
+        references: [users.id]
+      })
+    }));
+  }
+});
+
+// shared/schema/tarea.schema.ts
+import { relations as relations27 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable33,
-  varchar as varchar32,
-  text as text20,
+  mysqlTable as mysqlTable36,
+  varchar as varchar35,
+  text as text21,
   mysqlEnum as mysqlEnum6,
   int as int20,
   decimal as decimal2,
   date,
-  timestamp as timestamp25,
+  timestamp as timestamp28,
   boolean as boolean18,
   tinyint as tinyint2
 } from "drizzle-orm/mysql-core";
@@ -1147,35 +1238,35 @@ var init_tarea_schema = __esm({
     "use strict";
     init_proceso_schema();
     init_lawyer_profile_schema();
-    tareas = mysqlTable33("tareas", {
-      id: varchar32("id", { length: 36 }).primaryKey(),
-      procesoId: varchar32("proceso_id", { length: 36 }).notNull(),
-      legalStage: varchar32("legal_stage", { length: 50 }),
+    tareas = mysqlTable36("tareas", {
+      id: varchar35("id", { length: 36 }).primaryKey(),
+      procesoId: varchar35("proceso_id", { length: 36 }).notNull(),
+      legalStage: varchar35("legal_stage", { length: 50 }),
       requerida: tinyint2("requerida").notNull().default(0),
-      titulo: varchar32("titulo", { length: 255 }).notNull(),
-      descripcion: text20("descripcion"),
+      titulo: varchar35("titulo", { length: 255 }).notNull(),
+      descripcion: text21("descripcion"),
       estado: mysqlEnum6("estado", ["pendiente", "en_progreso", "completada", "cancelada"]).notNull().default("pendiente"),
       prioridad: mysqlEnum6("prioridad", ["baja", "media", "alta", "urgente"]).notNull().default("media"),
       fechaLimite: date("fecha_limite", { mode: "date" }),
-      fechaCompletada: timestamp25("fecha_completada"),
+      fechaCompletada: timestamp28("fecha_completada"),
       /** FK al perfil del abogado asignado (puede ser null) */
-      asignadoA: varchar32("asignado_a", { length: 36 }),
+      asignadoA: varchar35("asignado_a", { length: 36 }),
       /** Nombre desnormalizado para evitar joins en listados */
-      asignadoANombre: varchar32("asignado_a_nombre", { length: 255 }),
+      asignadoANombre: varchar35("asignado_a_nombre", { length: 255 }),
       /** FK al perfil del abogado que creó la tarea */
-      creadoPor: varchar32("creado_por", { length: 36 }).notNull(),
+      creadoPor: varchar35("creado_por", { length: 36 }).notNull(),
       /** Nombre desnormalizado */
-      creadoPorNombre: varchar32("creado_por_nombre", { length: 255 }),
+      creadoPorNombre: varchar35("creado_por_nombre", { length: 255 }),
       /** Tiempo estimado para completar la tarea */
       tiempoEstimado: decimal2("tiempo_estimado", { precision: 6, scale: 1 }),
       tiempoUnidad: mysqlEnum6("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
       /** Posición para drag & drop futuro */
       orden: int20("orden").notNull().default(0),
       state: boolean18("state").notNull().default(true),
-      createdAt: timestamp25("created_at").notNull().defaultNow(),
-      updatedAt: timestamp25("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp28("created_at").notNull().defaultNow(),
+      updatedAt: timestamp28("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    tareasRelations = relations24(tareas, ({ one }) => ({
+    tareasRelations = relations27(tareas, ({ one }) => ({
       proceso: one(procesos, {
         fields: [tareas.procesoId],
         references: [procesos.id]
@@ -1195,17 +1286,17 @@ var init_tarea_schema = __esm({
 });
 
 // shared/schema/community.schema.ts
-import { relations as relations25 } from "drizzle-orm";
+import { relations as relations28 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable34,
-  varchar as varchar33,
-  text as text21,
+  mysqlTable as mysqlTable37,
+  varchar as varchar36,
+  text as text22,
   int as int21,
   tinyint as tinyint3,
   boolean as boolean19,
-  timestamp as timestamp26,
+  timestamp as timestamp29,
   mysqlEnum as mysqlEnum7,
-  index,
+  index as index3,
   primaryKey
 } from "drizzle-orm/mysql-core";
 var posts, comments, postLikes, postBookmarks, tags, postTags, postViews, postReports, postsRelations, commentsRelations, postTagsRelations;
@@ -1213,119 +1304,119 @@ var init_community_schema = __esm({
   "shared/schema/community.schema.ts"() {
     "use strict";
     init_user_schema();
-    posts = mysqlTable34(
+    posts = mysqlTable37(
       "posts",
       {
-        id: varchar33("id", { length: 36 }).primaryKey(),
-        userId: varchar33("user_id", { length: 36 }).notNull(),
-        title: varchar33("title", { length: 255 }).notNull(),
-        content: text21("content").notNull(),
+        id: varchar36("id", { length: 36 }).primaryKey(),
+        userId: varchar36("user_id", { length: 36 }).notNull(),
+        title: varchar36("title", { length: 255 }).notNull(),
+        content: text22("content").notNull(),
         visibility: mysqlEnum7("visibility", ["public", "anonymous"]).notNull().default("public"),
-        caseType: varchar33("case_type", { length: 50 }),
+        caseType: varchar36("case_type", { length: 50 }),
         isUrgent: tinyint3("is_urgent").notNull().default(0),
-        city: varchar33("city", { length: 100 }),
+        city: varchar36("city", { length: 100 }),
         viewCount: int21("view_count").notNull().default(0),
         status: mysqlEnum7("status", ["open", "in_progress", "closed"]).notNull().default("open"),
         disabled: boolean19("disabled").notNull().default(false),
-        takenByLawyerId: varchar33("taken_by_lawyer_id", { length: 36 }),
-        takenByUserId: varchar33("taken_by_user_id", { length: 36 }),
-        takenAt: timestamp26("taken_at"),
-        takenExpiresAt: timestamp26("taken_expires_at"),
+        takenByLawyerId: varchar36("taken_by_lawyer_id", { length: 36 }),
+        takenByUserId: varchar36("taken_by_user_id", { length: 36 }),
+        takenAt: timestamp29("taken_at"),
+        takenExpiresAt: timestamp29("taken_expires_at"),
         clientAccepted: tinyint3("client_accepted"),
-        procesoId: varchar33("proceso_id", { length: 36 }),
-        createdAt: timestamp26("created_at").notNull().defaultNow(),
-        updatedAt: timestamp26("updated_at").notNull().defaultNow().onUpdateNow()
+        procesoId: varchar36("proceso_id", { length: 36 }),
+        createdAt: timestamp29("created_at").notNull().defaultNow(),
+        updatedAt: timestamp29("updated_at").notNull().defaultNow().onUpdateNow()
       },
-      (t) => [index("idx_posts_user").on(t.userId), index("idx_posts_created").on(t.createdAt), index("idx_posts_status").on(t.status)]
+      (t) => [index3("idx_posts_user").on(t.userId), index3("idx_posts_created").on(t.createdAt), index3("idx_posts_status").on(t.status)]
     );
-    comments = mysqlTable34(
+    comments = mysqlTable37(
       "comments",
       {
-        id: varchar33("id", { length: 36 }).primaryKey(),
-        postId: varchar33("post_id", { length: 36 }).notNull(),
-        userId: varchar33("user_id", { length: 36 }).notNull(),
-        content: text21("content").notNull(),
-        parentId: varchar33("parent_id", { length: 36 }),
-        createdAt: timestamp26("created_at").notNull().defaultNow(),
-        updatedAt: timestamp26("updated_at").notNull().defaultNow().onUpdateNow()
+        id: varchar36("id", { length: 36 }).primaryKey(),
+        postId: varchar36("post_id", { length: 36 }).notNull(),
+        userId: varchar36("user_id", { length: 36 }).notNull(),
+        content: text22("content").notNull(),
+        parentId: varchar36("parent_id", { length: 36 }),
+        createdAt: timestamp29("created_at").notNull().defaultNow(),
+        updatedAt: timestamp29("updated_at").notNull().defaultNow().onUpdateNow()
       },
       (t) => [
-        index("idx_comments_post").on(t.postId),
-        index("idx_comments_parent").on(t.parentId)
+        index3("idx_comments_post").on(t.postId),
+        index3("idx_comments_parent").on(t.parentId)
       ]
     );
-    postLikes = mysqlTable34(
+    postLikes = mysqlTable37(
       "post_likes",
       {
-        id: varchar33("id", { length: 36 }).primaryKey(),
-        postId: varchar33("post_id", { length: 36 }).notNull(),
-        userId: varchar33("user_id", { length: 36 }).notNull(),
-        createdAt: timestamp26("created_at").notNull().defaultNow()
+        id: varchar36("id", { length: 36 }).primaryKey(),
+        postId: varchar36("post_id", { length: 36 }).notNull(),
+        userId: varchar36("user_id", { length: 36 }).notNull(),
+        createdAt: timestamp29("created_at").notNull().defaultNow()
       },
-      (t) => [index("idx_likes_post").on(t.postId)]
+      (t) => [index3("idx_likes_post").on(t.postId)]
     );
-    postBookmarks = mysqlTable34(
+    postBookmarks = mysqlTable37(
       "post_bookmarks",
       {
-        id: varchar33("id", { length: 36 }).primaryKey(),
-        postId: varchar33("post_id", { length: 36 }).notNull(),
-        userId: varchar33("user_id", { length: 36 }).notNull(),
-        createdAt: timestamp26("created_at").notNull().defaultNow()
+        id: varchar36("id", { length: 36 }).primaryKey(),
+        postId: varchar36("post_id", { length: 36 }).notNull(),
+        userId: varchar36("user_id", { length: 36 }).notNull(),
+        createdAt: timestamp29("created_at").notNull().defaultNow()
       },
-      (t) => [index("idx_bookmarks_user").on(t.userId)]
+      (t) => [index3("idx_bookmarks_user").on(t.userId)]
     );
-    tags = mysqlTable34("tags", {
-      id: varchar33("id", { length: 36 }).primaryKey(),
-      name: varchar33("name", { length: 50 }).notNull(),
-      slug: varchar33("slug", { length: 50 }).notNull()
+    tags = mysqlTable37("tags", {
+      id: varchar36("id", { length: 36 }).primaryKey(),
+      name: varchar36("name", { length: 50 }).notNull(),
+      slug: varchar36("slug", { length: 50 }).notNull()
     });
-    postTags = mysqlTable34(
+    postTags = mysqlTable37(
       "post_tags",
       {
-        postId: varchar33("post_id", { length: 36 }).notNull(),
-        tagId: varchar33("tag_id", { length: 36 }).notNull()
+        postId: varchar36("post_id", { length: 36 }).notNull(),
+        tagId: varchar36("tag_id", { length: 36 }).notNull()
       },
       (t) => [primaryKey({ columns: [t.postId, t.tagId] })]
     );
-    postViews = mysqlTable34(
+    postViews = mysqlTable37(
       "post_views",
       {
-        postId: varchar33("post_id", { length: 36 }).notNull(),
-        userId: varchar33("user_id", { length: 36 }).notNull(),
-        viewedAt: timestamp26("viewed_at").notNull().defaultNow()
+        postId: varchar36("post_id", { length: 36 }).notNull(),
+        userId: varchar36("user_id", { length: 36 }).notNull(),
+        viewedAt: timestamp29("viewed_at").notNull().defaultNow()
       },
       (t) => [primaryKey({ columns: [t.postId, t.userId] })]
     );
-    postReports = mysqlTable34(
+    postReports = mysqlTable37(
       "post_reports",
       {
-        id: varchar33("id", { length: 36 }).primaryKey(),
-        postId: varchar33("post_id", { length: 36 }),
-        commentId: varchar33("comment_id", { length: 36 }),
-        reporterUserId: varchar33("reporter_user_id", { length: 36 }).notNull(),
-        reason: varchar33("reason", { length: 50 }).notNull(),
-        detail: text21("detail"),
-        createdAt: timestamp26("created_at").notNull().defaultNow()
+        id: varchar36("id", { length: 36 }).primaryKey(),
+        postId: varchar36("post_id", { length: 36 }),
+        commentId: varchar36("comment_id", { length: 36 }),
+        reporterUserId: varchar36("reporter_user_id", { length: 36 }).notNull(),
+        reason: varchar36("reason", { length: 50 }).notNull(),
+        detail: text22("detail"),
+        createdAt: timestamp29("created_at").notNull().defaultNow()
       },
       (t) => [
-        index("idx_reports_post").on(t.postId),
-        index("idx_reports_comment").on(t.commentId)
+        index3("idx_reports_post").on(t.postId),
+        index3("idx_reports_comment").on(t.commentId)
       ]
     );
-    postsRelations = relations25(posts, ({ one, many }) => ({
+    postsRelations = relations28(posts, ({ one, many }) => ({
       author: one(users, { fields: [posts.userId], references: [users.id] }),
       comments: many(comments),
       likes: many(postLikes),
       bookmarks: many(postBookmarks),
       postTags: many(postTags)
     }));
-    commentsRelations = relations25(comments, ({ one, many }) => ({
+    commentsRelations = relations28(comments, ({ one, many }) => ({
       post: one(posts, { fields: [comments.postId], references: [posts.id] }),
       author: one(users, { fields: [comments.userId], references: [users.id] }),
       parent: one(comments, { fields: [comments.parentId], references: [comments.id], relationName: "replies" }),
       replies: many(comments, { relationName: "replies" })
     }));
-    postTagsRelations = relations25(postTags, ({ one }) => ({
+    postTagsRelations = relations28(postTags, ({ one }) => ({
       post: one(posts, { fields: [postTags.postId], references: [posts.id] }),
       tag: one(tags, { fields: [postTags.tagId], references: [tags.id] })
     }));
@@ -1333,144 +1424,144 @@ var init_community_schema = __esm({
 });
 
 // shared/schema/rating.schema.ts
-import { mysqlTable as mysqlTable35, varchar as varchar34, text as text22, timestamp as timestamp27, mysqlEnum as mysqlEnum8, int as int22, index as index2 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable38, varchar as varchar37, text as text23, timestamp as timestamp30, mysqlEnum as mysqlEnum8, int as int22, index as index4 } from "drizzle-orm/mysql-core";
 var ratings;
 var init_rating_schema = __esm({
   "shared/schema/rating.schema.ts"() {
     "use strict";
-    ratings = mysqlTable35(
+    ratings = mysqlTable38(
       "ratings",
       {
-        id: varchar34("id", { length: 36 }).primaryKey(),
-        fromUserId: varchar34("from_user_id", { length: 36 }).notNull(),
-        targetUserId: varchar34("target_user_id", { length: 36 }).notNull(),
+        id: varchar37("id", { length: 36 }).primaryKey(),
+        fromUserId: varchar37("from_user_id", { length: 36 }).notNull(),
+        targetUserId: varchar37("target_user_id", { length: 36 }).notNull(),
         targetType: mysqlEnum8("target_type", ["lawyer", "firm"]).notNull(),
         score: int22("score").notNull(),
-        comment: text22("comment"),
-        procesoId: varchar34("proceso_id", { length: 36 }).notNull(),
-        createdAt: timestamp27("created_at").notNull().defaultNow()
+        comment: text23("comment"),
+        procesoId: varchar37("proceso_id", { length: 36 }).notNull(),
+        createdAt: timestamp30("created_at").notNull().defaultNow()
       },
       (table) => [
-        index2("idx_ratings_target").on(table.targetUserId, table.targetType),
-        index2("idx_ratings_from").on(table.fromUserId)
+        index4("idx_ratings_target").on(table.targetUserId, table.targetType),
+        index4("idx_ratings_from").on(table.fromUserId)
       ]
     );
   }
 });
 
 // shared/schema/client-request.schema.ts
-import { mysqlTable as mysqlTable36, varchar as varchar35, mysqlEnum as mysqlEnum9, timestamp as timestamp28 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable39, varchar as varchar38, mysqlEnum as mysqlEnum9, timestamp as timestamp31 } from "drizzle-orm/mysql-core";
 var clientRequests;
 var init_client_request_schema = __esm({
   "shared/schema/client-request.schema.ts"() {
     "use strict";
-    clientRequests = mysqlTable36("client_requests", {
-      id: varchar35("id", { length: 36 }).primaryKey(),
-      fromUserId: varchar35("from_user_id", { length: 36 }).notNull(),
-      toUserId: varchar35("to_user_id", { length: 36 }).notNull(),
+    clientRequests = mysqlTable39("client_requests", {
+      id: varchar38("id", { length: 36 }).primaryKey(),
+      fromUserId: varchar38("from_user_id", { length: 36 }).notNull(),
+      toUserId: varchar38("to_user_id", { length: 36 }).notNull(),
       status: mysqlEnum9("status", ["pending", "accepted", "rejected", "expired"]).notNull().default("pending"),
-      createdAt: timestamp28("created_at").defaultNow().notNull(),
-      expiresAt: timestamp28("expires_at").notNull(),
-      respondedAt: timestamp28("responded_at")
+      createdAt: timestamp31("created_at").defaultNow().notNull(),
+      expiresAt: timestamp31("expires_at").notNull(),
+      respondedAt: timestamp31("responded_at")
     });
   }
 });
 
 // shared/schema/app-notification.schema.ts
-import { mysqlTable as mysqlTable37, varchar as varchar36, text as text23, timestamp as timestamp29, json } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable40, varchar as varchar39, text as text24, timestamp as timestamp32, json } from "drizzle-orm/mysql-core";
 var appNotifications;
 var init_app_notification_schema = __esm({
   "shared/schema/app-notification.schema.ts"() {
     "use strict";
-    appNotifications = mysqlTable37("app_notifications", {
-      id: varchar36("id", { length: 36 }).primaryKey(),
-      userId: varchar36("user_id", { length: 36 }).notNull(),
-      type: varchar36("type", { length: 50 }).notNull().default("info"),
-      title: varchar36("title", { length: 255 }).notNull(),
-      body: text23("body").notNull(),
+    appNotifications = mysqlTable40("app_notifications", {
+      id: varchar39("id", { length: 36 }).primaryKey(),
+      userId: varchar39("user_id", { length: 36 }).notNull(),
+      type: varchar39("type", { length: 50 }).notNull().default("info"),
+      title: varchar39("title", { length: 255 }).notNull(),
+      body: text24("body").notNull(),
       data: json("data"),
-      readAt: timestamp29("read_at"),
-      createdAt: timestamp29("created_at").defaultNow().notNull()
+      readAt: timestamp32("read_at"),
+      createdAt: timestamp32("created_at").defaultNow().notNull()
     });
   }
 });
 
 // shared/schema/firm-clients.schema.ts
-import { mysqlTable as mysqlTable38, varchar as varchar37, mysqlEnum as mysqlEnum10, timestamp as timestamp30 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable41, varchar as varchar40, mysqlEnum as mysqlEnum10, timestamp as timestamp33 } from "drizzle-orm/mysql-core";
 var firmClients;
 var init_firm_clients_schema = __esm({
   "shared/schema/firm-clients.schema.ts"() {
     "use strict";
-    firmClients = mysqlTable38("firm_clients", {
-      id: varchar37("id", { length: 36 }).primaryKey(),
-      firmId: varchar37("firm_id", { length: 36 }).notNull(),
-      clientId: varchar37("client_id", { length: 36 }).notNull(),
+    firmClients = mysqlTable41("firm_clients", {
+      id: varchar40("id", { length: 36 }).primaryKey(),
+      firmId: varchar40("firm_id", { length: 36 }).notNull(),
+      clientId: varchar40("client_id", { length: 36 }).notNull(),
       status: mysqlEnum10("status", ["active", "inactive"]).notNull().default("active"),
-      createdAt: timestamp30("created_at").defaultNow().notNull()
+      createdAt: timestamp33("created_at").defaultNow().notNull()
     });
   }
 });
 
 // shared/schema/otp.schema.ts
-import { mysqlTable as mysqlTable39, varchar as varchar38, boolean as boolean20, timestamp as timestamp31, int as int23 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable42, varchar as varchar41, boolean as boolean20, timestamp as timestamp34, int as int23 } from "drizzle-orm/mysql-core";
 var passwordResetOtps, emailVerificationOtps;
 var init_otp_schema = __esm({
   "shared/schema/otp.schema.ts"() {
     "use strict";
-    passwordResetOtps = mysqlTable39("password_reset_otps", {
-      id: varchar38("id", { length: 36 }).primaryKey(),
-      userId: varchar38("user_id", { length: 36 }).notNull(),
-      code: varchar38("code", { length: 6 }).notNull(),
-      expiresAt: timestamp31("expires_at").notNull(),
+    passwordResetOtps = mysqlTable42("password_reset_otps", {
+      id: varchar41("id", { length: 36 }).primaryKey(),
+      userId: varchar41("user_id", { length: 36 }).notNull(),
+      code: varchar41("code", { length: 6 }).notNull(),
+      expiresAt: timestamp34("expires_at").notNull(),
       isUsed: boolean20("is_used").notNull().default(false),
       attempts: int23("attempts").notNull().default(0),
-      createdAt: timestamp31("created_at").notNull().defaultNow()
+      createdAt: timestamp34("created_at").notNull().defaultNow()
     });
-    emailVerificationOtps = mysqlTable39("email_verification_otps", {
-      id: varchar38("id", { length: 36 }).primaryKey(),
-      userId: varchar38("user_id", { length: 36 }).notNull(),
-      code: varchar38("code", { length: 6 }).notNull(),
-      expiresAt: timestamp31("expires_at").notNull(),
+    emailVerificationOtps = mysqlTable42("email_verification_otps", {
+      id: varchar41("id", { length: 36 }).primaryKey(),
+      userId: varchar41("user_id", { length: 36 }).notNull(),
+      code: varchar41("code", { length: 6 }).notNull(),
+      expiresAt: timestamp34("expires_at").notNull(),
       isUsed: boolean20("is_used").notNull().default(false),
       attempts: int23("attempts").notNull().default(0),
-      createdAt: timestamp31("created_at").notNull().defaultNow()
+      createdAt: timestamp34("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/security-audit.schema.ts
-import { mysqlTable as mysqlTable40, varchar as varchar39, boolean as boolean21, timestamp as timestamp32, text as text24 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable43, varchar as varchar42, boolean as boolean21, timestamp as timestamp35, text as text25 } from "drizzle-orm/mysql-core";
 var securityEvents;
 var init_security_audit_schema = __esm({
   "shared/schema/security-audit.schema.ts"() {
     "use strict";
-    securityEvents = mysqlTable40("security_events", {
-      id: varchar39("id", { length: 36 }).primaryKey(),
-      email: varchar39("email", { length: 255 }).notNull(),
-      ip: varchar39("ip", { length: 45 }).notNull(),
-      userAgent: varchar39("user_agent", { length: 500 }),
-      eventType: varchar39("event_type", { length: 32 }).notNull(),
+    securityEvents = mysqlTable43("security_events", {
+      id: varchar42("id", { length: 36 }).primaryKey(),
+      email: varchar42("email", { length: 255 }).notNull(),
+      ip: varchar42("ip", { length: 45 }).notNull(),
+      userAgent: varchar42("user_agent", { length: 500 }),
+      eventType: varchar42("event_type", { length: 32 }).notNull(),
       // SecurityEventType
       success: boolean21("success").notNull().default(false),
-      metadata: text24("metadata"),
+      metadata: text25("metadata"),
       // JSON string for extra context
-      createdAt: timestamp32("created_at").notNull().defaultNow()
+      createdAt: timestamp35("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/community-match.schema.ts
-import { mysqlTable as mysqlTable41, varchar as varchar40, tinyint as tinyint4, timestamp as timestamp33, index as index3, uniqueIndex as uniqueIndex5 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable44, varchar as varchar43, tinyint as tinyint4, timestamp as timestamp36, index as index5, uniqueIndex as uniqueIndex6 } from "drizzle-orm/mysql-core";
 var communityPostMatches;
 var init_community_match_schema = __esm({
   "shared/schema/community-match.schema.ts"() {
     "use strict";
-    communityPostMatches = mysqlTable41(
+    communityPostMatches = mysqlTable44(
       "community_post_matches",
       {
-        id: varchar40("id", { length: 36 }).primaryKey(),
-        postId: varchar40("post_id", { length: 36 }).notNull(),
-        lawyerId: varchar40("lawyer_id", { length: 36 }).notNull(),
+        id: varchar43("id", { length: 36 }).primaryKey(),
+        postId: varchar43("post_id", { length: 36 }).notNull(),
+        lawyerId: varchar43("lawyer_id", { length: 36 }).notNull(),
         // lawyer_profiles.id
         score: tinyint4("score").notNull().default(0),
         // 1–10
@@ -1478,20 +1569,20 @@ var init_community_match_schema = __esm({
         // 1 = sent
         seen: tinyint4("seen").notNull().default(0),
         // 1 = opened
-        createdAt: timestamp33("created_at").notNull().defaultNow()
+        createdAt: timestamp36("created_at").notNull().defaultNow()
       },
       (t) => [
-        uniqueIndex5("uq_post_lawyer").on(t.postId, t.lawyerId),
-        index3("idx_match_lawyer").on(t.lawyerId),
-        index3("idx_match_post").on(t.postId)
+        uniqueIndex6("uq_post_lawyer").on(t.postId, t.lawyerId),
+        index5("idx_match_lawyer").on(t.lawyerId),
+        index5("idx_match_post").on(t.postId)
       ]
     );
   }
 });
 
 // shared/schema/legal-stage.schema.ts
-import { mysqlTable as mysqlTable42, varchar as varchar41, int as int24, tinyint as tinyint5, timestamp as timestamp34 } from "drizzle-orm/mysql-core";
-import { relations as relations26 } from "drizzle-orm";
+import { mysqlTable as mysqlTable45, varchar as varchar44, int as int24, tinyint as tinyint5, timestamp as timestamp37 } from "drizzle-orm/mysql-core";
+import { relations as relations29 } from "drizzle-orm";
 var LEGAL_STAGE_CODES, etapasPorTipoProceso, etapasPorTipoProcesoRelations;
 var init_legal_stage_schema = __esm({
   "shared/schema/legal-stage.schema.ts"() {
@@ -1521,21 +1612,21 @@ var init_legal_stage_schema = __esm({
       "ENFORCEMENT"
       // Ejecución de sentencia
     ];
-    etapasPorTipoProceso = mysqlTable42("etapas_por_tipo_proceso", {
+    etapasPorTipoProceso = mysqlTable45("etapas_por_tipo_proceso", {
       id: int24("id").autoincrement().primaryKey(),
       tipoProcesoId: int24("tipo_proceso_id"),
       // NULL = aplica a todos
-      codigo: varchar41("codigo", { length: 50 }).notNull(),
-      nombre: varchar41("nombre", { length: 100 }).notNull(),
-      descripcion: varchar41("descripcion", { length: 255 }),
+      codigo: varchar44("codigo", { length: 50 }).notNull(),
+      nombre: varchar44("nombre", { length: 100 }).notNull(),
+      descripcion: varchar44("descripcion", { length: 255 }),
       orden: int24("orden").notNull().default(0),
       diasLegales: int24("dias_legales").notNull().default(0),
       // días hábiles del término
-      color: varchar41("color", { length: 20 }).notNull().default("#6B7280"),
+      color: varchar44("color", { length: 20 }).notNull().default("#6B7280"),
       activo: tinyint5("activo").notNull().default(1),
-      createdAt: timestamp34("created_at").notNull().defaultNow()
+      createdAt: timestamp37("created_at").notNull().defaultNow()
     });
-    etapasPorTipoProcesoRelations = relations26(etapasPorTipoProceso, ({ one }) => ({
+    etapasPorTipoProcesoRelations = relations29(etapasPorTipoProceso, ({ one }) => ({
       tipoProceso: one(tiposProceso, {
         fields: [etapasPorTipoProceso.tipoProcesoId],
         references: [tiposProceso.id]
@@ -1545,16 +1636,16 @@ var init_legal_stage_schema = __esm({
 });
 
 // shared/schema/calendar-event.schema.ts
-import { relations as relations27 } from "drizzle-orm";
+import { relations as relations30 } from "drizzle-orm";
 import {
-  mysqlTable as mysqlTable43,
-  varchar as varchar42,
-  text as text25,
+  mysqlTable as mysqlTable46,
+  varchar as varchar45,
+  text as text26,
   mysqlEnum as mysqlEnum11,
   int as int25,
   tinyint as tinyint6,
   datetime as datetime3,
-  timestamp as timestamp35
+  timestamp as timestamp38
 } from "drizzle-orm/mysql-core";
 var REMINDER_OPTIONS, calendarEvents, calendarEventsRelations;
 var init_calendar_event_schema = __esm({
@@ -1570,12 +1661,12 @@ var init_calendar_event_schema = __esm({
       UN_DIA: 1440,
       TRES_DIAS: 4320
     };
-    calendarEvents = mysqlTable43("calendar_events", {
-      id: varchar42("id", { length: 36 }).primaryKey(),
-      lawyerId: varchar42("lawyer_id", { length: 36 }).notNull(),
-      procesoId: varchar42("proceso_id", { length: 36 }),
-      titulo: varchar42("titulo", { length: 255 }).notNull(),
-      descripcion: text25("descripcion"),
+    calendarEvents = mysqlTable46("calendar_events", {
+      id: varchar45("id", { length: 36 }).primaryKey(),
+      lawyerId: varchar45("lawyer_id", { length: 36 }).notNull(),
+      procesoId: varchar45("proceso_id", { length: 36 }),
+      titulo: varchar45("titulo", { length: 255 }).notNull(),
+      descripcion: text26("descripcion"),
       tipo: mysqlEnum11("tipo", [
         "audiencia",
         "reunion_cliente",
@@ -1589,10 +1680,10 @@ var init_calendar_event_schema = __esm({
       recordatorioMinutos: int25("recordatorio_minutos").notNull().default(1440),
       notificado: tinyint6("notificado").notNull().default(0),
       state: tinyint6("state").notNull().default(1),
-      createdAt: timestamp35("created_at").notNull().defaultNow(),
-      updatedAt: timestamp35("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp38("created_at").notNull().defaultNow(),
+      updatedAt: timestamp38("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    calendarEventsRelations = relations27(calendarEvents, ({ one }) => ({
+    calendarEventsRelations = relations30(calendarEvents, ({ one }) => ({
       lawyer: one(lawyerProfiles, {
         fields: [calendarEvents.lawyerId],
         references: [lawyerProfiles.id]
@@ -1606,26 +1697,26 @@ var init_calendar_event_schema = __esm({
 });
 
 // shared/schema/stage-task-template.schema.ts
-import { mysqlTable as mysqlTable44, int as int26, varchar as varchar43, text as text26, mysqlEnum as mysqlEnum12, tinyint as tinyint7, timestamp as timestamp36 } from "drizzle-orm/mysql-core";
-import { relations as relations28 } from "drizzle-orm";
+import { mysqlTable as mysqlTable47, int as int26, varchar as varchar46, text as text27, mysqlEnum as mysqlEnum12, tinyint as tinyint7, timestamp as timestamp39 } from "drizzle-orm/mysql-core";
+import { relations as relations31 } from "drizzle-orm";
 var etapasTareasPlantilla, etapasTareasPlantillaRelations;
 var init_stage_task_template_schema = __esm({
   "shared/schema/stage-task-template.schema.ts"() {
     "use strict";
     init_tipo_proceso_schema();
-    etapasTareasPlantilla = mysqlTable44("etapa_tareas_plantilla", {
+    etapasTareasPlantilla = mysqlTable47("etapa_tareas_plantilla", {
       id: int26("id").autoincrement().primaryKey(),
       tipoProcesoId: int26("tipo_proceso_id"),
-      legalStageCode: varchar43("legal_stage_code", { length: 50 }).notNull(),
-      titulo: varchar43("titulo", { length: 255 }).notNull(),
-      descripcion: text26("descripcion"),
+      legalStageCode: varchar46("legal_stage_code", { length: 50 }).notNull(),
+      titulo: varchar46("titulo", { length: 255 }).notNull(),
+      descripcion: text27("descripcion"),
       prioridad: mysqlEnum12("prioridad", ["baja", "media", "alta", "urgente"]).notNull().default("media"),
       requerida: tinyint7("requerida").notNull().default(0),
       orden: int26("orden").notNull().default(0),
       activo: tinyint7("activo").notNull().default(1),
-      createdAt: timestamp36("created_at").notNull().defaultNow()
+      createdAt: timestamp39("created_at").notNull().defaultNow()
     });
-    etapasTareasPlantillaRelations = relations28(etapasTareasPlantilla, ({ one }) => ({
+    etapasTareasPlantillaRelations = relations31(etapasTareasPlantilla, ({ one }) => ({
       tipoProceso: one(tiposProceso, {
         fields: [etapasTareasPlantilla.tipoProcesoId],
         references: [tiposProceso.id]
@@ -1635,17 +1726,17 @@ var init_stage_task_template_schema = __esm({
 });
 
 // shared/schema/stage-event.schema.ts
-import { mysqlTable as mysqlTable45, varchar as varchar44, text as text27, mysqlEnum as mysqlEnum13, json as json2, timestamp as timestamp37 } from "drizzle-orm/mysql-core";
-import { relations as relations29 } from "drizzle-orm";
+import { mysqlTable as mysqlTable48, varchar as varchar47, text as text28, mysqlEnum as mysqlEnum13, json as json2, timestamp as timestamp40 } from "drizzle-orm/mysql-core";
+import { relations as relations32 } from "drizzle-orm";
 var etapaEventos, etapaEventosRelations;
 var init_stage_event_schema = __esm({
   "shared/schema/stage-event.schema.ts"() {
     "use strict";
     init_proceso_schema();
-    etapaEventos = mysqlTable45("etapa_eventos", {
-      id: varchar44("id", { length: 36 }).primaryKey(),
-      procesoId: varchar44("proceso_id", { length: 36 }).notNull(),
-      legalStageCode: varchar44("legal_stage_code", { length: 50 }).notNull(),
+    etapaEventos = mysqlTable48("etapa_eventos", {
+      id: varchar47("id", { length: 36 }).primaryKey(),
+      procesoId: varchar47("proceso_id", { length: 36 }).notNull(),
+      legalStageCode: varchar47("legal_stage_code", { length: 50 }).notNull(),
       tipo: mysqlEnum13("tipo", [
         "etapa_iniciada",
         "etapa_completada",
@@ -1653,12 +1744,12 @@ var init_stage_event_schema = __esm({
         "documento_subido",
         "nota"
       ]).notNull(),
-      descripcion: text27("descripcion").notNull(),
+      descripcion: text28("descripcion").notNull(),
       metadatos: json2("metadatos"),
-      creadoPor: varchar44("creado_por", { length: 36 }),
-      createdAt: timestamp37("created_at").notNull().defaultNow()
+      creadoPor: varchar47("creado_por", { length: 36 }),
+      createdAt: timestamp40("created_at").notNull().defaultNow()
     });
-    etapaEventosRelations = relations29(etapaEventos, ({ one }) => ({
+    etapaEventosRelations = relations32(etapaEventos, ({ one }) => ({
       proceso: one(procesos, {
         fields: [etapaEventos.procesoId],
         references: [procesos.id]
@@ -1668,22 +1759,22 @@ var init_stage_event_schema = __esm({
 });
 
 // shared/schema/tarea-observacion.schema.ts
-import { mysqlTable as mysqlTable46, varchar as varchar45, text as text28, timestamp as timestamp38 } from "drizzle-orm/mysql-core";
-import { relations as relations30 } from "drizzle-orm";
+import { mysqlTable as mysqlTable49, varchar as varchar48, text as text29, timestamp as timestamp41 } from "drizzle-orm/mysql-core";
+import { relations as relations33 } from "drizzle-orm";
 var tareaObservaciones, tareaObservacionesRelations;
 var init_tarea_observacion_schema = __esm({
   "shared/schema/tarea-observacion.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaObservaciones = mysqlTable46("tarea_observaciones", {
-      id: varchar45("id", { length: 36 }).primaryKey(),
-      tareaId: varchar45("tarea_id", { length: 36 }).notNull(),
-      autorId: varchar45("autor_id", { length: 36 }).notNull(),
-      autorNombre: varchar45("autor_nombre", { length: 255 }),
-      contenido: text28("contenido").notNull(),
-      createdAt: timestamp38("created_at").notNull().defaultNow()
+    tareaObservaciones = mysqlTable49("tarea_observaciones", {
+      id: varchar48("id", { length: 36 }).primaryKey(),
+      tareaId: varchar48("tarea_id", { length: 36 }).notNull(),
+      autorId: varchar48("autor_id", { length: 36 }).notNull(),
+      autorNombre: varchar48("autor_nombre", { length: 255 }),
+      contenido: text29("contenido").notNull(),
+      createdAt: timestamp41("created_at").notNull().defaultNow()
     });
-    tareaObservacionesRelations = relations30(tareaObservaciones, ({ one }) => ({
+    tareaObservacionesRelations = relations33(tareaObservaciones, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaObservaciones.tareaId],
         references: [tareas.id]
@@ -1693,30 +1784,30 @@ var init_tarea_observacion_schema = __esm({
 });
 
 // shared/schema/tarea-subtarea.schema.ts
-import { mysqlTable as mysqlTable47, varchar as varchar46, text as text29, mysqlEnum as mysqlEnum14, decimal as decimal3, int as int27, timestamp as timestamp39 } from "drizzle-orm/mysql-core";
-import { relations as relations31 } from "drizzle-orm";
+import { mysqlTable as mysqlTable50, varchar as varchar49, text as text30, mysqlEnum as mysqlEnum14, decimal as decimal3, int as int27, timestamp as timestamp42 } from "drizzle-orm/mysql-core";
+import { relations as relations34 } from "drizzle-orm";
 var tareaSubtareas, tareaSubtareasRelations;
 var init_tarea_subtarea_schema = __esm({
   "shared/schema/tarea-subtarea.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaSubtareas = mysqlTable47("tarea_subtareas", {
-      id: varchar46("id", { length: 36 }).primaryKey(),
-      tareaId: varchar46("tarea_id", { length: 36 }).notNull(),
-      titulo: varchar46("titulo", { length: 255 }).notNull(),
-      descripcion: text29("descripcion"),
+    tareaSubtareas = mysqlTable50("tarea_subtareas", {
+      id: varchar49("id", { length: 36 }).primaryKey(),
+      tareaId: varchar49("tarea_id", { length: 36 }).notNull(),
+      titulo: varchar49("titulo", { length: 255 }).notNull(),
+      descripcion: text30("descripcion"),
       estado: mysqlEnum14("estado", ["pendiente", "completada"]).notNull().default("pendiente"),
       tiempoEstimado: decimal3("tiempo_estimado", { precision: 6, scale: 1 }),
       tiempoUnidad: mysqlEnum14("tiempo_unidad", ["minutos", "horas", "dias", "semanas"]),
-      completadaEn: timestamp39("completada_en"),
-      completadaPorId: varchar46("completada_por_id", { length: 36 }),
-      creadoPorId: varchar46("creado_por_id", { length: 36 }).notNull(),
-      creadoPorNombre: varchar46("creado_por_nombre", { length: 255 }),
+      completadaEn: timestamp42("completada_en"),
+      completadaPorId: varchar49("completada_por_id", { length: 36 }),
+      creadoPorId: varchar49("creado_por_id", { length: 36 }).notNull(),
+      creadoPorNombre: varchar49("creado_por_nombre", { length: 255 }),
       orden: int27("orden").notNull().default(0),
-      createdAt: timestamp39("created_at").notNull().defaultNow(),
-      updatedAt: timestamp39("updated_at").notNull().defaultNow().onUpdateNow()
+      createdAt: timestamp42("created_at").notNull().defaultNow(),
+      updatedAt: timestamp42("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    tareaSubtareasRelations = relations31(tareaSubtareas, ({ one }) => ({
+    tareaSubtareasRelations = relations34(tareaSubtareas, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaSubtareas.tareaId],
         references: [tareas.id]
@@ -1726,23 +1817,23 @@ var init_tarea_subtarea_schema = __esm({
 });
 
 // shared/schema/tarea-historial.schema.ts
-import { mysqlTable as mysqlTable48, varchar as varchar47, text as text30, timestamp as timestamp40 } from "drizzle-orm/mysql-core";
-import { relations as relations32 } from "drizzle-orm";
+import { mysqlTable as mysqlTable51, varchar as varchar50, text as text31, timestamp as timestamp43 } from "drizzle-orm/mysql-core";
+import { relations as relations35 } from "drizzle-orm";
 var tareaHistorial, tareaHistorialRelations;
 var init_tarea_historial_schema = __esm({
   "shared/schema/tarea-historial.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaHistorial = mysqlTable48("tarea_historial", {
-      id: varchar47("id", { length: 36 }).primaryKey(),
-      tareaId: varchar47("tarea_id", { length: 36 }).notNull(),
-      usuarioId: varchar47("usuario_id", { length: 36 }).notNull(),
-      usuarioNombre: varchar47("usuario_nombre", { length: 255 }),
-      accion: varchar47("accion", { length: 50 }).notNull(),
-      detalle: text30("detalle"),
-      createdAt: timestamp40("created_at").notNull().defaultNow()
+    tareaHistorial = mysqlTable51("tarea_historial", {
+      id: varchar50("id", { length: 36 }).primaryKey(),
+      tareaId: varchar50("tarea_id", { length: 36 }).notNull(),
+      usuarioId: varchar50("usuario_id", { length: 36 }).notNull(),
+      usuarioNombre: varchar50("usuario_nombre", { length: 255 }),
+      accion: varchar50("accion", { length: 50 }).notNull(),
+      detalle: text31("detalle"),
+      createdAt: timestamp43("created_at").notNull().defaultNow()
     });
-    tareaHistorialRelations = relations32(tareaHistorial, ({ one }) => ({
+    tareaHistorialRelations = relations35(tareaHistorial, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaHistorial.tareaId],
         references: [tareas.id]
@@ -1752,26 +1843,26 @@ var init_tarea_historial_schema = __esm({
 });
 
 // shared/schema/tarea-archivo.schema.ts
-import { mysqlTable as mysqlTable49, varchar as varchar48, int as int28, text as text31, timestamp as timestamp41 } from "drizzle-orm/mysql-core";
-import { relations as relations33 } from "drizzle-orm";
+import { mysqlTable as mysqlTable52, varchar as varchar51, int as int28, text as text32, timestamp as timestamp44 } from "drizzle-orm/mysql-core";
+import { relations as relations36 } from "drizzle-orm";
 var tareaArchivos, tareaArchivosRelations;
 var init_tarea_archivo_schema = __esm({
   "shared/schema/tarea-archivo.schema.ts"() {
     "use strict";
     init_tarea_schema();
-    tareaArchivos = mysqlTable49("tarea_archivos", {
-      id: varchar48("id", { length: 36 }).primaryKey(),
-      tareaId: varchar48("tarea_id", { length: 36 }).notNull(),
-      nombre: varchar48("nombre", { length: 255 }).notNull(),
-      url: text31("url").notNull(),
+    tareaArchivos = mysqlTable52("tarea_archivos", {
+      id: varchar51("id", { length: 36 }).primaryKey(),
+      tareaId: varchar51("tarea_id", { length: 36 }).notNull(),
+      nombre: varchar51("nombre", { length: 255 }).notNull(),
+      url: text32("url").notNull(),
       // S3 key or local path
-      mimeType: varchar48("mime_type", { length: 100 }).notNull(),
+      mimeType: varchar51("mime_type", { length: 100 }).notNull(),
       tamano: int28("tamano").notNull().default(0),
       // bytes
-      subidoPorId: varchar48("subido_por_id", { length: 36 }).notNull(),
-      createdAt: timestamp41("created_at").notNull().defaultNow()
+      subidoPorId: varchar51("subido_por_id", { length: 36 }).notNull(),
+      createdAt: timestamp44("created_at").notNull().defaultNow()
     });
-    tareaArchivosRelations = relations33(tareaArchivos, ({ one }) => ({
+    tareaArchivosRelations = relations36(tareaArchivos, ({ one }) => ({
       tarea: one(tareas, {
         fields: [tareaArchivos.tareaId],
         references: [tareas.id]
@@ -1782,33 +1873,33 @@ var init_tarea_archivo_schema = __esm({
 
 // shared/schema/proceso-ownership.schema.ts
 import {
-  mysqlTable as mysqlTable50,
-  varchar as varchar49,
-  timestamp as timestamp42,
+  mysqlTable as mysqlTable53,
+  varchar as varchar52,
+  timestamp as timestamp45,
   tinyint as tinyint8
 } from "drizzle-orm/mysql-core";
-import { relations as relations34 } from "drizzle-orm";
+import { relations as relations37 } from "drizzle-orm";
 var procesoOwnership, procesoOwnershipRelations;
 var init_proceso_ownership_schema = __esm({
   "shared/schema/proceso-ownership.schema.ts"() {
     "use strict";
     init_proceso_schema();
-    procesoOwnership = mysqlTable50("proceso_ownership", {
-      id: varchar49("id", { length: 36 }).primaryKey(),
-      procesoId: varchar49("proceso_id", { length: 36 }).notNull(),
-      ownerType: varchar49("owner_type", { length: 20 }).notNull().$type(),
-      ownerId: varchar49("owner_id", { length: 36 }),
+    procesoOwnership = mysqlTable53("proceso_ownership", {
+      id: varchar52("id", { length: 36 }).primaryKey(),
+      procesoId: varchar52("proceso_id", { length: 36 }).notNull(),
+      ownerType: varchar52("owner_type", { length: 20 }).notNull().$type(),
+      ownerId: varchar52("owner_id", { length: 36 }),
       // NULL when sin_owner
-      fechaInicio: timestamp42("fecha_inicio").notNull().defaultNow(),
-      fechaFin: timestamp42("fecha_fin"),
+      fechaInicio: timestamp45("fecha_inicio").notNull().defaultNow(),
+      fechaFin: timestamp45("fecha_fin"),
       activoUnique: tinyint8("activo_unique"),
       // 1 = activo, NULL = histórico
-      creadoPor: varchar49("creado_por", { length: 36 }).notNull(),
-      razon: varchar49("razon", { length: 500 }),
-      createdAt: timestamp42("created_at").notNull().defaultNow(),
-      updatedAt: timestamp42("updated_at").notNull().defaultNow().onUpdateNow()
+      creadoPor: varchar52("creado_por", { length: 36 }).notNull(),
+      razon: varchar52("razon", { length: 500 }),
+      createdAt: timestamp45("created_at").notNull().defaultNow(),
+      updatedAt: timestamp45("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    procesoOwnershipRelations = relations34(procesoOwnership, ({ one }) => ({
+    procesoOwnershipRelations = relations37(procesoOwnership, ({ one }) => ({
       proceso: one(procesos, {
         fields: [procesoOwnership.procesoId],
         references: [procesos.id]
@@ -1819,12 +1910,12 @@ var init_proceso_ownership_schema = __esm({
 
 // shared/schema/proceso-sharing.schema.ts
 import {
-  mysqlTable as mysqlTable51,
-  varchar as varchar50,
-  timestamp as timestamp43,
+  mysqlTable as mysqlTable54,
+  varchar as varchar53,
+  timestamp as timestamp46,
   tinyint as tinyint9
 } from "drizzle-orm/mysql-core";
-import { relations as relations35 } from "drizzle-orm";
+import { relations as relations38 } from "drizzle-orm";
 var PERMISSION_CEILING, procesoSharing, procesoSharingRelations;
 var init_proceso_sharing_schema = __esm({
   "shared/schema/proceso-sharing.schema.ts"() {
@@ -1836,21 +1927,21 @@ var init_proceso_sharing_schema = __esm({
       cliente: ["ver"]
       // Clientes: máximo 'ver'
     };
-    procesoSharing = mysqlTable51("proceso_sharing", {
-      id: varchar50("id", { length: 36 }).primaryKey(),
-      procesoId: varchar50("proceso_id", { length: 36 }).notNull(),
-      sharedWithType: varchar50("shared_with_type", { length: 20 }).notNull().$type(),
-      sharedWithId: varchar50("shared_with_id", { length: 36 }).notNull(),
-      permission: varchar50("permission", { length: 20 }).notNull().$type(),
-      fechaInicio: timestamp43("fecha_inicio").notNull().defaultNow(),
-      fechaFin: timestamp43("fecha_fin"),
+    procesoSharing = mysqlTable54("proceso_sharing", {
+      id: varchar53("id", { length: 36 }).primaryKey(),
+      procesoId: varchar53("proceso_id", { length: 36 }).notNull(),
+      sharedWithType: varchar53("shared_with_type", { length: 20 }).notNull().$type(),
+      sharedWithId: varchar53("shared_with_id", { length: 36 }).notNull(),
+      permission: varchar53("permission", { length: 20 }).notNull().$type(),
+      fechaInicio: timestamp46("fecha_inicio").notNull().defaultNow(),
+      fechaFin: timestamp46("fecha_fin"),
       activoUnique: tinyint9("activo_unique"),
-      creadoPor: varchar50("creado_por", { length: 36 }).notNull(),
-      razon: varchar50("razon", { length: 500 }),
-      createdAt: timestamp43("created_at").notNull().defaultNow(),
-      updatedAt: timestamp43("updated_at").notNull().defaultNow().onUpdateNow()
+      creadoPor: varchar53("creado_por", { length: 36 }).notNull(),
+      razon: varchar53("razon", { length: 500 }),
+      createdAt: timestamp46("created_at").notNull().defaultNow(),
+      updatedAt: timestamp46("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    procesoSharingRelations = relations35(procesoSharing, ({ one }) => ({
+    procesoSharingRelations = relations38(procesoSharing, ({ one }) => ({
       proceso: one(procesos, {
         fields: [procesoSharing.procesoId],
         references: [procesos.id]
@@ -1860,24 +1951,30 @@ var init_proceso_sharing_schema = __esm({
 });
 
 // shared/schema/firm-settings.schema.ts
-import { mysqlTable as mysqlTable52, varchar as varchar51, boolean as boolean22, timestamp as timestamp44 } from "drizzle-orm/mysql-core";
-import { relations as relations36 } from "drizzle-orm";
+import { mysqlTable as mysqlTable55, varchar as varchar54, boolean as boolean22, timestamp as timestamp47 } from "drizzle-orm/mysql-core";
+import { relations as relations39 } from "drizzle-orm";
 var firmSettings, firmSettingsRelations;
 var init_firm_settings_schema = __esm({
   "shared/schema/firm-settings.schema.ts"() {
     "use strict";
     init_firm_profile_schema();
-    firmSettings = mysqlTable52("firm_settings", {
-      id: varchar51("id", { length: 36 }).primaryKey(),
-      firmId: varchar51("firm_id", { length: 36 }).notNull().unique(),
+    firmSettings = mysqlTable55("firm_settings", {
+      id: varchar54("id", { length: 36 }).primaryKey(),
+      firmId: varchar54("firm_id", { length: 36 }).notNull().unique(),
       allowPrivateClientes: boolean22("allow_private_clientes").notNull().default(false),
       allowPrivateProcesos: boolean22("allow_private_procesos").notNull().default(false),
       defaultClienteEsCompartido: boolean22("default_cliente_es_compartido").notNull().default(true),
       defaultProcesoEsCompartido: boolean22("default_proceso_es_compartido").notNull().default(true),
-      createdAt: timestamp44("created_at").notNull().defaultNow(),
-      updatedAt: timestamp44("updated_at").notNull().defaultNow().onUpdateNow()
+      notifMensajes: boolean22("notif_mensajes").notNull().default(true),
+      notifVencimientos: boolean22("notif_vencimientos").notNull().default(true),
+      notifCambiosProcesos: boolean22("notif_cambios_procesos").notNull().default(true),
+      notifEquipoInvitaciones: boolean22("notif_equipo_invitaciones").notNull().default(true),
+      notifAlertasPlan: boolean22("notif_alertas_plan").notNull().default(true),
+      notifResumenSemanal: boolean22("notif_resumen_semanal").notNull().default(false),
+      createdAt: timestamp47("created_at").notNull().defaultNow(),
+      updatedAt: timestamp47("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    firmSettingsRelations = relations36(firmSettings, ({ one }) => ({
+    firmSettingsRelations = relations39(firmSettings, ({ one }) => ({
       firm: one(firmProfiles, {
         fields: [firmSettings.firmId],
         references: [firmProfiles.id]
@@ -1888,32 +1985,32 @@ var init_firm_settings_schema = __esm({
 
 // shared/schema/cliente-ownership.schema.ts
 import {
-  mysqlTable as mysqlTable53,
-  varchar as varchar52,
-  timestamp as timestamp45,
+  mysqlTable as mysqlTable56,
+  varchar as varchar55,
+  timestamp as timestamp48,
   tinyint as tinyint10
 } from "drizzle-orm/mysql-core";
-import { relations as relations37 } from "drizzle-orm";
+import { relations as relations40 } from "drizzle-orm";
 var clienteOwnership, clienteOwnershipRelations;
 var init_cliente_ownership_schema = __esm({
   "shared/schema/cliente-ownership.schema.ts"() {
     "use strict";
     init_cliente_schema();
-    clienteOwnership = mysqlTable53("cliente_ownership", {
-      id: varchar52("id", { length: 36 }).primaryKey(),
-      clienteId: varchar52("cliente_id", { length: 36 }).notNull(),
-      ownerType: varchar52("owner_type", { length: 20 }).notNull().$type(),
-      ownerId: varchar52("owner_id", { length: 36 }).notNull(),
-      fechaInicio: timestamp45("fecha_inicio").notNull().defaultNow(),
-      fechaFin: timestamp45("fecha_fin"),
+    clienteOwnership = mysqlTable56("cliente_ownership", {
+      id: varchar55("id", { length: 36 }).primaryKey(),
+      clienteId: varchar55("cliente_id", { length: 36 }).notNull(),
+      ownerType: varchar55("owner_type", { length: 20 }).notNull().$type(),
+      ownerId: varchar55("owner_id", { length: 36 }).notNull(),
+      fechaInicio: timestamp48("fecha_inicio").notNull().defaultNow(),
+      fechaFin: timestamp48("fecha_fin"),
       activoUnique: tinyint10("activo_unique"),
       // 1 = activo, NULL = histórico
-      creadoPor: varchar52("creado_por", { length: 36 }).notNull(),
-      razon: varchar52("razon", { length: 500 }),
-      createdAt: timestamp45("created_at").notNull().defaultNow(),
-      updatedAt: timestamp45("updated_at").notNull().defaultNow().onUpdateNow()
+      creadoPor: varchar55("creado_por", { length: 36 }).notNull(),
+      razon: varchar55("razon", { length: 500 }),
+      createdAt: timestamp48("created_at").notNull().defaultNow(),
+      updatedAt: timestamp48("updated_at").notNull().defaultNow().onUpdateNow()
     });
-    clienteOwnershipRelations = relations37(clienteOwnership, ({ one }) => ({
+    clienteOwnershipRelations = relations40(clienteOwnership, ({ one }) => ({
       cliente: one(clientes, {
         fields: [clienteOwnership.clienteId],
         references: [clientes.id]
@@ -1923,23 +2020,23 @@ var init_cliente_ownership_schema = __esm({
 });
 
 // shared/schema/feature.schema.ts
-import { mysqlTable as mysqlTable54, int as int29, varchar as varchar53, text as text32, boolean as boolean23 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable57, int as int29, varchar as varchar56, text as text33, boolean as boolean23 } from "drizzle-orm/mysql-core";
 var features, planFeatures, FEATURE_CODES;
 var init_feature_schema = __esm({
   "shared/schema/feature.schema.ts"() {
     "use strict";
-    features = mysqlTable54("features", {
+    features = mysqlTable57("features", {
       id: int29("id").autoincrement().primaryKey(),
-      code: varchar53("code", { length: 100 }).notNull().unique(),
-      nombre: varchar53("nombre", { length: 100 }).notNull(),
-      descripcion: text32("descripcion"),
+      code: varchar56("code", { length: 100 }).notNull().unique(),
+      nombre: varchar56("nombre", { length: 100 }).notNull(),
+      descripcion: text33("descripcion"),
       state: boolean23("state").notNull().default(true)
     });
-    planFeatures = mysqlTable54("plan_features", {
-      planId: varchar53("plan_id", { length: 36 }).notNull(),
-      featureCode: varchar53("feature_code", { length: 100 }).notNull(),
+    planFeatures = mysqlTable57("plan_features", {
+      planId: varchar56("plan_id", { length: 36 }).notNull(),
+      featureCode: varchar56("feature_code", { length: 100 }).notNull(),
       // "true" / "false" para boolean; "5" para límite numérico (ej: privados limitados)
-      value: varchar53("value", { length: 50 }).notNull().default("true")
+      value: varchar56("value", { length: 50 }).notNull().default("true")
     });
     FEATURE_CODES = [
       "calendario",
@@ -1958,15 +2055,15 @@ var init_feature_schema = __esm({
 });
 
 // shared/schema/suscripcion.schema.ts
-import { mysqlTable as mysqlTable55, varchar as varchar54, int as int30, boolean as boolean24, datetime as datetime4, timestamp as timestamp46, mysqlEnum as mysqlEnum15 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable58, varchar as varchar57, int as int30, boolean as boolean24, datetime as datetime4, timestamp as timestamp49, mysqlEnum as mysqlEnum15 } from "drizzle-orm/mysql-core";
 var suscripciones;
 var init_suscripcion_schema = __esm({
   "shared/schema/suscripcion.schema.ts"() {
     "use strict";
-    suscripciones = mysqlTable55("suscripciones", {
-      id: varchar54("id", { length: 36 }).primaryKey(),
-      userId: varchar54("user_id", { length: 36 }).notNull(),
-      planId: varchar54("plan_id", { length: 36 }).notNull(),
+    suscripciones = mysqlTable58("suscripciones", {
+      id: varchar57("id", { length: 36 }).primaryKey(),
+      userId: varchar57("user_id", { length: 36 }).notNull(),
+      planId: varchar57("plan_id", { length: 36 }).notNull(),
       ciclo: mysqlEnum15("ciclo", ["mensual", "anual"]).notNull(),
       estado: mysqlEnum15("estado", ["activa", "cancelada", "vencida", "en_prueba"]).notNull().default("activa"),
       fechaInicio: datetime4("fecha_inicio").notNull(),
@@ -1974,76 +2071,99 @@ var init_suscripcion_schema = __esm({
       fechaCancelacion: datetime4("fecha_cancelacion"),
       autoRenovacion: boolean24("auto_renovacion").notNull().default(true),
       extraUsers: int30("extra_users").notNull().default(0),
-      wompiSubscriptionId: varchar54("wompi_subscription_id", { length: 100 }),
-      createdAt: timestamp46("created_at").notNull().defaultNow()
+      wompiSubscriptionId: varchar57("wompi_subscription_id", { length: 100 }),
+      createdAt: timestamp49("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/pago.schema.ts
-import { mysqlTable as mysqlTable56, varchar as varchar55, decimal as decimal4, timestamp as timestamp47, mysqlEnum as mysqlEnum16 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable59, varchar as varchar58, decimal as decimal4, timestamp as timestamp50, mysqlEnum as mysqlEnum16 } from "drizzle-orm/mysql-core";
 var pagos;
 var init_pago_schema = __esm({
   "shared/schema/pago.schema.ts"() {
     "use strict";
-    pagos = mysqlTable56("pagos", {
-      id: varchar55("id", { length: 36 }).primaryKey(),
-      suscripcionId: varchar55("suscripcion_id", { length: 36 }).notNull(),
-      userId: varchar55("user_id", { length: 36 }).notNull(),
+    pagos = mysqlTable59("pagos", {
+      id: varchar58("id", { length: 36 }).primaryKey(),
+      suscripcionId: varchar58("suscripcion_id", { length: 36 }).notNull(),
+      userId: varchar58("user_id", { length: 36 }).notNull(),
       amountCop: decimal4("amount_cop", { precision: 12, scale: 2 }),
       amountUsd: decimal4("amount_usd", { precision: 10, scale: 2 }),
       currency: mysqlEnum16("currency", ["COP", "USD"]).notNull(),
       metodoPago: mysqlEnum16("metodo_pago", ["card", "pse", "nequi", "bancolombia_transfer", "otro"]),
       estado: mysqlEnum16("estado", ["pendiente", "aprobado", "rechazado", "reembolsado"]).notNull().default("pendiente"),
-      wompiTransactionId: varchar55("wompi_transaction_id", { length: 100 }),
-      wompiReference: varchar55("wompi_reference", { length: 100 }).notNull().unique(),
-      concepto: varchar55("concepto", { length: 255 }),
-      createdAt: timestamp47("created_at").notNull().defaultNow()
+      wompiTransactionId: varchar58("wompi_transaction_id", { length: 100 }),
+      wompiReference: varchar58("wompi_reference", { length: 100 }).notNull().unique(),
+      concepto: varchar58("concepto", { length: 255 }),
+      createdAt: timestamp50("created_at").notNull().defaultNow()
     });
   }
 });
 
 // shared/schema/usage-tracking.schema.ts
-import { mysqlTable as mysqlTable57, varchar as varchar56, int as int31, timestamp as timestamp48 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable60, varchar as varchar59, int as int31, timestamp as timestamp51 } from "drizzle-orm/mysql-core";
 var usageTracking;
 var init_usage_tracking_schema = __esm({
   "shared/schema/usage-tracking.schema.ts"() {
     "use strict";
-    usageTracking = mysqlTable57("usage_tracking", {
-      id: varchar56("id", { length: 36 }).primaryKey(),
-      userId: varchar56("user_id", { length: 36 }).notNull().unique(),
-      suscripcionId: varchar56("suscripcion_id", { length: 36 }).notNull(),
+    usageTracking = mysqlTable60("usage_tracking", {
+      id: varchar59("id", { length: 36 }).primaryKey(),
+      userId: varchar59("user_id", { length: 36 }).notNull().unique(),
+      suscripcionId: varchar59("suscripcion_id", { length: 36 }).notNull(),
       procesosUsados: int31("procesos_usados").notNull().default(0),
       clientesUsados: int31("clientes_usados").notNull().default(0),
       storageUsadoMb: int31("storage_usado_mb").notNull().default(0),
-      updatedAt: timestamp48("updated_at").notNull().defaultNow().onUpdateNow()
+      updatedAt: timestamp51("updated_at").notNull().defaultNow().onUpdateNow()
     });
   }
 });
 
 // shared/schema/admin-audit-log.schema.ts
-import { mysqlTable as mysqlTable58, int as int32, varchar as varchar57, text as text33, timestamp as timestamp49, index as index4 } from "drizzle-orm/mysql-core";
+import { mysqlTable as mysqlTable61, int as int32, varchar as varchar60, text as text34, timestamp as timestamp52, index as index6 } from "drizzle-orm/mysql-core";
 var adminAuditLog;
 var init_admin_audit_log_schema = __esm({
   "shared/schema/admin-audit-log.schema.ts"() {
     "use strict";
-    adminAuditLog = mysqlTable58(
+    adminAuditLog = mysqlTable61(
       "admin_audit_log",
       {
         id: int32("id").autoincrement().primaryKey(),
         /** Referencia soft a users.id — sin FK intencional: los logs de auditoría persisten aunque el admin sea eliminado */
-        adminId: varchar57("admin_id", { length: 36 }).notNull(),
-        accion: varchar57("accion", { length: 100 }).notNull(),
-        targetId: varchar57("target_id", { length: 36 }),
-        detalle: text33("detalle"),
-        createdAt: timestamp49("created_at").notNull().defaultNow()
+        adminId: varchar60("admin_id", { length: 36 }).notNull(),
+        accion: varchar60("accion", { length: 100 }).notNull(),
+        targetId: varchar60("target_id", { length: 36 }),
+        detalle: text34("detalle"),
+        createdAt: timestamp52("created_at").notNull().defaultNow()
       },
       (table) => [
-        index4("idx_admin_id").on(table.adminId),
-        index4("idx_accion").on(table.accion),
-        index4("idx_created").on(table.createdAt)
+        index6("idx_admin_id").on(table.adminId),
+        index6("idx_accion").on(table.accion),
+        index6("idx_created").on(table.createdAt)
       ]
     );
+  }
+});
+
+// shared/schema/public-support-request.schema.ts
+import { mysqlTable as mysqlTable62, varchar as varchar61, text as text35, mysqlEnum as mysqlEnum17, timestamp as timestamp53 } from "drizzle-orm/mysql-core";
+var publicSupportRequests;
+var init_public_support_request_schema = __esm({
+  "shared/schema/public-support-request.schema.ts"() {
+    "use strict";
+    publicSupportRequests = mysqlTable62("public_support_requests", {
+      id: varchar61("id", { length: 36 }).primaryKey(),
+      name: varchar61("name", { length: 120 }).notNull(),
+      email: varchar61("email", { length: 180 }).notNull(),
+      message: text35("message").notNull(),
+      source: mysqlEnum17("source", ["landing", "login"]).notNull(),
+      status: mysqlEnum17("status", ["new", "in_progress", "resolved", "spam"]).notNull().default("new"),
+      userId: varchar61("user_id", { length: 36 }),
+      assignedAdminId: varchar61("assigned_admin_id", { length: 36 }),
+      conversationId: varchar61("conversation_id", { length: 36 }),
+      createdAt: timestamp53("created_at").notNull().defaultNow(),
+      updatedAt: timestamp53("updated_at").notNull().defaultNow().onUpdateNow(),
+      resolvedAt: timestamp53("resolved_at")
+    });
   }
 });
 
@@ -2061,6 +2181,8 @@ __export(schema_exports, {
   adminProfiles: () => adminProfiles,
   adminProfilesRelations: () => adminProfilesRelations,
   appNotifications: () => appNotifications,
+  authChallenges: () => authChallenges,
+  authChallengesRelations: () => authChallengesRelations,
   calendarEvents: () => calendarEvents,
   calendarEventsRelations: () => calendarEventsRelations,
   clientRequests: () => clientRequests,
@@ -2140,6 +2262,7 @@ __export(schema_exports, {
   procesoSharingRelations: () => procesoSharingRelations,
   procesos: () => procesos,
   procesosRelations: () => procesosRelations,
+  publicSupportRequests: () => publicSupportRequests,
   ratings: () => ratings,
   representantesLegales: () => representantesLegales,
   representantesLegalesRelations: () => representantesLegalesRelations,
@@ -2168,6 +2291,10 @@ __export(schema_exports, {
   tiposDocumento: () => tiposDocumento,
   tiposProceso: () => tiposProceso,
   usageTracking: () => usageTracking,
+  userDevices: () => userDevices,
+  userDevicesRelations: () => userDevicesRelations,
+  userTwoFactor: () => userTwoFactor,
+  userTwoFactorRelations: () => userTwoFactorRelations,
   users: () => users,
   usersRelations: () => usersRelations
 });
@@ -2206,6 +2333,9 @@ var init_schema = __esm({
     init_notificacion_schema();
     init_chat_schema();
     init_session_schema();
+    init_user_device_schema();
+    init_user_two_factor_schema();
+    init_auth_challenge_schema();
     init_tarea_schema();
     init_ubicacion_schema();
     init_community_schema();
@@ -2233,6 +2363,7 @@ var init_schema = __esm({
     init_pago_schema();
     init_usage_tracking_schema();
     init_admin_audit_log_schema();
+    init_public_support_request_schema();
   }
 });
 
@@ -6085,7 +6216,7 @@ var init_chat_storage = __esm({
 });
 
 // server/storage/storeage/models/session-storage.ts
-import { eq as eq23, and as and16, lt } from "drizzle-orm";
+import { eq as eq23, and as and16, lt, isNull as isNull5 } from "drizzle-orm";
 var SessionStorage;
 var init_session_storage = __esm({
   "server/storage/storeage/models/session-storage.ts"() {
@@ -6123,7 +6254,17 @@ var init_session_storage = __esm({
           and16(
             eq23(sessions.userId, userId2),
             // Only revoke non-already-revoked sessions
-            eq23(sessions.revokedAt, null)
+            isNull5(sessions.revokedAt)
+          )
+        );
+      }
+      /** Revoke all active sessions for one recognized device */
+      async revokeAllForDevice(userId2, deviceId) {
+        await this.db.update(sessions).set({ revokedAt: /* @__PURE__ */ new Date() }).where(
+          and16(
+            eq23(sessions.userId, userId2),
+            eq23(sessions.deviceId, deviceId),
+            isNull5(sessions.revokedAt)
           )
         );
       }
@@ -6147,7 +6288,8 @@ var init_session_storage = __esm({
           refreshToken: newRefreshToken,
           refreshExpiresAt: newRefreshExpiresAt,
           ipAddress: old?.ipAddress ?? null,
-          userAgent: old?.userAgent ?? null
+          userAgent: old?.userAgent ?? null,
+          deviceId: old?.deviceId ?? null
         });
       }
       /** Delete expired sessions (run periodically to keep table clean) */
@@ -6158,13 +6300,225 @@ var init_session_storage = __esm({
   }
 });
 
-// server/storage/storeage/models/tarea-storage.ts
-import { eq as eq24, and as and17, desc as desc9, sql as sql10, inArray as inArray6, count as count2 } from "drizzle-orm";
+// server/storage/storeage/models/user-device-storage.ts
+import { and as and17, desc as desc9, eq as eq24, isNull as isNull6, sql as sql10 } from "drizzle-orm";
 import { randomUUID as randomUUID7 } from "crypto";
+var UserDeviceStorage;
+var init_user_device_storage = __esm({
+  "server/storage/storeage/models/user-device-storage.ts"() {
+    "use strict";
+    init_schema();
+    UserDeviceStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getByIdForUser(userId2, id) {
+        return this.db.query.userDevices.findFirst({
+          where: and17(eq24(userDevices.userId, userId2), eq24(userDevices.id, id))
+        });
+      }
+      async getByDeviceId(userId2, deviceId) {
+        return this.db.query.userDevices.findFirst({
+          where: and17(eq24(userDevices.userId, userId2), eq24(userDevices.deviceId, deviceId))
+        });
+      }
+      async upsertSeen(input) {
+        const now = /* @__PURE__ */ new Date();
+        const existing = await this.getByDeviceId(input.userId, input.deviceId);
+        if (existing) {
+          await this.db.update(userDevices).set({
+            deviceName: input.deviceName ?? existing.deviceName ?? null,
+            platform: input.platform ?? existing.platform ?? null,
+            userAgent: input.userAgent ?? existing.userAgent ?? null,
+            lastIp: input.lastIp ?? existing.lastIp ?? null,
+            lastSeenAt: now,
+            trustedAt: existing.trustedAt ?? now,
+            revokedAt: null,
+            updatedAt: now
+          }).where(eq24(userDevices.id, existing.id));
+          const device2 = await this.getByIdForUser(input.userId, existing.id);
+          return { device: device2, isNewDevice: false };
+        }
+        const id = randomUUID7();
+        await this.db.insert(userDevices).values({
+          id,
+          userId: input.userId,
+          deviceId: input.deviceId,
+          deviceName: input.deviceName ?? null,
+          platform: input.platform ?? null,
+          userAgent: input.userAgent ?? null,
+          lastIp: input.lastIp ?? null,
+          firstSeenAt: now,
+          lastSeenAt: now,
+          trustedAt: now,
+          createdAt: now,
+          updatedAt: now
+        });
+        const device = await this.getByIdForUser(input.userId, id);
+        return { device, isNewDevice: true };
+      }
+      async listForUser(userId2, currentDeviceRowId) {
+        const [devices, activeSessions] = await Promise.all([
+          this.db.select().from(userDevices).where(eq24(userDevices.userId, userId2)).orderBy(desc9(userDevices.lastSeenAt)),
+          this.db.select({
+            deviceId: sessions.deviceId,
+            count: sql10`count(*)`
+          }).from(sessions).where(and17(eq24(sessions.userId, userId2), isNull6(sessions.revokedAt))).groupBy(sessions.deviceId)
+        ]);
+        const counts = /* @__PURE__ */ new Map();
+        for (const row of activeSessions) {
+          if (row.deviceId) counts.set(row.deviceId, Number(row.count) || 0);
+        }
+        return devices.map((device) => {
+          const activeSessionCount = counts.get(device.deviceId) ?? 0;
+          return {
+            ...device,
+            activeSessionCount,
+            hasActiveSessions: activeSessionCount > 0,
+            isCurrentDevice: currentDeviceRowId === device.id
+          };
+        });
+      }
+      async revokeById(userId2, id) {
+        const device = await this.getByIdForUser(userId2, id);
+        if (!device) return void 0;
+        const now = /* @__PURE__ */ new Date();
+        await this.db.update(userDevices).set({
+          revokedAt: now,
+          updatedAt: now
+        }).where(eq24(userDevices.id, id));
+        await this.db.update(sessions).set({ revokedAt: now }).where(
+          and17(
+            eq24(sessions.userId, userId2),
+            eq24(sessions.deviceId, device.deviceId),
+            isNull6(sessions.revokedAt)
+          )
+        );
+        return this.getByIdForUser(userId2, id);
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/user-two-factor-storage.ts
+import { eq as eq25 } from "drizzle-orm";
+var UserTwoFactorStorage;
+var init_user_two_factor_storage = __esm({
+  "server/storage/storeage/models/user-two-factor-storage.ts"() {
+    "use strict";
+    init_schema();
+    UserTwoFactorStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async getByUserId(userId2) {
+        return this.db.query.userTwoFactor.findFirst({
+          where: eq25(userTwoFactor.userId, userId2)
+        });
+      }
+      async upsertSecret(userId2, secret) {
+        const existing = await this.getByUserId(userId2);
+        const now = /* @__PURE__ */ new Date();
+        if (existing) {
+          await this.db.update(userTwoFactor).set({
+            secret,
+            enabledAt: null,
+            recoveryCodes: null,
+            updatedAt: now
+          }).where(eq25(userTwoFactor.userId, userId2));
+        } else {
+          await this.db.insert(userTwoFactor).values({
+            userId: userId2,
+            secret,
+            enabledAt: null,
+            recoveryCodes: null,
+            createdAt: now,
+            updatedAt: now
+          });
+        }
+        return this.getByUserId(userId2);
+      }
+      async enable(userId2, secret, recoveryCodes) {
+        const existing = await this.getByUserId(userId2);
+        const now = /* @__PURE__ */ new Date();
+        const recoveryCodesJson = JSON.stringify(recoveryCodes);
+        if (existing) {
+          await this.db.update(userTwoFactor).set({
+            secret,
+            recoveryCodes: recoveryCodesJson,
+            enabledAt: now,
+            updatedAt: now
+          }).where(eq25(userTwoFactor.userId, userId2));
+        } else {
+          await this.db.insert(userTwoFactor).values({
+            userId: userId2,
+            secret,
+            recoveryCodes: recoveryCodesJson,
+            enabledAt: now,
+            createdAt: now,
+            updatedAt: now
+          });
+        }
+        return this.getByUserId(userId2);
+      }
+      async updateRecoveryCodes(userId2, recoveryCodes) {
+        await this.db.update(userTwoFactor).set({
+          recoveryCodes: JSON.stringify(recoveryCodes),
+          updatedAt: /* @__PURE__ */ new Date()
+        }).where(eq25(userTwoFactor.userId, userId2));
+        return this.getByUserId(userId2);
+      }
+      async disable(userId2) {
+        await this.db.delete(userTwoFactor).where(eq25(userTwoFactor.userId, userId2));
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/auth-challenge-storage.ts
+import { and as and18, eq as eq26, gt as gt2, isNull as isNull7, lt as lt2 } from "drizzle-orm";
+var AuthChallengeStorage;
+var init_auth_challenge_storage = __esm({
+  "server/storage/storeage/models/auth-challenge-storage.ts"() {
+    "use strict";
+    init_schema();
+    AuthChallengeStorage = class {
+      constructor(db2) {
+        this.db = db2;
+      }
+      async create(data) {
+        await this.db.insert(authChallenges).values(data);
+      }
+      async getValidById(id) {
+        return this.db.query.authChallenges.findFirst({
+          where: and18(
+            eq26(authChallenges.id, id),
+            isNull7(authChallenges.completedAt),
+            gt2(authChallenges.expiresAt, /* @__PURE__ */ new Date())
+          )
+        });
+      }
+      async complete(id) {
+        await this.db.update(authChallenges).set({ completedAt: /* @__PURE__ */ new Date() }).where(eq26(authChallenges.id, id));
+      }
+      async deleteExpired() {
+        await this.db.delete(authChallenges).where(
+          and18(
+            lt2(authChallenges.expiresAt, /* @__PURE__ */ new Date()),
+            isNull7(authChallenges.completedAt)
+          )
+        );
+      }
+    };
+  }
+});
+
+// server/storage/storeage/models/tarea-storage.ts
+import { eq as eq27, and as and19, desc as desc10, sql as sql11, inArray as inArray6, count as count2 } from "drizzle-orm";
+import { randomUUID as randomUUID8 } from "crypto";
 function toDTO(t) {
   const now = /* @__PURE__ */ new Date();
   const vencida = t.estado !== "completada" && t.estado !== "cancelada" && t.fechaLimite !== null && t.fechaLimite < now;
-  console.log(t.asignadoA);
   return {
     id: t.id,
     procesoId: t.procesoId,
@@ -6197,7 +6551,7 @@ var init_tarea_storage = __esm({
       }
       // ── Create ─────────────────────────────────────────────────────────────────
       async create(data) {
-        const id = randomUUID7();
+        const id = randomUUID8();
         const row = {
           ...data,
           id,
@@ -6216,7 +6570,7 @@ var init_tarea_storage = __esm({
         if (dtos.length === 0) return dtos;
         const ids = dtos.map((d) => d.id);
         const [subRows, obsRows, arcRows] = await Promise.all([
-          this.db.select({ tareaId: tareaSubtareas.tareaId, total: count2(), completadas: sql10`SUM(CASE WHEN ${tareaSubtareas.estado} = 'completada' THEN 1 ELSE 0 END)` }).from(tareaSubtareas).where(inArray6(tareaSubtareas.tareaId, ids)).groupBy(tareaSubtareas.tareaId),
+          this.db.select({ tareaId: tareaSubtareas.tareaId, total: count2(), completadas: sql11`SUM(CASE WHEN ${tareaSubtareas.estado} = 'completada' THEN 1 ELSE 0 END)` }).from(tareaSubtareas).where(inArray6(tareaSubtareas.tareaId, ids)).groupBy(tareaSubtareas.tareaId),
           this.db.select({ tareaId: tareaObservaciones.tareaId, total: count2() }).from(tareaObservaciones).where(inArray6(tareaObservaciones.tareaId, ids)).groupBy(tareaObservaciones.tareaId),
           this.db.select({ tareaId: tareaArchivos.tareaId, total: count2() }).from(tareaArchivos).where(inArray6(tareaArchivos.tareaId, ids)).groupBy(tareaArchivos.tareaId)
         ]);
@@ -6234,31 +6588,31 @@ var init_tarea_storage = __esm({
       // ── Find ───────────────────────────────────────────────────────────────────
       async findById(id) {
         const row = await this.db.query.tareas.findFirst({
-          where: eq24(tareas.id, id)
+          where: eq27(tareas.id, id)
         });
         if (!row) return void 0;
         const [enriched] = await this.enrichWithCounts([toDTO(row)]);
         return enriched;
       }
       async findRawById(id) {
-        return this.db.query.tareas.findFirst({ where: eq24(tareas.id, id) });
+        return this.db.query.tareas.findFirst({ where: eq27(tareas.id, id) });
       }
       async findByProceso(procesoId, stage) {
-        const conditions = [eq24(tareas.procesoId, procesoId), eq24(tareas.state, true)];
+        const conditions = [eq27(tareas.procesoId, procesoId), eq27(tareas.state, true)];
         if (stage !== void 0) {
-          conditions.push(eq24(tareas.legalStage, stage));
+          conditions.push(eq27(tareas.legalStage, stage));
         }
-        const rows = await this.db.select().from(tareas).where(and17(...conditions)).orderBy(desc9(tareas.orden), desc9(tareas.createdAt));
+        const rows = await this.db.select().from(tareas).where(and19(...conditions)).orderBy(desc10(tareas.orden), desc10(tareas.createdAt));
         return this.enrichWithCounts(rows.map(toDTO));
       }
       /** Tareas de un abogado en todos sus procesos, agrupadas por estado */
       async findByLawyer(lawyerProfileId) {
         const rows = await this.db.select().from(tareas).where(
-          and17(
-            eq24(tareas.asignadoA, lawyerProfileId),
-            eq24(tareas.state, true)
+          and19(
+            eq27(tareas.asignadoA, lawyerProfileId),
+            eq27(tareas.state, true)
           )
-        ).orderBy(tareas.fechaLimite, desc9(tareas.createdAt));
+        ).orderBy(tareas.fechaLimite, desc10(tareas.createdAt));
         const dtos = await this.enrichWithCounts(rows.map(toDTO));
         const pendientes = [];
         const en_progreso = [];
@@ -6279,24 +6633,24 @@ var init_tarea_storage = __esm({
       }
       // ── Update ─────────────────────────────────────────────────────────────────
       async update(id, data) {
-        await this.db.update(tareas).set(data).where(eq24(tareas.id, id));
+        await this.db.update(tareas).set(data).where(eq27(tareas.id, id));
         return this.findById(id);
       }
       async updateEstado(id, estado, fechaCompletada) {
         await this.db.update(tareas).set({
           estado,
           ...fechaCompletada !== void 0 ? { fechaCompletada } : {}
-        }).where(eq24(tareas.id, id));
+        }).where(eq27(tareas.id, id));
         return this.findById(id);
       }
       // ── Stats ──────────────────────────────────────────────────────────────────
       async countByLawyer(lawyerProfileId) {
         const rows = await this.db.select({
-          total: sql10`COUNT(*)`,
-          pendientes: sql10`SUM(CASE WHEN ${tareas.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
-          en_progreso: sql10`SUM(CASE WHEN ${tareas.estado} = 'en_progreso' THEN 1 ELSE 0 END)`,
-          completadas: sql10`SUM(CASE WHEN ${tareas.estado} = 'completada' THEN 1 ELSE 0 END)`
-        }).from(tareas).where(and17(eq24(tareas.asignadoA, lawyerProfileId), eq24(tareas.state, true)));
+          total: sql11`COUNT(*)`,
+          pendientes: sql11`SUM(CASE WHEN ${tareas.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
+          en_progreso: sql11`SUM(CASE WHEN ${tareas.estado} = 'en_progreso' THEN 1 ELSE 0 END)`,
+          completadas: sql11`SUM(CASE WHEN ${tareas.estado} = 'completada' THEN 1 ELSE 0 END)`
+        }).from(tareas).where(and19(eq27(tareas.asignadoA, lawyerProfileId), eq27(tareas.state, true)));
         return {
           total: Number(rows[0]?.total ?? 0),
           pendientes: Number(rows[0]?.pendientes ?? 0),
@@ -6310,11 +6664,11 @@ var init_tarea_storage = __esm({
         if (procesoIds.length === 0) return map;
         const rows = await this.db.select({
           procesoId: tareas.procesoId,
-          total: sql10`COUNT(*)`,
-          pendientes: sql10`SUM(CASE WHEN ${tareas.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
-          en_progreso: sql10`SUM(CASE WHEN ${tareas.estado} = 'en_progreso' THEN 1 ELSE 0 END)`,
-          completadas: sql10`SUM(CASE WHEN ${tareas.estado} = 'completada' THEN 1 ELSE 0 END)`
-        }).from(tareas).where(and17(inArray6(tareas.procesoId, procesoIds), eq24(tareas.state, true))).groupBy(tareas.procesoId);
+          total: sql11`COUNT(*)`,
+          pendientes: sql11`SUM(CASE WHEN ${tareas.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
+          en_progreso: sql11`SUM(CASE WHEN ${tareas.estado} = 'en_progreso' THEN 1 ELSE 0 END)`,
+          completadas: sql11`SUM(CASE WHEN ${tareas.estado} = 'completada' THEN 1 ELSE 0 END)`
+        }).from(tareas).where(and19(inArray6(tareas.procesoId, procesoIds), eq27(tareas.state, true))).groupBy(tareas.procesoId);
         for (const row of rows) {
           map.set(row.procesoId, {
             total: Number(row.total),
@@ -6328,30 +6682,30 @@ var init_tarea_storage = __esm({
       // ── Gate: tareas requeridas pendientes en una etapa ───────────────────────
       async getRequiredPendingByStage(procesoId, legalStage) {
         return this.db.select().from(tareas).where(
-          and17(
-            eq24(tareas.procesoId, procesoId),
-            eq24(tareas.legalStage, legalStage),
-            eq24(tareas.requerida, 1),
+          and19(
+            eq27(tareas.procesoId, procesoId),
+            eq27(tareas.legalStage, legalStage),
+            eq27(tareas.requerida, 1),
             inArray6(tareas.estado, ["pendiente", "en_progreso"])
           )
         );
       }
       // ── Get raw by id ──────────────────────────────────────────────────────────
       async getById(id) {
-        const [row] = await this.db.select().from(tareas).where(eq24(tareas.id, id));
+        const [row] = await this.db.select().from(tareas).where(eq27(tareas.id, id));
         return row ?? null;
       }
       // ── Delete (soft) ──────────────────────────────────────────────────────────
       async softDelete(id) {
-        await this.db.update(tareas).set({ state: false }).where(eq24(tareas.id, id));
+        await this.db.update(tareas).set({ state: false }).where(eq27(tareas.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/persona-storage.ts
-import { eq as eq25 } from "drizzle-orm";
-import { randomUUID as randomUUID8 } from "crypto";
+import { eq as eq28 } from "drizzle-orm";
+import { randomUUID as randomUUID9 } from "crypto";
 var PersonaStorage;
 var init_persona_storage = __esm({
   "server/storage/storeage/models/persona-storage.ts"() {
@@ -6364,7 +6718,7 @@ var init_persona_storage = __esm({
       }
       async createPersona(data, tx) {
         const db2 = tx ?? this.db;
-        const id = randomUUID8();
+        const id = randomUUID9();
         const documento = await assertDocumentoUnique(db2, data.documento);
         await db2.insert(personas).values({
           ...data,
@@ -6374,12 +6728,12 @@ var init_persona_storage = __esm({
           apellido: normalizeLooseText(data.apellido),
           telefono: normalizeLooseText(data.telefono)
         });
-        const result = await db2.select().from(personas).where(eq25(personas.id, id)).limit(1);
+        const result = await db2.select().from(personas).where(eq28(personas.id, id)).limit(1);
         if (!result[0]) throw new Error("No se pudo crear la persona");
         return result[0];
       }
       async getPersona(id) {
-        const result = await this.db.select().from(personas).where(eq25(personas.id, id)).limit(1);
+        const result = await this.db.select().from(personas).where(eq28(personas.id, id)).limit(1);
         return result[0];
       }
       async updatePersona(id, updates, tx) {
@@ -6397,19 +6751,19 @@ var init_persona_storage = __esm({
         if (updates.telefono !== void 0) {
           safeUpdates.telefono = normalizeLooseText(updates.telefono);
         }
-        await db2.update(personas).set(safeUpdates).where(eq25(personas.id, id));
+        await db2.update(personas).set(safeUpdates).where(eq28(personas.id, id));
         return this.getPersona(id);
       }
       async deletePersona(id) {
-        await this.db.delete(personas).where(eq25(personas.id, id));
+        await this.db.delete(personas).where(eq28(personas.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/representante-legal-storage.ts
-import { eq as eq26 } from "drizzle-orm";
-import { randomUUID as randomUUID9 } from "crypto";
+import { eq as eq29 } from "drizzle-orm";
+import { randomUUID as randomUUID10 } from "crypto";
 var RepresentanteLegalStorage;
 var init_representante_legal_storage = __esm({
   "server/storage/storeage/models/representante-legal-storage.ts"() {
@@ -6421,7 +6775,7 @@ var init_representante_legal_storage = __esm({
       }
       async createRepresentante(data, tx) {
         const db2 = tx ?? this.db;
-        const id = randomUUID9();
+        const id = randomUUID10();
         await db2.insert(representantesLegales).values({ ...data, id });
         return { id, ...data, persona: null };
       }
@@ -6442,7 +6796,7 @@ var init_representante_legal_storage = __esm({
             departamentoId: personas.departamentoId,
             municipioId: personas.municipioId
           }
-        }).from(representantesLegales).leftJoin(personas, eq26(representantesLegales.personaId, personas.id)).where(eq26(representantesLegales.id, id)).limit(1);
+        }).from(representantesLegales).leftJoin(personas, eq29(representantesLegales.personaId, personas.id)).where(eq29(representantesLegales.id, id)).limit(1);
         if (!result[0]) return void 0;
         return {
           ...result[0],
@@ -6450,23 +6804,23 @@ var init_representante_legal_storage = __esm({
         };
       }
       async getRepresentantesByPersona(personaId) {
-        return this.db.select().from(representantesLegales).where(eq26(representantesLegales.personaId, personaId));
+        return this.db.select().from(representantesLegales).where(eq29(representantesLegales.personaId, personaId));
       }
       async updateRepresentante(id, updates, tx) {
         const db2 = tx ?? this.db;
-        await db2.update(representantesLegales).set(updates).where(eq26(representantesLegales.id, id));
+        await db2.update(representantesLegales).set(updates).where(eq29(representantesLegales.id, id));
         return this.getRepresentante(id);
       }
       async deleteRepresentante(id) {
-        await this.db.delete(representantesLegales).where(eq26(representantesLegales.id, id));
+        await this.db.delete(representantesLegales).where(eq29(representantesLegales.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/community-storage.ts
-import { randomUUID as randomUUID10 } from "crypto";
-import { eq as eq27, and as and18, desc as desc10, sql as sql11, inArray as inArray7, isNull as isNull5 } from "drizzle-orm";
+import { randomUUID as randomUUID11 } from "crypto";
+import { eq as eq30, and as and20, desc as desc11, sql as sql12, inArray as inArray7, isNull as isNull8 } from "drizzle-orm";
 var CommunityStorage;
 var init_community_storage = __esm({
   "server/storage/storeage/models/community-storage.ts"() {
@@ -6485,10 +6839,10 @@ var init_community_storage = __esm({
       // ── helpers ──────────────────────────────────────────────────────────────
       async enrichPost(row, userId2) {
         const [likeCountRow, likedRow, bookmarkedRow, postTagRows] = await Promise.all([
-          this.db.select({ c: sql11`COUNT(*)` }).from(postLikes).where(eq27(postLikes.postId, row.id)),
-          userId2 ? this.db.select().from(postLikes).where(and18(eq27(postLikes.postId, row.id), eq27(postLikes.userId, userId2))).limit(1) : Promise.resolve([]),
-          userId2 ? this.db.select().from(postBookmarks).where(and18(eq27(postBookmarks.postId, row.id), eq27(postBookmarks.userId, userId2))).limit(1) : Promise.resolve([]),
-          this.db.select({ id: tags.id, name: tags.name, slug: tags.slug }).from(postTags).innerJoin(tags, eq27(tags.id, postTags.tagId)).where(eq27(postTags.postId, row.id))
+          this.db.select({ c: sql12`COUNT(*)` }).from(postLikes).where(eq30(postLikes.postId, row.id)),
+          userId2 ? this.db.select().from(postLikes).where(and20(eq30(postLikes.postId, row.id), eq30(postLikes.userId, userId2))).limit(1) : Promise.resolve([]),
+          userId2 ? this.db.select().from(postBookmarks).where(and20(eq30(postBookmarks.postId, row.id), eq30(postBookmarks.userId, userId2))).limit(1) : Promise.resolve([]),
+          this.db.select({ id: tags.id, name: tags.name, slug: tags.slug }).from(postTags).innerJoin(tags, eq30(tags.id, postTags.tagId)).where(eq30(postTags.postId, row.id))
         ]);
         return {
           id: row.id,
@@ -6528,13 +6882,13 @@ var init_community_storage = __esm({
       }
       // ── Posts ─────────────────────────────────────────────────────────────────
       async createPost(data) {
-        const id = randomUUID10();
+        const id = randomUUID11();
         await this.db.insert(posts).values({ id, ...data });
-        const result = await this.db.select().from(posts).where(eq27(posts.id, id)).limit(1);
+        const result = await this.db.select().from(posts).where(eq30(posts.id, id)).limit(1);
         return result[0];
       }
       async getPost(id) {
-        const result = await this.db.select().from(posts).where(and18(eq27(posts.id, id), eq27(posts.disabled, false))).limit(1);
+        const result = await this.db.select().from(posts).where(and20(eq30(posts.id, id), eq30(posts.disabled, false))).limit(1);
         return result[0];
       }
       async getPosts(limit = 20, offset = 0, filter = {}, userId2) {
@@ -6561,7 +6915,7 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           authorRole: roles.nombre,
-          authorProfessionallyVerified: sql11`(
+          authorProfessionallyVerified: sql12`(
           SELECT CASE
             WHEN EXISTS (
               SELECT 1 FROM lawyer_profiles lp2
@@ -6569,8 +6923,8 @@ var init_community_storage = __esm({
                 AND lp2.professional_verification_status = 'verificado'
             ) THEN 1 ELSE 0 END
         )`,
-          commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`,
-          takenByProfessionallyVerified: sql11`(
+          commentCount: sql12`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`,
+          takenByProfessionallyVerified: sql12`(
           SELECT CASE
             WHEN EXISTS (
               SELECT 1 FROM lawyer_profiles lp3
@@ -6578,21 +6932,21 @@ var init_community_storage = __esm({
                 AND lp3.professional_verification_status = 'verificado'
             ) THEN 1 ELSE 0 END
         )`
-        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).leftJoin(roles, eq27(users.rolId, roles.id));
+        }).from(posts).leftJoin(users, eq30(posts.userId, users.id)).leftJoin(roles, eq30(users.rolId, roles.id));
         let tagId = null;
         if (filter.tagSlug) {
-          const tagRow = await this.db.select().from(tags).where(eq27(tags.slug, filter.tagSlug)).limit(1);
+          const tagRow = await this.db.select().from(tags).where(eq30(tags.slug, filter.tagSlug)).limit(1);
           tagId = tagRow[0]?.id ?? null;
         }
         const conditions = [];
-        if (!filter.includeDisabled) conditions.push(eq27(posts.disabled, false));
-        if (filter.authorId) conditions.push(eq27(posts.userId, filter.authorId));
-        if (filter.unlinkedOnly) conditions.push(isNull5(posts.procesoId));
-        if (filter.clientAccepted) conditions.push(eq27(posts.clientAccepted, 1));
+        if (!filter.includeDisabled) conditions.push(eq30(posts.disabled, false));
+        if (filter.authorId) conditions.push(eq30(posts.userId, filter.authorId));
+        if (filter.unlinkedOnly) conditions.push(isNull8(posts.procesoId));
+        if (filter.clientAccepted) conditions.push(eq30(posts.clientAccepted, 1));
         if (conditions.length > 0) {
-          query = query.where(conditions.length === 1 ? conditions[0] : and18(...conditions));
+          query = query.where(conditions.length === 1 ? conditions[0] : and20(...conditions));
         }
-        const rows = await (filter.sort === "popular" ? query.orderBy(desc10(posts.viewCount)) : filter.sort === "liked" ? query.orderBy(desc10(sql11`(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = ${posts.id})`)) : query.orderBy(desc10(posts.createdAt))).limit(limit).offset(offset);
+        const rows = await (filter.sort === "popular" ? query.orderBy(desc11(posts.viewCount)) : filter.sort === "liked" ? query.orderBy(desc11(sql12`(SELECT COUNT(*) FROM post_likes WHERE post_likes.post_id = ${posts.id})`)) : query.orderBy(desc11(posts.createdAt))).limit(limit).offset(offset);
         let filtered = rows;
         if (filter.search) {
           const q = filter.search.toLowerCase();
@@ -6605,7 +6959,7 @@ var init_community_storage = __esm({
           filtered = filtered.filter((r) => (r.city ?? "").toLowerCase() === c);
         }
         if (tagId) {
-          const taggedPostIds = await this.db.select({ postId: postTags.postId }).from(postTags).where(eq27(postTags.tagId, tagId));
+          const taggedPostIds = await this.db.select({ postId: postTags.postId }).from(postTags).where(eq30(postTags.tagId, tagId));
           const ids = new Set(taggedPostIds.map((r) => r.postId));
           filtered = filtered.filter((r) => ids.has(r.id));
         }
@@ -6639,7 +6993,7 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           authorRole: roles.nombre,
-          authorProfessionallyVerified: sql11`(
+          authorProfessionallyVerified: sql12`(
           SELECT CASE
             WHEN EXISTS (
               SELECT 1 FROM lawyer_profiles lp2
@@ -6647,8 +7001,8 @@ var init_community_storage = __esm({
                 AND lp2.professional_verification_status = 'verificado'
             ) THEN 1 ELSE 0 END
         )`,
-          takenByName: sql11`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
-          takenByProfessionallyVerified: sql11`(
+          takenByName: sql12`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
+          takenByProfessionallyVerified: sql12`(
           SELECT CASE
             WHEN EXISTS (
               SELECT 1 FROM lawyer_profiles lp3
@@ -6656,25 +7010,25 @@ var init_community_storage = __esm({
                 AND lp3.professional_verification_status = 'verificado'
             ) THEN 1 ELSE 0 END
         )`,
-          commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).leftJoin(roles, eq27(users.rolId, roles.id)).where(and18(eq27(posts.id, id), eq27(posts.disabled, false))).limit(1);
+          commentCount: sql12`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
+        }).from(posts).leftJoin(users, eq30(posts.userId, users.id)).leftJoin(roles, eq30(users.rolId, roles.id)).where(and20(eq30(posts.id, id), eq30(posts.disabled, false))).limit(1);
         const row = rows[0];
         if (!row) return void 0;
         return this.enrichPost(row, userId2);
       }
       async updatePost(id, data) {
-        await this.db.update(posts).set(data).where(eq27(posts.id, id));
+        await this.db.update(posts).set(data).where(eq30(posts.id, id));
       }
       async deletePost(id) {
-        await this.db.delete(posts).where(eq27(posts.id, id));
+        await this.db.delete(posts).where(eq30(posts.id, id));
       }
       /** Link a community post to a proceso (bidirectional). */
       async setPostProceso(postId, procesoId) {
-        await this.db.update(posts).set({ procesoId }).where(eq27(posts.id, postId));
+        await this.db.update(posts).set({ procesoId }).where(eq30(posts.id, postId));
       }
       /** Atomically claim a post. Returns false if already taken or not found. */
       async takePost(postId, lawyerProfileId, lawyerUserId) {
-        const open = await this.db.select({ id: posts.id }).from(posts).where(and18(eq27(posts.id, postId), eq27(posts.status, "open"), eq27(posts.disabled, false))).limit(1);
+        const open = await this.db.select({ id: posts.id }).from(posts).where(and20(eq30(posts.id, postId), eq30(posts.status, "open"), eq30(posts.disabled, false))).limit(1);
         if (open.length === 0) return false;
         const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1e3);
         await this.db.update(posts).set({
@@ -6684,18 +7038,18 @@ var init_community_storage = __esm({
           takenAt: /* @__PURE__ */ new Date(),
           takenExpiresAt: expiresAt,
           clientAccepted: null
-        }).where(and18(eq27(posts.id, postId), eq27(posts.status, "open"), eq27(posts.disabled, false)));
+        }).where(and20(eq30(posts.id, postId), eq30(posts.status, "open"), eq30(posts.disabled, false)));
         return true;
       }
       async setPostDisabled(postId, disabled) {
-        await this.db.update(posts).set({ disabled }).where(eq27(posts.id, postId));
+        await this.db.update(posts).set({ disabled }).where(eq30(posts.id, postId));
       }
       /** Client rejects the lawyer — post goes back to open. */
       async rejectTake(postId, clientUserId) {
-        const row = await this.db.select({ id: posts.id, takenByUserId: posts.takenByUserId }).from(posts).where(and18(
-          eq27(posts.id, postId),
-          eq27(posts.userId, clientUserId),
-          eq27(posts.status, "in_progress")
+        const row = await this.db.select({ id: posts.id, takenByUserId: posts.takenByUserId }).from(posts).where(and20(
+          eq30(posts.id, postId),
+          eq30(posts.userId, clientUserId),
+          eq30(posts.status, "in_progress")
         )).limit(1);
         if (row.length === 0) return false;
         await this.db.update(posts).set({
@@ -6705,18 +7059,18 @@ var init_community_storage = __esm({
           takenAt: null,
           takenExpiresAt: null,
           clientAccepted: 0
-        }).where(eq27(posts.id, postId));
+        }).where(eq30(posts.id, postId));
         return true;
       }
       /** Client accepts — marks clientAccepted=1 (post stays in_progress). */
       async acceptTake(postId, clientUserId) {
-        const row = await this.db.select({ id: posts.id }).from(posts).where(and18(
-          eq27(posts.id, postId),
-          eq27(posts.userId, clientUserId),
-          eq27(posts.status, "in_progress")
+        const row = await this.db.select({ id: posts.id }).from(posts).where(and20(
+          eq30(posts.id, postId),
+          eq30(posts.userId, clientUserId),
+          eq30(posts.status, "in_progress")
         )).limit(1);
         if (row.length === 0) return false;
-        await this.db.update(posts).set({ clientAccepted: 1 }).where(eq27(posts.id, postId));
+        await this.db.update(posts).set({ clientAccepted: 1 }).where(eq30(posts.id, postId));
         return true;
       }
       /**
@@ -6729,10 +7083,10 @@ var init_community_storage = __esm({
           title: posts.title,
           userId: posts.userId,
           takenByUserId: posts.takenByUserId
-        }).from(posts).where(and18(
-          eq27(posts.status, "in_progress"),
-          sql11`${posts.clientAccepted} IS NULL`,
-          sql11`${posts.takenExpiresAt} < NOW()`
+        }).from(posts).where(and20(
+          eq30(posts.status, "in_progress"),
+          sql12`${posts.clientAccepted} IS NULL`,
+          sql12`${posts.takenExpiresAt} < NOW()`
         ));
         if (expired.length === 0) return [];
         const ids = expired.map((r) => r.id);
@@ -6748,35 +7102,35 @@ var init_community_storage = __esm({
       }
       /** Let the post author mark their own case as closed/resolved. */
       async closePost(postId, userId2) {
-        await this.db.update(posts).set({ status: "closed" }).where(and18(eq27(posts.id, postId), eq27(posts.userId, userId2)));
+        await this.db.update(posts).set({ status: "closed" }).where(and20(eq30(posts.id, postId), eq30(posts.userId, userId2)));
       }
       async incrementViewCount(id) {
-        await this.db.update(posts).set({ viewCount: sql11`view_count + 1` }).where(eq27(posts.id, id));
+        await this.db.update(posts).set({ viewCount: sql12`view_count + 1` }).where(eq30(posts.id, id));
       }
       /** Returns true if this is the first time this user views the post (view was recorded). */
       async recordUserView(postId, userId2) {
-        const existing = await this.db.select().from(postViews).where(and18(eq27(postViews.postId, postId), eq27(postViews.userId, userId2))).limit(1);
+        const existing = await this.db.select().from(postViews).where(and20(eq30(postViews.postId, postId), eq30(postViews.userId, userId2))).limit(1);
         if (existing.length > 0) return false;
         await this.db.insert(postViews).values({ postId, userId: userId2 });
-        await this.db.update(posts).set({ viewCount: sql11`view_count + 1` }).where(eq27(posts.id, postId));
+        await this.db.update(posts).set({ viewCount: sql12`view_count + 1` }).where(eq30(posts.id, postId));
         return true;
       }
       // ── Comments ──────────────────────────────────────────────────────────────
       async createComment(data) {
-        const id = randomUUID10();
+        const id = randomUUID11();
         await this.db.insert(comments).values({ id, ...data });
-        const result = await this.db.select().from(comments).where(eq27(comments.id, id)).limit(1);
+        const result = await this.db.select().from(comments).where(eq30(comments.id, id)).limit(1);
         return result[0];
       }
       async getComment(id) {
-        const result = await this.db.select().from(comments).where(eq27(comments.id, id)).limit(1);
+        const result = await this.db.select().from(comments).where(eq30(comments.id, id)).limit(1);
         return result[0];
       }
       async updateComment(id, content) {
-        await this.db.update(comments).set({ content }).where(eq27(comments.id, id));
+        await this.db.update(comments).set({ content }).where(eq30(comments.id, id));
       }
       async deleteComment(id) {
-        await this.db.delete(comments).where(eq27(comments.id, id));
+        await this.db.delete(comments).where(eq30(comments.id, id));
       }
       async getCommentsByPost(postId) {
         const rows = await this.db.select({
@@ -6790,7 +7144,7 @@ var init_community_storage = __esm({
           authorName: users.name,
           authorEmail: users.email,
           authorRole: roles.nombre,
-          authorProfessionallyVerified: sql11`(
+          authorProfessionallyVerified: sql12`(
           SELECT CASE
             WHEN EXISTS (
               SELECT 1 FROM lawyer_profiles lp2
@@ -6798,7 +7152,7 @@ var init_community_storage = __esm({
                 AND lp2.professional_verification_status = 'verificado'
             ) THEN 1 ELSE 0 END
         )`
-        }).from(comments).leftJoin(users, eq27(comments.userId, users.id)).leftJoin(roles, eq27(users.rolId, roles.id)).where(eq27(comments.postId, postId)).orderBy(comments.createdAt);
+        }).from(comments).leftJoin(users, eq30(comments.userId, users.id)).leftJoin(roles, eq30(users.rolId, roles.id)).where(eq30(comments.postId, postId)).orderBy(comments.createdAt);
         const all = rows.map((row) => ({
           id: row.id,
           postId: row.postId,
@@ -6829,27 +7183,27 @@ var init_community_storage = __esm({
       }
       // ── Likes ─────────────────────────────────────────────────────────────────
       async togglePostLike(postId, userId2) {
-        const existing = await this.db.select().from(postLikes).where(and18(eq27(postLikes.postId, postId), eq27(postLikes.userId, userId2))).limit(1);
+        const existing = await this.db.select().from(postLikes).where(and20(eq30(postLikes.postId, postId), eq30(postLikes.userId, userId2))).limit(1);
         if (existing.length > 0) {
-          await this.db.delete(postLikes).where(and18(eq27(postLikes.postId, postId), eq27(postLikes.userId, userId2)));
+          await this.db.delete(postLikes).where(and20(eq30(postLikes.postId, postId), eq30(postLikes.userId, userId2)));
         } else {
-          await this.db.insert(postLikes).values({ id: randomUUID10(), postId, userId: userId2 });
+          await this.db.insert(postLikes).values({ id: randomUUID11(), postId, userId: userId2 });
         }
-        const countRow = await this.db.select({ c: sql11`COUNT(*)` }).from(postLikes).where(eq27(postLikes.postId, postId));
+        const countRow = await this.db.select({ c: sql12`COUNT(*)` }).from(postLikes).where(eq30(postLikes.postId, postId));
         return { liked: existing.length === 0, likeCount: Number(countRow[0]?.c ?? 0) };
       }
       // ── Bookmarks ─────────────────────────────────────────────────────────────
       async toggleBookmark(postId, userId2) {
-        const existing = await this.db.select().from(postBookmarks).where(and18(eq27(postBookmarks.postId, postId), eq27(postBookmarks.userId, userId2))).limit(1);
+        const existing = await this.db.select().from(postBookmarks).where(and20(eq30(postBookmarks.postId, postId), eq30(postBookmarks.userId, userId2))).limit(1);
         if (existing.length > 0) {
-          await this.db.delete(postBookmarks).where(and18(eq27(postBookmarks.postId, postId), eq27(postBookmarks.userId, userId2)));
+          await this.db.delete(postBookmarks).where(and20(eq30(postBookmarks.postId, postId), eq30(postBookmarks.userId, userId2)));
           return { bookmarked: false };
         }
-        await this.db.insert(postBookmarks).values({ id: randomUUID10(), postId, userId: userId2 });
+        await this.db.insert(postBookmarks).values({ id: randomUUID11(), postId, userId: userId2 });
         return { bookmarked: true };
       }
       async getBookmarkedPosts(userId2) {
-        const bookmarkRows = await this.db.select({ postId: postBookmarks.postId }).from(postBookmarks).where(eq27(postBookmarks.userId, userId2)).orderBy(desc10(postBookmarks.createdAt));
+        const bookmarkRows = await this.db.select({ postId: postBookmarks.postId }).from(postBookmarks).where(eq30(postBookmarks.userId, userId2)).orderBy(desc11(postBookmarks.createdAt));
         if (bookmarkRows.length === 0) return [];
         const ids = bookmarkRows.map((r) => r.postId);
         const rows = await this.db.select({
@@ -6866,8 +7220,8 @@ var init_community_storage = __esm({
           updatedAt: posts.updatedAt,
           authorName: users.name,
           authorEmail: users.email,
-          commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).where(inArray7(posts.id, ids));
+          commentCount: sql12`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
+        }).from(posts).leftJoin(users, eq30(posts.userId, users.id)).where(inArray7(posts.id, ids));
         return Promise.all(rows.map((row) => this.enrichPost(row, userId2)));
       }
       // ── Tags ──────────────────────────────────────────────────────────────────
@@ -6875,18 +7229,18 @@ var init_community_storage = __esm({
         return this.db.select().from(tags).orderBy(tags.name);
       }
       async setPostTags(postId, tagIds) {
-        await this.db.delete(postTags).where(eq27(postTags.postId, postId));
+        await this.db.delete(postTags).where(eq30(postTags.postId, postId));
         if (tagIds.length > 0) {
           await this.db.insert(postTags).values(tagIds.map((tagId) => ({ postId, tagId })));
         }
       }
       // ── Reports ───────────────────────────────────────────────────────────────
       async createReport(data) {
-        await this.db.insert(postReports).values({ id: randomUUID10(), ...data });
+        await this.db.insert(postReports).values({ id: randomUUID11(), ...data });
       }
       // ── User Profile ──────────────────────────────────────────────────────────
       async getUserProfile(userId2, viewerUserId) {
-        const userRows = await this.db.select({ id: users.id, name: users.name, email: users.email, rolId: users.rolId, rolNombre: roles.nombre }).from(users).leftJoin(roles, eq27(users.rolId, roles.id)).where(eq27(users.id, userId2)).limit(1);
+        const userRows = await this.db.select({ id: users.id, name: users.name, email: users.email, rolId: users.rolId, rolNombre: roles.nombre }).from(users).leftJoin(roles, eq30(users.rolId, roles.id)).where(eq30(users.id, userId2)).limit(1);
         const userRow = userRows[0];
         if (!userRow) return null;
         const rolNombre = userRow.rolNombre ?? "cliente";
@@ -6898,7 +7252,7 @@ var init_community_storage = __esm({
             licenseNumber: lawyerProfiles.licenseNumber,
             firmName: firmProfiles.name,
             professionalVerificationStatus: lawyerProfiles.professionalVerificationStatus
-          }).from(lawyerProfiles).leftJoin(firmProfiles, eq27(lawyerProfiles.firmId, firmProfiles.id)).where(eq27(lawyerProfiles.userId, userId2)).limit(1);
+          }).from(lawyerProfiles).leftJoin(firmProfiles, eq30(lawyerProfiles.firmId, firmProfiles.id)).where(eq30(lawyerProfiles.userId, userId2)).limit(1);
           if (lawyerRows[0]) {
             lawyerInfo = {
               specialization: lawyerRows[0].specialization ?? null,
@@ -6908,7 +7262,7 @@ var init_community_storage = __esm({
             };
           }
         } else if (rolNombre === "bufete") {
-          const firmRows = await this.db.select({ nit: firmProfiles.nit, address: firmProfiles.address, phone: firmProfiles.phone }).from(firmProfiles).where(eq27(firmProfiles.userId, userId2)).limit(1);
+          const firmRows = await this.db.select({ nit: firmProfiles.nit, address: firmProfiles.address, phone: firmProfiles.phone }).from(firmProfiles).where(eq30(firmProfiles.userId, userId2)).limit(1);
           if (firmRows[0]) {
             firmInfo = { nit: firmRows[0].nit, address: firmRows[0].address ?? null, phone: firmRows[0].phone ?? null };
           }
@@ -6935,8 +7289,8 @@ var init_community_storage = __esm({
           takenExpiresAt: posts.takenExpiresAt,
           clientAccepted: posts.clientAccepted,
           procesoId: posts.procesoId,
-          takenByName: sql11`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
-          takenByProfessionallyVerified: sql11`(
+          takenByName: sql12`(SELECT name FROM users WHERE id = ${posts.takenByUserId})`,
+          takenByProfessionallyVerified: sql12`(
           SELECT CASE
             WHEN EXISTS (
               SELECT 1 FROM lawyer_profiles lp3
@@ -6944,8 +7298,8 @@ var init_community_storage = __esm({
                 AND lp3.professional_verification_status = 'verificado'
             ) THEN 1 ELSE 0 END
         )`,
-          commentCount: sql11`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
-        }).from(posts).leftJoin(users, eq27(posts.userId, users.id)).where(and18(eq27(posts.userId, userId2), eq27(posts.disabled, false))).orderBy(desc10(posts.createdAt)).limit(50);
+          commentCount: sql12`(SELECT COUNT(*) FROM comments WHERE comments.post_id = ${posts.id})`
+        }).from(posts).leftJoin(users, eq30(posts.userId, users.id)).where(and20(eq30(posts.userId, userId2), eq30(posts.disabled, false))).orderBy(desc11(posts.createdAt)).limit(50);
         const userPostDTOs = await Promise.all(userPosts.map((row) => this.enrichPost(row, viewerUserId)));
         return {
           user: { id: userRow.id, name: userRow.name ?? "", email: userRow.email },
@@ -6957,20 +7311,20 @@ var init_community_storage = __esm({
       }
       // ── Community stats for a lawyer ─────────────────────────────────────────
       async getLawyerCommunityStats(lawyerUserId) {
-        const takenRow = await this.db.select({ c: sql11`COUNT(*)` }).from(posts).where(eq27(posts.takenByUserId, lawyerUserId));
+        const takenRow = await this.db.select({ c: sql12`COUNT(*)` }).from(posts).where(eq30(posts.takenByUserId, lawyerUserId));
         const casesTaken = Number(takenRow[0]?.c ?? 0);
-        const linkedRow = await this.db.select({ c: sql11`COUNT(*)` }).from(procesos).innerJoin(
+        const linkedRow = await this.db.select({ c: sql12`COUNT(*)` }).from(procesos).innerJoin(
           posts,
-          and18(
-            eq27(posts.procesoId, procesos.id),
-            eq27(posts.takenByUserId, lawyerUserId)
+          and20(
+            eq30(posts.procesoId, procesos.id),
+            eq30(posts.takenByUserId, lawyerUserId)
           )
-        ).where(sql11`${procesos.communityPostId} IS NOT NULL`);
+        ).where(sql12`${procesos.communityPostId} IS NOT NULL`);
         const processesLinked = Number(linkedRow[0]?.c ?? 0);
         const ratingRows = await this.db.select({
-          avg: sql11`AVG(${ratings.score})`,
-          count: sql11`COUNT(*)`
-        }).from(ratings).where(and18(eq27(ratings.targetUserId, lawyerUserId), eq27(ratings.targetType, "lawyer")));
+          avg: sql12`AVG(${ratings.score})`,
+          count: sql12`COUNT(*)`
+        }).from(ratings).where(and20(eq30(ratings.targetUserId, lawyerUserId), eq30(ratings.targetType, "lawyer")));
         const avgRating = Math.round(Number(ratingRows[0]?.avg ?? 0) * 10) / 10;
         const ratingCount = Number(ratingRows[0]?.count ?? 0);
         const conversionRate = casesTaken > 0 ? Math.round(processesLinked / casesTaken * 100) : 0;
@@ -6986,8 +7340,8 @@ var init_community_storage = __esm({
 });
 
 // server/storage/storeage/models/rating-storage.ts
-import { randomUUID as randomUUID11 } from "crypto";
-import { and as and19, avg, count as count3, eq as eq28, sql as sql12 } from "drizzle-orm";
+import { randomUUID as randomUUID12 } from "crypto";
+import { and as and21, avg, count as count3, eq as eq31, sql as sql13 } from "drizzle-orm";
 var RatingStorage;
 var init_rating_storage = __esm({
   "server/storage/storeage/models/rating-storage.ts"() {
@@ -7005,17 +7359,17 @@ var init_rating_storage = __esm({
         this.db = db2;
       }
       async createRating(data) {
-        const id = randomUUID11();
+        const id = randomUUID12();
         await this.db.insert(ratings).values({ id, ...data });
-        const result = await this.db.select().from(ratings).where(eq28(ratings.id, id)).limit(1);
+        const result = await this.db.select().from(ratings).where(eq31(ratings.id, id)).limit(1);
         return result[0];
       }
       async getRating(fromUserId, targetUserId, targetType) {
         const result = await this.db.select().from(ratings).where(
-          and19(
-            eq28(ratings.fromUserId, fromUserId),
-            eq28(ratings.targetUserId, targetUserId),
-            eq28(ratings.targetType, targetType)
+          and21(
+            eq31(ratings.fromUserId, fromUserId),
+            eq31(ratings.targetUserId, targetUserId),
+            eq31(ratings.targetType, targetType)
           )
         ).limit(1);
         return result[0];
@@ -7031,12 +7385,12 @@ var init_rating_storage = __esm({
           procesoId: ratings.procesoId,
           createdAt: ratings.createdAt,
           fromName: users.name
-        }).from(ratings).leftJoin(users, eq28(ratings.fromUserId, users.id)).where(
-          and19(
-            eq28(ratings.targetUserId, targetUserId),
-            eq28(ratings.targetType, targetType)
+        }).from(ratings).leftJoin(users, eq31(ratings.fromUserId, users.id)).where(
+          and21(
+            eq31(ratings.targetUserId, targetUserId),
+            eq31(ratings.targetType, targetType)
           )
-        ).orderBy(sql12`${ratings.createdAt} DESC`);
+        ).orderBy(sql13`${ratings.createdAt} DESC`);
         return rows.map((r) => ({
           id: r.id,
           fromUserId: r.fromUserId,
@@ -7054,9 +7408,9 @@ var init_rating_storage = __esm({
           avg: avg(ratings.score),
           count: count3()
         }).from(ratings).where(
-          and19(
-            eq28(ratings.targetUserId, targetUserId),
-            eq28(ratings.targetType, targetType)
+          and21(
+            eq31(ratings.targetUserId, targetUserId),
+            eq31(ratings.targetType, targetType)
           )
         );
         return {
@@ -7074,17 +7428,17 @@ var init_rating_storage = __esm({
       /** Returns the first completed procesoId linking fromUser to the target, or null */
       async findQualifyingProceso(fromUserId, targetUserId, targetType) {
         if (targetType === "lawyer") {
-          const rows2 = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq28(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq28(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq28(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(estadosProceso, eq28(procesos.estadoId, estadosProceso.id)).where(and19(
-            eq28(clientes.userId, fromUserId),
-            eq28(lawyerProfiles.userId, targetUserId),
-            eq28(estadosProceso.codigo, "finalizado")
+          const rows2 = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq31(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq31(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq31(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(estadosProceso, eq31(procesos.estadoId, estadosProceso.id)).where(and21(
+            eq31(clientes.userId, fromUserId),
+            eq31(lawyerProfiles.userId, targetUserId),
+            eq31(estadosProceso.codigo, "finalizado")
           )).limit(1);
           return rows2[0]?.id ?? null;
         }
-        const rows = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq28(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq28(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq28(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(firmProfiles, eq28(lawyerProfiles.firmId, firmProfiles.id)).innerJoin(estadosProceso, eq28(procesos.estadoId, estadosProceso.id)).where(and19(
-          eq28(clientes.userId, fromUserId),
-          eq28(firmProfiles.userId, targetUserId),
-          eq28(estadosProceso.codigo, "finalizado")
+        const rows = await this.db.select({ id: procesos.id }).from(procesos).innerJoin(clientes, eq31(procesos.clienteId, clientes.id)).innerJoin(procesoLawyers, eq31(procesoLawyers.procesoId, procesos.id)).innerJoin(lawyerProfiles, eq31(procesoLawyers.lawyerId, lawyerProfiles.id)).innerJoin(firmProfiles, eq31(lawyerProfiles.firmId, firmProfiles.id)).innerJoin(estadosProceso, eq31(procesos.estadoId, estadosProceso.id)).where(and21(
+          eq31(clientes.userId, fromUserId),
+          eq31(firmProfiles.userId, targetUserId),
+          eq31(estadosProceso.codigo, "finalizado")
         )).limit(1);
         return rows[0]?.id ?? null;
       }
@@ -7097,8 +7451,8 @@ var init_rating_storage = __esm({
 });
 
 // server/storage/storeage/models/client-request-storage.ts
-import { randomUUID as randomUUID12 } from "crypto";
-import { eq as eq29, and as and20, desc as desc11, lt as lt2, sql as sql13 } from "drizzle-orm";
+import { randomUUID as randomUUID13 } from "crypto";
+import { eq as eq32, and as and22, desc as desc12, lt as lt3, sql as sql14 } from "drizzle-orm";
 var ClientRequestStorage;
 var init_client_request_storage = __esm({
   "server/storage/storeage/models/client-request-storage.ts"() {
@@ -7109,7 +7463,7 @@ var init_client_request_storage = __esm({
         this.db = db2;
       }
       async createRequest(fromUserId, toUserId, expiresAt) {
-        const id = randomUUID12();
+        const id = randomUUID13();
         await this.db.insert(clientRequests).values({
           id,
           fromUserId,
@@ -7117,23 +7471,23 @@ var init_client_request_storage = __esm({
           status: "pending",
           expiresAt
         });
-        const row = await this.db.select().from(clientRequests).where(eq29(clientRequests.id, id)).limit(1);
+        const row = await this.db.select().from(clientRequests).where(eq32(clientRequests.id, id)).limit(1);
         return row[0];
       }
       async getRequestById(id) {
-        const rows = await this.db.select().from(clientRequests).where(eq29(clientRequests.id, id)).limit(1);
+        const rows = await this.db.select().from(clientRequests).where(eq32(clientRequests.id, id)).limit(1);
         return rows[0];
       }
       /** Latest request between this pair regardless of status */
       async getLatestRequest(fromUserId, toUserId) {
-        const rows = await this.db.select().from(clientRequests).where(and20(eq29(clientRequests.fromUserId, fromUserId), eq29(clientRequests.toUserId, toUserId))).orderBy(desc11(clientRequests.createdAt)).limit(1);
+        const rows = await this.db.select().from(clientRequests).where(and22(eq32(clientRequests.fromUserId, fromUserId), eq32(clientRequests.toUserId, toUserId))).orderBy(desc12(clientRequests.createdAt)).limit(1);
         return rows[0];
       }
       async getPendingRequest(fromUserId, toUserId) {
-        const rows = await this.db.select().from(clientRequests).where(and20(
-          eq29(clientRequests.fromUserId, fromUserId),
-          eq29(clientRequests.toUserId, toUserId),
-          eq29(clientRequests.status, "pending")
+        const rows = await this.db.select().from(clientRequests).where(and22(
+          eq32(clientRequests.fromUserId, fromUserId),
+          eq32(clientRequests.toUserId, toUserId),
+          eq32(clientRequests.status, "pending")
         )).limit(1);
         return rows[0];
       }
@@ -7149,20 +7503,20 @@ var init_client_request_storage = __esm({
           respondedAt: clientRequests.respondedAt,
           senderName: users.name,
           senderRole: roles.nombre
-        }).from(clientRequests).innerJoin(users, eq29(users.id, clientRequests.fromUserId)).leftJoin(roles, eq29(roles.id, users.rolId)).where(and20(
-          eq29(clientRequests.toUserId, toUserId),
-          eq29(clientRequests.status, "pending")
-        )).orderBy(desc11(clientRequests.createdAt));
+        }).from(clientRequests).innerJoin(users, eq32(users.id, clientRequests.fromUserId)).leftJoin(roles, eq32(roles.id, users.rolId)).where(and22(
+          eq32(clientRequests.toUserId, toUserId),
+          eq32(clientRequests.status, "pending")
+        )).orderBy(desc12(clientRequests.createdAt));
         return rows;
       }
       async respondToRequest(id, status) {
-        await this.db.update(clientRequests).set({ status, respondedAt: /* @__PURE__ */ new Date() }).where(eq29(clientRequests.id, id));
+        await this.db.update(clientRequests).set({ status, respondedAt: /* @__PURE__ */ new Date() }).where(eq32(clientRequests.id, id));
       }
       /** Bulk-expire all pending requests whose expires_at has passed */
       async expirePendingRequests() {
-        await this.db.update(clientRequests).set({ status: "expired", respondedAt: /* @__PURE__ */ new Date() }).where(and20(
-          eq29(clientRequests.status, "pending"),
-          lt2(clientRequests.expiresAt, sql13`NOW()`)
+        await this.db.update(clientRequests).set({ status: "expired", respondedAt: /* @__PURE__ */ new Date() }).where(and22(
+          eq32(clientRequests.status, "pending"),
+          lt3(clientRequests.expiresAt, sql14`NOW()`)
         ));
       }
     };
@@ -7387,6 +7741,23 @@ Este es un mensaje autom\xE1tico de ${APP_NAME}.`
     "email.sendNotificationEmail"
   );
 }
+async function sendSupportReplyEmail(toEmail, subject, body) {
+  await withTimeout(
+    transporter.sendMail({
+      from: FROM,
+      to: toEmail,
+      subject: `${subject} \u2014 ${APP_NAME}`,
+      html: notificationEmailHtml(subject, body),
+      text: `${subject}
+
+${body}
+
+Este es un mensaje de soporte de ${APP_NAME}.`
+    }),
+    1e4,
+    "email.sendSupportReplyEmail"
+  );
+}
 function queueNotificationEmail(toEmail, title, body, options) {
   if (!toEmail) return;
   sendNotificationEmail(toEmail, title, body, options).catch((err) => {
@@ -7408,14 +7779,14 @@ var init_email_service = __esm({
         pass: process.env.SMTP_PASS
       }
     });
-    FROM = process.env.SMTP_FROM || `"LexTrack" <${process.env.SMTP_USER}>`;
-    APP_NAME = "LexTrack";
+    FROM = process.env.SMTP_FROM || `"ProcesoClaro" <${process.env.SMTP_USER}>`;
+    APP_NAME = "ProcesoClaro";
   }
 });
 
 // server/storage/storeage/models/app-notification-storage.ts
-import { randomUUID as randomUUID13 } from "crypto";
-import { eq as eq30, and as and21, isNull as isNull6, desc as desc12, count as count4 } from "drizzle-orm";
+import { randomUUID as randomUUID14 } from "crypto";
+import { eq as eq33, and as and23, isNull as isNull9, desc as desc13, count as count4 } from "drizzle-orm";
 function joinAppUrl(path4) {
   const appUrl = process.env.APP_URL?.trim();
   if (!appUrl) return void 0;
@@ -7425,6 +7796,9 @@ function joinAppUrl(path4) {
 }
 function buildNotificationLink(data) {
   if (!data) return {};
+  if (typeof data.route === "string" && data.route) {
+    return { actionUrl: joinAppUrl(data.route), actionLabel: "Abrir soporte" };
+  }
   if (typeof data.postId === "string" && data.postId) {
     return { actionUrl: joinAppUrl(`/community/${data.postId}`), actionLabel: "Ver publicaci\xF3n" };
   }
@@ -7444,34 +7818,34 @@ var init_app_notification_storage = __esm({
         this.db = db2;
       }
       async createNotification(userId2, type, title, body, data) {
-        const id = randomUUID13();
+        const id = randomUUID14();
         await this.db.insert(appNotifications).values({ id, userId: userId2, type, title, body, data: data ?? null });
-        const rows = await this.db.select().from(appNotifications).where(eq30(appNotifications.id, id)).limit(1);
-        const userRows = await this.db.select({ email: users.email }).from(users).where(eq30(users.id, userId2)).limit(1);
+        const rows = await this.db.select().from(appNotifications).where(eq33(appNotifications.id, id)).limit(1);
+        const userRows = await this.db.select({ email: users.email }).from(users).where(eq33(users.id, userId2)).limit(1);
         queueNotificationEmail(userRows[0]?.email, title, body, buildNotificationLink(data));
         return rows[0];
       }
       async getForUser(userId2, limit = 50) {
-        const rows = await this.db.select().from(appNotifications).where(eq30(appNotifications.userId, userId2)).orderBy(desc12(appNotifications.createdAt)).limit(limit);
+        const rows = await this.db.select().from(appNotifications).where(eq33(appNotifications.userId, userId2)).orderBy(desc13(appNotifications.createdAt)).limit(limit);
         return rows;
       }
       async getUnreadCount(userId2) {
-        const rows = await this.db.select({ n: count4() }).from(appNotifications).where(and21(eq30(appNotifications.userId, userId2), isNull6(appNotifications.readAt)));
+        const rows = await this.db.select({ n: count4() }).from(appNotifications).where(and23(eq33(appNotifications.userId, userId2), isNull9(appNotifications.readAt)));
         return rows[0]?.n ?? 0;
       }
       async markRead(id, userId2) {
-        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and21(eq30(appNotifications.id, id), eq30(appNotifications.userId, userId2)));
+        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and23(eq33(appNotifications.id, id), eq33(appNotifications.userId, userId2)));
       }
       async markAllRead(userId2) {
-        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and21(eq30(appNotifications.userId, userId2), isNull6(appNotifications.readAt)));
+        await this.db.update(appNotifications).set({ readAt: /* @__PURE__ */ new Date() }).where(and23(eq33(appNotifications.userId, userId2), isNull9(appNotifications.readAt)));
       }
     };
   }
 });
 
 // server/storage/storeage/models/firm-clients-storage.ts
-import { randomUUID as randomUUID14 } from "crypto";
-import { eq as eq31, and as and22, desc as desc13 } from "drizzle-orm";
+import { randomUUID as randomUUID15 } from "crypto";
+import { eq as eq34, and as and24, desc as desc14 } from "drizzle-orm";
 var FirmClientsStorage;
 var init_firm_clients_storage = __esm({
   "server/storage/storeage/models/firm-clients-storage.ts"() {
@@ -7482,29 +7856,29 @@ var init_firm_clients_storage = __esm({
         this.db = db2;
       }
       async getActiveFirmClient(firmId, clientId) {
-        const rows = await this.db.select().from(firmClients).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.clientId, clientId), eq31(firmClients.status, "active"))).limit(1);
+        const rows = await this.db.select().from(firmClients).where(and24(eq34(firmClients.firmId, firmId), eq34(firmClients.clientId, clientId), eq34(firmClients.status, "active"))).limit(1);
         return rows[0];
       }
       /** Returns all active clientIds linked to a firm via firm_clients */
       async getActiveClientIdsByFirm(firmId) {
-        const rows = await this.db.select({ clientId: firmClients.clientId }).from(firmClients).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.status, "active"))).orderBy(desc13(firmClients.createdAt));
+        const rows = await this.db.select({ clientId: firmClients.clientId }).from(firmClients).where(and24(eq34(firmClients.firmId, firmId), eq34(firmClients.status, "active"))).orderBy(desc14(firmClients.createdAt));
         return rows.map((r) => r.clientId);
       }
       async createFirmClient(firmId, clientId) {
-        const existing = await this.db.select().from(firmClients).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.clientId, clientId))).limit(1);
+        const existing = await this.db.select().from(firmClients).where(and24(eq34(firmClients.firmId, firmId), eq34(firmClients.clientId, clientId))).limit(1);
         if (existing[0]) {
-          await this.db.update(firmClients).set({ status: "active" }).where(eq31(firmClients.id, existing[0].id));
-          const rows2 = await this.db.select().from(firmClients).where(eq31(firmClients.id, existing[0].id)).limit(1);
+          await this.db.update(firmClients).set({ status: "active" }).where(eq34(firmClients.id, existing[0].id));
+          const rows2 = await this.db.select().from(firmClients).where(eq34(firmClients.id, existing[0].id)).limit(1);
           return rows2[0];
         }
-        const id = randomUUID14();
+        const id = randomUUID15();
         await this.db.insert(firmClients).values({ id, firmId, clientId, status: "active" });
-        const rows = await this.db.select().from(firmClients).where(eq31(firmClients.id, id)).limit(1);
+        const rows = await this.db.select().from(firmClients).where(eq34(firmClients.id, id)).limit(1);
         return rows[0];
       }
       /** Soft-delete: sets status = "inactive" */
       async deactivate(firmId, clientId) {
-        await this.db.update(firmClients).set({ status: "inactive" }).where(and22(eq31(firmClients.firmId, firmId), eq31(firmClients.clientId, clientId)));
+        await this.db.update(firmClients).set({ status: "inactive" }).where(and24(eq34(firmClients.firmId, firmId), eq34(firmClients.clientId, clientId)));
       }
     };
   }
@@ -7512,7 +7886,7 @@ var init_firm_clients_storage = __esm({
 
 // server/storage/storeage/models/otp-storage.ts
 import crypto2 from "crypto";
-import { and as and23, eq as eq32, lt as lt3 } from "drizzle-orm";
+import { and as and25, eq as eq35, lt as lt4 } from "drizzle-orm";
 var OTP_EXPIRES_MINUTES, MAX_ATTEMPTS, OtpStorage;
 var init_otp_storage = __esm({
   "server/storage/storeage/models/otp-storage.ts"() {
@@ -7525,7 +7899,7 @@ var init_otp_storage = __esm({
         this.db = db2;
       }
       async createOtpForTable(table, userId2) {
-        await this.db.update(table).set({ isUsed: true }).where(and23(eq32(table.userId, userId2), eq32(table.isUsed, false)));
+        await this.db.update(table).set({ isUsed: true }).where(and25(eq35(table.userId, userId2), eq35(table.isUsed, false)));
         const code = String(Math.floor(1e5 + Math.random() * 9e5));
         const expiresAt = new Date(Date.now() + OTP_EXPIRES_MINUTES * 60 * 1e3);
         await this.db.insert(table).values({
@@ -7540,9 +7914,9 @@ var init_otp_storage = __esm({
       }
       async verifyOtpForTable(table, userId2, code) {
         const rows = await this.db.select().from(table).where(
-          and23(
-            eq32(table.userId, userId2),
-            eq32(table.isUsed, false)
+          and25(
+            eq35(table.userId, userId2),
+            eq35(table.isUsed, false)
           )
         ).orderBy(table.createdAt).limit(1);
         const otp = rows[rows.length - 1] ?? rows[0];
@@ -7554,13 +7928,13 @@ var init_otp_storage = __esm({
         const inputBuf = Buffer.from(code.padEnd(otp.code.length, "\0").slice(0, otp.code.length));
         const matches = otpBuf.length === inputBuf.length && crypto2.timingSafeEqual(otpBuf, inputBuf);
         if (!matches) {
-          await this.db.update(table).set({ attempts: otp.attempts + 1 }).where(eq32(table.id, otp.id));
+          await this.db.update(table).set({ attempts: otp.attempts + 1 }).where(eq35(table.id, otp.id));
           return "invalid";
         }
         return "valid";
       }
       async markUsedForTable(table, userId2) {
-        await this.db.update(table).set({ isUsed: true }).where(and23(eq32(table.userId, userId2), eq32(table.isUsed, false)));
+        await this.db.update(table).set({ isUsed: true }).where(and25(eq35(table.userId, userId2), eq35(table.isUsed, false)));
       }
       async createOtp(userId2) {
         return this.createOtpForTable(passwordResetOtps, userId2);
@@ -7582,15 +7956,15 @@ var init_otp_storage = __esm({
       }
       /** Delete all expired OTPs (for cleanup cron) */
       async deleteExpired() {
-        await this.db.delete(passwordResetOtps).where(lt3(passwordResetOtps.expiresAt, /* @__PURE__ */ new Date()));
-        await this.db.delete(emailVerificationOtps).where(lt3(emailVerificationOtps.expiresAt, /* @__PURE__ */ new Date()));
+        await this.db.delete(passwordResetOtps).where(lt4(passwordResetOtps.expiresAt, /* @__PURE__ */ new Date()));
+        await this.db.delete(emailVerificationOtps).where(lt4(emailVerificationOtps.expiresAt, /* @__PURE__ */ new Date()));
       }
     };
   }
 });
 
 // server/storage/storeage/models/security-events-storage.ts
-import { eq as eq33, desc as desc14 } from "drizzle-orm";
+import { eq as eq36, desc as desc15 } from "drizzle-orm";
 var SecurityEventsStorage;
 var init_security_events_storage = __esm({
   "server/storage/storeage/models/security-events-storage.ts"() {
@@ -7604,18 +7978,18 @@ var init_security_events_storage = __esm({
         await this.db.insert(securityEvents).values(data);
       }
       async getByEmail(email, limit = 50) {
-        return this.db.select().from(securityEvents).where(eq33(securityEvents.email, email)).orderBy(desc14(securityEvents.createdAt)).limit(limit);
+        return this.db.select().from(securityEvents).where(eq36(securityEvents.email, email)).orderBy(desc15(securityEvents.createdAt)).limit(limit);
       }
       async getByIp(ip, limit = 50) {
-        return this.db.select().from(securityEvents).where(eq33(securityEvents.ip, ip)).orderBy(desc14(securityEvents.createdAt)).limit(limit);
+        return this.db.select().from(securityEvents).where(eq36(securityEvents.ip, ip)).orderBy(desc15(securityEvents.createdAt)).limit(limit);
       }
     };
   }
 });
 
 // server/storage/storeage/models/matching-storage.ts
-import { randomUUID as randomUUID15 } from "crypto";
-import { eq as eq34, and as and24, desc as desc15, sql as sql14 } from "drizzle-orm";
+import { randomUUID as randomUUID16 } from "crypto";
+import { eq as eq37, and as and26, desc as desc16, sql as sql15 } from "drizzle-orm";
 var CASE_KEYWORDS, RELATED_KEYWORDS, MAX_MATCHES, MatchingStorage;
 var init_matching_storage = __esm({
   "server/storage/storeage/models/matching-storage.ts"() {
@@ -7649,32 +8023,32 @@ var init_matching_storage = __esm({
       // ── Match CRUD ────────────────────────────────────────────────────────
       /** Insert match row (ignores duplicates via IGNORE). */
       async createMatch(postId, lawyerId, score) {
-        const id = randomUUID15();
+        const id = randomUUID16();
         try {
           await this.db.insert(communityPostMatches).values({ id, postId, lawyerId, score });
-          const rows = await this.db.select().from(communityPostMatches).where(eq34(communityPostMatches.id, id)).limit(1);
+          const rows = await this.db.select().from(communityPostMatches).where(eq37(communityPostMatches.id, id)).limit(1);
           return rows[0] ?? null;
         } catch {
           return null;
         }
       }
       async matchExists(postId, lawyerId) {
-        const rows = await this.db.select({ id: communityPostMatches.id }).from(communityPostMatches).where(and24(eq34(communityPostMatches.postId, postId), eq34(communityPostMatches.lawyerId, lawyerId))).limit(1);
+        const rows = await this.db.select({ id: communityPostMatches.id }).from(communityPostMatches).where(and26(eq37(communityPostMatches.postId, postId), eq37(communityPostMatches.lawyerId, lawyerId))).limit(1);
         return rows.length > 0;
       }
       async markNotified(postId, lawyerId) {
-        await this.db.update(communityPostMatches).set({ notified: 1 }).where(and24(eq34(communityPostMatches.postId, postId), eq34(communityPostMatches.lawyerId, lawyerId)));
+        await this.db.update(communityPostMatches).set({ notified: 1 }).where(and26(eq37(communityPostMatches.postId, postId), eq37(communityPostMatches.lawyerId, lawyerId)));
       }
       async markSeen(postId, lawyerId) {
-        await this.db.update(communityPostMatches).set({ seen: 1 }).where(and24(eq34(communityPostMatches.postId, postId), eq34(communityPostMatches.lawyerId, lawyerId)));
+        await this.db.update(communityPostMatches).set({ seen: 1 }).where(and26(eq37(communityPostMatches.postId, postId), eq37(communityPostMatches.lawyerId, lawyerId)));
       }
       async getMatchesByPost(postId) {
-        return this.db.select().from(communityPostMatches).where(eq34(communityPostMatches.postId, postId)).orderBy(desc15(communityPostMatches.score));
+        return this.db.select().from(communityPostMatches).where(eq37(communityPostMatches.postId, postId)).orderBy(desc16(communityPostMatches.score));
       }
       /** Returns post IDs matched to this lawyer, ordered by score + urgency.
        *  Joined with posts table to get isUrgent / createdAt for sorting. */
       async getMatchedPostIds(lawyerId, limit = 60, offset = 0) {
-        const rows = await this.db.execute(sql14`
+        const rows = await this.db.execute(sql15`
       SELECT
         m.post_id  AS postId,
         m.score    AS score,
@@ -7690,13 +8064,13 @@ var init_matching_storage = __esm({
         return rows[0] ?? [];
       }
       async countMatchedPosts(lawyerId) {
-        const rows = await this.db.select({ n: sql14`COUNT(*)` }).from(communityPostMatches).where(eq34(communityPostMatches.lawyerId, lawyerId));
+        const rows = await this.db.select({ n: sql15`COUNT(*)` }).from(communityPostMatches).where(eq37(communityPostMatches.lawyerId, lawyerId));
         return Number(rows[0]?.n ?? 0);
       }
       /** Returns userId (users.id) of all lawyers matched to this post.
        *  Used to notify them when the case is taken by another lawyer. */
       async getMatchedLawyerUserIds(postId) {
-        const rows = await this.db.execute(sql14`
+        const rows = await this.db.execute(sql15`
       SELECT lp.user_id AS userId
       FROM community_post_matches m
       INNER JOIN lawyer_profiles lp ON lp.id = m.lawyer_id
@@ -7720,7 +8094,7 @@ var init_matching_storage = __esm({
        * explorationBoost:      random 0-2 ONLY if baseScore≥60 (no bad lawyers boosted)
        */
       async findCandidates(caseType, city, postId, postCreatedAt = /* @__PURE__ */ new Date()) {
-        const result = await this.db.execute(sql14`
+        const result = await this.db.execute(sql15`
       SELECT
         lp.id            AS lawyerId,
         lp.user_id       AS userId,
@@ -7764,7 +8138,6 @@ var init_matching_storage = __esm({
       ) cv ON cv.taken_by_user_id = lp.user_id
     `);
         const rows = result[0] ?? [];
-        console.log(`[Matching] findCandidates: ${rows.length} lawyers \u2014 caseType="${caseType}" city="${city}"`);
         const postAgeMs = Date.now() - postCreatedAt.getTime();
         const freshnessBoost = postAgeMs < 36e5 ? 3 : postAgeMs < 864e5 ? 1 : 0;
         const keywords = caseType ? CASE_KEYWORDS[caseType] ?? [] : [];
@@ -7804,7 +8177,7 @@ var init_matching_storage = __esm({
 });
 
 // server/storage/storeage/models/recommendation-storage.ts
-import { sql as sql15 } from "drizzle-orm";
+import { sql as sql16 } from "drizzle-orm";
 var CASE_KEYWORDS2, RecommendationStorage;
 var init_recommendation_storage = __esm({
   "server/storage/storeage/models/recommendation-storage.ts"() {
@@ -7828,7 +8201,7 @@ var init_recommendation_storage = __esm({
        * Only returns lawyers with at least a specialization match OR an existing rating.
        */
       async getRecommendedLawyers(caseType, city, limit = 8) {
-        const rows = await this.db.execute(sql15`
+        const rows = await this.db.execute(sql16`
       SELECT
         lp.id              AS lawyerProfileId,
         lp.user_id         AS userId,
@@ -7957,7 +8330,7 @@ var init_recommendation_storage = __esm({
 });
 
 // server/storage/storeage/models/legal-stage-storage.ts
-import { eq as eq35, and as and25, asc, isNull as isNull7, or as or5 } from "drizzle-orm";
+import { eq as eq38, and as and27, asc, isNull as isNull10, or as or5 } from "drizzle-orm";
 var LegalStageStorage;
 var init_legal_stage_storage = __esm({
   "server/storage/storeage/models/legal-stage-storage.ts"() {
@@ -7975,12 +8348,12 @@ var init_legal_stage_storage = __esm({
        */
       async getByTipoProceso(tipoProcesoId) {
         const rows = await this.db.select().from(etapasPorTipoProceso).where(
-          and25(
-            eq35(etapasPorTipoProceso.activo, 1),
+          and27(
+            eq38(etapasPorTipoProceso.activo, 1),
             tipoProcesoId ? or5(
-              eq35(etapasPorTipoProceso.tipoProcesoId, tipoProcesoId),
-              isNull7(etapasPorTipoProceso.tipoProcesoId)
-            ) : isNull7(etapasPorTipoProceso.tipoProcesoId)
+              eq38(etapasPorTipoProceso.tipoProcesoId, tipoProcesoId),
+              isNull10(etapasPorTipoProceso.tipoProcesoId)
+            ) : isNull10(etapasPorTipoProceso.tipoProcesoId)
           )
         ).orderBy(asc(etapasPorTipoProceso.orden));
         if (!tipoProcesoId) return rows;
@@ -8049,20 +8422,20 @@ var init_legal_stage_storage = __esm({
         const result = await this.db.insert(etapasPorTipoProceso).values({ ...data, activo: 1 });
         const id = result[0]?.insertId;
         const row = await this.db.query.etapasPorTipoProceso.findFirst({
-          where: eq35(etapasPorTipoProceso.id, id)
+          where: eq38(etapasPorTipoProceso.id, id)
         });
         return row;
       }
       async update(id, data) {
-        await this.db.update(etapasPorTipoProceso).set(data).where(eq35(etapasPorTipoProceso.id, id));
+        await this.db.update(etapasPorTipoProceso).set(data).where(eq38(etapasPorTipoProceso.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/calendar-storage.ts
-import { eq as eq36, and as and26, gte as gte2, lte, sql as sql16 } from "drizzle-orm";
-import { randomUUID as randomUUID16 } from "crypto";
+import { eq as eq39, and as and28, gte as gte2, lte, sql as sql17 } from "drizzle-orm";
+import { randomUUID as randomUUID17 } from "crypto";
 function urgencyColor(diasRestantes, baseColor) {
   if (diasRestantes < 0) return "#EF4444";
   if (diasRestantes <= 1) return "#EF4444";
@@ -8116,10 +8489,10 @@ var init_calendar_storage = __esm({
           event: calendarEvents,
           radicado: procesos.radicado,
           clienteNombre: users.name
-        }).from(calendarEvents).leftJoin(procesos, eq36(calendarEvents.procesoId, procesos.id)).leftJoin(clientes, eq36(procesos.clienteId, clientes.id)).leftJoin(users, eq36(clientes.userId, users.id)).where(
-          and26(
-            eq36(calendarEvents.lawyerId, lawyerProfileId),
-            eq36(calendarEvents.state, 1),
+        }).from(calendarEvents).leftJoin(procesos, eq39(calendarEvents.procesoId, procesos.id)).leftJoin(clientes, eq39(procesos.clienteId, clientes.id)).leftJoin(users, eq39(clientes.userId, users.id)).where(
+          and28(
+            eq39(calendarEvents.lawyerId, lawyerProfileId),
+            eq39(calendarEvents.state, 1),
             gte2(calendarEvents.fechaInicio, from),
             lte(calendarEvents.fechaInicio, to)
           )
@@ -8150,10 +8523,10 @@ var init_calendar_storage = __esm({
           procesoId: tareas.procesoId,
           radicado: procesos.radicado,
           clienteNombre: users.name
-        }).from(tareas).leftJoin(procesos, eq36(tareas.procesoId, procesos.id)).leftJoin(clientes, eq36(procesos.clienteId, clientes.id)).leftJoin(users, eq36(clientes.userId, users.id)).where(
-          and26(
-            eq36(tareas.asignadoA, lawyerProfileId),
-            eq36(tareas.state, true),
+        }).from(tareas).leftJoin(procesos, eq39(tareas.procesoId, procesos.id)).leftJoin(clientes, eq39(procesos.clienteId, clientes.id)).leftJoin(users, eq39(clientes.userId, users.id)).where(
+          and28(
+            eq39(tareas.asignadoA, lawyerProfileId),
+            eq39(tareas.state, true),
             gte2(tareas.fechaLimite, from),
             lte(tareas.fechaLimite, to)
           )
@@ -8181,9 +8554,9 @@ var init_calendar_storage = __esm({
           legalStage: procesos.legalStage,
           fechaVencimientoEtapa: procesos.fechaVencimientoEtapa,
           clienteNombre: users.name
-        }).from(procesos).leftJoin(clientes, eq36(procesos.clienteId, clientes.id)).leftJoin(users, eq36(clientes.userId, users.id)).where(
-          and26(
-            eq36(procesos.state, true),
+        }).from(procesos).leftJoin(clientes, eq39(procesos.clienteId, clientes.id)).leftJoin(users, eq39(clientes.userId, users.id)).where(
+          and28(
+            eq39(procesos.state, true),
             gte2(procesos.fechaVencimientoEtapa, from),
             lte(procesos.fechaVencimientoEtapa, to)
           )
@@ -8214,20 +8587,20 @@ var init_calendar_storage = __esm({
       async getPendingReminders() {
         const now = /* @__PURE__ */ new Date();
         return this.db.select().from(calendarEvents).where(
-          and26(
-            eq36(calendarEvents.notificado, 0),
-            eq36(calendarEvents.state, 1),
-            sql16`DATE_SUB(${calendarEvents.fechaInicio}, INTERVAL ${calendarEvents.recordatorioMinutos} MINUTE) <= ${now}`,
+          and28(
+            eq39(calendarEvents.notificado, 0),
+            eq39(calendarEvents.state, 1),
+            sql17`DATE_SUB(${calendarEvents.fechaInicio}, INTERVAL ${calendarEvents.recordatorioMinutos} MINUTE) <= ${now}`,
             gte2(calendarEvents.fechaInicio, now)
           )
         );
       }
       async markNotificado(id) {
-        await this.db.update(calendarEvents).set({ notificado: 1 }).where(eq36(calendarEvents.id, id));
+        await this.db.update(calendarEvents).set({ notificado: 1 }).where(eq39(calendarEvents.id, id));
       }
       // ── CRUD ──────────────────────────────────────────────────────────────────
       async create(lawyerProfileId, data) {
-        const id = randomUUID16();
+        const id = randomUUID17();
         const row = {
           id,
           lawyerId: lawyerProfileId,
@@ -8246,7 +8619,7 @@ var init_calendar_storage = __esm({
       }
       async findById(id) {
         return this.db.query.calendarEvents.findFirst({
-          where: eq36(calendarEvents.id, id)
+          where: eq39(calendarEvents.id, id)
         });
       }
       async update(id, data) {
@@ -8260,18 +8633,18 @@ var init_calendar_storage = __esm({
           updates.recordatorioMinutos = data.recordatorioMinutos;
           updates.notificado = 0;
         }
-        await this.db.update(calendarEvents).set(updates).where(eq36(calendarEvents.id, id));
+        await this.db.update(calendarEvents).set(updates).where(eq39(calendarEvents.id, id));
         return this.findById(id);
       }
       async softDelete(id) {
-        await this.db.update(calendarEvents).set({ state: 0 }).where(eq36(calendarEvents.id, id));
+        await this.db.update(calendarEvents).set({ state: 0 }).where(eq39(calendarEvents.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/stage-task-template-storage.ts
-import { eq as eq37, and as and27, or as or6, isNull as isNull8, asc as asc2 } from "drizzle-orm";
+import { eq as eq40, and as and29, or as or6, isNull as isNull11, asc as asc2 } from "drizzle-orm";
 function toDTO2(r) {
   return {
     id: r.id,
@@ -8296,13 +8669,13 @@ var init_stage_task_template_storage = __esm({
       }
       async getByStage(legalStageCode, tipoProcesoId) {
         const rows = await this.db.select().from(etapasTareasPlantilla).where(
-          and27(
-            eq37(etapasTareasPlantilla.legalStageCode, legalStageCode),
-            eq37(etapasTareasPlantilla.activo, 1),
+          and29(
+            eq40(etapasTareasPlantilla.legalStageCode, legalStageCode),
+            eq40(etapasTareasPlantilla.activo, 1),
             tipoProcesoId != null ? or6(
-              eq37(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
-              isNull8(etapasTareasPlantilla.tipoProcesoId)
-            ) : isNull8(etapasTareasPlantilla.tipoProcesoId)
+              eq40(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
+              isNull11(etapasTareasPlantilla.tipoProcesoId)
+            ) : isNull11(etapasTareasPlantilla.tipoProcesoId)
           )
         ).orderBy(asc2(etapasTareasPlantilla.orden));
         if (tipoProcesoId == null) return rows.map(toDTO2);
@@ -8319,15 +8692,15 @@ var init_stage_task_template_storage = __esm({
         if (tipoProcesoId != null) {
           conditions.push(
             or6(
-              eq37(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
-              isNull8(etapasTareasPlantilla.tipoProcesoId)
+              eq40(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
+              isNull11(etapasTareasPlantilla.tipoProcesoId)
             )
           );
         }
         if (legalStageCode) {
-          conditions.push(eq37(etapasTareasPlantilla.legalStageCode, legalStageCode));
+          conditions.push(eq40(etapasTareasPlantilla.legalStageCode, legalStageCode));
         }
-        const rows = await this.db.select().from(etapasTareasPlantilla).where(conditions.length > 0 ? and27(...conditions) : void 0).orderBy(asc2(etapasTareasPlantilla.orden));
+        const rows = await this.db.select().from(etapasTareasPlantilla).where(conditions.length > 0 ? and29(...conditions) : void 0).orderBy(asc2(etapasTareasPlantilla.orden));
         return rows.map(toDTO2);
       }
       async create(data) {
@@ -8342,7 +8715,7 @@ var init_stage_task_template_storage = __esm({
           activo: 1
         });
         const insertId = Number(result.insertId ?? result[0]?.insertId);
-        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq37(etapasTareasPlantilla.id, insertId));
+        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq40(etapasTareasPlantilla.id, insertId));
         return toDTO2(row);
       }
       async update(id, data) {
@@ -8353,15 +8726,15 @@ var init_stage_task_template_storage = __esm({
           ...data.requerida !== void 0 && { requerida: data.requerida ? 1 : 0 },
           ...data.orden !== void 0 && { orden: data.orden },
           ...data.activo !== void 0 && { activo: data.activo ? 1 : 0 }
-        }).where(eq37(etapasTareasPlantilla.id, id));
-        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq37(etapasTareasPlantilla.id, id));
+        }).where(eq40(etapasTareasPlantilla.id, id));
+        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq40(etapasTareasPlantilla.id, id));
         return row ? toDTO2(row) : null;
       }
       async delete(id) {
-        await this.db.update(etapasTareasPlantilla).set({ activo: 0 }).where(eq37(etapasTareasPlantilla.id, id));
+        await this.db.update(etapasTareasPlantilla).set({ activo: 0 }).where(eq40(etapasTareasPlantilla.id, id));
       }
       async getById(id) {
-        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq37(etapasTareasPlantilla.id, id));
+        const [row] = await this.db.select().from(etapasTareasPlantilla).where(eq40(etapasTareasPlantilla.id, id));
         return row ? toDTO2(row) : null;
       }
     };
@@ -8369,8 +8742,8 @@ var init_stage_task_template_storage = __esm({
 });
 
 // server/storage/storeage/models/stage-event-storage.ts
-import { eq as eq38, and as and28, asc as asc3, count as drizzleCount } from "drizzle-orm";
-import { randomUUID as randomUUID17 } from "crypto";
+import { eq as eq41, and as and30, asc as asc3, count as drizzleCount } from "drizzle-orm";
+import { randomUUID as randomUUID18 } from "crypto";
 function toDTO3(r) {
   return {
     id: r.id,
@@ -8393,7 +8766,7 @@ var init_stage_event_storage = __esm({
         this.db = db2;
       }
       async insert(data) {
-        const id = randomUUID17();
+        const id = randomUUID18();
         await this.db.insert(etapaEventos).values({
           id,
           procesoId: data.procesoId,
@@ -8403,13 +8776,13 @@ var init_stage_event_storage = __esm({
           metadatos: data.metadatos ?? null,
           creadoPor: data.creadoPor ?? null
         });
-        const [row] = await this.db.select().from(etapaEventos).where(eq38(etapaEventos.id, id));
+        const [row] = await this.db.select().from(etapaEventos).where(eq41(etapaEventos.id, id));
         return toDTO3(row);
       }
       async getByStage(procesoId, legalStageCode, limit = 50, offset = 0) {
-        const where = and28(
-          eq38(etapaEventos.procesoId, procesoId),
-          eq38(etapaEventos.legalStageCode, legalStageCode)
+        const where = and30(
+          eq41(etapaEventos.procesoId, procesoId),
+          eq41(etapaEventos.legalStageCode, legalStageCode)
         );
         const [rows, [{ total }]] = await Promise.all([
           this.db.select().from(etapaEventos).where(where).orderBy(asc3(etapaEventos.createdAt)).limit(limit).offset(offset),
@@ -8418,7 +8791,7 @@ var init_stage_event_storage = __esm({
         return { data: rows.map(toDTO3), total: Number(total) };
       }
       async getByProceso(procesoId, limit = 50, offset = 0) {
-        const where = eq38(etapaEventos.procesoId, procesoId);
+        const where = eq41(etapaEventos.procesoId, procesoId);
         const [rows, [{ total }]] = await Promise.all([
           this.db.select().from(etapaEventos).where(where).orderBy(asc3(etapaEventos.createdAt)).limit(limit).offset(offset),
           this.db.select({ total: drizzleCount() }).from(etapaEventos).where(where)
@@ -8430,8 +8803,8 @@ var init_stage_event_storage = __esm({
 });
 
 // server/storage/storeage/models/proceso-etapa-historial-storage.ts
-import { randomUUID as randomUUID18 } from "crypto";
-import { eq as eq39, and as and29, desc as desc16, asc as asc4 } from "drizzle-orm";
+import { randomUUID as randomUUID19 } from "crypto";
+import { eq as eq42, and as and31, desc as desc17, asc as asc4 } from "drizzle-orm";
 var ProcesoEtapaHistorialStorage;
 var init_proceso_etapa_historial_storage = __esm({
   "server/storage/storeage/models/proceso-etapa-historial-storage.ts"() {
@@ -8442,7 +8815,7 @@ var init_proceso_etapa_historial_storage = __esm({
         this.db = db2;
       }
       async createHistorial(insertData) {
-        const id = randomUUID18();
+        const id = randomUUID19();
         const newRecord = {
           ...insertData,
           id,
@@ -8455,16 +8828,16 @@ var init_proceso_etapa_historial_storage = __esm({
         return newRecord;
       }
       async getHistorialByProceso(procesoId) {
-        return this.db.select().from(procesoEtapaHistorial).where(eq39(procesoEtapaHistorial.procesoId, procesoId)).orderBy(asc4(procesoEtapaHistorial.fecha), asc4(procesoEtapaHistorial.createdAt));
+        return this.db.select().from(procesoEtapaHistorial).where(eq42(procesoEtapaHistorial.procesoId, procesoId)).orderBy(asc4(procesoEtapaHistorial.fecha), asc4(procesoEtapaHistorial.createdAt));
       }
       async getHistorialByProcesoYEtapa(procesoId, etapa) {
-        return this.db.select().from(procesoEtapaHistorial).where(and29(
-          eq39(procesoEtapaHistorial.procesoId, procesoId),
-          eq39(procesoEtapaHistorial.etapa, etapa)
-        )).orderBy(desc16(procesoEtapaHistorial.fecha), desc16(procesoEtapaHistorial.createdAt));
+        return this.db.select().from(procesoEtapaHistorial).where(and31(
+          eq42(procesoEtapaHistorial.procesoId, procesoId),
+          eq42(procesoEtapaHistorial.etapa, etapa)
+        )).orderBy(desc17(procesoEtapaHistorial.fecha), desc17(procesoEtapaHistorial.createdAt));
       }
       async getUltimoEstadoPorEtapa(procesoId) {
-        const historial = await this.db.select().from(procesoEtapaHistorial).where(eq39(procesoEtapaHistorial.procesoId, procesoId)).orderBy(desc16(procesoEtapaHistorial.fecha), desc16(procesoEtapaHistorial.createdAt));
+        const historial = await this.db.select().from(procesoEtapaHistorial).where(eq42(procesoEtapaHistorial.procesoId, procesoId)).orderBy(desc17(procesoEtapaHistorial.fecha), desc17(procesoEtapaHistorial.createdAt));
         const ultimoPorEtapa = {};
         for (const registro of historial) {
           if (!ultimoPorEtapa[registro.etapa]) {
@@ -8485,8 +8858,8 @@ var init_proceso_etapa_historial_storage = __esm({
 });
 
 // server/storage/storeage/models/tarea-extension-storage.ts
-import { eq as eq40, asc as asc5, desc as desc17 } from "drizzle-orm";
-import { randomUUID as randomUUID19 } from "crypto";
+import { eq as eq43, asc as asc5, desc as desc18 } from "drizzle-orm";
+import { randomUUID as randomUUID20 } from "crypto";
 var TareaExtensionStorage;
 var init_tarea_extension_storage = __esm({
   "server/storage/storeage/models/tarea-extension-storage.ts"() {
@@ -8498,7 +8871,7 @@ var init_tarea_extension_storage = __esm({
       }
       // ── Observaciones ─────────────────────────────────────────────────────────
       async addObservacion(tareaId, autorId, autorNombre, contenido) {
-        const id = randomUUID19();
+        const id = randomUUID20();
         await this.db.insert(tareaObservaciones).values({
           id,
           tareaId,
@@ -8515,7 +8888,7 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async getObservaciones(tareaId) {
-        const rows = await this.db.select().from(tareaObservaciones).where(eq40(tareaObservaciones.tareaId, tareaId)).orderBy(desc17(tareaObservaciones.createdAt));
+        const rows = await this.db.select().from(tareaObservaciones).where(eq43(tareaObservaciones.tareaId, tareaId)).orderBy(desc18(tareaObservaciones.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -8526,8 +8899,8 @@ var init_tarea_extension_storage = __esm({
       }
       // ── Subtareas ──────────────────────────────────────────────────────────────
       async addSubtarea(tareaId, dto, creadoPorId, creadoPorNombre) {
-        const id = randomUUID19();
-        const existing = await this.db.select({ id: tareaSubtareas.id }).from(tareaSubtareas).where(eq40(tareaSubtareas.tareaId, tareaId));
+        const id = randomUUID20();
+        const existing = await this.db.select({ id: tareaSubtareas.id }).from(tareaSubtareas).where(eq43(tareaSubtareas.tareaId, tareaId));
         await this.db.insert(tareaSubtareas).values({
           id,
           tareaId,
@@ -8555,7 +8928,7 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async getSubtareas(tareaId) {
-        const rows = await this.db.select().from(tareaSubtareas).where(eq40(tareaSubtareas.tareaId, tareaId)).orderBy(asc5(tareaSubtareas.orden), asc5(tareaSubtareas.createdAt));
+        const rows = await this.db.select().from(tareaSubtareas).where(eq43(tareaSubtareas.tareaId, tareaId)).orderBy(asc5(tareaSubtareas.orden), asc5(tareaSubtareas.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -8586,10 +8959,10 @@ var init_tarea_extension_storage = __esm({
           }
         }
         if (Object.keys(updates).length > 0) {
-          await this.db.update(tareaSubtareas).set(updates).where(eq40(tareaSubtareas.id, subtareaId));
+          await this.db.update(tareaSubtareas).set(updates).where(eq43(tareaSubtareas.id, subtareaId));
         }
         const row = await this.db.query.tareaSubtareas.findFirst({
-          where: eq40(tareaSubtareas.id, subtareaId)
+          where: eq43(tareaSubtareas.id, subtareaId)
         });
         if (!row) return null;
         return {
@@ -8607,10 +8980,10 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async deleteSubtarea(subtareaId) {
-        await this.db.delete(tareaSubtareas).where(eq40(tareaSubtareas.id, subtareaId));
+        await this.db.delete(tareaSubtareas).where(eq43(tareaSubtareas.id, subtareaId));
       }
       async countSubtareas(tareaId) {
-        const rows = await this.db.select({ estado: tareaSubtareas.estado }).from(tareaSubtareas).where(eq40(tareaSubtareas.tareaId, tareaId));
+        const rows = await this.db.select({ estado: tareaSubtareas.estado }).from(tareaSubtareas).where(eq43(tareaSubtareas.tareaId, tareaId));
         return {
           total: rows.length,
           completadas: rows.filter((r) => r.estado === "completada").length
@@ -8619,7 +8992,7 @@ var init_tarea_extension_storage = __esm({
       // ── Historial ──────────────────────────────────────────────────────────────
       async addHistorial(tareaId, usuarioId, usuarioNombre, accion, detalle) {
         await this.db.insert(tareaHistorial).values({
-          id: randomUUID19(),
+          id: randomUUID20(),
           tareaId,
           usuarioId,
           usuarioNombre,
@@ -8628,7 +9001,7 @@ var init_tarea_extension_storage = __esm({
         });
       }
       async getHistorial(tareaId) {
-        const rows = await this.db.select().from(tareaHistorial).where(eq40(tareaHistorial.tareaId, tareaId)).orderBy(desc17(tareaHistorial.createdAt));
+        const rows = await this.db.select().from(tareaHistorial).where(eq43(tareaHistorial.tareaId, tareaId)).orderBy(desc18(tareaHistorial.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -8640,7 +9013,7 @@ var init_tarea_extension_storage = __esm({
       }
       // ── Archivos ───────────────────────────────────────────────────────────────
       async addArchivo(tareaId, nombre, url2, mimeType, tamano, subidoPorId) {
-        const id = randomUUID19();
+        const id = randomUUID20();
         await this.db.insert(tareaArchivos).values({ id, tareaId, nombre, url: url2, mimeType, tamano, subidoPorId });
         return {
           id,
@@ -8655,7 +9028,7 @@ var init_tarea_extension_storage = __esm({
         };
       }
       async getArchivos(tareaId) {
-        const rows = await this.db.select().from(tareaArchivos).where(eq40(tareaArchivos.tareaId, tareaId)).orderBy(desc17(tareaArchivos.createdAt));
+        const rows = await this.db.select().from(tareaArchivos).where(eq43(tareaArchivos.tareaId, tareaId)).orderBy(desc18(tareaArchivos.createdAt));
         return rows.map((r) => ({
           id: r.id,
           tareaId: r.tareaId,
@@ -8669,11 +9042,11 @@ var init_tarea_extension_storage = __esm({
         }));
       }
       async deleteArchivo(archivoId) {
-        await this.db.delete(tareaArchivos).where(eq40(tareaArchivos.id, archivoId));
+        await this.db.delete(tareaArchivos).where(eq43(tareaArchivos.id, archivoId));
       }
       async findArchivo(archivoId) {
         const row = await this.db.query.tareaArchivos.findFirst({
-          where: eq40(tareaArchivos.id, archivoId)
+          where: eq43(tareaArchivos.id, archivoId)
         });
         if (!row) return null;
         return {
@@ -8693,8 +9066,8 @@ var init_tarea_extension_storage = __esm({
 });
 
 // server/storage/storeage/models/proceso-ownership-storage.ts
-import { eq as eq41, and as and30, desc as desc18, isNull as isNull9, inArray as inArray9 } from "drizzle-orm";
-import { randomUUID as randomUUID20 } from "crypto";
+import { eq as eq44, and as and32, desc as desc19, isNull as isNull12, inArray as inArray9 } from "drizzle-orm";
+import { randomUUID as randomUUID21 } from "crypto";
 var ProcesoOwnershipStorage;
 var init_proceso_ownership_storage = __esm({
   "server/storage/storeage/models/proceso-ownership-storage.ts"() {
@@ -8706,18 +9079,18 @@ var init_proceso_ownership_storage = __esm({
       }
       /** Ownership activo de un proceso (activo_unique = 1). */
       async getActive(procesoId) {
-        const row = await this.db.select().from(procesoOwnership).where(and30(
-          eq41(procesoOwnership.procesoId, procesoId),
-          eq41(procesoOwnership.activoUnique, 1)
+        const row = await this.db.select().from(procesoOwnership).where(and32(
+          eq44(procesoOwnership.procesoId, procesoId),
+          eq44(procesoOwnership.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         return row ? this.toDTO(row) : null;
       }
       /** Fetch active ownership for multiple procesosIds in a single query. */
       async getActiveBatch(procesoIds) {
         if (procesoIds.length === 0) return /* @__PURE__ */ new Map();
-        const rows = await this.db.select().from(procesoOwnership).where(and30(
+        const rows = await this.db.select().from(procesoOwnership).where(and32(
           inArray9(procesoOwnership.procesoId, procesoIds),
-          eq41(procesoOwnership.activoUnique, 1)
+          eq44(procesoOwnership.activoUnique, 1)
         ));
         const map = /* @__PURE__ */ new Map();
         for (const row of rows) {
@@ -8727,7 +9100,7 @@ var init_proceso_ownership_storage = __esm({
       }
       /** Historial completo de ownership de un proceso (más reciente primero). */
       async getHistory(procesoId) {
-        const rows = await this.db.select().from(procesoOwnership).where(eq41(procesoOwnership.procesoId, procesoId)).orderBy(desc18(procesoOwnership.fechaInicio));
+        const rows = await this.db.select().from(procesoOwnership).where(eq44(procesoOwnership.procesoId, procesoId)).orderBy(desc19(procesoOwnership.fechaInicio));
         return rows.map((r) => this.toDTO(r));
       }
       /**
@@ -8735,11 +9108,11 @@ var init_proceso_ownership_storage = __esm({
        * Cierra el registro activo y abre uno nuevo.
        */
       async transfer(procesoId, dto, creadoPor) {
-        const id = randomUUID20();
+        const id = randomUUID21();
         await this.db.transaction(async (tx) => {
-          await tx.update(procesoOwnership).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and30(
-            eq41(procesoOwnership.procesoId, procesoId),
-            eq41(procesoOwnership.activoUnique, 1)
+          await tx.update(procesoOwnership).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and32(
+            eq44(procesoOwnership.procesoId, procesoId),
+            eq44(procesoOwnership.activoUnique, 1)
           ));
           await tx.insert(procesoOwnership).values({
             id,
@@ -8768,7 +9141,7 @@ var init_proceso_ownership_storage = __esm({
        * Solo usar si no existe ningún ownership para el proceso.
        */
       async create(procesoId, ownerType, ownerId, creadoPor, razon) {
-        const id = randomUUID20();
+        const id = randomUUID21();
         await this.db.insert(procesoOwnership).values({
           id,
           procesoId,
@@ -8794,10 +9167,10 @@ var init_proceso_ownership_storage = __esm({
        * Todos los procesoIds donde owner_type + owner_id tienen ownership activo.
        */
       async getProcesoIdsByOwner(ownerType, ownerId) {
-        const rows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and30(
-          eq41(procesoOwnership.ownerType, ownerType),
-          ownerId !== null ? eq41(procesoOwnership.ownerId, ownerId) : isNull9(procesoOwnership.ownerId),
-          eq41(procesoOwnership.activoUnique, 1)
+        const rows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and32(
+          eq44(procesoOwnership.ownerType, ownerType),
+          ownerId !== null ? eq44(procesoOwnership.ownerId, ownerId) : isNull12(procesoOwnership.ownerId),
+          eq44(procesoOwnership.activoUnique, 1)
         ));
         return rows.map((r) => r.procesoId);
       }
@@ -8805,9 +9178,9 @@ var init_proceso_ownership_storage = __esm({
       async getPendingReassignmentIds(bufeteId) {
         const ownedIds = await this.getProcesoIdsByOwner("bufete", bufeteId);
         if (ownedIds.length === 0) return [];
-        const assigned = await this.db.selectDistinct({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and30(
+        const assigned = await this.db.selectDistinct({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and32(
           inArray9(procesoLawyers.procesoId, ownedIds),
-          eq41(procesoLawyers.status, "activo")
+          eq44(procesoLawyers.status, "activo")
         ));
         const assignedSet = new Set(assigned.map((r) => r.procesoId));
         return ownedIds.filter((id) => !assignedSet.has(id));
@@ -8830,8 +9203,8 @@ var init_proceso_ownership_storage = __esm({
 });
 
 // server/storage/storeage/models/proceso-sharing-storage.ts
-import { eq as eq42, and as and31, desc as desc19 } from "drizzle-orm";
-import { randomUUID as randomUUID21 } from "crypto";
+import { eq as eq45, and as and33, desc as desc20 } from "drizzle-orm";
+import { randomUUID as randomUUID22 } from "crypto";
 var ProcesoSharingStorage;
 var init_proceso_sharing_storage = __esm({
   "server/storage/storeage/models/proceso-sharing-storage.ts"() {
@@ -8843,24 +9216,24 @@ var init_proceso_sharing_storage = __esm({
       }
       /** Sharing activo de un proceso (todos los receptores). */
       async getActive(procesoId) {
-        const rows = await this.db.select().from(procesoSharing).where(and31(
-          eq42(procesoSharing.procesoId, procesoId),
-          eq42(procesoSharing.activoUnique, 1)
+        const rows = await this.db.select().from(procesoSharing).where(and33(
+          eq45(procesoSharing.procesoId, procesoId),
+          eq45(procesoSharing.activoUnique, 1)
         ));
         return rows.map((r) => this.toDTO(r));
       }
       /** Historial completo de sharing de un proceso. */
       async getHistory(procesoId) {
-        const rows = await this.db.select().from(procesoSharing).where(eq42(procesoSharing.procesoId, procesoId)).orderBy(desc19(procesoSharing.fechaInicio));
+        const rows = await this.db.select().from(procesoSharing).where(eq45(procesoSharing.procesoId, procesoId)).orderBy(desc20(procesoSharing.fechaInicio));
         return rows.map((r) => this.toDTO(r));
       }
       /** Sharing activo para una entidad específica (para assertProcesoAccess). */
       async findActive(procesoId, sharedWithType, sharedWithId) {
-        const row = await this.db.select().from(procesoSharing).where(and31(
-          eq42(procesoSharing.procesoId, procesoId),
-          eq42(procesoSharing.sharedWithType, sharedWithType),
-          eq42(procesoSharing.sharedWithId, sharedWithId),
-          eq42(procesoSharing.activoUnique, 1)
+        const row = await this.db.select().from(procesoSharing).where(and33(
+          eq45(procesoSharing.procesoId, procesoId),
+          eq45(procesoSharing.sharedWithType, sharedWithType),
+          eq45(procesoSharing.sharedWithId, sharedWithId),
+          eq45(procesoSharing.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         return row ? this.toDTO(row) : null;
       }
@@ -8875,13 +9248,13 @@ var init_proceso_sharing_storage = __esm({
             `Permiso '${dto.permission}' no permitido para '${dto.sharedWithType}'. M\xE1ximo: ${allowed.join(", ")}`
           );
         }
-        const id = randomUUID21();
+        const id = randomUUID22();
         await this.db.transaction(async (tx) => {
-          await tx.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and31(
-            eq42(procesoSharing.procesoId, procesoId),
-            eq42(procesoSharing.sharedWithType, dto.sharedWithType),
-            eq42(procesoSharing.sharedWithId, dto.sharedWithId),
-            eq42(procesoSharing.activoUnique, 1)
+          await tx.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and33(
+            eq45(procesoSharing.procesoId, procesoId),
+            eq45(procesoSharing.sharedWithType, dto.sharedWithType),
+            eq45(procesoSharing.sharedWithId, dto.sharedWithId),
+            eq45(procesoSharing.activoUnique, 1)
           ));
           await tx.insert(procesoSharing).values({
             id,
@@ -8909,10 +9282,10 @@ var init_proceso_sharing_storage = __esm({
       }
       /** Revocar sharing por ID del registro. */
       async revoke(shareId, procesoId) {
-        await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and31(
-          eq42(procesoSharing.id, shareId),
-          eq42(procesoSharing.procesoId, procesoId),
-          eq42(procesoSharing.activoUnique, 1)
+        await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and33(
+          eq45(procesoSharing.id, shareId),
+          eq45(procesoSharing.procesoId, procesoId),
+          eq45(procesoSharing.activoUnique, 1)
         ));
       }
       /**
@@ -8922,20 +9295,20 @@ var init_proceso_sharing_storage = __esm({
       async revokeAllForEntity(sharedWithType, sharedWithId, procesoIds) {
         if (procesoIds.length === 0) return;
         for (const procesoId of procesoIds) {
-          await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and31(
-            eq42(procesoSharing.procesoId, procesoId),
-            eq42(procesoSharing.sharedWithType, sharedWithType),
-            eq42(procesoSharing.sharedWithId, sharedWithId),
-            eq42(procesoSharing.activoUnique, 1)
+          await this.db.update(procesoSharing).set({ fechaFin: /* @__PURE__ */ new Date(), activoUnique: null }).where(and33(
+            eq45(procesoSharing.procesoId, procesoId),
+            eq45(procesoSharing.sharedWithType, sharedWithType),
+            eq45(procesoSharing.sharedWithId, sharedWithId),
+            eq45(procesoSharing.activoUnique, 1)
           ));
         }
       }
       /** ProcesoIds con sharing activo para una entidad. */
       async getProcesoIdsBySharedWith(sharedWithType, sharedWithId) {
-        const rows = await this.db.select({ procesoId: procesoSharing.procesoId }).from(procesoSharing).where(and31(
-          eq42(procesoSharing.sharedWithType, sharedWithType),
-          eq42(procesoSharing.sharedWithId, sharedWithId),
-          eq42(procesoSharing.activoUnique, 1)
+        const rows = await this.db.select({ procesoId: procesoSharing.procesoId }).from(procesoSharing).where(and33(
+          eq45(procesoSharing.sharedWithType, sharedWithType),
+          eq45(procesoSharing.sharedWithId, sharedWithId),
+          eq45(procesoSharing.activoUnique, 1)
         ));
         return rows.map((r) => r.procesoId);
       }
@@ -8958,8 +9331,8 @@ var init_proceso_sharing_storage = __esm({
 });
 
 // server/storage/storeage/models/cliente-ownership-storage.ts
-import { eq as eq43, and as and32, desc as desc20 } from "drizzle-orm";
-import { randomUUID as randomUUID22 } from "crypto";
+import { eq as eq46, and as and34, desc as desc21 } from "drizzle-orm";
+import { randomUUID as randomUUID23 } from "crypto";
 var ClienteOwnershipStorage;
 var init_cliente_ownership_storage = __esm({
   "server/storage/storeage/models/cliente-ownership-storage.ts"() {
@@ -8971,20 +9344,20 @@ var init_cliente_ownership_storage = __esm({
       }
       /** Ownership activo de un cliente (activo_unique = 1). */
       async getActive(clienteId) {
-        const row = await this.db.select().from(clienteOwnership).where(and32(
-          eq43(clienteOwnership.clienteId, clienteId),
-          eq43(clienteOwnership.activoUnique, 1)
+        const row = await this.db.select().from(clienteOwnership).where(and34(
+          eq46(clienteOwnership.clienteId, clienteId),
+          eq46(clienteOwnership.activoUnique, 1)
         )).limit(1).then((r) => r[0] ?? null);
         return row ? this.toDTO(row) : null;
       }
       /** Historial completo de ownership de un cliente (más reciente primero). */
       async getHistory(clienteId) {
-        const rows = await this.db.select().from(clienteOwnership).where(eq43(clienteOwnership.clienteId, clienteId)).orderBy(desc20(clienteOwnership.fechaInicio));
+        const rows = await this.db.select().from(clienteOwnership).where(eq46(clienteOwnership.clienteId, clienteId)).orderBy(desc21(clienteOwnership.fechaInicio));
         return rows.map((r) => this.toDTO(r));
       }
       /** Crear ownership inicial (para cliente recién creado). */
       async create(clienteId, ownerType, ownerId, creadoPor, razon) {
-        const id = randomUUID22();
+        const id = randomUUID23();
         await this.db.insert(clienteOwnership).values({
           id,
           clienteId,
@@ -9008,10 +9381,10 @@ var init_cliente_ownership_storage = __esm({
       }
       /** IDs de clientes donde owner_type + owner_id tienen ownership activo. */
       async getClienteIdsByOwner(ownerType, ownerId) {
-        const rows = await this.db.select({ clienteId: clienteOwnership.clienteId }).from(clienteOwnership).where(and32(
-          eq43(clienteOwnership.ownerType, ownerType),
-          eq43(clienteOwnership.ownerId, ownerId),
-          eq43(clienteOwnership.activoUnique, 1)
+        const rows = await this.db.select({ clienteId: clienteOwnership.clienteId }).from(clienteOwnership).where(and34(
+          eq46(clienteOwnership.ownerType, ownerType),
+          eq46(clienteOwnership.ownerId, ownerId),
+          eq46(clienteOwnership.activoUnique, 1)
         ));
         return rows.map((r) => r.clienteId);
       }
@@ -9033,8 +9406,8 @@ var init_cliente_ownership_storage = __esm({
 });
 
 // server/storage/storeage/models/firm-settings-storage.ts
-import { eq as eq44 } from "drizzle-orm";
-import { randomUUID as randomUUID23 } from "crypto";
+import { eq as eq47 } from "drizzle-orm";
+import { randomUUID as randomUUID24 } from "crypto";
 var DEFAULTS, FirmSettingsStorage;
 var init_firm_settings_storage = __esm({
   "server/storage/storeage/models/firm-settings-storage.ts"() {
@@ -9044,7 +9417,13 @@ var init_firm_settings_storage = __esm({
       allowPrivateClientes: false,
       allowPrivateProcesos: false,
       defaultClienteEsCompartido: true,
-      defaultProcesoEsCompartido: true
+      defaultProcesoEsCompartido: true,
+      notifMensajes: true,
+      notifVencimientos: true,
+      notifCambiosProcesos: true,
+      notifEquipoInvitaciones: true,
+      notifAlertasPlan: true,
+      notifResumenSemanal: false
     };
     FirmSettingsStorage = class {
       constructor(db2) {
@@ -9052,18 +9431,18 @@ var init_firm_settings_storage = __esm({
       }
       /** Obtiene settings del bufete. Si no existen, devuelve los defaults sin persistir. */
       async get(firmId) {
-        const row = await this.db.select().from(firmSettings).where(eq44(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
+        const row = await this.db.select().from(firmSettings).where(eq47(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
         if (!row) return { firmId, ...DEFAULTS };
         return this.toDTO(row);
       }
       /** Crea o actualiza los settings de un bufete. */
       async upsert(firmId, updates) {
-        const existing = await this.db.select().from(firmSettings).where(eq44(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
+        const existing = await this.db.select().from(firmSettings).where(eq47(firmSettings.firmId, firmId)).limit(1).then((r) => r[0] ?? null);
         if (existing) {
-          await this.db.update(firmSettings).set(updates).where(eq44(firmSettings.firmId, firmId));
+          await this.db.update(firmSettings).set(updates).where(eq47(firmSettings.firmId, firmId));
           return this.toDTO({ ...existing, ...updates });
         }
-        const id = randomUUID23();
+        const id = randomUUID24();
         const newRow = { id, firmId, ...DEFAULTS, ...updates };
         await this.db.insert(firmSettings).values(newRow);
         return this.toDTO(newRow);
@@ -9074,7 +9453,13 @@ var init_firm_settings_storage = __esm({
           allowPrivateClientes: row.allowPrivateClientes,
           allowPrivateProcesos: row.allowPrivateProcesos,
           defaultClienteEsCompartido: row.defaultClienteEsCompartido,
-          defaultProcesoEsCompartido: row.defaultProcesoEsCompartido
+          defaultProcesoEsCompartido: row.defaultProcesoEsCompartido,
+          notifMensajes: row.notifMensajes,
+          notifVencimientos: row.notifVencimientos,
+          notifCambiosProcesos: row.notifCambiosProcesos,
+          notifEquipoInvitaciones: row.notifEquipoInvitaciones,
+          notifAlertasPlan: row.notifAlertasPlan,
+          notifResumenSemanal: row.notifResumenSemanal
         };
       }
     };
@@ -9082,7 +9467,7 @@ var init_firm_settings_storage = __esm({
 });
 
 // server/storage/storeage/models/feature-storage.ts
-import { eq as eq45, and as and33 } from "drizzle-orm";
+import { eq as eq48, and as and35 } from "drizzle-orm";
 var FeatureStorage;
 var init_feature_storage = __esm({
   "server/storage/storeage/models/feature-storage.ts"() {
@@ -9093,25 +9478,25 @@ var init_feature_storage = __esm({
         this.db = db2;
       }
       async getAll() {
-        return this.db.select().from(features).where(eq45(features.state, true));
+        return this.db.select().from(features).where(eq48(features.state, true));
       }
       async getByPlan(planId) {
         const rows = await this.db.select({
           code: planFeatures.featureCode,
           nombre: features.nombre,
           value: planFeatures.value
-        }).from(planFeatures).innerJoin(features, eq45(planFeatures.featureCode, features.code)).where(and33(eq45(planFeatures.planId, planId), eq45(features.state, true)));
+        }).from(planFeatures).innerJoin(features, eq48(planFeatures.featureCode, features.code)).where(and35(eq48(planFeatures.planId, planId), eq48(features.state, true)));
         return rows;
       }
       async hasFeature(planId, featureCode) {
-        const row = await this.db.select().from(planFeatures).where(and33(eq45(planFeatures.planId, planId), eq45(planFeatures.featureCode, featureCode))).limit(1).then((r) => r[0] ?? null);
+        const row = await this.db.select().from(planFeatures).where(and35(eq48(planFeatures.planId, planId), eq48(planFeatures.featureCode, featureCode))).limit(1).then((r) => r[0] ?? null);
         if (!row) return { has: false, value: "false" };
         return { has: row.value !== "false" && row.value !== "0", value: row.value };
       }
       async upsertFeature(planId, featureCode, value) {
-        const existing = await this.db.select().from(planFeatures).where(and33(eq45(planFeatures.planId, planId), eq45(planFeatures.featureCode, featureCode))).limit(1).then((r) => r[0] ?? null);
+        const existing = await this.db.select().from(planFeatures).where(and35(eq48(planFeatures.planId, planId), eq48(planFeatures.featureCode, featureCode))).limit(1).then((r) => r[0] ?? null);
         if (existing) {
-          await this.db.update(planFeatures).set({ value }).where(and33(eq45(planFeatures.planId, planId), eq45(planFeatures.featureCode, featureCode)));
+          await this.db.update(planFeatures).set({ value }).where(and35(eq48(planFeatures.planId, planId), eq48(planFeatures.featureCode, featureCode)));
         } else {
           await this.db.insert(planFeatures).values({ planId, featureCode, value });
         }
@@ -9121,8 +9506,8 @@ var init_feature_storage = __esm({
 });
 
 // server/storage/storeage/models/suscripcion-storage.ts
-import { eq as eq46, and as and34 } from "drizzle-orm";
-import { randomUUID as randomUUID24 } from "crypto";
+import { eq as eq49, and as and36 } from "drizzle-orm";
+import { randomUUID as randomUUID25 } from "crypto";
 var SuscripcionStorage;
 var init_suscripcion_storage = __esm({
   "server/storage/storeage/models/suscripcion-storage.ts"() {
@@ -9133,49 +9518,49 @@ var init_suscripcion_storage = __esm({
         this.db = db2;
       }
       async getActive(userId2) {
-        const row = await this.db.select().from(suscripciones).where(and34(eq46(suscripciones.userId, userId2), eq46(suscripciones.estado, "activa"))).limit(1).then((r) => r[0] ?? null);
+        const row = await this.db.select().from(suscripciones).where(and36(eq49(suscripciones.userId, userId2), eq49(suscripciones.estado, "activa"))).limit(1).then((r) => r[0] ?? null);
         return row;
       }
       async getById(id) {
-        return this.db.select().from(suscripciones).where(eq46(suscripciones.id, id)).limit(1).then((r) => r[0] ?? null);
+        return this.db.select().from(suscripciones).where(eq49(suscripciones.id, id)).limit(1).then((r) => r[0] ?? null);
       }
       async getByUserId(userId2) {
-        return this.db.select().from(suscripciones).where(eq46(suscripciones.userId, userId2));
+        return this.db.select().from(suscripciones).where(eq49(suscripciones.userId, userId2));
       }
       async create(data) {
-        const id = randomUUID24();
+        const id = randomUUID25();
         await this.db.insert(suscripciones).values({ ...data, id });
         return await this.getById(id);
       }
       async updateEstado(id, estado, fechaCancelacion) {
         const updates = { estado };
         if (fechaCancelacion) updates.fechaCancelacion = fechaCancelacion;
-        await this.db.update(suscripciones).set(updates).where(eq46(suscripciones.id, id));
+        await this.db.update(suscripciones).set(updates).where(eq49(suscripciones.id, id));
       }
       async cancelAutoRenovacion(id) {
-        await this.db.update(suscripciones).set({ autoRenovacion: false, fechaCancelacion: /* @__PURE__ */ new Date() }).where(eq46(suscripciones.id, id));
+        await this.db.update(suscripciones).set({ autoRenovacion: false, fechaCancelacion: /* @__PURE__ */ new Date() }).where(eq49(suscripciones.id, id));
       }
       /** Suscripciones activas cuyo vencimiento es en <= diasAntes días (para cron) */
       async getProximasAVencer(diasAntes) {
         const limite = /* @__PURE__ */ new Date();
         limite.setDate(limite.getDate() + diasAntes);
         const ahora = /* @__PURE__ */ new Date();
-        const { sql: sql28 } = await import("drizzle-orm");
+        const { sql: sql29 } = await import("drizzle-orm");
         return this.db.select().from(suscripciones).where(
-          and34(
-            eq46(suscripciones.estado, "activa"),
-            sql28`${suscripciones.fechaVencimiento} BETWEEN ${ahora} AND ${limite}`
+          and36(
+            eq49(suscripciones.estado, "activa"),
+            sql29`${suscripciones.fechaVencimiento} BETWEEN ${ahora} AND ${limite}`
           )
         );
       }
       /** Suscripciones activas que ya vencieron (para degradar a gratis) */
       async getVencidas() {
         const ahora = /* @__PURE__ */ new Date();
-        const { sql: sql28 } = await import("drizzle-orm");
+        const { sql: sql29 } = await import("drizzle-orm");
         return this.db.select().from(suscripciones).where(
-          and34(
-            eq46(suscripciones.estado, "activa"),
-            sql28`${suscripciones.fechaVencimiento} < ${ahora}`
+          and36(
+            eq49(suscripciones.estado, "activa"),
+            sql29`${suscripciones.fechaVencimiento} < ${ahora}`
           )
         );
       }
@@ -9184,8 +9569,8 @@ var init_suscripcion_storage = __esm({
 });
 
 // server/storage/storeage/models/pago-storage.ts
-import { eq as eq47 } from "drizzle-orm";
-import { randomUUID as randomUUID25 } from "crypto";
+import { eq as eq50 } from "drizzle-orm";
+import { randomUUID as randomUUID26 } from "crypto";
 var PagoStorage;
 var init_pago_storage = __esm({
   "server/storage/storeage/models/pago-storage.ts"() {
@@ -9196,29 +9581,29 @@ var init_pago_storage = __esm({
         this.db = db2;
       }
       async create(data) {
-        const id = randomUUID25();
+        const id = randomUUID26();
         await this.db.insert(pagos).values({ ...data, id });
         return await this.getById(id);
       }
       async getById(id) {
-        return this.db.select().from(pagos).where(eq47(pagos.id, id)).limit(1).then((r) => r[0] ?? null);
+        return this.db.select().from(pagos).where(eq50(pagos.id, id)).limit(1).then((r) => r[0] ?? null);
       }
       async getByReference(reference) {
-        return this.db.select().from(pagos).where(eq47(pagos.wompiReference, reference)).limit(1).then((r) => r[0] ?? null);
+        return this.db.select().from(pagos).where(eq50(pagos.wompiReference, reference)).limit(1).then((r) => r[0] ?? null);
       }
       async updateEstado(id, estado, wompiTransactionId, metodoPago) {
         const updates = { estado };
         if (wompiTransactionId) updates.wompiTransactionId = wompiTransactionId;
         if (metodoPago) updates.metodoPago = metodoPago;
-        await this.db.update(pagos).set(updates).where(eq47(pagos.id, id));
+        await this.db.update(pagos).set(updates).where(eq50(pagos.id, id));
       }
     };
   }
 });
 
 // server/storage/storeage/models/usage-tracking-storage.ts
-import { eq as eq48, sql as sql17 } from "drizzle-orm";
-import { randomUUID as randomUUID26 } from "crypto";
+import { eq as eq51, sql as sql18 } from "drizzle-orm";
+import { randomUUID as randomUUID27 } from "crypto";
 var CAMPO, UsageTrackingStorage;
 var init_usage_tracking_storage = __esm({
   "server/storage/storeage/models/usage-tracking-storage.ts"() {
@@ -9234,16 +9619,16 @@ var init_usage_tracking_storage = __esm({
         this.db = db2;
       }
       async getByUserId(userId2) {
-        return this.db.select().from(usageTracking).where(eq48(usageTracking.userId, userId2)).limit(1).then((r) => r[0] ?? null);
+        return this.db.select().from(usageTracking).where(eq51(usageTracking.userId, userId2)).limit(1).then((r) => r[0] ?? null);
       }
       async initForUser(userId2, suscripcionId) {
         const existing = await this.getByUserId(userId2);
         if (existing) {
-          await this.db.update(usageTracking).set({ suscripcionId }).where(eq48(usageTracking.userId, userId2));
+          await this.db.update(usageTracking).set({ suscripcionId }).where(eq51(usageTracking.userId, userId2));
           return;
         }
         await this.db.insert(usageTracking).values({
-          id: randomUUID26(),
+          id: randomUUID27(),
           userId: userId2,
           suscripcionId,
           procesosUsados: 0,
@@ -9253,21 +9638,21 @@ var init_usage_tracking_storage = __esm({
       }
       async increment(userId2, tipo, cantidad = 1) {
         const col = CAMPO[tipo];
-        await this.db.update(usageTracking).set({ [col]: sql17`${usageTracking[col]} + ${cantidad}` }).where(eq48(usageTracking.userId, userId2));
+        await this.db.update(usageTracking).set({ [col]: sql18`${usageTracking[col]} + ${cantidad}` }).where(eq51(usageTracking.userId, userId2));
       }
       async decrement(userId2, tipo, cantidad = 1) {
         const col = CAMPO[tipo];
-        await this.db.update(usageTracking).set({ [col]: sql17`GREATEST(0, ${usageTracking[col]} - ${cantidad})` }).where(eq48(usageTracking.userId, userId2));
+        await this.db.update(usageTracking).set({ [col]: sql18`GREATEST(0, ${usageTracking[col]} - ${cantidad})` }).where(eq51(usageTracking.userId, userId2));
       }
       async reset(userId2) {
-        await this.db.update(usageTracking).set({ procesosUsados: 0, clientesUsados: 0, storageUsadoMb: 0 }).where(eq48(usageTracking.userId, userId2));
+        await this.db.update(usageTracking).set({ procesosUsados: 0, clientesUsados: 0, storageUsadoMb: 0 }).where(eq51(usageTracking.userId, userId2));
       }
     };
   }
 });
 
 // server/storage/storeage/models/admin-profile.storage.ts
-import { eq as eq49 } from "drizzle-orm";
+import { eq as eq52 } from "drizzle-orm";
 var AdminProfileStorage;
 var init_admin_profile_storage = __esm({
   "server/storage/storeage/models/admin-profile.storage.ts"() {
@@ -9278,11 +9663,11 @@ var init_admin_profile_storage = __esm({
         this.db = db2;
       }
       async getAdminProfileById(id) {
-        const result = await this.db.select().from(adminProfiles).where(eq49(adminProfiles.id, id)).limit(1);
+        const result = await this.db.select().from(adminProfiles).where(eq52(adminProfiles.id, id)).limit(1);
         return result[0];
       }
       async getAdminProfileByUserId(userId2) {
-        const result = await this.db.select().from(adminProfiles).where(eq49(adminProfiles.userId, userId2)).limit(1);
+        const result = await this.db.select().from(adminProfiles).where(eq52(adminProfiles.userId, userId2)).limit(1);
         return result[0];
       }
       async createAdminProfile(data) {
@@ -9303,7 +9688,7 @@ var init_admin_profile_storage = __esm({
         await this.db.update(adminProfiles).set({
           ...safeUpdates,
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq49(adminProfiles.id, id));
+        }).where(eq52(adminProfiles.id, id));
         return this.getAdminProfileById(id);
       }
     };
@@ -9311,7 +9696,7 @@ var init_admin_profile_storage = __esm({
 });
 
 // server/admin/storage/admin-stats.storage.ts
-import { sql as sql18, inArray as inArray10, eq as eq50, and as and35, gte as gte3 } from "drizzle-orm";
+import { sql as sql19, inArray as inArray10, eq as eq53, and as and37, gte as gte3 } from "drizzle-orm";
 var USER_ROLES, AdminStatsStorage;
 var init_admin_stats_storage = __esm({
   "server/admin/storage/admin-stats.storage.ts"() {
@@ -9335,12 +9720,12 @@ var init_admin_stats_storage = __esm({
           nuevosResult
         ] = await Promise.all([
           // Total usuarios finales
-          userRoleIds.length > 0 ? this.db.select({ total: sql18`COUNT(*)` }).from(users).where(inArray10(users.rolId, userRoleIds)) : Promise.resolve([{ total: 0 }]),
+          userRoleIds.length > 0 ? this.db.select({ total: sql19`COUNT(*)` }).from(users).where(inArray10(users.rolId, userRoleIds)) : Promise.resolve([{ total: 0 }]),
           // Suscripciones activas
-          this.db.select({ total: sql18`COUNT(*)` }).from(suscripciones).where(eq50(suscripciones.estado, "activa")),
+          this.db.select({ total: sql19`COUNT(*)` }).from(suscripciones).where(eq53(suscripciones.estado, "activa")),
           // Ingresos estimados COP (normalizados a mensual)
           this.db.select({
-            total: sql18`
+            total: sql19`
             SUM(
               CASE ${suscripciones.ciclo}
                 WHEN 'mensual' THEN CAST(${planes.precioMensualCop} AS DECIMAL(14,2))
@@ -9349,12 +9734,12 @@ var init_admin_stats_storage = __esm({
               END
             )
           `
-          }).from(suscripciones).innerJoin(planes, eq50(planes.id, suscripciones.planId)).where(eq50(suscripciones.estado, "activa")),
+          }).from(suscripciones).innerJoin(planes, eq53(planes.id, suscripciones.planId)).where(eq53(suscripciones.estado, "activa")),
           // Total procesos activos
-          this.db.select({ total: sql18`COUNT(*)` }).from(procesos).where(eq50(procesos.state, true)),
+          this.db.select({ total: sql19`COUNT(*)` }).from(procesos).where(eq53(procesos.state, true)),
           // Nuevos usuarios este mes (solo roles finales)
-          userRoleIds.length > 0 ? this.db.select({ total: sql18`COUNT(*)` }).from(users).where(
-            and35(
+          userRoleIds.length > 0 ? this.db.select({ total: sql19`COUNT(*)` }).from(users).where(
+            and37(
               inArray10(users.rolId, userRoleIds),
               gte3(users.createdAt, startOfMonth)
             )
@@ -9373,7 +9758,7 @@ var init_admin_stats_storage = __esm({
 });
 
 // server/admin/storage/admin-audit.storage.ts
-import { sql as sql19, eq as eq51, and as and36, desc as desc21 } from "drizzle-orm";
+import { sql as sql20, eq as eq54, and as and38, desc as desc22 } from "drizzle-orm";
 var AdminAuditStorage;
 var init_admin_audit_storage = __esm({
   "server/admin/storage/admin-audit.storage.ts"() {
@@ -9396,11 +9781,11 @@ var init_admin_audit_storage = __esm({
         const limit = Math.min(params.limit ?? 20, 100);
         const offset = (page - 1) * limit;
         const conditions = [];
-        if (params.adminId) conditions.push(eq51(adminAuditLog.adminId, params.adminId));
-        if (params.accion) conditions.push(eq51(adminAuditLog.accion, params.accion));
-        const where = conditions.length > 0 ? and36(...conditions) : void 0;
-        const [countRow] = await this.db.select({ total: sql19`COUNT(*)` }).from(adminAuditLog).where(where);
-        const rows = await this.db.select().from(adminAuditLog).where(where).orderBy(desc21(adminAuditLog.createdAt)).limit(limit).offset(offset);
+        if (params.adminId) conditions.push(eq54(adminAuditLog.adminId, params.adminId));
+        if (params.accion) conditions.push(eq54(adminAuditLog.accion, params.accion));
+        const where = conditions.length > 0 ? and38(...conditions) : void 0;
+        const [countRow] = await this.db.select({ total: sql20`COUNT(*)` }).from(adminAuditLog).where(where);
+        const rows = await this.db.select().from(adminAuditLog).where(where).orderBy(desc22(adminAuditLog.createdAt)).limit(limit).offset(offset);
         return {
           data: rows,
           meta: { total: Number(countRow?.total ?? 0), page, limit }
@@ -9411,7 +9796,7 @@ var init_admin_audit_storage = __esm({
 });
 
 // server/admin/storage/admin-users.storage.ts
-import { sql as sql20, eq as eq52, and as and37, or as or7, like as like6, desc as desc22 } from "drizzle-orm";
+import { sql as sql21, eq as eq55, and as and39, or as or7, like as like6, desc as desc23 } from "drizzle-orm";
 var AdminUsersStorage;
 var init_admin_users_storage = __esm({
   "server/admin/storage/admin-users.storage.ts"() {
@@ -9427,13 +9812,13 @@ var init_admin_users_storage = __esm({
         const offset = (page - 1) * limit;
         let rolIdFiltro;
         if (params.tipo) {
-          const [roleRow] = await this.db.select({ id: roles.id }).from(roles).where(eq52(roles.nombre, params.tipo)).limit(1);
+          const [roleRow] = await this.db.select({ id: roles.id }).from(roles).where(eq55(roles.nombre, params.tipo)).limit(1);
           rolIdFiltro = roleRow?.id;
         }
         const conditions = [];
-        if (rolIdFiltro !== void 0) conditions.push(eq52(users.rolId, rolIdFiltro));
-        if (params.estado === "activo") conditions.push(eq52(users.isActive, true));
-        if (params.estado === "suspendido") conditions.push(eq52(users.isActive, false));
+        if (rolIdFiltro !== void 0) conditions.push(eq55(users.rolId, rolIdFiltro));
+        if (params.estado === "activo") conditions.push(eq55(users.isActive, true));
+        if (params.estado === "suspendido") conditions.push(eq55(users.isActive, false));
         if (params.search) {
           const pattern = `%${params.search}%`;
           conditions.push(
@@ -9443,8 +9828,8 @@ var init_admin_users_storage = __esm({
             )
           );
         }
-        const where = conditions.length > 0 ? and37(...conditions) : void 0;
-        const [countRow] = await this.db.select({ total: sql20`COUNT(*)` }).from(users).where(where);
+        const where = conditions.length > 0 ? and39(...conditions) : void 0;
+        const [countRow] = await this.db.select({ total: sql21`COUNT(*)` }).from(users).where(where);
         const rows = await this.db.select({
           id: users.id,
           name: users.name,
@@ -9453,13 +9838,13 @@ var init_admin_users_storage = __esm({
           emailVerified: users.emailVerified,
           createdAt: users.createdAt,
           rolNombre: roles.nombre,
-          planNombre: sql20`(
+          planNombre: sql21`(
           SELECT p.nombre FROM suscripciones s
           JOIN planes p ON p.id = s.plan_id
           WHERE s.user_id = ${users.id} AND s.estado = 'activa'
           LIMIT 1
         )`
-        }).from(users).leftJoin(roles, eq52(roles.id, users.rolId)).where(where).orderBy(desc22(users.createdAt)).limit(limit).offset(offset);
+        }).from(users).leftJoin(roles, eq55(roles.id, users.rolId)).where(where).orderBy(desc23(users.createdAt)).limit(limit).offset(offset);
         return {
           data: rows.map((r) => ({
             id: r.id,
@@ -9491,7 +9876,7 @@ var init_admin_users_storage = __esm({
           lawyerReviewedAt: lawyerProfiles.professionalReviewedAt,
           lawyerReviewedBy: lawyerProfiles.professionalReviewedBy,
           lawyerReviewNotes: lawyerProfiles.professionalReviewNotes
-        }).from(users).leftJoin(roles, eq52(roles.id, users.rolId)).leftJoin(lawyerProfiles, eq52(lawyerProfiles.userId, users.id)).leftJoin(firmProfiles, eq52(firmProfiles.id, lawyerProfiles.firmId)).where(eq52(users.id, id)).limit(1);
+        }).from(users).leftJoin(roles, eq55(roles.id, users.rolId)).leftJoin(lawyerProfiles, eq55(lawyerProfiles.userId, users.id)).leftJoin(firmProfiles, eq55(firmProfiles.id, lawyerProfiles.firmId)).where(eq55(users.id, id)).limit(1);
         if (!row) return null;
         const firma = row.firmId && row.firmNombre ? { id: row.firmId, nombre: row.firmNombre } : null;
         const susRows = await this.db.select({
@@ -9501,7 +9886,7 @@ var init_admin_users_storage = __esm({
           estado: suscripciones.estado,
           fechaInicio: suscripciones.fechaInicio,
           fechaVencimiento: suscripciones.fechaVencimiento
-        }).from(suscripciones).leftJoin(planes, eq52(planes.id, suscripciones.planId)).where(eq52(suscripciones.userId, id)).orderBy(desc22(suscripciones.fechaInicio));
+        }).from(suscripciones).leftJoin(planes, eq55(planes.id, suscripciones.planId)).where(eq55(suscripciones.userId, id)).orderBy(desc23(suscripciones.fechaInicio));
         const historial = susRows.map((s) => ({
           id: s.id,
           planNombre: s.planNombre ?? "",
@@ -9544,7 +9929,7 @@ var init_admin_users_storage = __esm({
           createdAt: lawyerProfiles.createdAt,
           status: lawyerProfiles.professionalVerificationStatus,
           emailVerified: users.emailVerified
-        }).from(lawyerProfiles).innerJoin(users, eq52(users.id, lawyerProfiles.userId)).where(eq52(lawyerProfiles.professionalVerificationStatus, status)).orderBy(desc22(lawyerProfiles.createdAt));
+        }).from(lawyerProfiles).innerJoin(users, eq55(users.id, lawyerProfiles.userId)).where(eq55(lawyerProfiles.professionalVerificationStatus, status)).orderBy(desc23(lawyerProfiles.createdAt));
         return rows.map((row) => ({
           ...row,
           createdAt: row.createdAt?.toISOString() ?? "",
@@ -9559,16 +9944,16 @@ var init_admin_users_storage = __esm({
           professionalReviewedBy: payload.reviewedBy,
           professionalReviewNotes: payload.reviewNotes ?? null,
           updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq52(lawyerProfiles.id, lawyerProfileId));
+        }).where(eq55(lawyerProfiles.id, lawyerProfileId));
       }
       async updateEstado(id, isActive) {
-        await this.db.update(users).set({ isActive, updatedAt: /* @__PURE__ */ new Date() }).where(eq52(users.id, id));
+        await this.db.update(users).set({ isActive, updatedAt: /* @__PURE__ */ new Date() }).where(eq55(users.id, id));
       }
       async updatePlan(id, planId) {
         await this.db.update(suscripciones).set({ planId }).where(
-          and37(
-            eq52(suscripciones.userId, id),
-            eq52(suscripciones.estado, "activa")
+          and39(
+            eq55(suscripciones.userId, id),
+            eq55(suscripciones.estado, "activa")
           )
         );
       }
@@ -9606,6 +9991,9 @@ var init_database_storage = __esm({
     init_firm_invitation_storage();
     init_chat_storage();
     init_session_storage();
+    init_user_device_storage();
+    init_user_two_factor_storage();
+    init_auth_challenge_storage();
     init_tarea_storage();
     init_persona_storage();
     init_representante_legal_storage();
@@ -9668,6 +10056,9 @@ var init_database_storage = __esm({
         this.FirmDashboardStorage = new FirmDashboardStorage(this.db);
         this.chat = new ChatStorage(this.db);
         this.sessions = new SessionStorage(this.db);
+        this.userDevices = new UserDeviceStorage(this.db);
+        this.userTwoFactor = new UserTwoFactorStorage(this.db);
+        this.authChallenges = new AuthChallengeStorage(this.db);
         this.tareas = new TareaStorage(this.db);
         this.personas = new PersonaStorage(this.db);
         this.representantesLegales = new RepresentanteLegalStorage(this.db);
@@ -9700,10 +10091,10 @@ var init_database_storage = __esm({
         this.adminUsers = new AdminUsersStorage(this.db);
         setInterval(() => this.sessions.deleteExpired(), 60 * 60 * 1e3);
         setInterval(() => this.otps.deleteExpired(), 60 * 60 * 1e3);
+        setInterval(() => this.authChallenges.deleteExpired(), 60 * 60 * 1e3);
       }
-      // Backwards compatibility wrapper methods for routes
-      // These delegate to the individual storage classes or return mock data
-      // TODO: Complete implementation to match old storage interface
+      // Backwards-compatibility facade used by older routes while the storage
+      // layer is progressively split into specialized modules.
       async getProcesosByIds(ids, filter) {
         return this.procesos.getProcesosByIds(ids, filter);
       }
@@ -9995,7 +10386,6 @@ var init_database_storage = __esm({
         });
       }
       async getUserProfile(userId2, rolNombre) {
-        console.log(rolNombre, "rolNombre", userId2, "userId");
         switch (rolNombre) {
           case "admin":
           case "admin_super":
@@ -10051,7 +10441,7 @@ __export(auth_exports, {
 });
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomUUID as randomUUID28 } from "crypto";
+import { randomUUID as randomUUID29 } from "crypto";
 function getCookieOptions(isProduction2) {
   return {
     httpOnly: true,
@@ -10079,7 +10469,7 @@ function getRefreshCookieOptions(isProduction2) {
   };
 }
 function generateRefreshToken() {
-  return randomUUID28().replace(/-/g, "") + randomUUID28().replace(/-/g, "");
+  return randomUUID29().replace(/-/g, "") + randomUUID29().replace(/-/g, "");
 }
 async function hashPassword(password) {
   return bcrypt.hash(password, SALT_ROUNDS);
@@ -10092,7 +10482,7 @@ async function verifyPassword(password, hash) {
   }
 }
 function generateToken(payload) {
-  const jti = randomUUID28();
+  const jti = randomUUID29();
   const token = jwt.sign({ ...payload, jti }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
   return { token, jti };
 }
@@ -10215,10 +10605,10 @@ var init_auth = __esm({
       return secret;
     })();
     JWT_EXPIRES_IN = "15m";
-    COOKIE_NAME = "lextrack_token";
+    COOKIE_NAME = "procesoclaro_token";
     AUTH_COOKIE_NAME = COOKIE_NAME;
     COOKIE_MAX_AGE = 15 * 60 * 1e3;
-    REFRESH_COOKIE_NAME = "lextrack_refresh";
+    REFRESH_COOKIE_NAME = "procesoclaro_refresh";
     AUTH_REFRESH_COOKIE_NAME = REFRESH_COOKIE_NAME;
     REFRESH_MAX_AGE = 14 * 24 * 60 * 60 * 1e3;
     SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? "12", 10);
@@ -10239,7 +10629,7 @@ __export(s3_storage_exports, {
 });
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { randomUUID as randomUUID31 } from "crypto";
+import { randomUUID as randomUUID33 } from "crypto";
 import fs from "fs";
 import path from "path";
 function validateFileSize(buffer) {
@@ -10249,7 +10639,7 @@ function validateFileSize(buffer) {
 }
 function generateS3Key(clienteId, procesoId, filename) {
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
-  const uniqueFilename = `${randomUUID31()}-${sanitizedFilename}`;
+  const uniqueFilename = `${randomUUID33()}-${sanitizedFilename}`;
   return `${clienteId}/${procesoId}/${uniqueFilename}`;
 }
 async function uploadDocumentToS3(buffer, clienteId, procesoId, filename, contentType) {
@@ -10373,6 +10763,9 @@ var envSchema = z.object({
   BCRYPT_SALT_ROUNDS: z.string().default("12"),
   AWS_S3_BUCKET: z.string().optional(),
   AWS_REGION: z.string().optional(),
+  APP_URL: z.string().url().optional(),
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
+  RUN_STARTUP_SEEDS: z.enum(["true", "false"]).optional(),
   RECAPTCHA_SECRET_KEY: z.string().optional(),
   NODEMAILER_HOST: z.string().optional(),
   NODEMAILER_USER: z.string().optional(),
@@ -10399,7 +10792,7 @@ import { createServer } from "http";
 import cookieParser from "cookie-parser";
 
 // server/services/login-security.service.ts
-import { randomUUID as randomUUID27 } from "crypto";
+import { randomUUID as randomUUID28 } from "crypto";
 
 // server/lib/redis.ts
 import Redis from "ioredis";
@@ -10605,7 +10998,7 @@ async function recordSuccess(ip, email) {
 async function auditLog(params) {
   try {
     await storage.securityEvents.create({
-      id: randomUUID27(),
+      id: randomUUID28(),
       email: params.email,
       ip: params.ip,
       userAgent: params.userAgent ?? null,
@@ -10731,12 +11124,12 @@ var db = drizzle2(connection, {
 });
 
 // server/routes/health.ts
-import { sql as sql21 } from "drizzle-orm";
+import { sql as sql22 } from "drizzle-orm";
 var router = Router();
 router.get("/health", async (_req, res) => {
   const checks = {};
   try {
-    await db.execute(sql21`SELECT 1`);
+    await db.execute(sql22`SELECT 1`);
     checks.db = "ok";
   } catch {
     checks.db = "error";
@@ -10762,6 +11155,7 @@ var health_default = router;
 init_database_storage();
 init_auth();
 import { Router as Router2 } from "express";
+import { randomUUID as randomUUID30 } from "crypto";
 import { z as z3 } from "zod";
 
 // server/middleware/validation.ts
@@ -10953,6 +11347,104 @@ var subscriptionService = new SubscriptionService();
 
 // server/routes/auth.ts
 init_email_service();
+init_email_service();
+
+// server/services/two-factor.service.ts
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
+var APP_NAME2 = "ProcesoClaro";
+var TOTP_STEP_SECONDS = 30;
+var TOTP_DIGITS = 6;
+var BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function bufferToBase32(buffer) {
+  let bits = 0;
+  let value = 0;
+  let output = "";
+  for (const byte of buffer) {
+    value = value << 8 | byte;
+    bits += 8;
+    while (bits >= 5) {
+      output += BASE32_ALPHABET[value >>> bits - 5 & 31];
+      bits -= 5;
+    }
+  }
+  if (bits > 0) {
+    output += BASE32_ALPHABET[value << 5 - bits & 31];
+  }
+  return output;
+}
+function base32ToBuffer(value) {
+  const normalized = value.replace(/=+$/g, "").replace(/\s+/g, "").toUpperCase();
+  let bits = 0;
+  let current = 0;
+  const bytes = [];
+  for (const char of normalized) {
+    const index7 = BASE32_ALPHABET.indexOf(char);
+    if (index7 === -1) continue;
+    current = current << 5 | index7;
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push(current >>> bits - 8 & 255);
+      bits -= 8;
+    }
+  }
+  return Buffer.from(bytes);
+}
+function hotp(secret, counter) {
+  const counterBuffer = Buffer.alloc(8);
+  counterBuffer.writeUInt32BE(Math.floor(counter / 4294967296), 0);
+  counterBuffer.writeUInt32BE(counter >>> 0, 4);
+  const hmac = createHmac("sha1", base32ToBuffer(secret)).update(counterBuffer).digest();
+  const offset = hmac[hmac.length - 1] & 15;
+  const binaryCode = (hmac[offset] & 127) << 24 | (hmac[offset + 1] & 255) << 16 | (hmac[offset + 2] & 255) << 8 | hmac[offset + 3] & 255;
+  return String(binaryCode % 10 ** TOTP_DIGITS).padStart(TOTP_DIGITS, "0");
+}
+function generateTwoFactorSecret() {
+  return bufferToBase32(randomBytes(20));
+}
+function generateOtpAuthUrl(email, secret) {
+  const label = encodeURIComponent(`${APP_NAME2}:${email}`);
+  const issuer = encodeURIComponent(APP_NAME2);
+  return `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=${TOTP_DIGITS}&period=${TOTP_STEP_SECONDS}`;
+}
+function verifyTotpCode(secret, code, window = 1) {
+  const normalizedCode = code.replace(/\s+/g, "");
+  if (!/^\d{6}$/.test(normalizedCode)) return false;
+  const currentCounter = Math.floor(Date.now() / 1e3 / TOTP_STEP_SECONDS);
+  for (let offset = -window; offset <= window; offset += 1) {
+    if (hotp(secret, currentCounter + offset) === normalizedCode) {
+      return true;
+    }
+  }
+  return false;
+}
+function normalizeRecoveryCode(code) {
+  return code.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+function hashRecoveryCode(code) {
+  return createHash("sha256").update(normalizeRecoveryCode(code)).digest("hex");
+}
+function verifyRecoveryCode(code, hashes) {
+  const hashed = Buffer.from(hashRecoveryCode(code), "hex");
+  let matched = false;
+  const remaining = hashes.filter((item) => {
+    const current = Buffer.from(item, "hex");
+    const equal = current.length === hashed.length && timingSafeEqual(current, hashed);
+    if (equal) matched = true;
+    return !equal;
+  });
+  return { valid: matched, remaining };
+}
+function generateRecoveryCodes(count5 = 8) {
+  return Array.from({ length: count5 }, () => {
+    const raw = randomBytes(4).toString("hex").toUpperCase();
+    return `${raw.slice(0, 4)}-${raw.slice(4, 8)}`;
+  });
+}
+function hashRecoveryCodes(codes) {
+  return codes.map(hashRecoveryCode);
+}
+
+// server/routes/auth.ts
 init_user_schema();
 var lawyerRegisterSchema = z3.object({
   email: z3.string().email("Correo electr\xF3nico inv\xE1lido"),
@@ -11001,6 +11493,138 @@ var emailVerificationVerifySchema = z3.object({
   email: z3.string().email("Correo electr\xF3nico inv\xE1lido"),
   code: z3.string().length(6, "El c\xF3digo debe tener 6 d\xEDgitos")
 });
+var twoFactorCodeSchema = z3.object({
+  code: z3.string().min(6, "Ingresa el c\xF3digo de autenticaci\xF3n")
+});
+var verifyTwoFactorLoginSchema = z3.object({
+  challengeId: z3.string().uuid("Challenge inv\xE1lido"),
+  code: z3.string().min(6, "Ingresa el c\xF3digo de autenticaci\xF3n")
+});
+var disableTwoFactorSchema = z3.object({
+  currentPassword: z3.string().min(1, "La contrase\xF1a actual es obligatoria")
+});
+var deviceRevokeParamsSchema = z3.object({
+  id: z3.string().uuid("Dispositivo inv\xE1lido")
+});
+var DEVICE_ID_HEADER = "x-device-id";
+var DEVICE_NAME_HEADER = "x-device-name";
+var DEVICE_PLATFORM_HEADER = "x-device-platform";
+function readHeader(req, header) {
+  const raw = req.headers[header];
+  if (Array.isArray(raw)) return raw[0] ?? null;
+  return typeof raw === "string" ? raw : null;
+}
+function cleanHeaderValue(value, maxLength) {
+  const normalized = value?.trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
+}
+function defaultDeviceName(platform) {
+  if (platform === "web") return "Navegador web";
+  if (platform === "ios") return "Dispositivo iOS";
+  if (platform === "android") return "Dispositivo Android";
+  return "Dispositivo";
+}
+function buildFallbackDeviceId(req, platform, userAgent) {
+  const raw = `${req.ip ?? "unknown"}|${platform ?? "unknown"}|${userAgent ?? "unknown"}`;
+  return `legacy_${Buffer.from(raw).toString("base64url").slice(0, 160)}`;
+}
+function getDeviceContext(req) {
+  const userAgent = cleanHeaderValue(readHeader(req, "user-agent"), 500);
+  const platform = cleanHeaderValue(readHeader(req, DEVICE_PLATFORM_HEADER), 30) ?? "unknown";
+  const deviceName = cleanHeaderValue(readHeader(req, DEVICE_NAME_HEADER), 120) ?? defaultDeviceName(platform);
+  const deviceId = cleanHeaderValue(readHeader(req, DEVICE_ID_HEADER), 191) ?? buildFallbackDeviceId(req, platform, userAgent);
+  return {
+    deviceId,
+    deviceName,
+    platform,
+    userAgent
+  };
+}
+function parseRecoveryCodeHashes(raw) {
+  if (!raw) return [];
+  try {
+    const parsed2 = JSON.parse(raw);
+    return Array.isArray(parsed2) ? parsed2.filter((item) => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+async function buildUserLoginContext(userId2) {
+  const user = await storage.getUserById(userId2);
+  if (!user) throw new Error("Usuario no encontrado");
+  const role = await storage.getRol(user.rolId ?? 0);
+  if (!role) throw new Error("El usuario no tiene rol asignado");
+  const rawProfile = await storage.getUserProfile(user.id, role.nombre);
+  if (!rawProfile) throw new Error("El usuario no tiene perfil asignado");
+  let firmRolId = null;
+  if (role.nombre === "abogado" && rawProfile?.id) {
+    const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(rawProfile.id);
+    if (activeHistory?.firmRolId) firmRolId = activeHistory.firmRolId;
+  }
+  return {
+    user,
+    role,
+    profile: rawProfile,
+    firmRolId
+  };
+}
+async function finalizeLogin(req, res, userId2) {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const { deviceId, deviceName, platform, userAgent } = getDeviceContext(req);
+  const { user, role, profile, firmRolId } = await buildUserLoginContext(userId2);
+  const deviceResult = await storage.userDevices.upsertSeen({
+    userId: user.id,
+    deviceId,
+    deviceName,
+    platform,
+    userAgent,
+    lastIp: ip
+  });
+  const authResponse = createAuthResponse(
+    { id: user.id, email: user.email, name: user.name },
+    role,
+    res,
+    profile,
+    firmRolId
+  );
+  const refreshToken = generateRefreshToken();
+  const isProduction2 = process.env.NODE_ENV === "production";
+  await storage.sessions.create({
+    id: authResponse.jti,
+    userId: user.id,
+    expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1e3),
+    refreshToken,
+    refreshExpiresAt: new Date(Date.now() + REFRESH_MAX_AGE),
+    ipAddress: ip,
+    userAgent,
+    deviceId: deviceResult.device.deviceId
+  });
+  recordSuccess(ip, user.email).catch(() => {
+  });
+  auditLog({ email: user.email, ip, userAgent, eventType: "login_success", success: true }).catch(() => {
+  });
+  if (deviceResult.isNewDevice) {
+    queueNotificationEmail(
+      user.email,
+      "Nuevo inicio de sesi\xF3n detectado",
+      [
+        "Detectamos un inicio de sesi\xF3n desde un dispositivo no reconocido.",
+        "",
+        `Dispositivo: ${deviceResult.device.deviceName ?? "Dispositivo nuevo"}`,
+        `Plataforma: ${deviceResult.device.platform ?? "No identificada"}`,
+        `IP aproximada: ${ip}`,
+        `Fecha: ${(/* @__PURE__ */ new Date()).toLocaleString("es-CO")}`,
+        "",
+        "Si fuiste t\xFA, no necesitas hacer nada. Si no reconoces esta actividad, cambia tu contrase\xF1a y revoca los dispositivos activos."
+      ].join("\n")
+    );
+  }
+  res.cookie(AUTH_REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(isProduction2));
+  const effectiveRolId = firmRolId ?? role.id;
+  const permisos3 = await storage.getPermisosByRol(effectiveRolId);
+  return { ...authResponse, refreshToken, permisos: permisos3, newDeviceDetected: deviceResult.isNewDevice };
+}
 async function queueEmailVerification(email, userId2) {
   const code = await storage.otps.createEmailVerificationOtp(userId2);
   sendEmailVerificationOtp(email, code).catch((err) => {
@@ -11009,7 +11633,7 @@ async function queueEmailVerification(email, userId2) {
 }
 router2.post("/login", loginRateLimiter, async (req, res, next) => {
   const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
-  const userAgent = req.headers["user-agent"] ?? null;
+  const { deviceId, deviceName, platform, userAgent } = getDeviceContext(req);
   try {
     const parsed2 = loginSchema.safeParse(req.body);
     if (!parsed2.success) {
@@ -11038,42 +11662,25 @@ router2.post("/login", loginRateLimiter, async (req, res, next) => {
         requiresEmailVerification: true
       });
     }
-    const role = await storage.getRol(user.rolId ?? 0);
-    if (!role) throw new Error("El usuario no tiene rol asignado");
-    const rawProfile = await storage.getUserProfile(user.id, role?.nombre || "");
-    if (!rawProfile) throw new Error("El usuario no tiene perfil asignado");
-    const profile = rawProfile;
-    let firmRolId = null;
-    if (role.nombre === "abogado" && rawProfile?.id) {
-      const activeHistory = await storage.lawyerFirmaHistory.getActiveByLawyerId(rawProfile.id);
-      if (activeHistory?.firmRolId) firmRolId = activeHistory.firmRolId;
+    const twoFactor = await storage.userTwoFactor.getByUserId(user.id);
+    if (twoFactor?.enabledAt) {
+      const challengeId = randomUUID30();
+      await storage.authChallenges.create({
+        id: challengeId,
+        userId: user.id,
+        challengeType: "two_factor_login",
+        deviceId,
+        ipAddress: ip,
+        userAgent,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1e3),
+        createdAt: /* @__PURE__ */ new Date()
+      });
+      return res.json({
+        requiresTwoFactor: true,
+        challengeId
+      });
     }
-    const authResponse = createAuthResponse(
-      { id: user.id, email: user.email, name: user.name },
-      role,
-      res,
-      profile,
-      firmRolId
-    );
-    const refreshToken = generateRefreshToken();
-    const isProduction2 = process.env.NODE_ENV === "production";
-    await storage.sessions.create({
-      id: authResponse.jti,
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 2 * 60 * 60 * 1e3),
-      refreshToken,
-      refreshExpiresAt: new Date(Date.now() + REFRESH_MAX_AGE),
-      ipAddress: ip,
-      userAgent
-    });
-    recordSuccess(ip, email).catch(() => {
-    });
-    auditLog({ email, ip, userAgent, eventType: "login_success", success: true }).catch(() => {
-    });
-    res.cookie(AUTH_REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions(isProduction2));
-    const effectiveRolId = firmRolId ?? role.id;
-    const permisos3 = await storage.getPermisosByRol(effectiveRolId);
-    return res.json({ ...authResponse, refreshToken, permisos: permisos3 });
+    return res.json(await finalizeLogin(req, res, user.id));
   } catch (err) {
     next(err);
   }
@@ -11286,6 +11893,8 @@ router2.get("/auth/token", async (req, res, next) => {
   }
 });
 router2.post("/auth/refresh", async (req, res, next) => {
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const deviceContext = getDeviceContext(req);
   try {
     const refreshToken = req.cookies?.[AUTH_REFRESH_COOKIE_NAME] || req.body?.refreshToken;
     if (!refreshToken) {
@@ -11323,10 +11932,145 @@ router2.post("/auth/refresh", async (req, res, next) => {
       new Date(Date.now() + 2 * 60 * 60 * 1e3),
       new Date(Date.now() + REFRESH_MAX_AGE)
     );
+    if (session.deviceId) {
+      await storage.userDevices.upsertSeen({
+        userId: session.userId,
+        deviceId: session.deviceId,
+        deviceName: deviceContext.deviceName,
+        platform: deviceContext.platform,
+        userAgent: deviceContext.userAgent,
+        lastIp: ip
+      });
+    }
     res.cookie(AUTH_REFRESH_COOKIE_NAME, newRefreshToken, getRefreshCookieOptions(isProduction2));
     const effectiveRolId = firmRolId ?? role.id;
     const permisos3 = await storage.getPermisosByRol(effectiveRolId);
     return res.json({ ...authResponse, refreshToken: newRefreshToken, permisos: permisos3 });
+  } catch (err) {
+    next(err);
+  }
+});
+router2.get("/auth/2fa/status", authenticate, async (req, res, next) => {
+  try {
+    const authUser = req.user;
+    const twoFactor = await storage.userTwoFactor.getByUserId(authUser.id);
+    const recoveryCodes = parseRecoveryCodeHashes(twoFactor?.recoveryCodes);
+    res.json({
+      enabled: !!twoFactor?.enabledAt,
+      setupPending: !!twoFactor && !twoFactor.enabledAt,
+      recoveryCodesRemaining: recoveryCodes.length
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router2.post("/auth/2fa/setup", authenticate, async (req, res, next) => {
+  try {
+    const authUser = req.user;
+    const user = await storage.getUserById(authUser.id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado" });
+    const secret = generateTwoFactorSecret();
+    await storage.userTwoFactor.upsertSecret(authUser.id, secret);
+    res.json({
+      secret,
+      otpAuthUrl: generateOtpAuthUrl(user.email, secret),
+      manualEntryKey: secret
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router2.post("/auth/2fa/verify-setup", authenticate, async (req, res, next) => {
+  try {
+    const authUser = req.user;
+    const { code } = twoFactorCodeSchema.parse(req.body);
+    const twoFactor = await storage.userTwoFactor.getByUserId(authUser.id);
+    if (!twoFactor) {
+      return res.status(400).json({ error: "No hay una configuraci\xF3n de 2FA pendiente." });
+    }
+    if (!verifyTotpCode(twoFactor.secret, code)) {
+      return res.status(400).json({ error: "El c\xF3digo de verificaci\xF3n es inv\xE1lido." });
+    }
+    const recoveryCodes = generateRecoveryCodes();
+    await storage.userTwoFactor.enable(authUser.id, twoFactor.secret, hashRecoveryCodes(recoveryCodes));
+    res.json({
+      message: "Autenticaci\xF3n en dos pasos activada.",
+      recoveryCodes
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router2.post("/auth/2fa/disable", authenticate, async (req, res, next) => {
+  try {
+    const authUser = req.user;
+    const { currentPassword } = disableTwoFactorSchema.parse(req.body);
+    const user = await storage.getUserById(authUser.id);
+    if (!user) return res.status(404).json({ error: "Usuario no encontrado." });
+    const valid = await verifyPassword(currentPassword, user.passwordHash || "");
+    if (!valid) {
+      return res.status(401).json({ error: "La contrase\xF1a actual es incorrecta." });
+    }
+    await storage.userTwoFactor.disable(authUser.id);
+    res.json({ message: "Autenticaci\xF3n en dos pasos desactivada." });
+  } catch (err) {
+    next(err);
+  }
+});
+router2.post("/auth/2fa/verify-login", async (req, res, next) => {
+  try {
+    const { challengeId, code } = verifyTwoFactorLoginSchema.parse(req.body);
+    const challenge = await storage.authChallenges.getValidById(challengeId);
+    if (!challenge || challenge.challengeType !== "two_factor_login") {
+      return res.status(400).json({ error: "El desaf\xEDo de autenticaci\xF3n es inv\xE1lido o expir\xF3." });
+    }
+    const twoFactor = await storage.userTwoFactor.getByUserId(challenge.userId);
+    if (!twoFactor?.enabledAt) {
+      return res.status(400).json({ error: "La autenticaci\xF3n en dos pasos no est\xE1 activa para esta cuenta." });
+    }
+    let validated = verifyTotpCode(twoFactor.secret, code);
+    if (!validated) {
+      const recoveryHashes = parseRecoveryCodeHashes(twoFactor.recoveryCodes);
+      const recoveryResult = verifyRecoveryCode(code, recoveryHashes);
+      if (recoveryResult.valid) {
+        validated = true;
+        await storage.userTwoFactor.updateRecoveryCodes(challenge.userId, recoveryResult.remaining);
+      }
+    }
+    if (!validated) {
+      return res.status(400).json({ error: "El c\xF3digo de autenticaci\xF3n es inv\xE1lido." });
+    }
+    await storage.authChallenges.complete(challenge.id);
+    return res.json(await finalizeLogin(req, res, challenge.userId));
+  } catch (err) {
+    next(err);
+  }
+});
+router2.get("/auth/devices", authenticate, async (req, res, next) => {
+  try {
+    const authUser = req.user;
+    const currentSession = await storage.sessions.findById(authUser.jti);
+    const currentDevice = currentSession?.deviceId ? await storage.userDevices.getByDeviceId(authUser.id, currentSession.deviceId) : void 0;
+    const devices = await storage.userDevices.listForUser(authUser.id, currentDevice?.id ?? null);
+    res.json(devices);
+  } catch (err) {
+    next(err);
+  }
+});
+router2.post("/auth/devices/:id/revoke", authenticate, async (req, res, next) => {
+  try {
+    const params = deviceRevokeParamsSchema.parse(req.params);
+    const authUser = req.user;
+    const currentSession = await storage.sessions.findById(authUser.jti);
+    const currentDevice = currentSession?.deviceId ? await storage.userDevices.getByDeviceId(authUser.id, currentSession.deviceId) : void 0;
+    const revoked = await storage.userDevices.revokeById(authUser.id, params.id);
+    if (!revoked) {
+      return res.status(404).json({ error: "Dispositivo no encontrado" });
+    }
+    res.json({
+      message: "Dispositivo revocado correctamente",
+      currentDeviceRevoked: currentDevice?.id === revoked.id
+    });
   } catch (err) {
     next(err);
   }
@@ -11426,28 +12170,28 @@ import { Router as Router3 } from "express";
 import { z as z4 } from "zod";
 
 // server/services/lawyer-profile.service.ts
-import { eq as eq53 } from "drizzle-orm";
+import { eq as eq56 } from "drizzle-orm";
 init_lawyer_profile_schema();
 init_user_schema();
 init_auth();
 init_database_storage();
-import { randomUUID as randomUUID29 } from "node:crypto";
+import { randomUUID as randomUUID31 } from "node:crypto";
 var LawyerProfileService = class {
   async getAll() {
     return db.select().from(lawyerProfiles);
   }
   async getById(id) {
-    const result = await db.select().from(lawyerProfiles).where(eq53(lawyerProfiles.id, id));
+    const result = await db.select().from(lawyerProfiles).where(eq56(lawyerProfiles.id, id));
     return result[0];
   }
   async getByEmail(email) {
-    const userResult = await db.select().from(users).where(eq53(users.email, email));
+    const userResult = await db.select().from(users).where(eq56(users.email, email));
     if (!userResult[0]) return null;
-    const result = await db.select().from(lawyerProfiles).where(eq53(lawyerProfiles.userId, userResult[0].id));
+    const result = await db.select().from(lawyerProfiles).where(eq56(lawyerProfiles.userId, userResult[0].id));
     return result[0];
   }
   async getByUserId(userId2) {
-    const result = await db.select().from(lawyerProfiles).where(eq53(lawyerProfiles.userId, userId2));
+    const result = await db.select().from(lawyerProfiles).where(eq56(lawyerProfiles.userId, userId2));
     return result[0];
   }
   async create(data) {
@@ -11456,17 +12200,17 @@ var LawyerProfileService = class {
   }
   async update(id, data) {
     const { createdAt, ...updateData } = data;
-    await db.update(lawyerProfiles).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq53(lawyerProfiles.id, id));
+    await db.update(lawyerProfiles).set({ ...updateData, updatedAt: /* @__PURE__ */ new Date() }).where(eq56(lawyerProfiles.id, id));
     return this.getById(id);
   }
   async delete(id) {
-    await db.delete(lawyerProfiles).where(eq53(lawyerProfiles.id, id));
+    await db.delete(lawyerProfiles).where(eq56(lawyerProfiles.id, id));
   }
   async createAbogado(insertCliente, password, lawyerId) {
     const hashedPassword = await hashPassword(password);
     const cliente = await storage.createLawyerWithUser(
       {
-        id: randomUUID29(),
+        id: randomUUID31(),
         email: insertCliente.correo,
         passwordHash: hashedPassword,
         rolId: 4
@@ -11482,8 +12226,8 @@ var lawyerProfileService = new LawyerProfileService();
 
 // server/services/cliente.service.ts
 init_schema();
-import { eq as eq54, or as or8, like as like7 } from "drizzle-orm";
-import { randomUUID as randomUUID30 } from "crypto";
+import { eq as eq57, or as or8, like as like7 } from "drizzle-orm";
+import { randomUUID as randomUUID32 } from "crypto";
 init_auth();
 init_database_storage();
 
@@ -11617,7 +12361,7 @@ var ClientesService = class {
     const displayName = insertCliente.tipo === "natural" ? `${insertCliente.nombre} ${insertCliente.apellido}` : insertCliente.razonSocial;
     const cliente = await db.transaction(async (tx) => {
       const user = await storage.users.createUser({
-        id: randomUUID30(),
+        id: randomUUID32(),
         email,
         passwordHash: hashedPassword,
         rolId: 4,
@@ -11648,7 +12392,7 @@ var ClientesService = class {
       await storage.firmClients.createFirmClient(ownershipDecision.ownerId, cliente.id);
       if (rolNombre === "abogado" && actorId) {
         await storage.lawyerClients.createLawyerClient({
-          id: randomUUID30(),
+          id: randomUUID32(),
           lawyerId: actorId,
           clientId: cliente.id,
           status: "active"
@@ -11656,7 +12400,7 @@ var ClientesService = class {
       }
     } else if (ownershipDecision.ownerType === "abogado") {
       await storage.lawyerClients.createLawyerClient({
-        id: randomUUID30(),
+        id: randomUUID32(),
         lawyerId: ownershipDecision.ownerId,
         clientId: cliente.id,
         status: "active"
@@ -11697,7 +12441,7 @@ var ClientesService = class {
       ));
     }
     if (filter?.activo !== void 0) {
-      conditions.push(eq54(clientes.activo, filter.activo));
+      conditions.push(eq57(clientes.activo, filter.activo));
     }
   }
 };
@@ -11713,19 +12457,19 @@ import jwt2 from "jsonwebtoken";
 // server/services/chat.service.ts
 init_database_storage();
 init_s3_storage();
-import { randomUUID as randomUUID32 } from "crypto";
-import { and as and39, asc as asc6, eq as eq55, inArray as inArray11, sql as sql22 } from "drizzle-orm";
+import { randomUUID as randomUUID34 } from "crypto";
+import { and as and41, asc as asc6, eq as eq58, inArray as inArray11, sql as sql23 } from "drizzle-orm";
 init_schema();
 var ChatService = class {
   async resolveSupportAgentUserId(requesterId) {
     const db2 = storage.db;
-    const rows = await db2.select({ id: users.id }).from(users).innerJoin(roles, eq55(users.rolId, roles.id)).where(
-      and39(
-        eq55(users.isActive, true),
+    const rows = await db2.select({ id: users.id }).from(users).innerJoin(roles, eq58(users.rolId, roles.id)).where(
+      and41(
+        eq58(users.isActive, true),
         inArray11(roles.nombre, ["admin_soporte", "admin_super", "admin_finanzas"])
       )
     ).orderBy(
-      sql22`CASE ${roles.nombre}
+      sql23`CASE ${roles.nombre}
           WHEN 'admin_soporte' THEN 0
           WHEN 'admin_super' THEN 1
           WHEN 'admin_finanzas' THEN 2
@@ -11761,19 +12505,19 @@ var ChatService = class {
       const dtos2 = await storage.chat.getConversationsForUser(userIdA);
       return dtos2.find((c) => c.id === existing.id);
     }
-    const convId = randomUUID32();
+    const convId = randomUUID34();
     await storage.chat.createConversation({
       id: convId,
       type,
-      name: type === "admin_support" ? "Soporte LexTrack" : null
+      name: type === "admin_support" ? "Soporte ProcesoClaro" : null
     });
     await storage.chat.addParticipant({
-      id: randomUUID32(),
+      id: randomUUID34(),
       conversationId: convId,
       userId: userIdA
     });
     await storage.chat.addParticipant({
-      id: randomUUID32(),
+      id: randomUUID34(),
       conversationId: convId,
       userId: userIdB
     });
@@ -11805,7 +12549,7 @@ var ChatService = class {
     const isMember = await storage.chat.isParticipant(conversationId, senderId);
     if (!isMember) throw new Error("Forbidden");
     return storage.chat.createMessage({
-      id: randomUUID32(),
+      id: randomUUID34(),
       conversationId,
       senderId,
       content,
@@ -11822,10 +12566,10 @@ var ChatService = class {
   async getOrCreateCommunityConversation(initiatorId, authorId, sourcePostId) {
     const existing = await storage.chat.findConversationByPost(initiatorId, authorId, sourcePostId);
     if (existing) return { id: existing.id };
-    const convId = randomUUID32();
+    const convId = randomUUID34();
     await storage.chat.createConversation({ id: convId, type: "community", sourcePostId });
-    await storage.chat.addParticipant({ id: randomUUID32(), conversationId: convId, userId: initiatorId });
-    await storage.chat.addParticipant({ id: randomUUID32(), conversationId: convId, userId: authorId });
+    await storage.chat.addParticipant({ id: randomUUID34(), conversationId: convId, userId: initiatorId });
+    await storage.chat.addParticipant({ id: randomUUID34(), conversationId: convId, userId: authorId });
     return { id: convId };
   }
   async getParticipantUserIds(conversationId) {
@@ -11843,7 +12587,7 @@ var ChatService = class {
     const isMember = await storage.chat.isParticipant(params.conversationId, params.senderId);
     if (!isMember) throw new Error("Forbidden");
     return storage.chat.createMessage({
-      id: randomUUID32(),
+      id: randomUUID34(),
       conversationId: params.conversationId,
       senderId: params.senderId,
       content: null,
@@ -11903,9 +12647,9 @@ var userSockets = /* @__PURE__ */ new Map();
 var rateLimits = /* @__PURE__ */ new Map();
 var cleanupInterval = null;
 function log(level, message, meta) {
-  const timestamp50 = (/* @__PURE__ */ new Date()).toISOString();
+  const timestamp54 = (/* @__PURE__ */ new Date()).toISOString();
   const metaStr = meta ? ` ${JSON.stringify(meta)}` : "";
-  console.log(`[WebSocket][${timestamp50}][${level}] ${message}${metaStr}`);
+  console.log(`[WebSocket][${timestamp54}][${level}] ${message}${metaStr}`);
 }
 function send(socket, payload) {
   if (socket.ws.readyState === WebSocket.OPEN) {
@@ -12615,7 +13359,7 @@ var ProcesosService = class {
 var procesosService = new ProcesosService();
 
 // server/services/auth.service.ts
-import { eq as eq56 } from "drizzle-orm";
+import { eq as eq59 } from "drizzle-orm";
 init_schema();
 var permisosCache2 = /* @__PURE__ */ new Map();
 var AuthService = class {
@@ -12623,23 +13367,23 @@ var AuthService = class {
     return db.query.roles.findMany();
   }
   async getRol(id) {
-    return db.query.roles.findFirst({ where: eq56(roles.id, id) });
+    return db.query.roles.findFirst({ where: eq59(roles.id, id) });
   }
   async getRolByNombre(nombre) {
-    return db.query.roles.findFirst({ where: eq56(roles.nombre, nombre) });
+    return db.query.roles.findFirst({ where: eq59(roles.nombre, nombre) });
   }
   async createRol(rol) {
     await db.insert(roles).values(rol);
     const created = await db.query.roles.findFirst({
-      where: eq56(roles.nombre, rol.nombre)
+      where: eq59(roles.nombre, rol.nombre)
     });
     if (!created) throw new Error("Failed to create role");
     return created;
   }
   async deleteRol(id) {
     await db.transaction(async (tx) => {
-      await tx.delete(rolesPermisos).where(eq56(rolesPermisos.rolId, id));
-      await tx.delete(roles).where(eq56(roles.id, id));
+      await tx.delete(rolesPermisos).where(eq59(rolesPermisos.rolId, id));
+      await tx.delete(roles).where(eq59(roles.id, id));
     });
   }
   async getPermisos() {
@@ -12663,7 +13407,7 @@ var AuthService = class {
       return permisosCache2.get(cacheKey);
     }
     const result = await db.query.rolesPermisos.findMany({
-      where: eq56(rolesPermisos.rolId, rolId),
+      where: eq59(rolesPermisos.rolId, rolId),
       with: { permiso: true }
     });
     const permisosList = result.filter((rp) => rp.permiso.activo).map((rp) => rp.permiso.codigo);
@@ -12735,8 +13479,8 @@ router3.get("/clientes/:id", authenticate, requirePermission("clientes.ver"), as
     const rol = user?.rol?.nombre;
     const idProfile = user?.idProfile;
     if (rol === "abogado") {
-      const relations38 = await storage.lawyerClients.getClientLawyers(clienteId);
-      const hasAccess = relations38.some((r) => r.lawyerId === idProfile);
+      const relations41 = await storage.lawyerClients.getClientLawyers(clienteId);
+      const hasAccess = relations41.some((r) => r.lawyerId === idProfile);
       if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este cliente" });
     } else if (rol === "bufete") {
       const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(idProfile);
@@ -12858,6 +13602,7 @@ router3.put("/cliente/me", authenticate, async (req, res, next) => {
     const { correo, password, currentPassword, repNombre, repApellido, repTelefono, repDocumento, repTipoDocumentoId, repCargo, repEmail, repDireccion, repDepartamentoId, repMunicipioId, ...rest } = req.body;
     if (correo || password) {
       const userUpdates = {};
+      let passwordChanged = false;
       if (correo) userUpdates.email = correo;
       if (password) {
         if (!currentPassword) {
@@ -12870,8 +13615,12 @@ router3.put("/cliente/me", authenticate, async (req, res, next) => {
           return res.status(401).json({ error: "La contrase\xF1a actual es incorrecta." });
         }
         userUpdates.passwordHash = await hashPassword2(password);
+        passwordChanged = true;
       }
       await storage.users.updateUser(authUser.id, userUpdates);
+      if (passwordChanged) {
+        await storage.sessions.revokeAllForUser(authUser.id);
+      }
     }
     if (cliente.tipo === "empresa") {
       if (cliente.empresa?.representanteLegalId) {
@@ -12969,8 +13718,8 @@ router3.put("/clientes/:id", authenticate, requirePermission("clientes.editar"),
     const idProfile = user?.idProfile;
     const rol = user?.rol?.nombre;
     if (rol === "abogado") {
-      const relations38 = await storage.lawyerClients.getClientLawyers(id);
-      const hasAccess = relations38.some((r) => r.lawyerId === idProfile);
+      const relations41 = await storage.lawyerClients.getClientLawyers(id);
+      const hasAccess = relations41.some((r) => r.lawyerId === idProfile);
       if (!hasAccess) return res.status(403).json({ error: "No tienes acceso a este cliente" });
     } else if (rol === "bufete") {
       const firmClientIds = await storage.firmClients.getActiveClientIdsByFirm(idProfile);
@@ -12979,9 +13728,16 @@ router3.put("/clientes/:id", authenticate, requirePermission("clientes.editar"),
     if (correo || password) {
       const { hashPassword: hashPassword2 } = await Promise.resolve().then(() => (init_auth(), auth_exports));
       const userUpdates = {};
+      let passwordChanged = false;
       if (correo) userUpdates.email = correo;
-      if (password) userUpdates.passwordHash = await hashPassword2(password);
+      if (password) {
+        userUpdates.passwordHash = await hashPassword2(password);
+        passwordChanged = true;
+      }
       await storage.users.updateUser(cliente.userId, userUpdates);
+      if (passwordChanged) {
+        await storage.sessions.revokeAllForUser(cliente.userId);
+      }
     }
     if (cliente.tipo === "empresa") {
       if (cliente.empresa?.representanteLegalId) {
@@ -13184,7 +13940,7 @@ init_auth();
 init_database_storage();
 init_tipo_asignacion_schema();
 import { Router as Router4 } from "express";
-import { randomUUID as randomUUID33 } from "crypto";
+import { randomUUID as randomUUID35 } from "crypto";
 
 // server/services/tarea.service.ts
 init_database_storage();
@@ -14288,7 +15044,7 @@ router4.patch("/procesos/:id/legal-stage", authenticate, async (req, res, next) 
     try {
       if (oldStage && oldStage !== legalStage) {
         await storage.procesoEtapaHistorial.createHistorial({
-          id: randomUUID33(),
+          id: randomUUID35(),
           procesoId,
           etapa: oldStage,
           estado: "COMPLETADA",
@@ -14298,7 +15054,7 @@ router4.patch("/procesos/:id/legal-stage", authenticate, async (req, res, next) 
         });
       }
       await storage.procesoEtapaHistorial.createHistorial({
-        id: randomUUID33(),
+        id: randomUUID35(),
         procesoId,
         etapa: legalStage,
         estado: "INICIADA",
@@ -15873,6 +16629,37 @@ init_database_storage();
 init_user_schema();
 import { Router as Router15 } from "express";
 import { z as z9 } from "zod";
+
+// server/middleware/require-feature.ts
+function requireFeature(featureCode) {
+  return async (req, res, next) => {
+    try {
+      const user = req.user;
+      if (!user?.id) {
+        res.status(401).json({ error: "No autenticado" });
+        return;
+      }
+      if (user.rol?.nombre === "cliente") {
+        next();
+        return;
+      }
+      const has = await subscriptionService.hasFeature(user.id, featureCode);
+      if (!has) {
+        res.status(402).json({
+          error: "FEATURE_NOT_AVAILABLE",
+          feature: featureCode,
+          mensaje: "Esta funcionalidad no est\xE1 disponible en tu plan actual. Actualiza para acceder."
+        });
+        return;
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
+}
+
+// server/routes/firm-roles.ts
 var router15 = Router15();
 function requireBufete(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "No autenticado" });
@@ -15881,7 +16668,7 @@ function requireBufete(req, res, next) {
   }
   next();
 }
-var guardBufete = [authenticate, requireBufete];
+var guardBufete = [authenticate, requireBufete, requireFeature("roles_custom")];
 function getFirmId(req, res) {
   const firmId = req.user?.idProfile;
   if (!firmId) {
@@ -16050,37 +16837,6 @@ import path2 from "path";
 import crypto3 from "crypto";
 import { Router as Router16 } from "express";
 import multer2 from "multer";
-
-// server/middleware/require-feature.ts
-function requireFeature(featureCode) {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-      if (!user?.id) {
-        res.status(401).json({ error: "No autenticado" });
-        return;
-      }
-      if (user.rol?.nombre === "cliente") {
-        next();
-        return;
-      }
-      const has = await subscriptionService.hasFeature(user.id, featureCode);
-      if (!has) {
-        res.status(402).json({
-          error: "FEATURE_NOT_AVAILABLE",
-          feature: featureCode,
-          mensaje: "Esta funcionalidad no est\xE1 disponible en tu plan actual. Actualiza para acceder."
-        });
-        return;
-      }
-      next();
-    } catch (err) {
-      next(err);
-    }
-  };
-}
-
-// server/routes/chat.ts
 init_s3_storage();
 
 // server/admin/middleware/require-admin.ts
@@ -16811,7 +17567,7 @@ import { z as z11 } from "zod";
 
 // server/services/community.service.ts
 init_database_storage();
-import { randomUUID as randomUUID34 } from "crypto";
+import { randomUUID as randomUUID36 } from "crypto";
 
 // server/services/matching.service.ts
 init_database_storage();
@@ -16841,7 +17597,6 @@ var MatchingService = class {
         post.id,
         post.createdAt ? new Date(post.createdAt) : /* @__PURE__ */ new Date()
       );
-      console.log(`[Matching] ${candidates.length} candidates for post "${post.id}" (${post.caseType})`);
       if (candidates.length === 0) return;
       const results = await Promise.allSettled(
         candidates.map((candidate) => this.processCandidate(post, candidate))
@@ -17210,7 +17965,7 @@ var CommunityService = class {
         const exists = await storage.lawyerClients.getActiveLawyerClient(lawyerProfile.id, clientRecord.id);
         if (!exists) {
           await storage.lawyerClients.createLawyerClient({
-            id: randomUUID34(),
+            id: randomUUID36(),
             lawyerId: lawyerProfile.id,
             clientId: clientRecord.id,
             createdBy: post.takenByUserId
@@ -17857,9 +18612,9 @@ var clientRequestService = {
           if (lawyer) {
             const exists = await storage.lawyerClients.getActiveLawyerClient(lawyer.id, client.id);
             if (!exists) {
-              const { randomUUID: randomUUID38 } = await import("crypto");
+              const { randomUUID: randomUUID41 } = await import("crypto");
               await storage.lawyerClients.createLawyerClient({
-                id: randomUUID38(),
+                id: randomUUID41(),
                 lawyerId: lawyer.id,
                 clientId: client.id,
                 createdBy: req.fromUserId
@@ -18429,7 +19184,7 @@ var stage_events_default = router25;
 init_auth();
 init_database_storage();
 import { Router as Router26 } from "express";
-import { randomUUID as randomUUID35 } from "crypto";
+import { randomUUID as randomUUID37 } from "crypto";
 var router26 = Router26();
 router26.post("/procesos/:procesoId/etapas", authenticate, requirePermission("procesos.editar"), async (req, res, next) => {
   try {
@@ -18457,7 +19212,7 @@ router26.post("/procesos/:procesoId/etapas", authenticate, requirePermission("pr
       return res.status(400).json({ error: "etapa no v\xE1lida para este tipo de proceso" });
     }
     const historial = await storage.procesoEtapaHistorial.createHistorial({
-      id: randomUUID35(),
+      id: randomUUID37(),
       procesoId: procesoIdStr,
       etapa,
       estado,
@@ -18701,7 +19456,13 @@ var updateFirmSettingsSchema = z15.object({
   allowPrivateClientes: z15.boolean().optional(),
   allowPrivateProcesos: z15.boolean().optional(),
   defaultClienteEsCompartido: z15.boolean().optional(),
-  defaultProcesoEsCompartido: z15.boolean().optional()
+  defaultProcesoEsCompartido: z15.boolean().optional(),
+  notifMensajes: z15.boolean().optional(),
+  notifVencimientos: z15.boolean().optional(),
+  notifCambiosProcesos: z15.boolean().optional(),
+  notifEquipoInvitaciones: z15.boolean().optional(),
+  notifAlertasPlan: z15.boolean().optional(),
+  notifResumenSemanal: z15.boolean().optional()
 });
 router28.get(
   "/firm/settings",
@@ -18732,6 +19493,29 @@ router28.patch(
         return res.status(403).json({
           error: "Solo los bufetes pueden modificar esta configuraci\xF3n"
         });
+      }
+      const requested = req.body;
+      const needsBasicPrivacy = requested.allowPrivateClientes !== void 0 || requested.defaultClienteEsCompartido !== void 0;
+      const needsAdvancedPrivacy = requested.allowPrivateProcesos !== void 0 || requested.defaultProcesoEsCompartido !== void 0;
+      if (needsBasicPrivacy) {
+        const hasBasicPrivacy = await subscriptionService.hasFeature(user.id, "privacidad_basica");
+        if (!hasBasicPrivacy) {
+          return res.status(402).json({
+            error: "FEATURE_NOT_AVAILABLE",
+            feature: "privacidad_basica",
+            mensaje: "Tu plan actual no incluye configuraciones de clientes privados."
+          });
+        }
+      }
+      if (needsAdvancedPrivacy) {
+        const hasAdvancedPrivacy = await subscriptionService.hasFeature(user.id, "privacidad_avanzada");
+        if (!hasAdvancedPrivacy) {
+          return res.status(402).json({
+            error: "FEATURE_NOT_AVAILABLE",
+            feature: "privacidad_avanzada",
+            mensaje: "Tu plan actual no incluye configuraciones de procesos privados."
+          });
+        }
       }
       const updated = await storage.firmSettings.upsert(user.idProfile, req.body);
       res.json(updated);
@@ -18768,7 +19552,7 @@ var firm_settings_default = router28;
 init_auth();
 init_database_storage();
 import { Router as Router29 } from "express";
-import { randomUUID as randomUUID36 } from "crypto";
+import { randomUUID as randomUUID38 } from "crypto";
 var router29 = Router29();
 var WOMPI_BASE = process.env.WOMPI_BASE_URL ?? "https://sandbox.wompi.co/v1";
 router29.get("/planes", async (req, res, next) => {
@@ -18837,9 +19621,9 @@ router29.post("/suscripciones/checkout", authenticate, async (req, res, next) =>
       res.json({ activated: true, payment_url: null });
       return;
     }
-    const wompiReference = randomUUID36();
+    const wompiReference = randomUUID38();
     const suscripcionTemp = await storage.suscripciones.getActive(user.id);
-    const suscripcionId = suscripcionTemp?.id ?? randomUUID36();
+    const suscripcionId = suscripcionTemp?.id ?? randomUUID38();
     const pago = await storage.pagosStorage.create({
       suscripcionId,
       userId: user.id,
@@ -18934,7 +19718,7 @@ var suscripciones_default = router29;
 // server/routes/webhooks.ts
 init_database_storage();
 import { Router as Router30 } from "express";
-import { createHash } from "crypto";
+import { createHash as createHash2 } from "crypto";
 var router30 = Router30();
 function verifyWompiSignature(event, integritySecret) {
   try {
@@ -18945,7 +19729,7 @@ function verifyWompiSignature(event, integritySecret) {
       const value = prop.split(".").reduce((obj, key) => obj?.[key], data);
       return value ?? "";
     }).join("") + integritySecret;
-    const expected = createHash("sha256").update(toHash).digest("hex");
+    const expected = createHash2("sha256").update(toHash).digest("hex");
     return expected === checksum;
   } catch {
     return false;
@@ -19016,12 +19800,72 @@ router30.post("/webhooks/wompi", async (req, res, next) => {
 });
 var webhooks_default = router30;
 
+// server/routes/public-support.ts
+init_schema();
+init_database_storage();
+import { randomUUID as randomUUID39 } from "crypto";
+import { Router as Router31 } from "express";
+import { eq as eq60, inArray as inArray12 } from "drizzle-orm";
+var router31 = Router31();
+router31.post("/public/support-request", async (req, res, next) => {
+  try {
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    const source = req.body?.source === "login" ? "login" : req.body?.source === "landing" ? "landing" : null;
+    if (!name || !email || !message || !source) {
+      return res.status(400).json({
+        error: "name, email, message y source son requeridos"
+      });
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: "Email inv\xE1lido" });
+    }
+    const db2 = storage.db;
+    const existingUser = await db2.query.users.findFirst({
+      where: eq60(users.email, email)
+    });
+    await db2.insert(publicSupportRequests).values({
+      id: randomUUID39(),
+      name,
+      email,
+      message,
+      source,
+      userId: existingUser?.id ?? null
+    });
+    const adminRoles = await db2.select({ id: roles.id }).from(roles).where(inArray12(roles.nombre, ["admin_super", "admin_soporte"]));
+    const adminRoleIds = adminRoles.map((role) => role.id);
+    if (adminRoleIds.length > 0) {
+      const adminUsers = await db2.select({ id: users.id }).from(users).where(inArray12(users.rolId, adminRoleIds));
+      await Promise.all(
+        adminUsers.map(
+          (admin) => storage.appNotifications.createNotification(
+            admin.id,
+            "support_public_request",
+            "Nueva consulta p\xFAblica",
+            `${name} dej\xF3 una consulta desde ${source === "login" ? "login" : "landing"}.`,
+            { route: "/(admin-tabs)/soporte", source, email }
+          )
+        )
+      );
+    }
+    res.status(201).json({
+      success: true,
+      message: "Tu solicitud fue enviada. Nuestro equipo te contactar\xE1 pronto."
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+var public_support_default = router31;
+
 // server/admin/routes/index.ts
-import { Router as Router39 } from "express";
+import { Router as Router40 } from "express";
 
 // server/admin/routes/admin-stats.routes.ts
 init_auth();
-import { Router as Router31 } from "express";
+import { Router as Router32 } from "express";
 
 // server/admin/services/admin-stats.service.ts
 init_database_storage();
@@ -19042,32 +19886,237 @@ async function getStats(req, res, next) {
 }
 
 // server/admin/routes/admin-stats.routes.ts
-var router31 = Router31();
-router31.use(authenticate, requireAdmin);
-router31.get("/", getStats);
-var admin_stats_routes_default = router31;
+var router32 = Router32();
+router32.use(authenticate, requireAdmin);
+router32.get("/", getStats);
+var admin_stats_routes_default = router32;
 
 // server/admin/routes/admin-users.routes.ts
 init_auth();
-import { Router as Router32 } from "express";
+import { Router as Router33 } from "express";
 
 // server/admin/controllers/admin-users.controller.ts
 import { z as z16 } from "zod";
 
 // server/admin/services/admin-users.service.ts
 init_database_storage();
+init_email_service();
+function buildEditableProfile(user, profile) {
+  const roleName = user?.rol?.nombre;
+  const common = {
+    name: user?.name ?? "",
+    email: user?.email ?? ""
+  };
+  if (!roleName) return { roleType: "desconocido", common };
+  if (roleName === "abogado" && profile) {
+    return {
+      roleType: "abogado",
+      common,
+      lawyer: {
+        firstName: profile.persona?.nombre ?? "",
+        lastName: profile.persona?.apellido ?? "",
+        phone: profile.persona?.telefono ?? "",
+        document: profile.persona?.documento ?? "",
+        address: profile.persona?.direccion ?? "",
+        specialization: profile.specialization ?? "",
+        licenseNumber: profile.licenseNumber ?? ""
+      }
+    };
+  }
+  if (roleName === "bufete" && profile) {
+    return {
+      roleType: "bufete",
+      common: {
+        name: profile.name ?? common.name,
+        email: common.email
+      },
+      firm: {
+        name: profile.name ?? "",
+        nit: profile.nit ?? "",
+        address: profile.address ?? "",
+        phone: profile.phone ?? ""
+      }
+    };
+  }
+  if (roleName === "cliente" && profile) {
+    if (profile.tipo === "natural") {
+      return {
+        roleType: "cliente_natural",
+        common,
+        clientNatural: {
+          firstName: profile.natural?.persona?.nombre ?? "",
+          lastName: profile.natural?.persona?.apellido ?? "",
+          phone: profile.natural?.persona?.telefono ?? "",
+          document: profile.natural?.persona?.documento ?? "",
+          address: profile.natural?.persona?.direccion ?? ""
+        }
+      };
+    }
+    return {
+      roleType: "cliente_empresa",
+      common: {
+        name: profile.empresa?.razonSocial ?? common.name,
+        email: common.email
+      },
+      clientEmpresa: {
+        companyName: profile.empresa?.razonSocial ?? "",
+        nit: profile.empresa?.nit ?? "",
+        sector: profile.empresa?.sector ?? ""
+      }
+    };
+  }
+  if (roleName.startsWith("admin_") && profile) {
+    return {
+      roleType: "admin",
+      common,
+      admin: {
+        displayName: profile.displayName ?? common.name,
+        adminType: profile.adminType ?? ""
+      }
+    };
+  }
+  return { roleType: roleName, common };
+}
 var adminUsersService = {
   async list(params) {
     return storage.adminUsers.list(params);
   },
   async getById(id) {
-    return storage.adminUsers.getById(id);
+    const detail = await storage.adminUsers.getById(id);
+    if (!detail) return null;
+    const user = await storage.getUserById(id);
+    const profile = user?.rol?.nombre ? await storage.getUserProfile(id, user.rol.nombre) : null;
+    const twoFactor = await storage.userTwoFactor.getByUserId(id);
+    const recoveryCodesRemaining = twoFactor?.recoveryCodes ? (() => {
+      try {
+        const parsed2 = JSON.parse(twoFactor.recoveryCodes);
+        return Array.isArray(parsed2) ? parsed2.length : 0;
+      } catch {
+        return 0;
+      }
+    })() : 0;
+    return {
+      ...detail,
+      editableProfile: buildEditableProfile(user, profile),
+      twoFactor: {
+        enabled: !!twoFactor?.enabledAt,
+        enabledAt: twoFactor?.enabledAt?.toISOString?.() ?? null,
+        recoveryCodesRemaining
+      }
+    };
   },
   async updateEstado(id, isActive) {
     return storage.adminUsers.updateEstado(id, isActive);
   },
   async updatePlan(id, planId) {
     return storage.adminUsers.updatePlan(id, planId);
+  },
+  async updateProfile(id, payload) {
+    const user = await storage.getUserById(id);
+    if (!user) throw new Error("Usuario no encontrado");
+    const roleName = user.rol?.nombre ?? "";
+    if (payload.email && payload.email !== user.email) {
+      const existing = await storage.getUserByEmail(payload.email);
+      if (existing && existing.id !== id) {
+        throw new Error("El correo ya esta en uso por otro usuario");
+      }
+    }
+    const commonUpdates = {};
+    if (payload.email !== void 0) commonUpdates.email = payload.email.trim().toLowerCase();
+    if (payload.name !== void 0) commonUpdates.name = payload.name.trim();
+    if (Object.keys(commonUpdates).length > 0) {
+      await storage.users.updateUser(id, commonUpdates);
+    }
+    if (roleName === "abogado") {
+      const lawyer = await storage.lawyerProfiles.getLawyerByUserId(id);
+      if (!lawyer) throw new Error("Perfil de abogado no encontrado");
+      await storage.lawyerProfiles.updateLawyer(lawyer.id, {
+        specialization: payload.lawyer?.specialization,
+        licenseNumber: payload.lawyer?.licenseNumber,
+        persona: {
+          nombre: payload.lawyer?.firstName,
+          apellido: payload.lawyer?.lastName,
+          telefono: payload.lawyer?.phone,
+          documento: payload.lawyer?.document,
+          direccion: payload.lawyer?.address
+        }
+      });
+      return;
+    }
+    if (roleName === "bufete") {
+      const firm = await storage.firmProfiles.getFirmProfileByUserId(id);
+      if (!firm) throw new Error("Perfil de bufete no encontrado");
+      await storage.updateFirmProfile(firm.id, {
+        name: payload.firm?.name,
+        nit: payload.firm?.nit,
+        address: payload.firm?.address,
+        phone: payload.firm?.phone
+      });
+      if (payload.firm?.name && payload.name === void 0) {
+        await storage.users.updateUser(id, { name: payload.firm.name.trim() });
+      }
+      return;
+    }
+    if (roleName === "cliente") {
+      const cliente = await storage.clientes.getClienteByUser(id);
+      if (!cliente) throw new Error("Perfil de cliente no encontrado");
+      if (cliente.tipo === "natural") {
+        await storage.clientes.updateCliente(cliente.id, {
+          nombre: payload.clientNatural?.firstName,
+          apellido: payload.clientNatural?.lastName,
+          telefono: payload.clientNatural?.phone,
+          documento: payload.clientNatural?.document,
+          direccion: payload.clientNatural?.address
+        });
+        if ((payload.clientNatural?.firstName || payload.clientNatural?.lastName) && payload.name === void 0) {
+          const fullName = [payload.clientNatural?.firstName, payload.clientNatural?.lastName].filter(Boolean).join(" ").trim();
+          if (fullName) await storage.users.updateUser(id, { name: fullName });
+        }
+      } else {
+        await storage.clientes.updateCliente(cliente.id, {
+          razonSocial: payload.clientEmpresa?.companyName,
+          nit: payload.clientEmpresa?.nit,
+          sector: payload.clientEmpresa?.sector
+        });
+        if (payload.clientEmpresa?.companyName && payload.name === void 0) {
+          await storage.users.updateUser(id, { name: payload.clientEmpresa.companyName.trim() });
+        }
+      }
+      return;
+    }
+    if (roleName.startsWith("admin_")) {
+      const adminProfile = await storage.adminProfiles.getAdminProfileByUserId(id);
+      if (adminProfile) {
+        await storage.adminProfiles.updateAdminProfile(adminProfile.id, {
+          displayName: payload.admin?.displayName,
+          adminType: payload.admin?.adminType
+        });
+      }
+      if (payload.admin?.displayName && payload.name === void 0) {
+        await storage.users.updateUser(id, { name: payload.admin.displayName.trim() });
+      }
+    }
+  },
+  async revokeSessions(id) {
+    await storage.sessions.revokeAllForUser(id);
+  },
+  async resetTwoFactor(id, reason) {
+    const user = await storage.getUserById(id);
+    if (!user) throw new Error("Usuario no encontrado");
+    await storage.userTwoFactor.disable(id);
+    await storage.sessions.revokeAllForUser(id);
+    queueNotificationEmail(
+      user.email,
+      "Autenticaci\xF3n en dos pasos restablecida",
+      [
+        "Un administrador restableci\xF3 la autenticaci\xF3n en dos pasos de tu cuenta.",
+        "",
+        `Motivo registrado: ${reason}`,
+        "",
+        "Por seguridad, todas tus sesiones activas fueron cerradas.",
+        "Cuando vuelvas a ingresar deber\xE1s configurar nuevamente la autenticaci\xF3n en dos pasos."
+      ].join("\n")
+    );
   },
   async listLawyerVerifications(status) {
     return storage.adminUsers.listLawyerVerifications(status);
@@ -19098,6 +20147,8 @@ var auditService = {
 
 // server/admin/controllers/admin-users.controller.ts
 import jwt4 from "jsonwebtoken";
+var ADMIN_RESET_TOKEN_EXPIRES = "15m";
+var RESET_TOKEN_TYPE2 = "password_reset";
 var listSchema = z16.object({
   page: z16.coerce.number().int().positive().default(1),
   limit: z16.coerce.number().int().positive().max(100).default(20),
@@ -19111,12 +20162,50 @@ var updateEstadoSchema = z16.object({
 var updatePlanSchema = z16.object({
   planId: z16.string().min(1)
 });
+var updateProfileSchema = z16.object({
+  name: z16.string().max(120).optional(),
+  email: z16.string().email().optional(),
+  lawyer: z16.object({
+    firstName: z16.string().max(100).optional(),
+    lastName: z16.string().max(100).optional(),
+    phone: z16.string().max(50).optional(),
+    document: z16.string().max(50).optional(),
+    address: z16.string().max(255).optional(),
+    specialization: z16.string().max(255).optional(),
+    licenseNumber: z16.string().max(50).optional()
+  }).optional(),
+  firm: z16.object({
+    name: z16.string().max(255).optional(),
+    nit: z16.string().max(50).optional(),
+    address: z16.string().max(255).optional(),
+    phone: z16.string().max(50).optional()
+  }).optional(),
+  clientNatural: z16.object({
+    firstName: z16.string().max(100).optional(),
+    lastName: z16.string().max(100).optional(),
+    phone: z16.string().max(50).optional(),
+    document: z16.string().max(50).optional(),
+    address: z16.string().max(255).optional()
+  }).optional(),
+  clientEmpresa: z16.object({
+    companyName: z16.string().max(255).optional(),
+    nit: z16.string().max(50).optional(),
+    sector: z16.string().max(100).optional()
+  }).optional(),
+  admin: z16.object({
+    displayName: z16.string().max(120).optional(),
+    adminType: z16.string().max(50).optional()
+  }).optional()
+});
 var lawyerVerificationListSchema = z16.object({
   status: z16.enum(["pendiente", "verificado", "rechazado"]).default("pendiente")
 });
 var updateLawyerVerificationSchema = z16.object({
   status: z16.enum(["verificado", "rechazado"]),
   reviewNotes: z16.string().max(1e3).optional()
+});
+var resetTwoFactorSchema = z16.object({
+  reason: z16.string().trim().min(10, "El motivo debe tener al menos 10 caracteres").max(500)
 });
 function getAdminId(req) {
   const user = req.user;
@@ -19176,6 +20265,22 @@ async function updatePlan(req, res, next) {
     next(err);
   }
 }
+async function updateProfile(req, res, next) {
+  try {
+    const payload = updateProfileSchema.parse(req.body);
+    const userId2 = req.params.id;
+    await adminUsersService.updateProfile(userId2, payload);
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.actualizar_perfil",
+      targetId: userId2,
+      detalle: JSON.stringify(payload)
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
 async function resetPassword(req, res, next) {
   try {
     const userId2 = req.params.id;
@@ -19189,9 +20294,9 @@ async function resetPassword(req, res, next) {
       throw new Error("JWT_SECRET environment variable is not configured");
     }
     const token = jwt4.sign(
-      { userId: userId2, purpose: "password_reset" },
+      { sub: userId2, type: RESET_TOKEN_TYPE2 },
       secret,
-      { expiresIn: "1h" }
+      { expiresIn: ADMIN_RESET_TOKEN_EXPIRES }
     );
     await auditService.log({
       adminId: getAdminId(req),
@@ -19199,7 +20304,48 @@ async function resetPassword(req, res, next) {
       targetId: userId2,
       detalle: JSON.stringify({ email: user.email })
     });
-    res.json({ success: true, data: { token, expiresIn: "1h" } });
+    res.json({ success: true, data: { token, expiresIn: ADMIN_RESET_TOKEN_EXPIRES } });
+  } catch (err) {
+    next(err);
+  }
+}
+async function revokeSessions(req, res, next) {
+  try {
+    const userId2 = req.params.id;
+    const user = await adminUsersService.getById(userId2);
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+    await adminUsersService.revokeSessions(userId2);
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.revocar_sesiones",
+      targetId: userId2,
+      detalle: JSON.stringify({ email: user.email })
+    });
+    res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
+}
+async function resetTwoFactor(req, res, next) {
+  try {
+    const userId2 = req.params.id;
+    const { reason } = resetTwoFactorSchema.parse(req.body);
+    const user = await adminUsersService.getById(userId2);
+    if (!user) {
+      res.status(404).json({ success: false, error: "Usuario no encontrado" });
+      return;
+    }
+    await adminUsersService.resetTwoFactor(userId2, reason);
+    await auditService.log({
+      adminId: getAdminId(req),
+      accion: "usuario.reset_2fa",
+      targetId: userId2,
+      detalle: JSON.stringify({ email: user.email, reason })
+    });
+    res.json({ success: true });
   } catch (err) {
     next(err);
   }
@@ -19236,43 +20382,58 @@ async function updateLawyerVerification(req, res, next) {
 }
 
 // server/admin/routes/admin-users.routes.ts
-var router32 = Router32();
-router32.use(authenticate, requireAdmin);
-router32.get("/", listUsers);
-router32.get("/lawyer-verifications", listLawyerVerifications);
-router32.get("/:id", getUserById);
-router32.patch(
+var router33 = Router33();
+router33.use(authenticate, requireAdmin);
+router33.get("/", listUsers);
+router33.get("/lawyer-verifications", listLawyerVerifications);
+router33.get("/:id", getUserById);
+router33.patch(
   "/:id/estado",
   requireAdminRole("admin_super", "admin_soporte"),
   updateEstado
 );
-router32.patch(
+router33.patch(
   "/:id/plan",
   requireAdminRole("admin_super"),
   updatePlan
 );
-router32.post(
+router33.patch(
+  "/:id/profile",
+  requireAdminRole("admin_super", "admin_soporte"),
+  updateProfile
+);
+router33.post(
   "/:id/reset-password",
   requireAdminRole("admin_super"),
   resetPassword
 );
-router32.patch(
+router33.post(
+  "/:id/revoke-sessions",
+  requireAdminRole("admin_super", "admin_soporte"),
+  revokeSessions
+);
+router33.post(
+  "/:id/reset-2fa",
+  requireAdminRole("admin_super", "admin_soporte"),
+  resetTwoFactor
+);
+router33.patch(
   "/lawyer-verifications/:id",
   requireAdminRole("admin_super", "admin_soporte"),
   updateLawyerVerification
 );
-var admin_users_routes_default = router32;
+var admin_users_routes_default = router33;
 
 // server/admin/routes/admin-plans.routes.ts
 init_auth();
-import { Router as Router33 } from "express";
-import { randomUUID as randomUUID37 } from "crypto";
+import { Router as Router34 } from "express";
+import { randomUUID as randomUUID40 } from "crypto";
 import { z as z17 } from "zod";
-import { eq as eq57, sql as sql23, desc as desc23, and as and40 } from "drizzle-orm";
+import { eq as eq61, sql as sql24, desc as desc24, and as and42 } from "drizzle-orm";
 init_database_storage();
 init_schema();
-var router33 = Router33();
-router33.use(authenticate, requireAdmin);
+var router34 = Router34();
+router34.use(authenticate, requireAdmin);
 var planSchema = z17.object({
   nombre: z17.string().min(1),
   tipo: z17.enum(["abogado", "bufete"]),
@@ -19289,33 +20450,33 @@ var planSchema = z17.object({
   precioUsuarioExtraUsd: z17.coerce.string().nullable().optional(),
   state: z17.boolean().optional()
 });
-router33.get("/", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+router34.get("/", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const tipo = typeof req.query.tipo === "string" ? req.query.tipo : void 0;
     const estado = typeof req.query.estado === "string" ? req.query.estado : "todos";
     const conditions = [];
-    if (tipo === "abogado" || tipo === "bufete") conditions.push(eq57(planes.tipo, tipo));
-    if (estado === "activo") conditions.push(eq57(planes.state, true));
-    if (estado === "inactivo") conditions.push(eq57(planes.state, false));
+    if (tipo === "abogado" || tipo === "bufete") conditions.push(eq61(planes.tipo, tipo));
+    if (estado === "activo") conditions.push(eq61(planes.state, true));
+    if (estado === "inactivo") conditions.push(eq61(planes.state, false));
     const rows = await db2.select({
       ...planes,
-      suscriptores: sql23`(
+      suscriptores: sql24`(
           SELECT COUNT(*)
           FROM suscripciones s
           WHERE s.plan_id = ${planes.id} AND s.estado = 'activa'
         )`
-    }).from(planes).where(conditions.length ? and40(...conditions) : void 0).orderBy(desc23(planes.state), planes.tipo, planes.nombre);
+    }).from(planes).where(conditions.length ? and42(...conditions) : void 0).orderBy(desc24(planes.state), planes.tipo, planes.nombre);
     res.json({ success: true, data: rows });
   } catch (err) {
     next(err);
   }
 });
-router33.post("/", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+router34.post("/", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
   try {
     const parsed2 = planSchema.parse(req.body);
     const created = await storage.planes.createPlan({
-      id: randomUUID37(),
+      id: randomUUID40(),
       ...parsed2,
       precioUsuarioExtraCop: parsed2.precioUsuarioExtraCop ?? null,
       precioUsuarioExtraUsd: parsed2.precioUsuarioExtraUsd ?? null,
@@ -19326,7 +20487,7 @@ router33.post("/", requireAdminRole("admin_super", "admin_finanzas"), async (req
     next(err);
   }
 });
-router33.put("/:id", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+router34.put("/:id", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
   try {
     const parsed2 = planSchema.partial().parse(req.body);
     const updated = await storage.planes.updatePlan(req.params.id, parsed2);
@@ -19336,7 +20497,7 @@ router33.put("/:id", requireAdminRole("admin_super", "admin_finanzas"), async (r
     next(err);
   }
 });
-router33.delete("/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+router34.delete("/:id", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const updated = await storage.planes.updatePlan(req.params.id, { state: false });
     if (!updated) return res.status(404).json({ error: "Plan no encontrado" });
@@ -19345,33 +20506,33 @@ router33.delete("/:id", requireAdminRole("admin_super"), async (req, res, next) 
     next(err);
   }
 });
-var admin_plans_routes_default = router33;
+var admin_plans_routes_default = router34;
 
 // server/admin/routes/admin-billing.routes.ts
 init_auth();
-import { Router as Router34 } from "express";
+import { Router as Router35 } from "express";
 import { z as z18 } from "zod";
-import { sql as sql24, desc as desc24, and as and41, eq as eq58, or as or9, like as like8 } from "drizzle-orm";
+import { sql as sql25, desc as desc25, and as and43, eq as eq62, or as or9, like as like8 } from "drizzle-orm";
 init_database_storage();
 init_schema();
-var router34 = Router34();
-router34.use(authenticate, requireAdmin);
-router34.get("/summary", requireAdminRole("admin_super", "admin_finanzas"), async (_req, res, next) => {
+var router35 = Router35();
+router35.use(authenticate, requireAdmin);
+router35.get("/summary", requireAdminRole("admin_super", "admin_finanzas"), async (_req, res, next) => {
   try {
     const db2 = storage.db;
     const [subs, pay, monthlyRevenue] = await Promise.all([
       db2.select({
-        activas: sql24`SUM(CASE WHEN ${suscripciones.estado} = 'activa' THEN 1 ELSE 0 END)`,
-        canceladas: sql24`SUM(CASE WHEN ${suscripciones.estado} = 'cancelada' THEN 1 ELSE 0 END)`,
-        vencidas: sql24`SUM(CASE WHEN ${suscripciones.estado} = 'vencida' THEN 1 ELSE 0 END)`
+        activas: sql25`SUM(CASE WHEN ${suscripciones.estado} = 'activa' THEN 1 ELSE 0 END)`,
+        canceladas: sql25`SUM(CASE WHEN ${suscripciones.estado} = 'cancelada' THEN 1 ELSE 0 END)`,
+        vencidas: sql25`SUM(CASE WHEN ${suscripciones.estado} = 'vencida' THEN 1 ELSE 0 END)`
       }).from(suscripciones),
       db2.select({
-        pendientes: sql24`SUM(CASE WHEN ${pagos.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
-        aprobados: sql24`SUM(CASE WHEN ${pagos.estado} = 'aprobado' THEN 1 ELSE 0 END)`,
-        rechazados: sql24`SUM(CASE WHEN ${pagos.estado} = 'rechazado' THEN 1 ELSE 0 END)`
+        pendientes: sql25`SUM(CASE WHEN ${pagos.estado} = 'pendiente' THEN 1 ELSE 0 END)`,
+        aprobados: sql25`SUM(CASE WHEN ${pagos.estado} = 'aprobado' THEN 1 ELSE 0 END)`,
+        rechazados: sql25`SUM(CASE WHEN ${pagos.estado} = 'rechazado' THEN 1 ELSE 0 END)`
       }).from(pagos),
       db2.select({
-        totalCop: sql24`COALESCE(SUM(CASE WHEN ${pagos.estado} = 'aprobado' AND ${pagos.currency} = 'COP' THEN ${pagos.amountCop} ELSE 0 END), 0)`
+        totalCop: sql25`COALESCE(SUM(CASE WHEN ${pagos.estado} = 'aprobado' AND ${pagos.currency} = 'COP' THEN ${pagos.amountCop} ELSE 0 END), 0)`
       }).from(pagos)
     ]);
     res.json({
@@ -19394,7 +20555,7 @@ router34.get("/summary", requireAdminRole("admin_super", "admin_finanzas"), asyn
     next(err);
   }
 });
-router34.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+router35.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const page = Math.max(Number(req.query.page ?? 1), 1);
@@ -19403,9 +20564,9 @@ router34.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas")
     const estado = typeof req.query.estado === "string" ? req.query.estado : void 0;
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
     const conditions = [];
-    if (estado) conditions.push(eq58(suscripciones.estado, estado));
+    if (estado) conditions.push(eq62(suscripciones.estado, estado));
     if (search) conditions.push(or9(like8(users.email, search), like8(users.name, search)));
-    const where = conditions.length ? and41(...conditions) : void 0;
+    const where = conditions.length ? and43(...conditions) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select({
         id: suscripciones.id,
@@ -19421,8 +20582,8 @@ router34.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas")
         email: users.email,
         planNombre: planes.nombre,
         planTipo: planes.tipo
-      }).from(suscripciones).innerJoin(users, eq58(users.id, suscripciones.userId)).innerJoin(planes, eq58(planes.id, suscripciones.planId)).where(where).orderBy(desc24(suscripciones.fechaInicio)).limit(limit).offset(offset),
-      db2.select({ total: sql24`COUNT(*)` }).from(suscripciones).innerJoin(users, eq58(users.id, suscripciones.userId)).where(where)
+      }).from(suscripciones).innerJoin(users, eq62(users.id, suscripciones.userId)).innerJoin(planes, eq62(planes.id, suscripciones.planId)).where(where).orderBy(desc25(suscripciones.fechaInicio)).limit(limit).offset(offset),
+      db2.select({ total: sql25`COUNT(*)` }).from(suscripciones).innerJoin(users, eq62(users.id, suscripciones.userId)).where(where)
     ]);
     res.json({
       success: true,
@@ -19433,7 +20594,7 @@ router34.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas")
     next(err);
   }
 });
-router34.get("/payments", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+router35.get("/payments", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const page = Math.max(Number(req.query.page ?? 1), 1);
@@ -19442,9 +20603,9 @@ router34.get("/payments", requireAdminRole("admin_super", "admin_finanzas"), asy
     const estado = typeof req.query.estado === "string" ? req.query.estado : void 0;
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
     const conditions = [];
-    if (estado) conditions.push(eq58(pagos.estado, estado));
+    if (estado) conditions.push(eq62(pagos.estado, estado));
     if (search) conditions.push(or9(like8(users.email, search), like8(users.name, search), like8(pagos.wompiReference, search)));
-    const where = conditions.length ? and41(...conditions) : void 0;
+    const where = conditions.length ? and43(...conditions) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select({
         id: pagos.id,
@@ -19459,8 +20620,8 @@ router34.get("/payments", requireAdminRole("admin_super", "admin_finanzas"), asy
         email: users.email,
         userName: users.name,
         planNombre: planes.nombre
-      }).from(pagos).innerJoin(users, eq58(users.id, pagos.userId)).leftJoin(suscripciones, eq58(suscripciones.id, pagos.suscripcionId)).leftJoin(planes, eq58(planes.id, suscripciones.planId)).where(where).orderBy(desc24(pagos.createdAt)).limit(limit).offset(offset),
-      db2.select({ total: sql24`COUNT(*)` }).from(pagos).innerJoin(users, eq58(users.id, pagos.userId)).where(where)
+      }).from(pagos).innerJoin(users, eq62(users.id, pagos.userId)).leftJoin(suscripciones, eq62(suscripciones.id, pagos.suscripcionId)).leftJoin(planes, eq62(planes.id, suscripciones.planId)).where(where).orderBy(desc25(pagos.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql25`COUNT(*)` }).from(pagos).innerJoin(users, eq62(users.id, pagos.userId)).where(where)
     ]);
     res.json({
       success: true,
@@ -19475,39 +20636,39 @@ var updateSubscriptionSchema = z18.object({
   estado: z18.enum(["activa", "cancelada", "vencida", "en_prueba"]).optional(),
   autoRenovacion: z18.boolean().optional()
 });
-router34.patch("/subscriptions/:id", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
+router35.patch("/subscriptions/:id", requireAdminRole("admin_super", "admin_finanzas"), async (req, res, next) => {
   try {
     const parsed2 = updateSubscriptionSchema.parse(req.body);
-    await storage.db.update(suscripciones).set(parsed2).where(eq58(suscripciones.id, req.params.id));
+    await storage.db.update(suscripciones).set(parsed2).where(eq62(suscripciones.id, req.params.id));
     res.json({ success: true });
   } catch (err) {
     next(err);
   }
 });
-var admin_billing_routes_default = router34;
+var admin_billing_routes_default = router35;
 
 // server/admin/routes/admin-processes.routes.ts
 init_auth();
-import { Router as Router35 } from "express";
+import { Router as Router36 } from "express";
 import { z as z19 } from "zod";
-import { sql as sql25, desc as desc25, like as like9, or as or10, eq as eq59 } from "drizzle-orm";
+import { sql as sql26, desc as desc26, like as like9, or as or10, eq as eq63 } from "drizzle-orm";
 init_database_storage();
 init_schema();
-var router35 = Router35();
-router35.use(authenticate, requireAdmin);
-router35.get("/summary", requireAdminRole("admin_super"), async (_req, res, next) => {
+var router36 = Router36();
+router36.use(authenticate, requireAdmin);
+router36.get("/summary", requireAdminRole("admin_super"), async (_req, res, next) => {
   try {
     const db2 = storage.db;
     const [totals, tipos] = await Promise.all([
       db2.select({
-        total: sql25`COUNT(*)`,
-        activos: sql25`SUM(CASE WHEN ${procesos.state} = 1 THEN 1 ELSE 0 END)`,
-        archivados: sql25`SUM(CASE WHEN ${procesos.state} = 0 THEN 1 ELSE 0 END)`
+        total: sql26`COUNT(*)`,
+        activos: sql26`SUM(CASE WHEN ${procesos.state} = 1 THEN 1 ELSE 0 END)`,
+        archivados: sql26`SUM(CASE WHEN ${procesos.state} = 0 THEN 1 ELSE 0 END)`
       }).from(procesos),
       db2.select({
         nombre: tiposProceso.nombre,
-        total: sql25`COUNT(*)`
-      }).from(procesos).leftJoin(tiposProceso, eq59(tiposProceso.id, procesos.tipoProcesoId)).groupBy(tiposProceso.nombre).orderBy(desc25(sql25`COUNT(*)`)).limit(6)
+        total: sql26`COUNT(*)`
+      }).from(procesos).leftJoin(tiposProceso, eq63(tiposProceso.id, procesos.tipoProcesoId)).groupBy(tiposProceso.nombre).orderBy(desc26(sql26`COUNT(*)`)).limit(6)
     ]);
     res.json({
       success: true,
@@ -19522,7 +20683,7 @@ router35.get("/summary", requireAdminRole("admin_super"), async (_req, res, next
     next(err);
   }
 });
-router35.get("/records", requireAdminRole("admin_super"), async (req, res, next) => {
+router36.get("/records", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const page = Math.max(Number(req.query.page ?? 1), 1);
@@ -19545,9 +20706,9 @@ router35.get("/records", requireAdminRole("admin_super"), async (req, res, next)
       fechaCreacion: procesos.fechaCreacion,
       tipoProceso: tiposProceso.nombre,
       estado: estadosProceso.nombre,
-      clienteNombre: sql25`COALESCE(CONCAT(${personas.nombre}, ' ', ${personas.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`
-    }).from(procesos).leftJoin(tiposProceso, eq59(tiposProceso.id, procesos.tipoProcesoId)).leftJoin(estadosProceso, eq59(estadosProceso.id, procesos.estadoId)).leftJoin(clientes, eq59(clientes.id, procesos.clienteId)).leftJoin(clientesNatural, eq59(clientesNatural.clienteId, clientes.id)).leftJoin(personas, eq59(personas.id, clientesNatural.personaId)).leftJoin(clientesEmpresa, eq59(clientesEmpresa.clienteId, clientes.id)).where(where).orderBy(desc25(procesos.fechaCreacion)).limit(limit).offset(offset);
-    const countRows = await db2.select({ total: sql25`COUNT(*)` }).from(procesos).leftJoin(tiposProceso, eq59(tiposProceso.id, procesos.tipoProcesoId)).leftJoin(clientes, eq59(clientes.id, procesos.clienteId)).leftJoin(clientesNatural, eq59(clientesNatural.clienteId, clientes.id)).leftJoin(personas, eq59(personas.id, clientesNatural.personaId)).leftJoin(clientesEmpresa, eq59(clientesEmpresa.clienteId, clientes.id)).where(where);
+      clienteNombre: sql26`COALESCE(CONCAT(${personas.nombre}, ' ', ${personas.apellido}), ${clientesEmpresa.razonSocial}, 'Sin cliente')`
+    }).from(procesos).leftJoin(tiposProceso, eq63(tiposProceso.id, procesos.tipoProcesoId)).leftJoin(estadosProceso, eq63(estadosProceso.id, procesos.estadoId)).leftJoin(clientes, eq63(clientes.id, procesos.clienteId)).leftJoin(clientesNatural, eq63(clientesNatural.clienteId, clientes.id)).leftJoin(personas, eq63(personas.id, clientesNatural.personaId)).leftJoin(clientesEmpresa, eq63(clientesEmpresa.clienteId, clientes.id)).where(where).orderBy(desc26(procesos.fechaCreacion)).limit(limit).offset(offset);
+    const countRows = await db2.select({ total: sql26`COUNT(*)` }).from(procesos).leftJoin(tiposProceso, eq63(tiposProceso.id, procesos.tipoProcesoId)).leftJoin(clientes, eq63(clientes.id, procesos.clienteId)).leftJoin(clientesNatural, eq63(clientesNatural.clienteId, clientes.id)).leftJoin(personas, eq63(personas.id, clientesNatural.personaId)).leftJoin(clientesEmpresa, eq63(clientesEmpresa.clienteId, clientes.id)).where(where);
     res.json({
       success: true,
       data: rows,
@@ -19557,7 +20718,7 @@ router35.get("/records", requireAdminRole("admin_super"), async (req, res, next)
     next(err);
   }
 });
-router35.patch("/records/:id/state", requireAdminRole("admin_super"), async (req, res, next) => {
+router36.patch("/records/:id/state", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const { state } = z19.object({ state: z19.boolean() }).parse(req.body);
     const updated = await storage.updateProceso(req.params.id, { state });
@@ -19566,7 +20727,7 @@ router35.patch("/records/:id/state", requireAdminRole("admin_super"), async (req
     next(err);
   }
 });
-router35.get("/types", requireAdminRole("admin_super"), async (_req, res, next) => {
+router36.get("/types", requireAdminRole("admin_super"), async (_req, res, next) => {
   try {
     const tipos = await storage.tiposProceso.getTiposProceso();
     res.json({ success: true, data: tipos });
@@ -19574,7 +20735,7 @@ router35.get("/types", requireAdminRole("admin_super"), async (_req, res, next) 
     next(err);
   }
 });
-router35.post("/types", requireAdminRole("admin_super"), async (req, res, next) => {
+router36.post("/types", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const parsed2 = z19.object({ nombre: z19.string().min(1), descripcion: z19.string().optional() }).parse(req.body);
     const created = await storage.tiposProceso.createTipoProceso(parsed2);
@@ -19583,7 +20744,7 @@ router35.post("/types", requireAdminRole("admin_super"), async (req, res, next) 
     next(err);
   }
 });
-router35.put("/types/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+router36.put("/types/:id", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     const parsed2 = z19.object({
@@ -19597,7 +20758,7 @@ router35.put("/types/:id", requireAdminRole("admin_super"), async (req, res, nex
     next(err);
   }
 });
-router35.delete("/types/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+router36.delete("/types/:id", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     await storage.tiposProceso.deleteTipoProceso(Number(req.params.id));
     res.json({ success: true });
@@ -19605,29 +20766,29 @@ router35.delete("/types/:id", requireAdminRole("admin_super"), async (req, res, 
     next(err);
   }
 });
-var admin_processes_routes_default = router35;
+var admin_processes_routes_default = router36;
 
 // server/admin/routes/admin-community.routes.ts
 init_auth();
-import { Router as Router36 } from "express";
+import { Router as Router37 } from "express";
 import { z as z20 } from "zod";
-import { sql as sql26, desc as desc26, like as like10, or as or11, eq as eq60, and as and42 } from "drizzle-orm";
+import { sql as sql27, desc as desc27, like as like10, or as or11, eq as eq64, and as and44 } from "drizzle-orm";
 init_database_storage();
 init_schema();
-var router36 = Router36();
-router36.use(authenticate, requireAdmin);
-router36.get("/overview", requireAdminRole("admin_super", "admin_soporte"), async (_req, res, next) => {
+var router37 = Router37();
+router37.use(authenticate, requireAdmin);
+router37.get("/overview", requireAdminRole("admin_super", "admin_soporte"), async (_req, res, next) => {
   try {
     const db2 = storage.db;
     const [postTotals, reportTotals] = await Promise.all([
       db2.select({
-        total: sql26`COUNT(*)`,
-        open: sql26`SUM(CASE WHEN ${posts.status} = 'open' THEN 1 ELSE 0 END)`,
-        inProgress: sql26`SUM(CASE WHEN ${posts.status} = 'in_progress' THEN 1 ELSE 0 END)`,
-        closed: sql26`SUM(CASE WHEN ${posts.status} = 'closed' THEN 1 ELSE 0 END)`,
-        disabled: sql26`SUM(CASE WHEN ${posts.disabled} = 1 THEN 1 ELSE 0 END)`
+        total: sql27`COUNT(*)`,
+        open: sql27`SUM(CASE WHEN ${posts.status} = 'open' THEN 1 ELSE 0 END)`,
+        inProgress: sql27`SUM(CASE WHEN ${posts.status} = 'in_progress' THEN 1 ELSE 0 END)`,
+        closed: sql27`SUM(CASE WHEN ${posts.status} = 'closed' THEN 1 ELSE 0 END)`,
+        disabled: sql27`SUM(CASE WHEN ${posts.disabled} = 1 THEN 1 ELSE 0 END)`
       }).from(posts),
-      db2.select({ total: sql26`COUNT(*)` }).from(postReports)
+      db2.select({ total: sql27`COUNT(*)` }).from(postReports)
     ]);
     res.json({
       success: true,
@@ -19646,7 +20807,7 @@ router36.get("/overview", requireAdminRole("admin_super", "admin_soporte"), asyn
     next(err);
   }
 });
-router36.get("/posts", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router37.get("/posts", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const page = Math.max(Number(req.query.page ?? 1), 1);
@@ -19656,11 +20817,11 @@ router36.get("/posts", requireAdminRole("admin_super", "admin_soporte"), async (
     const disabled = typeof req.query.disabled === "string" ? req.query.disabled : void 0;
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
     const conditions = [];
-    if (status) conditions.push(eq60(posts.status, status));
-    if (disabled === "true") conditions.push(eq60(posts.disabled, true));
-    if (disabled === "false") conditions.push(eq60(posts.disabled, false));
+    if (status) conditions.push(eq64(posts.status, status));
+    if (disabled === "true") conditions.push(eq64(posts.disabled, true));
+    if (disabled === "false") conditions.push(eq64(posts.disabled, false));
     if (search) conditions.push(or11(like10(posts.title, search), like10(posts.content, search), like10(users.name, search)));
-    const where = conditions.length ? and42(...conditions) : void 0;
+    const where = conditions.length ? and44(...conditions) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select({
         id: posts.id,
@@ -19671,20 +20832,20 @@ router36.get("/posts", requireAdminRole("admin_super", "admin_soporte"), async (
         city: posts.city,
         createdAt: posts.createdAt,
         authorName: users.name,
-        reportCount: sql26`(
+        reportCount: sql27`(
           SELECT COUNT(*)
           FROM post_reports pr
           WHERE pr.post_id = ${posts.id}
         )`
-      }).from(posts).leftJoin(users, eq60(users.id, posts.userId)).where(where).orderBy(desc26(posts.createdAt)).limit(limit).offset(offset),
-      db2.select({ total: sql26`COUNT(*)` }).from(posts).leftJoin(users, eq60(users.id, posts.userId)).where(where)
+      }).from(posts).leftJoin(users, eq64(users.id, posts.userId)).where(where).orderBy(desc27(posts.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql27`COUNT(*)` }).from(posts).leftJoin(users, eq64(users.id, posts.userId)).where(where)
     ]);
     res.json({ success: true, data: rows, meta: { total: Number(countRows[0]?.total ?? 0), page, limit } });
   } catch (err) {
     next(err);
   }
 });
-router36.get("/reports", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router37.get("/reports", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
@@ -19697,22 +20858,22 @@ router36.get("/reports", requireAdminRole("admin_super", "admin_soporte"), async
       createdAt: postReports.createdAt,
       reporterEmail: users.email,
       reporterName: users.name
-    }).from(postReports).leftJoin(users, eq60(users.id, postReports.reporterUserId)).orderBy(desc26(postReports.createdAt)).limit(limit);
+    }).from(postReports).leftJoin(users, eq64(users.id, postReports.reporterUserId)).orderBy(desc27(postReports.createdAt)).limit(limit);
     res.json({ success: true, data: rows });
   } catch (err) {
     next(err);
   }
 });
-router36.patch("/posts/:id/status", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router37.patch("/posts/:id/status", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const { status } = z20.object({ status: z20.enum(["open", "in_progress", "closed"]) }).parse(req.body);
-    await storage.db.update(posts).set({ status }).where(eq60(posts.id, req.params.id));
+    await storage.db.update(posts).set({ status }).where(eq64(posts.id, req.params.id));
     res.json({ success: true });
   } catch (err) {
     next(err);
   }
 });
-router36.patch("/posts/:id/disabled", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router37.patch("/posts/:id/disabled", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const { disabled } = z20.object({ disabled: z20.boolean() }).parse(req.body);
     await storage.community.setPostDisabled(req.params.id, disabled);
@@ -19721,32 +20882,37 @@ router36.patch("/posts/:id/disabled", requireAdminRole("admin_super", "admin_sop
     next(err);
   }
 });
-var admin_community_routes_default = router36;
+var admin_community_routes_default = router37;
 
 // server/admin/routes/admin-support.routes.ts
 init_auth();
-import { Router as Router37 } from "express";
-import { desc as desc27, sql as sql27, like as like11, or as or12 } from "drizzle-orm";
+import { Router as Router38 } from "express";
+import { desc as desc28, sql as sql28, like as like11, or as or12, eq as eq65, and as and45 } from "drizzle-orm";
 init_database_storage();
 init_schema();
-var router37 = Router37();
-router37.use(authenticate, requireAdmin);
-router37.get("/overview", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+init_email_service();
+var router38 = Router38();
+router38.use(authenticate, requireAdmin);
+router38.get("/overview", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const adminId = req.user?.id;
-    const [events, usersSummary, audit, supportConversations] = await Promise.all([
+    const [events, usersSummary, audit, supportConversations, publicRequestSummary] = await Promise.all([
       db2.select({
-        total: sql27`COUNT(*)`,
-        loginFail: sql27`SUM(CASE WHEN ${securityEvents.eventType} = 'login_fail' THEN 1 ELSE 0 END)`,
-        blocked: sql27`SUM(CASE WHEN ${securityEvents.eventType} IN ('login_blocked', 'login_blocked_user') THEN 1 ELSE 0 END)`
+        total: sql28`COUNT(*)`,
+        loginFail: sql28`SUM(CASE WHEN ${securityEvents.eventType} = 'login_fail' THEN 1 ELSE 0 END)`,
+        blocked: sql28`SUM(CASE WHEN ${securityEvents.eventType} IN ('login_blocked', 'login_blocked_user') THEN 1 ELSE 0 END)`
       }).from(securityEvents),
       db2.select({
-        activos: sql27`SUM(CASE WHEN ${users.isActive} = 1 THEN 1 ELSE 0 END)`,
-        suspendidos: sql27`SUM(CASE WHEN ${users.isActive} = 0 THEN 1 ELSE 0 END)`
+        activos: sql28`SUM(CASE WHEN ${users.isActive} = 1 THEN 1 ELSE 0 END)`,
+        suspendidos: sql28`SUM(CASE WHEN ${users.isActive} = 0 THEN 1 ELSE 0 END)`
       }).from(users),
       storage.adminAudit.getLog({ page: 1, limit: 10 }),
-      chatService.getConversations(adminId, 5, 0, "admin_support")
+      chatService.getConversations(adminId, 5, 0, "admin_support"),
+      db2.select({
+        total: sql28`COUNT(*)`,
+        pending: sql28`SUM(CASE WHEN ${publicSupportRequests.status} IN ('new', 'in_progress') THEN 1 ELSE 0 END)`
+      }).from(publicSupportRequests)
     ]);
     res.json({
       success: true,
@@ -19762,7 +20928,9 @@ router37.get("/overview", requireAdminRole("admin_super", "admin_soporte"), asyn
         },
         support: {
           total: supportConversations.total,
-          open: supportConversations.conversations.filter((conversation) => conversation.unreadCount > 0).length
+          open: supportConversations.conversations.filter((conversation) => conversation.unreadCount > 0).length,
+          publicRequests: Number(publicRequestSummary[0]?.total ?? 0),
+          publicPending: Number(publicRequestSummary[0]?.pending ?? 0)
         },
         audit: audit.data
       }
@@ -19771,7 +20939,7 @@ router37.get("/overview", requireAdminRole("admin_super", "admin_soporte"), asyn
     next(err);
   }
 });
-router37.get("/security-events", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router38.get("/security-events", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const db2 = storage.db;
     const page = Math.max(Number(req.query.page ?? 1), 1);
@@ -19780,15 +20948,15 @@ router37.get("/security-events", requireAdminRole("admin_super", "admin_soporte"
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
     const where = search ? or12(like11(securityEvents.email, search), like11(securityEvents.ip, search)) : void 0;
     const [rows, countRows] = await Promise.all([
-      db2.select().from(securityEvents).where(where).orderBy(desc27(securityEvents.createdAt)).limit(limit).offset(offset),
-      db2.select({ total: sql27`COUNT(*)` }).from(securityEvents).where(where)
+      db2.select().from(securityEvents).where(where).orderBy(desc28(securityEvents.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql28`COUNT(*)` }).from(securityEvents).where(where)
     ]);
     res.json({ success: true, data: rows, meta: { total: Number(countRows[0]?.total ?? 0), page, limit } });
   } catch (err) {
     next(err);
   }
 });
-router37.get("/audit-log", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router38.get("/audit-log", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const page = Number(req.query.page ?? 1);
     const limit = Number(req.query.limit ?? 20);
@@ -19798,7 +20966,7 @@ router37.get("/audit-log", requireAdminRole("admin_super", "admin_soporte"), asy
     next(err);
   }
 });
-router37.get("/conversations", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router38.get("/conversations", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const adminId = req.user?.id;
     const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
@@ -19815,7 +20983,136 @@ router37.get("/conversations", requireAdminRole("admin_super", "admin_soporte"),
     next(err);
   }
 });
-router37.post("/conversations", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+router38.get("/public-requests", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const status = typeof req.query.status === "string" ? req.query.status.trim() : "";
+    const searchTerm = search ? `%${search}%` : void 0;
+    const filters = and45(
+      status ? eq65(publicSupportRequests.status, status) : void 0,
+      searchTerm ? or12(
+        like11(publicSupportRequests.name, searchTerm),
+        like11(publicSupportRequests.email, searchTerm),
+        like11(publicSupportRequests.message, searchTerm)
+      ) : void 0
+    );
+    const [rows, totalRows] = await Promise.all([
+      db2.select().from(publicSupportRequests).where(filters).orderBy(desc28(publicSupportRequests.createdAt)).limit(limit).offset(offset),
+      db2.select({ total: sql28`COUNT(*)` }).from(publicSupportRequests).where(filters)
+    ]);
+    res.json({
+      success: true,
+      data: rows,
+      meta: {
+        total: Number(totalRows[0]?.total ?? 0),
+        limit,
+        offset
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+router38.patch("/public-requests/:id", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const adminId = req.user?.id;
+    const id = req.params.id;
+    const status = typeof req.body?.status === "string" ? req.body.status : "";
+    if (!["new", "in_progress", "resolved", "spam"].includes(status)) {
+      return res.status(400).json({ error: "status inv\xE1lido" });
+    }
+    await db2.update(publicSupportRequests).set({
+      status,
+      assignedAdminId: adminId,
+      resolvedAt: status === "resolved" ? /* @__PURE__ */ new Date() : null
+    }).where(eq65(publicSupportRequests.id, id));
+    await auditService.log({
+      adminId,
+      accion: "public_support_request_updated",
+      targetId: id,
+      detalle: `Estado actualizado a ${status}`
+    });
+    const updated = await db2.query.publicSupportRequests.findFirst({
+      where: eq65(publicSupportRequests.id, id)
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+router38.post("/public-requests/:id/open-conversation", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const adminId = req.user?.id;
+    const id = req.params.id;
+    const requestRow = await db2.query.publicSupportRequests.findFirst({
+      where: eq65(publicSupportRequests.id, id)
+    });
+    if (!requestRow) {
+      return res.status(404).json({ error: "Solicitud no encontrada" });
+    }
+    if (!requestRow.userId) {
+      return res.status(400).json({ error: "La solicitud no est\xE1 vinculada a un usuario registrado" });
+    }
+    const conversation = await chatService.getOrCreateSupportConversationForAdmin(adminId, requestRow.userId);
+    await db2.update(publicSupportRequests).set({
+      conversationId: conversation.id,
+      assignedAdminId: adminId,
+      status: "in_progress"
+    }).where(eq65(publicSupportRequests.id, id));
+    await auditService.log({
+      adminId,
+      accion: "public_support_request_opened",
+      targetId: id,
+      detalle: `Conversaci\xF3n ${conversation.id}`
+    });
+    res.status(201).json({ success: true, data: conversation });
+  } catch (err) {
+    next(err);
+  }
+});
+router38.post("/public-requests/:id/reply", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
+  try {
+    const db2 = storage.db;
+    const adminId = req.user?.id;
+    const id = req.params.id;
+    const subject = typeof req.body?.subject === "string" ? req.body.subject.trim() : "";
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    const markAsResolved = req.body?.markAsResolved === true;
+    if (!subject || !message) {
+      return res.status(400).json({ error: "subject y message son requeridos" });
+    }
+    const requestRow = await db2.query.publicSupportRequests.findFirst({
+      where: eq65(publicSupportRequests.id, id)
+    });
+    if (!requestRow) {
+      return res.status(404).json({ error: "Solicitud no encontrada" });
+    }
+    await sendSupportReplyEmail(requestRow.email, subject, message);
+    await db2.update(publicSupportRequests).set({
+      assignedAdminId: adminId,
+      status: markAsResolved ? "resolved" : "in_progress",
+      resolvedAt: markAsResolved ? /* @__PURE__ */ new Date() : null
+    }).where(eq65(publicSupportRequests.id, id));
+    await auditService.log({
+      adminId,
+      accion: "public_support_request_replied",
+      targetId: id,
+      detalle: `Respuesta enviada a ${requestRow.email} con asunto: ${subject}`
+    });
+    const updated = await db2.query.publicSupportRequests.findFirst({
+      where: eq65(publicSupportRequests.id, id)
+    });
+    res.status(201).json({ success: true, data: updated });
+  } catch (err) {
+    next(err);
+  }
+});
+router38.post("/conversations", requireAdminRole("admin_super", "admin_soporte"), async (req, res, next) => {
   try {
     const adminId = req.user?.id;
     const targetUserId = typeof req.body?.targetUserId === "string" ? req.body.targetUserId : "";
@@ -19834,16 +21131,16 @@ router37.post("/conversations", requireAdminRole("admin_super", "admin_soporte")
     next(err);
   }
 });
-var admin_support_routes_default = router37;
+var admin_support_routes_default = router38;
 
 // server/admin/routes/admin-config.routes.ts
 init_auth();
-import { Router as Router38 } from "express";
+import { Router as Router39 } from "express";
 import { z as z21 } from "zod";
 init_database_storage();
-var router38 = Router38();
-router38.use(authenticate, requireAdmin);
-router38.get("/overview", requireAdminRole("admin_super"), async (_req, res, next) => {
+var router39 = Router39();
+router39.use(authenticate, requireAdmin);
+router39.get("/overview", requireAdminRole("admin_super"), async (_req, res, next) => {
   try {
     const [roles2, permisos3, modulos2] = await Promise.all([
       storage.getLisRol(),
@@ -19861,7 +21158,7 @@ router38.get("/overview", requireAdminRole("admin_super"), async (_req, res, nex
     next(err);
   }
 });
-router38.get("/roles/:id", requireAdminRole("admin_super"), async (req, res, next) => {
+router39.get("/roles/:id", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const roleId = Number(req.params.id);
     const [rol, assignedCodes, permisos3] = await Promise.all([
@@ -19881,7 +21178,7 @@ router38.get("/roles/:id", requireAdminRole("admin_super"), async (req, res, nex
     next(err);
   }
 });
-router38.put("/roles/:id/permisos", requireAdminRole("admin_super"), async (req, res, next) => {
+router39.put("/roles/:id/permisos", requireAdminRole("admin_super"), async (req, res, next) => {
   try {
     const roleId = Number(req.params.id);
     const { permisoIds } = z21.object({ permisoIds: z21.array(z21.number().int().positive()) }).parse(req.body);
@@ -19892,19 +21189,19 @@ router38.put("/roles/:id/permisos", requireAdminRole("admin_super"), async (req,
     next(err);
   }
 });
-var admin_config_routes_default = router38;
+var admin_config_routes_default = router39;
 
 // server/admin/routes/index.ts
-var router39 = Router39();
-router39.use("/stats", admin_stats_routes_default);
-router39.use("/users", admin_users_routes_default);
-router39.use("/plans", admin_plans_routes_default);
-router39.use("/billing", admin_billing_routes_default);
-router39.use("/processes", admin_processes_routes_default);
-router39.use("/community", admin_community_routes_default);
-router39.use("/support", admin_support_routes_default);
-router39.use("/config", admin_config_routes_default);
-var routes_default = router39;
+var router40 = Router40();
+router40.use("/stats", admin_stats_routes_default);
+router40.use("/users", admin_users_routes_default);
+router40.use("/plans", admin_plans_routes_default);
+router40.use("/billing", admin_billing_routes_default);
+router40.use("/processes", admin_processes_routes_default);
+router40.use("/community", admin_community_routes_default);
+router40.use("/support", admin_support_routes_default);
+router40.use("/config", admin_config_routes_default);
+var routes_default = router40;
 
 // server/routes/index.ts
 function registerAppRoutes(app2) {
@@ -19939,6 +21236,7 @@ function registerAppRoutes(app2) {
   app2.use("/api", firm_settings_default);
   app2.use("/api", suscripciones_default);
   app2.use("/api", webhooks_default);
+  app2.use("/api", public_support_default);
   app2.use("/api/admin", routes_default);
 }
 
@@ -20043,7 +21341,7 @@ async function insertEtapas(db2, tipoProcesoId, etapas) {
 
 // server/db/seeds/stage-templates.seed.ts
 init_schema();
-import { eq as eq61, and as and43 } from "drizzle-orm";
+import { eq as eq66, and as and46 } from "drizzle-orm";
 var PLANTILLAS_DEFAULT = [
   { legalStageCode: "FILED", titulo: "Revisar escrito de demanda", prioridad: "alta", requerida: true, orden: 1 },
   { legalStageCode: "ADMITTED", titulo: "Notificar al cliente de admisi\xF3n", prioridad: "alta", requerida: true, orden: 1 },
@@ -20064,9 +21362,9 @@ async function seedStageTemplates(db2) {
   console.log("[seed] Sembrando plantillas de tareas por etapa...");
   for (const plantilla of PLANTILLAS_DEFAULT) {
     const alreadyExists = await db2.select().from(etapasTareasPlantilla).where(
-      and43(
-        eq61(etapasTareasPlantilla.legalStageCode, plantilla.legalStageCode),
-        eq61(etapasTareasPlantilla.titulo, plantilla.titulo)
+      and46(
+        eq66(etapasTareasPlantilla.legalStageCode, plantilla.legalStageCode),
+        eq66(etapasTareasPlantilla.titulo, plantilla.titulo)
       )
     ).limit(1);
     if (alreadyExists.length === 0) {
@@ -20086,7 +21384,7 @@ async function seedStageTemplates(db2) {
 
 // server/db/seeds/planes.seed.ts
 init_schema();
-import { eq as eq62 } from "drizzle-orm";
+import { eq as eq67 } from "drizzle-orm";
 var PLANES_SEED = [
   // Abogado independiente
   {
@@ -20260,28 +21558,28 @@ var FEATURES_SEED = [
 var PLANES_LEGACY_IDS = ["default-plan-id"];
 async function seedPlanes(db2) {
   for (const legacyId of PLANES_LEGACY_IDS) {
-    await db2.update(planes).set({ state: false }).where(eq62(planes.id, legacyId)).catch(() => {
+    await db2.update(planes).set({ state: false }).where(eq67(planes.id, legacyId)).catch(() => {
     });
   }
   for (const f of FEATURES_SEED) {
-    const existing = await db2.select().from(features).where(eq62(features.code, f.code)).limit(1).then((r) => r[0]);
+    const existing = await db2.select().from(features).where(eq67(features.code, f.code)).limit(1).then((r) => r[0]);
     if (!existing) {
       await db2.insert(features).values({ ...f, state: true });
     }
   }
   for (const p of PLANES_SEED) {
     const { features: planFeaturesList, ...planData } = p;
-    const existing = await db2.select().from(planes).where(eq62(planes.id, p.id)).limit(1).then((r) => r[0]);
+    const existing = await db2.select().from(planes).where(eq67(planes.id, p.id)).limit(1).then((r) => r[0]);
     if (!existing) {
       await db2.insert(planes).values({ ...planData, state: true });
     } else {
       await db2.update(planes).set({
         maxStorageGb: planData.maxStorageGb,
         state: true
-      }).where(eq62(planes.id, p.id));
+      }).where(eq67(planes.id, p.id));
     }
     for (const pf of planFeaturesList) {
-      const existingPf = await db2.select().from(planFeatures).where(eq62(planFeatures.planId, p.id)).then((rows) => rows.find((r) => r.featureCode === pf.code));
+      const existingPf = await db2.select().from(planFeatures).where(eq67(planFeatures.planId, p.id)).then((rows) => rows.find((r) => r.featureCode === pf.code));
       if (!existingPf) {
         await db2.insert(planFeatures).values({ planId: p.id, featureCode: pf.code, value: pf.value });
       }
@@ -20292,7 +21590,7 @@ async function seedPlanes(db2) {
 
 // server/db/seeds/admin-roles.seed.ts
 init_schema();
-import { eq as eq63 } from "drizzle-orm";
+import { eq as eq68 } from "drizzle-orm";
 var ADMIN_ROLES2 = [
   { nombre: "admin_super", descripcion: "Acceso total al portal de administraci\xF3n" },
   { nombre: "admin_soporte", descripcion: "Gesti\xF3n de usuarios y tickets de soporte" },
@@ -20300,7 +21598,7 @@ var ADMIN_ROLES2 = [
 ];
 async function seedAdminRoles(db2) {
   for (const rol of ADMIN_ROLES2) {
-    const existing = await db2.select({ id: roles.id }).from(roles).where(eq63(roles.nombre, rol.nombre)).limit(1);
+    const existing = await db2.select({ id: roles.id }).from(roles).where(eq68(roles.nombre, rol.nombre)).limit(1);
     if (existing.length === 0) {
       await db2.insert(roles).values({
         nombre: rol.nombre,
@@ -20320,9 +21618,6 @@ var app = express();
 app.use(cookieParser2());
 var log2 = console.log;
 async function seedDatabase() {
-  if (process.env.NODE_ENV === "production") {
-    log2("[seed] WARNING: Running database seed on startup in production. Consider moving this to a dedicated migration/seed script.");
-  }
   const defaultPlanId = "default-plan-id";
   const defaultPlan = await storage.getPlan(defaultPlanId);
   if (!defaultPlan) {
@@ -20347,6 +21642,17 @@ async function seedDatabase() {
   await seedPlanes(db);
   await seedAdminRoles(db);
 }
+function shouldRunStartupSeeds() {
+  if (process.env.RUN_STARTUP_SEEDS === "true") {
+    log2("[seed] RUN_STARTUP_SEEDS=true, executing startup seeds.");
+    return true;
+  }
+  if (process.env.NODE_ENV === "production") {
+    log2("[seed] Startup seeds are disabled in production. Run migrations/seeds explicitly.");
+    return false;
+  }
+  return true;
+}
 function setupCors(app2) {
   app2.use((req, res, next) => {
     const origins = /* @__PURE__ */ new Set();
@@ -20358,16 +21664,24 @@ function setupCors(app2) {
         origins.add(`https://${d.trim()}`);
       });
     }
+    if (process.env.CORS_ALLOWED_ORIGINS) {
+      process.env.CORS_ALLOWED_ORIGINS.split(",").forEach((origin2) => {
+        const normalized = origin2.trim();
+        if (normalized) origins.add(normalized);
+      });
+    }
     const origin = req.header("origin");
     const isProduction2 = process.env.NODE_ENV === "production";
     const isLocalhost = !isProduction2 && (origin?.startsWith("http://localhost:") || origin?.startsWith("http://127.0.0.1:"));
     if (origin && (origins.has(origin) || isLocalhost)) {
+      const requestedHeaders = req.header("access-control-request-headers");
+      const allowedHeaders = requestedHeaders ? requestedHeaders : "Content-Type, Authorization, x-device-id, x-device-name, x-device-platform";
       res.header("Access-Control-Allow-Origin", origin);
       res.header(
         "Access-Control-Allow-Methods",
         "GET, POST, PUT, PATCH, DELETE, OPTIONS"
       );
-      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.header("Access-Control-Allow-Headers", allowedHeaders);
       res.header("Access-Control-Allow-Credentials", "true");
     }
     if (req.method === "OPTIONS") {
@@ -20517,7 +21831,9 @@ function setupErrorHandler(app2) {
   });
 }
 (async () => {
-  await seedDatabase();
+  if (shouldRunStartupSeeds()) {
+    await seedDatabase();
+  }
   const isProduction2 = process.env.NODE_ENV === "production";
   if (isProduction2) app.set("trust proxy", 1);
   app.use(helmet({
@@ -20551,7 +21867,13 @@ function setupErrorHandler(app2) {
   setupCors(app);
   setupBodyParsing(app);
   setupRequestLogging(app);
-  configureExpoAndLanding(app);
+  if (!isProduction2) {
+    configureExpoAndLanding(app);
+  } else {
+    app.get("/", (_req, res) => {
+      res.json({ status: "ok", app: "ProcesoClaro API" });
+    });
+  }
   const server = await registerRoutes(app);
   setupWebSocketServer(server);
   setInterval(async () => {

@@ -219,6 +219,21 @@ function buildSeoPayload(page) {
         },
       ],
     });
+
+    if (Array.isArray(page.faq) && page.faq.length > 0) {
+      schema.push({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: page.faq.map((item) => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: item.answer,
+          },
+        })),
+      });
+    }
   }
 
   return {
@@ -245,6 +260,25 @@ function renderPrerenderedBody(page) {
       </section>`,
     )
     .join("");
+  const faq = Array.isArray(page.faq) && page.faq.length > 0
+    ? `
+      <section class="seo-faq">
+        <h2>Preguntas frecuentes</h2>
+        ${page.faq
+          .map(
+            (item) => `
+          <div class="seo-faq-item">
+            <h3>${escapeHtml(item.question)}</h3>
+            <p>${escapeHtml(item.answer)}</p>
+          </div>`,
+          )
+          .join("")}
+      </section>`
+    : "";
+  const primaryCtaLabel = page.primaryCtaLabel ?? "Crear cuenta";
+  const primaryCtaHref = page.primaryCtaHref ?? "/(auth)/register-type";
+  const secondaryCtaLabel = page.secondaryCtaLabel ?? "Ver planes";
+  const secondaryCtaHref = page.secondaryCtaHref ?? "/planes";
 
   return `
     <main id="seo-prerender" data-seo-route="${escapeHtml(page.route)}">
@@ -258,6 +292,15 @@ function renderPrerenderedBody(page) {
           <ul>${bullets}</ul>
         </section>
         ${sections}
+        ${faq}
+        <section class="seo-cta">
+          <h2>${escapeHtml(page.heroTitle)}</h2>
+          <p>Evalua si ProcesoClaro encaja con la operacion real de tu despacho y con el tipo de clientes que atiendes.</p>
+          <p>
+            <a class="seo-primary-link" href="${escapeHtml(primaryCtaHref)}">${escapeHtml(primaryCtaLabel)}</a>
+            <a class="seo-secondary-link" href="${escapeHtml(secondaryCtaHref)}">${escapeHtml(secondaryCtaLabel)}</a>
+          </p>
+        </section>
       </article>
     </main>
   `;
@@ -309,6 +352,14 @@ function injectSeoMetadata(filePath, page) {
       #seo-prerender ul{margin:0;padding-left:24px}
       #seo-prerender li{margin:0 0 10px;font-size:17px}
       #seo-prerender .seo-section{margin-top:28px}
+      #seo-prerender .seo-faq{margin-top:32px}
+      #seo-prerender .seo-faq-item{padding:20px 0;border-top:1px solid #d7e1eb}
+      #seo-prerender .seo-faq-item h3{margin:0 0 10px;font:700 20px/1.3 Arial,sans-serif;color:#0f2640}
+      #seo-prerender .seo-cta{margin-top:32px;padding:28px;border-radius:20px;background:#0f2640;color:#fff}
+      #seo-prerender .seo-cta h2{color:#fff}
+      #seo-prerender .seo-primary-link,#seo-prerender .seo-secondary-link{display:inline-block;margin:8px 12px 0 0;padding:12px 18px;border-radius:999px;text-decoration:none;font:600 15px/1 Arial,sans-serif}
+      #seo-prerender .seo-primary-link{background:#d4a853;color:#0f2640}
+      #seo-prerender .seo-secondary-link{border:1px solid rgba(255,255,255,.25);color:#fff}
       html.js-seo-hydrated #seo-prerender{display:none!important}
       @media (max-width:768px){#seo-prerender{padding:32px 18px 40px}#seo-prerender h1{font-size:34px}#seo-prerender h2{font-size:24px}#seo-prerender p,#seo-prerender li{font-size:17px}#seo-prerender .seo-lead{font-size:20px}}
     </style>`,

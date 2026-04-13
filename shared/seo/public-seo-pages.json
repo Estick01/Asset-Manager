@@ -42,37 +42,55 @@
       "route": "/software-para-abogados-colombia",
       "output": "software-para-abogados-colombia.html",
       "title": "Software para abogados en Colombia | ProcesoClaro",
-      "description": "Software para abogados en Colombia para gestionar clientes, procesos judiciales, documentos, tareas y comunicacion con clientes desde un solo lugar.",
+      "description": "Software para abogados en Colombia para organizar clientes, expedientes, documentos, tareas y comunicacion legal en una sola plataforma pensada para despachos colombianos.",
       "canonicalPath": "/software-para-abogados-colombia",
       "breadcrumbLabel": "Software para abogados Colombia",
       "eyebrow": "Software para abogados Colombia",
-      "heroTitle": "Software para abogados en Colombia con enfoque operativo real",
-      "heroBody": "Organiza procesos, clientes y trabajo juridico diario en una plataforma pensada para abogados colombianos.",
+      "heroTitle": "Software para abogados en Colombia para ordenar la operacion completa del despacho",
+      "heroBody": "Centraliza clientes, casos, documentos, tareas y comunicacion en una plataforma legal pensada para abogados independientes y firmas en Colombia.",
       "bullets": [
-        "Centraliza casos, clientes y documentos",
-        "Mejora seguimiento, tiempos de respuesta y trazabilidad",
-        "Reduce dependencia de Excel, correo y WhatsApp"
+        "Clientes, expedientes y documentos conectados en la misma vista",
+        "Menos dependencia de Excel, correo, WhatsApp y notas sueltas",
+        "Mejor experiencia para el cliente durante todo el servicio legal"
       ],
+      "primaryCtaLabel": "Crear cuenta para el despacho",
+      "primaryCtaHref": "/(auth)/register-type",
+      "secondaryCtaLabel": "Ver como funciona",
+      "secondaryCtaHref": "/planes",
       "sections": [
         {
-          "title": "Una herramienta hecha para el trabajo del abogado",
-          "body": "Buscar software para abogados en Colombia suele terminar en dos extremos: herramientas demasiado genericas o productos pensados para otros mercados. ProcesoClaro se enfoca en la operacion juridica real. La idea no es obligar al abogado a encajar en un CRM tradicional, sino darle una estructura clara para manejar sus clientes, procesos, documentos y pendientes desde una sola plataforma."
+          "title": "Una plataforma pensada para la operacion juridica del mercado colombiano",
+          "body": "Buscar software para abogados en Colombia suele llevar a herramientas genericas de productividad o a sistemas creados para otras jurisdicciones. El problema es que el trabajo del abogado colombiano no se resuelve solo con tareas sueltas. Necesita relacionar clientes, expedientes, documentos, comunicaciones, responsables y proximos pasos dentro del mismo contexto. ProcesoClaro parte de esa realidad. En lugar de obligar al despacho a adaptar su operacion a un software comercial cualquiera, la plataforma organiza el flujo juridico diario para que la informacion clave no quede dispersa entre correo, hojas de calculo, carpetas y chats."
         },
         {
-          "title": "Beneficios que se sienten en la practica diaria",
-          "body": "Cuando un abogado centraliza su operacion puede retomar un caso con mas rapidez, responder mejor a un cliente y reducir errores por falta de contexto. Un sistema ordenado ayuda a ver estados, responsables, fechas relevantes y documentos sin reconstruir la historia del proceso cada vez. Eso mejora productividad y tambien mejora la percepcion del servicio."
+          "title": "Beneficios reales para abogados independientes y bufetes",
+          "body": "Cuando la operacion del despacho vive en un solo sistema, el abogado puede retomar un asunto con mas rapidez, responder mejor a un cliente y reducir errores por falta de contexto. La firma gana visibilidad sobre carga de trabajo, responsables y trazabilidad; el abogado independiente gana orden, menos retrabajo y una base mas profesional para crecer. El valor del software no esta solo en guardar datos, sino en ayudar a que el servicio legal se vea y se gestione con mas claridad."
         },
         {
-          "title": "Ideal para independientes y firmas pequenas",
-          "body": "Muchos despachos pequenos en Colombia operan con herramientas dispersas porque creen que un sistema robusto es solo para grandes firmas. Ese enfoque limita el crecimiento. Un software para abogados bien implementado sirve precisamente para profesionalizar la operacion desde etapas tempranas, sin esperar a que el volumen de casos se vuelva inmanejable."
+          "title": "Para quien sirve este software legal",
+          "body": "La pagina esta orientada a tres perfiles. Primero, abogados independientes que necesitan centralizar su practica sin tener que saltar entre varias herramientas. Segundo, firmas pequenas y medianas que necesitan coordinar personas, documentos y seguimiento del cliente sin perder privacidad. Tercero, despachos que quieren dar una imagen mas moderna y confiable ante sus clientes. Un software para abogados en Colombia debe servir tanto para ordenar como para sostener crecimiento, y ese es el enfoque de esta landing."
         },
         {
           "title": "Como funciona dentro del flujo del despacho",
-          "body": "Cada cliente tiene su perfil, cada proceso su historial y cada documento su lugar. El abogado puede registrar avances, revisar el estado del asunto, organizar archivos y mantener una trazabilidad clara de lo que se hizo y lo que sigue. Si el cliente necesita visibilidad, el portal permite compartir seguimiento de manera mas estructurada."
+          "body": "Cada cliente tiene su perfil, cada asunto conserva su historial y cada documento queda relacionado con el expediente correcto. El abogado registra avances, tareas, archivos y comunicaciones en un solo lugar. Eso reduce el tiempo de reconstruir contexto y facilita continuidad cuando participa mas de una persona. Si el cliente necesita seguimiento, la plataforma permite mostrar avances y mensajes desde un entorno mas estructurado que una cadena de conversaciones aisladas."
         },
         {
-          "title": "Que gana el cliente final",
-          "body": "El cliente percibe mejor servicio cuando no tiene que perseguir al despacho para entender su caso. Una plataforma mas clara reduce friccion, mejora confianza y profesionaliza la relacion. Esto es especialmente importante en servicios juridicos, donde la incertidumbre es alta y la comunicacion desordenada deteriora la experiencia rapidamente."
+          "title": "Por que esta URL debe atacar la busqueda principal",
+          "body": "Esta pagina esta pensada para la intencion de busqueda mas amplia: software para abogados en Colombia. Por eso el contenido prioriza la operacion integral del despacho, no solo procesos judiciales ni solo relacion comercial. El mensaje habla de organizacion legal, servicio al cliente, documentos, trazabilidad y crecimiento operativo. Esa amplitud es la que permite que la URL compita por la keyword principal sin canibalizar las landings mas especificas."
+        }
+      ],
+      "faq": [
+        {
+          "question": "Que incluye un software para abogados en Colombia?",
+          "answer": "Debe incluir gestion de clientes, expedientes, documentos, tareas, seguimiento del caso y comunicacion ordenada con el cliente. La idea es centralizar la operacion legal en una sola plataforma."
+        },
+        {
+          "question": "ProcesoClaro sirve para abogados independientes y firmas?",
+          "answer": "Si. La plataforma puede ser util tanto para abogados que trabajan solos como para despachos que necesitan coordinar equipo, roles y trazabilidad entre varios responsables."
+        },
+        {
+          "question": "En que se diferencia de usar Excel y WhatsApp?",
+          "answer": "Excel y WhatsApp no conservan contexto completo por cliente y por caso. Un software legal permite relacionar avances, documentos, tareas y comunicaciones dentro del mismo expediente."
         }
       ]
     },
@@ -80,37 +98,55 @@
       "route": "/gestion-procesos-judiciales",
       "output": "gestion-procesos-judiciales.html",
       "title": "Gestion de procesos judiciales | ProcesoClaro",
-      "description": "Software para gestion de procesos judiciales con trazabilidad, documentos, responsables, tareas y seguimiento claro para abogados y firmas legales.",
+      "description": "Software para gestion de procesos judiciales con etapas, vencimientos, responsables, documentos y trazabilidad clara para abogados y bufetes.",
       "canonicalPath": "/gestion-procesos-judiciales",
       "breadcrumbLabel": "Gestion de procesos judiciales",
       "eyebrow": "Gestion de procesos judiciales",
-      "heroTitle": "Gestion de procesos judiciales sin perder contexto ni control",
-      "heroBody": "Centraliza etapas, fechas, archivos y responsables de cada caso para reducir desorden operativo y mejorar seguimiento.",
+      "heroTitle": "Gestion de procesos judiciales para abogados y bufetes con mas trazabilidad",
+      "heroBody": "Controla etapas, vencimientos, responsables, historial y documentos de cada expediente sin depender de recordatorios aislados.",
       "bullets": [
-        "Trazabilidad por caso y por etapa",
-        "Menos riesgo por informacion dispersa",
-        "Seguimiento mas claro para equipo y cliente"
+        "Seguimiento por expediente, etapa y responsable",
+        "Menos riesgo operativo por fechas o novedades dispersas",
+        "Visibilidad clara para equipo legal y cliente"
       ],
+      "primaryCtaLabel": "Probar gestion de procesos",
+      "primaryCtaHref": "/(auth)/register-type",
+      "secondaryCtaLabel": "Revisar planes",
+      "secondaryCtaHref": "/planes",
       "sections": [
         {
-          "title": "El problema de manejar procesos con herramientas sueltas",
-          "body": "La gestion de procesos judiciales se vuelve fragil cuando la informacion esta distribuida entre varios canales. Un documento queda en correo, una fecha en calendario personal, una nota en WhatsApp y una instruccion verbal en la oficina. Ese esquema aumenta la probabilidad de omisiones y hace que cada seguimiento tome mas tiempo del necesario."
+          "title": "El problema real de controlar expedientes con herramientas dispersas",
+          "body": "La gestion de procesos judiciales se vuelve fragil cuando una fecha queda en calendario personal, un memorial en correo, una novedad en WhatsApp y una instruccion en una llamada. Ese esquema rompe trazabilidad y aumenta la probabilidad de omisiones. El problema no es solo perder orden; es perder control sobre el estado real del expediente. Esta landing debe enfocarse en ese punto porque quien busca gestion de procesos judiciales normalmente quiere resolver seguimiento, etapas, vencimientos y continuidad operativa."
         },
         {
-          "title": "Que cambia cuando el proceso vive en un sistema",
-          "body": "Un software de gestion de procesos judiciales concentra estado, historial, documentos, responsables y tareas relacionadas con el asunto. Esto no reemplaza la estrategia juridica, pero si mejora la operacion. El abogado puede entender rapidamente en que punto esta el caso y que acciones requieren prioridad. Esa claridad reduce retrabajos y mejora continuidad."
+          "title": "Que cambia cuando cada caso vive dentro de un sistema",
+          "body": "Un software de gestion de procesos judiciales concentra estado, historial, documentos, responsables y tareas del asunto en el mismo expediente. Eso no reemplaza el criterio juridico, pero si mejora la capacidad de ejecutar. El abogado puede revisar rapidamente en que etapa va el caso, que documentos soportan esa etapa, que accion sigue y quien esta a cargo. Esa claridad mejora supervision interna y reduce tiempo perdido en reconstruir contexto."
         },
         {
-          "title": "Mas trazabilidad y menos dependencia de la memoria",
-          "body": "En un despacho con varios procesos abiertos, depender de la memoria es una mala practica. La plataforma permite registrar novedades, movimientos y archivos con contexto suficiente para que el caso no dependa exclusivamente de quien lo atendio por ultima vez. Eso facilita supervision interna y evita perdida de informacion valiosa."
+          "title": "Trazabilidad, vencimientos y continuidad del servicio",
+          "body": "En un despacho con varios procesos abiertos, depender de la memoria es una mala practica. La plataforma ayuda a registrar novedades, fechas relevantes, archivos y tareas con contexto suficiente para que el caso no dependa de quien lo atendio por ultima vez. Esto es especialmente valioso cuando hay cambios de responsable, supervision de coordinadores o necesidad de responder a un cliente con rapidez y precision."
         },
         {
-          "title": "Util para abogados independientes y para firmas",
-          "body": "El abogado independiente gana orden y visibilidad. La firma gana coordinacion y seguimiento entre personas. En ambos casos, la gestion de procesos judiciales mejora cuando existe un lugar unico para consultar el expediente operativo del caso. Esto tambien ayuda en escenarios donde se comparte carga o se requiere control de acceso por rol."
+          "title": "Para despachos que quieren menos caos y mas control",
+          "body": "El abogado independiente gana orden y visibilidad inmediata sobre cada proceso. La firma gana coordinacion, reparto de carga y control entre personas. En ambos casos, la gestion de procesos judiciales mejora cuando existe un lugar unico para consultar el expediente operativo. Esa diferencia permite atender mas asuntos con menos friccion y con mejor continuidad del servicio."
         },
         {
-          "title": "Impacto en servicio al cliente y en crecimiento",
-          "body": "Una gestion mas clara de procesos judiciales se traduce en mejor comunicacion con el cliente y en una operacion mas escalable. El despacho puede atender mas asuntos con menos caos, responder con mas contexto y sostener un nivel de servicio consistente. Ese efecto operativo es uno de los factores que mas influye en retencion y recomendacion."
+          "title": "Por que esta landing debe posicionar una intencion distinta",
+          "body": "La keyword gestion de procesos judiciales tiene una intencion mas operativa que la busqueda general de software para abogados. Quien llega aqui suele estar pensando en control del expediente, seguimiento de etapas, vencimientos y trazabilidad del caso. Por eso el copy, el H1 y la propuesta principal de esta URL estan centrados en expedientes y no en la operacion comercial o general del despacho."
+        }
+      ],
+      "faq": [
+        {
+          "question": "Que es un software de gestion de procesos judiciales?",
+          "answer": "Es una plataforma que permite organizar expedientes, etapas, documentos, tareas, responsables y fechas relevantes de cada caso en un solo lugar."
+        },
+        {
+          "question": "Ayuda a controlar vencimientos y seguimiento del caso?",
+          "answer": "Si. El valor principal esta en tener trazabilidad del expediente y visibilidad sobre lo que ya paso, lo que falta y quien debe actuar despues."
+        },
+        {
+          "question": "Sirve para firmas con varios abogados?",
+          "answer": "Si. Tambien es util para equipos que necesitan continuidad, supervision y consulta compartida del expediente sin perder control de acceso."
         }
       ]
     },
@@ -118,37 +154,55 @@
       "route": "/crm-para-abogados",
       "output": "crm-para-abogados.html",
       "title": "CRM para abogados en Colombia | ProcesoClaro",
-      "description": "CRM para abogados en Colombia con clientes, seguimiento de casos, documentos, tareas y comunicacion legal centralizada.",
+      "description": "CRM para abogados con seguimiento de clientes, oportunidades, historial comercial y continuidad del servicio legal desde una sola plataforma.",
       "canonicalPath": "/crm-para-abogados",
       "breadcrumbLabel": "CRM para abogados",
       "eyebrow": "CRM para abogados",
-      "heroTitle": "CRM para abogados que conecta clientes, casos y seguimiento legal",
-      "heroBody": "Administra la relacion con tus clientes sin separar ventas, servicio y operacion juridica en herramientas distintas.",
+      "heroTitle": "CRM para abogados con seguimiento de clientes y oportunidades reales",
+      "heroBody": "Gestiona la relacion comercial y el historial de servicio del cliente sin separar ventas, comunicacion y operacion legal.",
       "bullets": [
-        "Historial del cliente y de sus asuntos en una sola vista",
-        "Seguimiento comercial y operativo con el mismo contexto",
-        "Mejor experiencia del cliente durante todo el servicio"
+        "Historial del cliente, sus asuntos y sus conversaciones en la misma vista",
+        "Mejor seguimiento comercial desde el primer contacto hasta la contratacion",
+        "Continuidad entre captacion, atencion y servicio legal"
       ],
+      "primaryCtaLabel": "Crear cuenta para gestionar clientes",
+      "primaryCtaHref": "/(auth)/register-type",
+      "secondaryCtaLabel": "Ver planes CRM legal",
+      "secondaryCtaHref": "/planes",
       "sections": [
         {
           "title": "Por que un despacho necesita mas que una base de datos de contactos",
-          "body": "Un CRM para abogados no deberia limitarse a guardar nombres y telefonos. En servicios juridicos, la relacion con el cliente esta directamente conectada con el progreso del caso, la calidad de la comunicacion y la confianza. Si la informacion comercial queda en un lado y la informacion operativa en otro, el despacho pierde continuidad."
+          "body": "Un CRM para abogados no deberia limitarse a guardar nombres y telefonos. En servicios juridicos, la relacion con el cliente empieza antes de firmar y continua durante todo el servicio. Si la informacion comercial queda en un lado y la operativa en otro, el despacho pierde continuidad y contexto. Esta landing debe atacar esa necesidad: captar mejor, hacer seguimiento mejor y sostener una experiencia ordenada desde el primer contacto."
         },
         {
-          "title": "Relacion entre cliente, proceso y servicio",
-          "body": "ProcesoClaro funciona como un CRM para abogados porque permite ver al cliente dentro del contexto de sus procesos, documentos, mensajes y actualizaciones. Eso hace que cada interaccion tenga sentido. El abogado no atiende solo un contacto, atiende una relacion de servicio que necesita memoria institucional y seguimiento ordenado."
+          "title": "Seguimiento comercial y operativo en la misma relacion",
+          "body": "ProcesoClaro funciona como un CRM para abogados porque permite ver al cliente dentro del contexto de sus procesos, documentos, mensajes y actualizaciones. Eso hace que cada interaccion tenga sentido. El despacho no atiende solo un lead o un contacto; atiende una relacion de servicio que necesita memoria institucional, seguimiento y continuidad. Ese enfoque es distinto al de una landing sobre procesos judiciales, porque aqui el eje es la gestion del cliente."
         },
         {
-          "title": "Beneficios comerciales y operativos",
-          "body": "Cuando el equipo tiene mejor visibilidad sobre clientes activos, asuntos abiertos y conversaciones pendientes, mejora la capacidad de respuesta. Esto impacta conversion, retencion y recomendacion. Un CRM legal bien usado ayuda a que ningun cliente quede desatendido y a que cada caso tenga continuidad en la experiencia de servicio."
+          "title": "Beneficios comerciales para firmas y abogados que quieren crecer",
+          "body": "Cuando el equipo tiene mejor visibilidad sobre oportunidades, clientes activos, asuntos abiertos y conversaciones pendientes, mejora la capacidad de respuesta. Esto impacta conversion, retencion y recomendacion. Un CRM legal bien usado ayuda a que ningun prospecto quede olvidado y a que cada cliente mantenga una experiencia consistente incluso cuando cambian responsables o se cruzan varias interacciones al mismo tiempo."
         },
         {
-          "title": "Mejor para firmas en crecimiento",
-          "body": "A medida que un despacho crece, aumenta el riesgo de que la relacion con el cliente dependa de conversaciones sueltas o de una sola persona. Centralizar la gestion ayuda a sostener estandares, delegar mejor y conservar trazabilidad. Esto es especialmente util cuando la firma quiere escalar sin deteriorar atencion ni control."
+          "title": "Ideal para despachos en crecimiento",
+          "body": "A medida que un despacho crece, aumenta el riesgo de que la relacion con el cliente dependa de conversaciones sueltas o de una sola persona. Centralizar la gestion ayuda a sostener estandares, delegar seguimiento, conservar historial y mejorar coordinacion entre el frente comercial y el frente operativo. Esa separacion es la razon por la que esta URL merece un mensaje propio."
         },
         {
-          "title": "Un CRM legal debe adaptarse al mercado colombiano",
-          "body": "Muchas herramientas de CRM fueron creadas para ventas generales, no para operacion legal. Por eso resulta mas util una plataforma que entienda que el valor no esta solo en captar clientes, sino en gestionar bien el servicio juridico completo. Ese enfoque hace que el CRM sea realmente util para abogados en Colombia."
+          "title": "Por que esta pagina no debe repetir la landing general",
+          "body": "La busqueda CRM para abogados tiene una intencion mas cercana a clientes, oportunidades, seguimiento comercial e historial de relacion. Por eso esta URL no debe hablar igual que la landing general de software legal. Aqui el mensaje principal es captacion, seguimiento y continuidad del cliente, no solo expedientes ni gestion integral del despacho."
+        }
+      ],
+      "faq": [
+        {
+          "question": "Que hace un CRM para abogados?",
+          "answer": "Ayuda a organizar prospectos, clientes, historial de conversaciones, seguimiento comercial y continuidad del servicio legal en una sola plataforma."
+        },
+        {
+          "question": "Sirve solo para ventas?",
+          "answer": "No. En un despacho legal el CRM tambien debe conectar la relacion comercial con el seguimiento del servicio, los asuntos del cliente y la comunicacion posterior."
+        },
+        {
+          "question": "Por que no basta con una hoja de contactos?",
+          "answer": "Porque una hoja de contactos no conserva contexto de llamadas, mensajes, asuntos, documentos y tareas. Un CRM legal permite seguimiento mas ordenado y menos dependencia de la memoria."
         }
       ]
     },
