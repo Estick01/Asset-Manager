@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { createElement, useEffect } from "react";
 import {
   Platform,
   Pressable,
@@ -178,7 +178,9 @@ export function PublicSeoPage({
             <View style={styles.eyebrow}>
               <Text style={styles.eyebrowText}>{eyebrow}</Text>
             </View>
-            <Text style={styles.heroTitle}>{heroTitle}</Text>
+            {Platform.OS === "web"
+              ? createElement("h1", { style: { ...StyleSheet.flatten(styles.heroTitle), margin: 0 } }, heroTitle)
+              : <Text style={styles.heroTitle}>{heroTitle}</Text>}
             <Text style={styles.heroDescription}>{heroBody}</Text>
             <View style={styles.ctaRow}>
               <Pressable style={styles.primaryCta} onPress={() => router.push("/(auth)/register-type")}>
