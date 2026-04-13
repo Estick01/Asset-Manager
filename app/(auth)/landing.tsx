@@ -19,7 +19,8 @@ import { PublicSupportModal } from "@/components/web/PublicSupportModal";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // Layout decisions based on viewport width, not platform.
 // Esto funciona en mobile nativo, web móvil, y desktop.
-const IS_MOBILE_LAYOUT = SCREEN_WIDTH < 768;
+// On web we keep the initial render stable to avoid SSR/client hydration mismatches.
+const IS_MOBILE_LAYOUT = Platform.OS === "web" ? false : SCREEN_WIDTH < 768;
 const CONTENT_MAX_WIDTH = 1100;
 
 function SeoH1({ children, style }: { children: React.ReactNode; style: any }) {
