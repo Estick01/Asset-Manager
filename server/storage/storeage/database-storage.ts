@@ -203,8 +203,8 @@ export class DatabaseStorage {
   // Backwards-compatibility facade used by older routes while the storage
   // layer is progressively split into specialized modules.
 
-  async getProcesosByIds(ids: string[], filter?: any) {
-    return this.procesos.getProcesosByIds(ids, filter);
+  async getProcesosByIds(ids: string[], filter?: any, limit?: number, offset?: number) {
+    return this.procesos.getProcesosByIds(ids, filter, limit, offset);
   }
 
   async removeAbogadoFromProcesos(lawyerId: string, procesoIds: string[]): Promise<void> {

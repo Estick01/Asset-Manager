@@ -180,22 +180,25 @@ router.get("/procesos", authenticate, requirePermission("procesos.ver"), async (
           if (ow.ownerType === "bufete" && lawyer?.firmId === ow.ownerId) validAssignedIds.push(pid);
         }
         const allIds = [...new Set([...ownedIds, ...validAssignedIds])];
-        procesos = await storage.getProcesosByIds(allIds, filter);
-        totalCount = procesos.length; // Note: This is approximate since getProcesosByIds doesn't return total
+        const filteredProcesos = await storage.getProcesosByIds(allIds, filter);
+        totalCount = filteredProcesos.length;
+        procesos = filteredProcesos.slice(offsetNum, offsetNum + limitNum);
         break;
       }
       case "bufete": {
         const ownedIds  = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", idProfile);
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("bufete", idProfile);
         const allIds = [...new Set([...ownedIds, ...sharedIds])];
-        procesos = await storage.getProcesosByIds(allIds, filter);
-        totalCount = procesos.length;
+        const filteredProcesos = await storage.getProcesosByIds(allIds, filter);
+        totalCount = filteredProcesos.length;
+        procesos = filteredProcesos.slice(offsetNum, offsetNum + limitNum);
         break;
       }
       case "corporacion": {
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("corporacion", idProfile);
-        procesos = await storage.getProcesosByIds(sharedIds, filter);
-        totalCount = procesos.length;
+        const filteredProcesos = await storage.getProcesosByIds(sharedIds, filter);
+        totalCount = filteredProcesos.length;
+        procesos = filteredProcesos.slice(offsetNum, offsetNum + limitNum);
         break;
       }
       case "cliente": {

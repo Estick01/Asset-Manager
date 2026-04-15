@@ -1568,7 +1568,12 @@ export class ProcesoStorage {
   }
 
   /** Obtener procesos por array de IDs (usado en listados por rol con ownership). */
-  async getProcesosByIds(ids: string[], filter?: ProcesoFilter): Promise<any[]> {
+  async getProcesosByIds(
+    ids: string[],
+    filter?: ProcesoFilter,
+    limit?: number,
+    offset?: number,
+  ): Promise<any[]> {
     if (ids.length === 0) return [];
 
     const responsableLawyer   = alias(lawyerProfiles,        'responsableLawyer');
@@ -1604,12 +1609,26 @@ export class ProcesoStorage {
       );
     }
 
+    if (filter?.hasResponsable !== undefined) {
+      if (filter.hasResponsable) {
+        conditions.push(sql`EXISTS (
+          SELECT 1 FROM proceso_responsables pr
+          WHERE pr.proceso_id = ${procesos.id} AND pr.activo = 1
+        )`);
+      } else {
+        conditions.push(sql`NOT EXISTS (
+          SELECT 1 FROM proceso_responsables pr
+          WHERE pr.proceso_id = ${procesos.id} AND pr.activo = 1
+        )`);
+      }
+    }
+
     const joinConditions = and(
       eq(responsableJoin.procesoId, procesos.id),
       eq(responsableJoin.activo, true)
     );
 
-    const results = await this.db
+    let query = this.db
       .select({
         id: procesos.id,
         state: procesos.state,
@@ -1671,6 +1690,16 @@ export class ProcesoStorage {
       .leftJoin(personasResponsable,eq(responsableLawyer.personaId,     personasResponsable.id))
       .where(and(...conditions))
       .orderBy(desc(procesos.fechaCreacion));
+
+    if (typeof limit === "number") {
+      query = query.limit(limit);
+    }
+
+    if (typeof offset === "number" && offset > 0) {
+      query = query.offset(offset);
+    }
+
+    const results = await query;
 
     return results.map((p: any) => ({
       id: p.id,

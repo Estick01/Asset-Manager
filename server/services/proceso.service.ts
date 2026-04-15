@@ -9,6 +9,7 @@ export type ProcesoFilter = {
   estadoCodigo?: string;
   search?: string;
   hasResponsable?: boolean;
+  clienteId?: string;
 };
 
 export class ProcesosService {
