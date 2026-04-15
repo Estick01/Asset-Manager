@@ -233,11 +233,14 @@ export default function LawyerMatchFeed() {
   const { width } = useWindowDimensions();
   const { lastCaseMatchAt, clearCaseBadge } = useGlobalSocket();
   const desktopWeb = Platform.OS === "web" && isDesktopViewport(width);
+  const mobile = !desktopWeb;
   const desktopMetrics = getDesktopMetrics(width);
+  const desktopShellWidth = Math.max(1160, width - desktopMetrics.gutter * 2);
 
   const [feed,       setFeed]       = useState<LawyerFeedDTO>({ urgent: [], recommended: [], recent: [] });
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showFloatingAdd, setShowFloatingAdd] = useState(false);
 
   const loadFeed = useCallback(async () => {
     const data = await getLawyerFeed();
@@ -269,163 +272,152 @@ export default function LawyerMatchFeed() {
   const totalRecommended = feed.recommended.length;
   const totalRecent = feed.recent.length;
 
+  const renderWorkspaceHeader = () => (
+    <View style={styles.workspaceHeaderBlock}>
+      <View style={styles.workspaceHeaderMain}>
+        <View style={styles.workspaceTitleBlock}>
+          <Text style={styles.workspaceTitle}>Comunidad</Text>
+        </View>
+      </View>
+
+      <View style={styles.workspaceBar}>
+        <View style={[styles.workspaceTopRow, desktopWeb && styles.desktopWorkspaceTopRow]}>
+          {!mobile && (
+            <>
+              <Pressable style={styles.primaryActionBtn} onPress={() => router.push("/community/new" as any)}>
+                <Ionicons name="add" size={18} color={WHITE} />
+                <Text style={styles.primaryActionText}>Publicar</Text>
+              </Pressable>
+              <Pressable style={styles.ghostActionBtn} onPress={() => router.push("/community" as any)}>
+                <Ionicons name="globe-outline" size={16} color={TEXT2} />
+                <Text style={styles.ghostActionText}>Foro general</Text>
+              </Pressable>
+            </>
+          )}
+
+          <View style={[styles.summaryStatsRow, mobile && styles.mobileSummaryStatsRow]}>
+            <View style={[styles.summaryStatCard, mobile && styles.mobileSummaryStatCard]}>
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: C.NAVY }]} />
+                <Text style={[styles.summaryStatValue, mobile && styles.mobileSummaryStatValue]}>{totalCases}</Text>
+              </View>
+              <Text style={[styles.summaryStatLabel, mobile && styles.mobileSummaryStatLabel]}>Visibles</Text>
+            </View>
+            <View style={[styles.summaryStatCard, mobile && styles.mobileSummaryStatCard]}>
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: C.ROSE }]} />
+                <Text style={[styles.summaryStatValue, mobile && styles.mobileSummaryStatValue, { color: C.ROSE }]}>{totalUrgent}</Text>
+              </View>
+              <Text style={[styles.summaryStatLabel, mobile && styles.mobileSummaryStatLabel]}>Urgentes</Text>
+            </View>
+            <View style={[styles.summaryStatCard, mobile && styles.mobileSummaryStatCard]}>
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: C.TEAL }]} />
+                <Text style={[styles.summaryStatValue, mobile && styles.mobileSummaryStatValue, { color: C.TEAL }]}>{totalRecommended}</Text>
+              </View>
+              <Text style={[styles.summaryStatLabel, mobile && styles.mobileSummaryStatLabel]}>Para ti</Text>
+            </View>
+            <View style={[styles.summaryStatCard, mobile && styles.mobileSummaryStatCard]}>
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: "#5C7CFA" }]} />
+                <Text style={[styles.summaryStatValue, mobile && styles.mobileSummaryStatValue, { color: "#5C7CFA" }]}>{totalRecent}</Text>
+              </View>
+              <Text style={[styles.summaryStatLabel, mobile && styles.mobileSummaryStatLabel]}>Recientes</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <View style={[styles.screen, { paddingTop: desktopWeb ? 0 : insets.top }]}>
       {desktopWeb ? (
-        <>
-          <View style={[styles.desktopHeader, { paddingHorizontal: desktopMetrics.gutter, paddingTop: insets.top + 20, paddingBottom: desktopMetrics.contentGap }]}>
-            <View style={styles.desktopHeaderMain}>
-              <View style={styles.desktopTitleBlock}>
-                <Text style={styles.desktopEyebrow}>Matching legal</Text>
-                <Text style={styles.desktopTitle}>Comunidad</Text>
-              </View>
-              <View style={styles.desktopHeaderActions}>
-                <Pressable style={styles.desktopActionBtn} onPress={() => router.push("/community" as any)}>
-                  <Ionicons name="globe-outline" size={16} color={C.WHITE} />
-                  <Text style={styles.desktopActionBtnText}>Foro general</Text>
-                </Pressable>
-                <Pressable style={[styles.desktopActionBtn, styles.desktopActionBtnPrimary]} onPress={() => router.push("/community/new" as any)}>
-                  <Ionicons name="add" size={16} color={WHITE} />
-                  <Text style={styles.desktopActionBtnPrimaryText}>Publicar</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            <View style={styles.desktopStatRow}>
-              <View style={styles.desktopStatCard}>
-                <Text style={styles.desktopStatNumber}>{totalCases}</Text>
-                <Text style={styles.desktopStatText}>casos visibles</Text>
-              </View>
-              <View style={styles.desktopStatCard}>
-                <Text style={styles.desktopStatNumber}>{totalUrgent}</Text>
-                <Text style={styles.desktopStatText}>urgentes</Text>
-              </View>
-              <View style={styles.desktopStatCard}>
-                <Text style={styles.desktopStatNumber}>{totalRecommended}</Text>
-                <Text style={styles.desktopStatText}>para ti</Text>
-              </View>
-              <View style={styles.desktopStatCard}>
-                <Text style={styles.desktopStatNumber}>{totalRecent}</Text>
-                <Text style={styles.desktopStatText}>recientes</Text>
-              </View>
+        <View style={styles.branch}>
+          <View style={[styles.header, styles.desktopHeader, { paddingHorizontal: desktopMetrics.gutter, paddingTop: insets.top + 18 }]}>
+            <View style={[styles.desktopShell, { maxWidth: desktopShellWidth }]}>
+              {renderWorkspaceHeader()}
             </View>
           </View>
 
           <View style={[styles.desktopBody, { paddingHorizontal: desktopMetrics.gutter, gap: desktopMetrics.contentGap, paddingBottom: desktopMetrics.gutter }]}>
-            <View style={styles.desktopMainColumn}>
-              {loading ? (
-                <ScrollView contentContainerStyle={styles.desktopLoadingList} showsVerticalScrollIndicator={false}>
-                  {[0, 1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
-                </ScrollView>
-              ) : totalCases === 0 ? (
-                <View style={styles.empty}>
-                  <View style={styles.emptyIcon}>
-                    <Ionicons name="shield-checkmark-outline" size={34} color={TEXT3} />
-                  </View>
-                  <Text style={styles.emptyTitle}>Sin casos asignados aún</Text>
-                  <Text style={styles.emptySub}>
-                    Los casos compatibles aparecerán aquí cuando entren al sistema.
-                  </Text>
-                </View>
-              ) : (
-                <ScrollView
-                  contentContainerStyle={styles.desktopScrollContent}
-                  showsVerticalScrollIndicator={false}
-                  refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
-                  }
-                >
-                  {feed.urgent.length > 0 && (
-                    <>
-                      <SectionHeader emoji="🔥" title="Urgentes" />
-                      {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
-                    </>
+            <View style={[styles.desktopShell, styles.desktopBodyShell, { maxWidth: desktopShellWidth }]}>
+              <View style={styles.desktopMainColumn}>
+                <View style={styles.resultsSurface}>
+                  {loading ? (
+                    <ScrollView contentContainerStyle={styles.desktopLoadingList} showsVerticalScrollIndicator={false}>
+                      {[0, 1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
+                    </ScrollView>
+                  ) : totalCases === 0 ? (
+                    <View style={styles.empty}>
+                      <View style={styles.emptyIcon}>
+                        <Ionicons name="shield-checkmark-outline" size={34} color={TEXT3} />
+                      </View>
+                      <Text style={styles.emptyTitle}>Sin casos asignados aún</Text>
+                      <Text style={styles.emptySub}>
+                        Los casos compatibles aparecerán aquí cuando entren al sistema.
+                      </Text>
+                    </View>
+                  ) : (
+                    <ScrollView
+                      contentContainerStyle={styles.desktopScrollContent}
+                      showsVerticalScrollIndicator={false}
+                      refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
+                      }
+                    >
+                      {feed.urgent.length > 0 && (
+                        <>
+                          <SectionHeader emoji="🔥" title="Urgentes" />
+                          {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                        </>
+                      )}
+                      {feed.recommended.length > 0 && (
+                        <>
+                          <SectionHeader emoji="🎯" title="Para ti" />
+                          {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                        </>
+                      )}
+                      {feed.recent.length > 0 && (
+                        <>
+                          <SectionHeader emoji="🆕" title="Recientes" />
+                          {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                        </>
+                      )}
+                      <View style={{ height: 32 }} />
+                    </ScrollView>
                   )}
-                  {feed.recommended.length > 0 && (
-                    <>
-                      <SectionHeader emoji="🎯" title="Para ti" />
-                      {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
-                    </>
-                  )}
-                  {feed.recent.length > 0 && (
-                    <>
-                      <SectionHeader emoji="🆕" title="Recientes" />
-                      {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
-                    </>
-                  )}
-                  <View style={{ height: 32 }} />
-                </ScrollView>
-              )}
-            </View>
-
-            <View style={[styles.desktopAside, { width: Math.min(340, Math.max(280, width * 0.22)) }]}>
-              <View style={styles.desktopAsideCard}>
-                <Text style={styles.desktopAsideLabel}>Distribución</Text>
-                <View style={styles.desktopAsideMetricRow}>
-                  <Text style={styles.desktopAsideMetricName}>Urgentes</Text>
-                  <Text style={styles.desktopAsideMetricValue}>{totalUrgent}</Text>
                 </View>
-                <View style={styles.desktopAsideMetricRow}>
-                  <Text style={styles.desktopAsideMetricName}>Para ti</Text>
-                  <Text style={styles.desktopAsideMetricValue}>{totalRecommended}</Text>
-                </View>
-                <View style={styles.desktopAsideMetricRow}>
-                  <Text style={styles.desktopAsideMetricName}>Recientes</Text>
-                  <Text style={styles.desktopAsideMetricValue}>{totalRecent}</Text>
-                </View>
-              </View>
-
-              <View style={styles.desktopAsideCard}>
-                <Text style={styles.desktopAsideLabel}>Accesos</Text>
-                <Pressable style={styles.desktopAsideAction} onPress={() => router.push("/community" as any)}>
-                  <Ionicons name="globe-outline" size={16} color={TEXT2} />
-                  <Text style={styles.desktopAsideActionText}>Abrir foro general</Text>
-                </Pressable>
-                <Pressable style={[styles.desktopAsideAction, styles.desktopAsideActionPrimary]} onPress={() => router.push("/community/new" as any)}>
-                  <Ionicons name="add" size={16} color={WHITE} />
-                  <Text style={styles.desktopAsideActionPrimaryText}>Crear publicación</Text>
-                </Pressable>
               </View>
             </View>
           </View>
-        </>
+        </View>
       ) : (
-        <>
-
-      {/* ── Nav ── */}
-      <View style={styles.navBar}>
-        <View>
-          <Text style={styles.navEye}>CASOS PARA TI</Text>
-          <Text style={styles.navTitle}>Mi Feed</Text>
-        </View>
-        <View style={styles.navRight}>
-          {totalCases > 0 && (
-            <View style={styles.totalBadge}>
-              <Text style={styles.totalBadgeText}>{totalCases} casos</Text>
-            </View>
-          )}
-          <Pressable
-            style={({ pressed }) => [styles.navBtn, pressed && { opacity: 0.7 }]}
-            onPress={() => router.push("/community" as any)}
-          >
-            <Ionicons name="globe-outline" size={19} color="rgba(255,255,255,0.85)" />
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.navCreateBtn, pressed && { opacity: 0.85 }]}
-            onPress={() => router.push("/community/new" as any)}
-          >
-            <Ionicons name="add" size={22} color={WHITE} />
-          </Pressable>
-        </View>
-      </View>
-
-      {/* ── Body ── */}
+        <View style={styles.branch}>
       <View style={styles.body}>
+        <View style={styles.mobileBodyShell}>
+        <View style={styles.resultsSurface}>
         {loading ? (
-          <ScrollView contentContainerStyle={styles.skeletonList} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={[styles.skeletonList, styles.mobileList]}
+            showsVerticalScrollIndicator={false}
+            onScroll={(event) => setShowFloatingAdd(event.nativeEvent.contentOffset.y > 220)}
+            scrollEventThrottle={16}
+          >
+            {renderWorkspaceHeader()}
             {[0, 1, 2, 3].map(i => <MatchCardSkeleton key={i} />)}
           </ScrollView>
         ) : totalCases === 0 ? (
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, styles.mobileList]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
+            }
+            onScroll={(event) => setShowFloatingAdd(event.nativeEvent.contentOffset.y > 220)}
+            scrollEventThrottle={16}
+          >
+          {renderWorkspaceHeader()}
           <View style={styles.empty}>
             <View style={styles.emptyIcon}>
               <Ionicons name="shield-checkmark-outline" size={34} color={TEXT3} />
@@ -442,14 +434,18 @@ export default function LawyerMatchFeed() {
               <Text style={styles.emptyBtnText}>Ver foro general</Text>
             </Pressable>
           </View>
+          </ScrollView>
         ) : (
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, styles.mobileList]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
             }
+            onScroll={(event) => setShowFloatingAdd(event.nativeEvent.contentOffset.y > 220)}
+            scrollEventThrottle={16}
           >
+            {renderWorkspaceHeader()}
             {/* 🔥 Urgentes */}
             {feed.urgent.length > 0 && (
               <>
@@ -477,8 +473,18 @@ export default function LawyerMatchFeed() {
             <View style={{ height: 100 }} />
           </ScrollView>
         )}
+        </View>
+        </View>
       </View>
-        </>
+      {showFloatingAdd && (
+        <Pressable
+          style={({ pressed }) => [styles.floatingAddButton, pressed && styles.floatingAddButtonPressed]}
+          onPress={() => router.push("/community/new" as any)}
+        >
+          <Ionicons name="add" size={22} color={WHITE} />
+        </Pressable>
+      )}
+        </View>
       )}
     </View>
   );
@@ -487,192 +493,197 @@ export default function LawyerMatchFeed() {
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.BG },
-  desktopHeader: {
-    backgroundColor: C.NAVY,
-    gap: 18,
+  branch: { flex: 1 },
+  header: {
+    backgroundColor: C.BG,
+    paddingBottom: 12,
   },
-  desktopHeaderMain: {
+  workspaceHeaderBlock: {
+    width: "100%",
+  },
+  workspaceHeaderMain: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 20,
   },
-  desktopTitleBlock: {
-    gap: 6,
+  workspaceTitleBlock: {
+    flex: 1,
   },
-  desktopEyebrow: {
-    fontSize: 11,
-    letterSpacing: 1.8,
-    color: "rgba(255,255,255,0.42)",
-    fontFamily: "Inter_500Medium",
-    textTransform: "uppercase",
-  },
-  desktopTitle: {
-    fontSize: 38,
-    lineHeight: 42,
-    color: C.WHITE,
+  workspaceTitle: {
+    fontSize: 32,
+    lineHeight: 36,
+    color: C.TEXT,
     fontFamily: "Inter_700Bold",
-    letterSpacing: -0.8,
   },
-  desktopHeaderActions: {
+  workspaceBar: {
+    marginTop: 8,
+    backgroundColor: C.WHITE,
+    borderRadius: 24,
+    padding: 16,
+    gap: 16,
+    borderWidth: 1,
+    borderColor: "#E2EAF1",
+    ...shadow.card,
+  },
+  workspaceTopRow: {
+    gap: 12,
+  },
+  desktopWorkspaceTopRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 14,
+  },
+  primaryActionBtn: {
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: C.NAVY,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 10,
   },
-  desktopActionBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  desktopActionBtnText: {
-    fontSize: 13,
+  primaryActionText: {
+    fontSize: 15,
     color: C.WHITE,
     fontFamily: "Inter_600SemiBold",
   },
-  desktopActionBtnPrimary: {
-    backgroundColor: C.TEAL,
-  },
-  desktopActionBtnPrimaryText: {
-    fontSize: 13,
-    color: C.WHITE,
-    fontFamily: "Inter_700Bold",
-  },
-  desktopStatRow: {
+  ghostActionBtn: {
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E0E7EF",
+    backgroundColor: C.WHITE,
+    paddingHorizontal: 14,
     flexDirection: "row",
-    gap: 12,
     alignItems: "center",
+    gap: 8,
   },
-  desktopStatCard: {
+  ghostActionText: {
+    fontSize: 13,
+    color: C.TEXT2,
+    fontFamily: "Inter_600SemiBold",
+  },
+  summaryStatsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  mobileSummaryStatsRow: {
+    gap: 8,
+  },
+  summaryStatCard: {
     minWidth: 96,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    backgroundColor: "#F8FAFD",
+    borderWidth: 1,
+    borderColor: "#E4EBF2",
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    gap: 3,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: "center",
   },
-  desktopStatNumber: {
+  mobileSummaryStatCard: {
+    minWidth: 70,
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  summaryStatHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  summaryStatDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  summaryStatValue: {
     fontSize: 18,
-    color: C.WHITE,
+    color: C.TEXT,
     fontFamily: "Inter_700Bold",
   },
-  desktopStatText: {
-    fontSize: 11,
-    color: "rgba(255,255,255,0.62)",
-    fontFamily: "Inter_500Medium",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
+  mobileSummaryStatValue: {
+    fontSize: 15,
   },
+  summaryStatLabel: {
+    fontSize: 12,
+    color: C.TEXT3,
+    fontFamily: "Inter_500Medium",
+    marginTop: 4,
+  },
+  mobileSummaryStatLabel: {
+    fontSize: 11,
+    marginTop: 3,
+  },
+  desktopHeader: {
+    paddingBottom: 10,
+  },
+  desktopShell: { width: "100%", alignSelf: "center" },
   desktopBody: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "stretch",
     minHeight: 0,
+  },
+  desktopBodyShell: {
+    flex: 1,
+    minHeight: 0,
+    width: "100%",
+    alignSelf: "center",
   },
   desktopMainColumn: {
     flex: 1,
     minWidth: 0,
   },
   desktopScrollContent: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 24,
     gap: S.cardGap,
   },
   desktopLoadingList: {
+    paddingTop: 16,
+    paddingHorizontal: 16,
     paddingBottom: 24,
     gap: 12,
   },
-  desktopAside: {
-    gap: 16,
-  },
-  desktopAsideCard: {
-    backgroundColor: C.WHITE,
-    borderRadius: 20,
-    padding: 18,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: "#E4EAF0",
-    ...shadow.card,
-  },
-  desktopAsideLabel: {
-    fontSize: 11,
-    color: C.TEXT3,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.7,
-  },
-  desktopAsideMetricRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  desktopAsideMetricName: {
-    fontSize: 13,
-    color: C.TEXT2,
-    fontFamily: "Inter_500Medium",
-  },
-  desktopAsideMetricValue: {
-    fontSize: 15,
-    color: C.TEXT,
-    fontFamily: "Inter_700Bold",
-  },
-  desktopAsideAction: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    backgroundColor: "#F5F7FA",
-  },
-  desktopAsideActionText: {
-    fontSize: 13,
-    color: C.TEXT2,
-    fontFamily: "Inter_600SemiBold",
-  },
-  desktopAsideActionPrimary: {
-    backgroundColor: C.TEAL,
-  },
-  desktopAsideActionPrimaryText: {
-    fontSize: 13,
-    color: C.WHITE,
-    fontFamily: "Inter_700Bold",
-  },
-
-  // ── Nav ──
-  navBar: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end",
-    paddingHorizontal: 20, paddingTop: 10, paddingBottom: 14,
-    backgroundColor: C.NAVY,
-  },
-  navEye: {
-    fontSize: 10, letterSpacing: 2,
-    color: "rgba(255,255,255,0.4)", fontFamily: "Inter_500Medium", marginBottom: 2,
-  },
-  navTitle: { fontSize: 26, fontFamily: "Inter_700Bold", color: C.WHITE, letterSpacing: -0.4 },
-  navRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  navBtn: {
-    width: 38, height: 38, borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center",
-  },
-  navCreateBtn: {
-    width: 42, height: 42, borderRadius: 14,
-    backgroundColor: C.TEAL, alignItems: "center", justifyContent: "center",
-    shadowColor: C.TEAL, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.38, shadowRadius: 8, elevation: 5,
-  },
-  totalBadge: {
-    backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 10,
-    paddingVertical: 5, borderRadius: 20,
-  },
-  totalBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: C.WHITE },
 
   // ── Body ──
-  body: { flex: 1, backgroundColor: C.BG, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  body: { flex: 1, backgroundColor: C.BG, paddingTop: 4 },
+  mobileBodyShell: { flex: 1, minHeight: 0 },
   scrollContent:  { paddingHorizontal: S.cardPad, paddingTop: 18, gap: S.cardGap },
+  mobileList: { paddingTop: 0, paddingBottom: 100 },
   skeletonList:   { paddingHorizontal: S.cardPad, paddingTop: 18, gap: 12 },
+  resultsSurface: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: C.WHITE,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2EAF1",
+    overflow: "hidden",
+    ...shadow.card,
+  },
+  floatingAddButton: {
+    position: "absolute",
+    right: 18,
+    top: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: C.NAVY,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  floatingAddButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
+  },
 
   // ── Card ──
   card: {

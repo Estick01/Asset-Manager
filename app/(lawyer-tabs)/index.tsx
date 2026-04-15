@@ -439,7 +439,7 @@ export default function DashboardScreen() {
           <View style={[styles.mobileSection, styles.mobileStatsSection]}>
             <View style={[styles.mobileStatGrid, compactMobile && styles.mobileStatGridCompact]}>
               {statCards.slice(0, 6).map((card) => (
-                <View key={card.label} style={compactMobile ? styles.mobileSingleColumnItem : styles.mobileHalfColumnItem}>
+                <View key={card.label} style={compactMobile ? styles.mobileThirdColumnItem : styles.mobileHalfColumnItem}>
                   <StatTile {...card} />
                 </View>
               ))}
@@ -879,8 +879,14 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
   },
   mobileHalfColumnItem: {
-    flexBasis: "48%",
+    flexBasis: "31%",
     flexGrow: 1,
+    minWidth: 0,
+  },
+  mobileThirdColumnItem: {
+    flexBasis: "31%",
+    flexGrow: 1,
+    minWidth: 0,
   },
   mobileSingleColumnItem: {
     width: "100%",

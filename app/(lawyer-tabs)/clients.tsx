@@ -24,6 +24,7 @@ const TEXT3 = "#9AAABB";
 const TEAL = "#2196A6";
 const GREEN = "#27AE7A";
 const AMBER = "#F5A623";
+const LIMIT = 10;
 
 const AVATAR_COLORS = [
   { bg: "#E8F4FD", text: TEAL },
@@ -124,6 +125,7 @@ function ClientCard({ item, index }: { item: Cliente; index: number }) {
     <Animated.View style={{
       opacity: anim,
       transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+      zIndex: index === 0 ? -1 : 0,
     }}>
       <Pressable
         style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -262,40 +264,79 @@ export default function FirmClientsScreen() {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const mobile = !desktop;
   const metrics = getDesktopMetrics(width);
-  const shellWidth = Math.min(1520, Math.max(1160, width - metrics.gutter * 2));
+  const shellWidth = Math.max(1160, width - metrics.gutter * 2);
   const [allClientes, setAllClientes] = useState<Cliente[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState("");
   const [filterTab, setFilterTab] = useState<FilterTab>("todos");
+  const [filterSelectOpen, setFilterSelectOpen] = useState(false);
+  const [showFloatingAdd, setShowFloatingAdd] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const offsetRef = useRef(0);
+  const isLoadingRef = useRef(false);
+  const hasUserScrolledRef = useRef(false);
 
-  const fetchClientes = useCallback(async (searchTerm?: string) => {
+  const fetchClientes = useCallback(async (searchTerm?: string, reset = false, isMore = false) => {
+    if (isLoadingRef.current) return;
+    if (!reset && !isMore && !hasMore) return;
+
+    isLoadingRef.current = true;
+    if (isMore) setLoadingMore(true);
+    else setLoading(true);
+
     try {
-      const result = await getClientes(50, 0, searchTerm || undefined);
-      setAllClientes(result);
+      const offset = reset ? 0 : offsetRef.current;
+      const result = await getClientes(LIMIT, offset, searchTerm || undefined);
+
+      if (reset) {
+        setAllClientes(result);
+        offsetRef.current = result.length;
+      } else {
+        setAllClientes(prev => [...prev, ...result]);
+        offsetRef.current += result.length;
+      }
+
+      setHasMore(result.length === LIMIT);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      isLoadingRef.current = false;
     }
-  }, []);
+  }, [hasMore]);
 
   useEffect(() => { fetchClientes(); }, [fetchClientes]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchClientes(search);
+    offsetRef.current = 0;
+    setHasMore(true);
+    hasUserScrolledRef.current = false;
+    await fetchClientes(search, true);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = ({ distanceFromEnd }: { distanceFromEnd: number }) => {
+    if (!hasUserScrolledRef.current) return;
+    if (distanceFromEnd > 48) return;
+    if (loadingMore || !hasMore) return;
+    fetchClientes(search, false, true);
   };
 
   const handleSearch = (text: string) => {
     setSearch(text);
+    offsetRef.current = 0;
+    setHasMore(true);
+    hasUserScrolledRef.current = false;
     if (searchTimer.current) clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      setLoading(true);
-      fetchClientes(text);
+      fetchClientes(text, true);
     }, 400);
   };
 
@@ -308,14 +349,19 @@ export default function FirmClientsScreen() {
     if (filterTab === "inactivos") return allClientes.filter(c => !c.activo);
     return allClientes;
   }, [allClientes, filterTab]);
-
   const TABS: { key: FilterTab; label: string; count: number }[] = [
     { key: "todos", label: "Todos", count: allClientes.length },
     { key: "activos", label: "Activos", count: activeCount },
     { key: "inactivos", label: "Inactivos", count: inactiveCount },
   ];
+  const filterLabel =
+    filterTab === "todos"
+      ? "Estado: Todos"
+      : filterTab === "activos"
+        ? "Estado: Activos"
+        : "Estado: Inactivos";
 
-  if (loading) {
+  if (loading && allClientes.length === 0) {
     return (
       <View style={[styles.screen, { paddingTop: insets.top }, styles.centered]}>
         <ActivityIndicator size="large" color={TEAL} />
@@ -323,303 +369,470 @@ export default function FirmClientsScreen() {
     );
   }
 
-  return (
-    <View style={[styles.screen, { paddingTop: insets.top }]}>
+  const renderWorkspaceHeader = () => (
+    <View style={styles.mobileHeaderBlock}>
+      <View style={styles.headerMain}>
+        <View style={styles.headerTitleBlock}>
+          <Text style={styles.headerTitle}>Clientes</Text>
+        </View>
+      </View>
 
-      <View style={[styles.header, desktop && styles.desktopHeader, desktop && { paddingHorizontal: metrics.gutter }]}>
-        <View style={[styles.shell, desktop && { maxWidth: shellWidth }]}>
-          <View style={styles.headerRow}>
-            <View style={styles.headerCopy}>
-              <Text style={styles.headerTitle}>Clientes</Text>
-              {!loading && (
-                <Text style={styles.headerSub}>
-                  {activeCount} activos · {inactiveCount} inactivos
-                </Text>
-              )}
-              {desktop && (
-                <Text style={styles.desktopHeaderLead}>
-                  Consulta clientes naturales y empresas, filtra por estado y entra rápido al detalle de cada relación.
-                </Text>
-              )}
-            </View>
+      <View style={[styles.workspaceBar, desktop && styles.desktopWorkspaceBar]}>
+        <View style={[styles.workspaceTopRow, desktop && styles.desktopWorkspaceTopRow]}>
+          {!mobile && (
             <Pressable
-              style={({ pressed }) => [styles.addBtn, desktop && styles.desktopAddBtn, pressed && { opacity: 0.8 }]}
+              style={({ pressed }) => [styles.primaryActionBtn, pressed && { opacity: 0.9 }]}
               onPress={() => router.push("/client/new")}
             >
-              <Ionicons name="person-add-outline" size={20} color={WHITE} />
-            </Pressable>
-          </View>
-
-          <View style={[styles.statsBar, desktop && styles.desktopStatsBar]}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{allClientes.length}</Text>
-              <Text style={styles.statLbl}>Total</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{activeCount}</Text>
-              <Text style={styles.statLbl}>Activos</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{allClientes.length - empresaCount}</Text>
-              <Text style={styles.statLbl}>Naturales</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{empresaCount}</Text>
-              <Text style={styles.statLbl}>Empresas</Text>
-            </View>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.body}>
-        <View style={[styles.shell, desktop && styles.desktopBodyShell, desktop && { maxWidth: shellWidth, paddingHorizontal: metrics.gutter }]}>
-        <View style={[styles.desktopLayout, desktop && styles.desktopLayoutActive]}>
-        <View style={styles.mainColumn}>
-
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={17} color={TEXT3} />
-          <TextInput
-            style={styles.searchInput}
-            value={search}
-            onChangeText={handleSearch}
-            placeholder="Buscar por nombre o documento..."
-            placeholderTextColor={TEXT3}
-            returnKeyType="search"
-          />
-          {search.length > 0 && (
-            <Pressable onPress={() => handleSearch("")} hitSlop={8}>
-              <Ionicons name="close-circle" size={17} color={TEXT3} />
+              <Ionicons name="person-add-outline" size={18} color={WHITE} />
+              <Text style={styles.primaryActionText}>Nuevo cliente</Text>
             </Pressable>
           )}
-        </View>
 
-        {/* Filter tabs */}
-        {allClientes.length > 0 && (
-          <View style={styles.tabsWrap}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
-              {TABS.map(tab => (
-                <Pressable
-                  key={tab.key}
-                  style={[styles.tab, filterTab === tab.key && styles.tabActive]}
-                  onPress={() => setFilterTab(tab.key)}
-                >
-                  <Text style={[styles.tabText, filterTab === tab.key && styles.tabTextActive]}>
-                    {tab.label}
-                  </Text>
-                  <View style={[styles.tabBadge, filterTab === tab.key && styles.tabBadgeActive]}>
-                    <Text style={[styles.tabBadgeText, filterTab === tab.key && styles.tabBadgeTextActive]}>
-                      {tab.count}
-                    </Text>
-                  </View>
-                </Pressable>
-              ))}
-            </ScrollView>
+          <View style={styles.searchBar}>
+            <Ionicons name="search-outline" size={17} color={TEXT3} />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={handleSearch}
+              placeholder="Buscar por nombre, documento o correo..."
+              placeholderTextColor={TEXT3}
+              returnKeyType="search"
+            />
+            {search.length > 0 && (
+              <Pressable onPress={() => handleSearch("")} hitSlop={8}>
+                <Ionicons name="close-circle" size={17} color={TEXT3} />
+              </Pressable>
+            )}
           </View>
-        )}
 
-        {/* Section label */}
-        {clientes.length > 0 && (
-          <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>
-              {filterTab === "todos"
-                ? "Todos los Clientes"
-                : filterTab === "activos"
-                  ? "Clientes Activos"
-                  : "Clientes Inactivos"}
-            </Text>
-            <View style={styles.sectionLine} />
-          </View>
-        )}
-
-        <FlatList
-          data={clientes}
-          keyExtractor={item => item.id}
-          renderItem={({ item, index }) => <ClientCard item={item} index={index} />}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
-          }
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <View style={styles.emptyIcon}>
-                <Ionicons name="people-outline" size={36} color={TEXT3} />
+          <View style={styles.summaryStatsRow}>
+            <View style={styles.summaryStatCard}>
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: NAVY }]} />
+                <Text style={styles.summaryStatValue}>{allClientes.length}</Text>
               </View>
-              <Text style={styles.emptyTitle}>
-                {search ? "Sin resultados" : filterTab !== "todos" ? `Sin clientes ${filterTab}` : "Sin clientes"}
-              </Text>
-              <Text style={styles.emptySub}>
-                {search
-                  ? `No se encontraron clientes para "${search}"`
-                  : filterTab !== "todos"
-                    ? `No hay clientes ${filterTab} aún`
-                    : "Agrega tu primer cliente para comenzar"}
-              </Text>
-              {!search && filterTab === "todos" && (
-                <Pressable style={styles.emptyBtn} onPress={() => router.push("/client/new")}>
-                  <Text style={styles.emptyBtnText}>Agregar Cliente</Text>
-                </Pressable>
-              )}
+              <Text style={styles.summaryStatLabel}>Total</Text>
             </View>
-          }
-        />
-        </View>
-
-        {desktop && (
-          <View style={styles.desktopAside}>
-            <View style={styles.desktopAsideCard}>
-              <Text style={styles.desktopAsideLabel}>Vista actual</Text>
-              <Text style={styles.desktopAsideTitle}>
-                {filterTab === "todos" ? "Todos los clientes" : filterTab === "activos" ? "Clientes activos" : "Clientes inactivos"}
-              </Text>
-              <Text style={styles.desktopAsideText}>
-                {search ? `Búsqueda activa: "${search}".` : "Usa filtros y búsqueda para segmentar la cartera."}
-              </Text>
-            </View>
-
-            <View style={styles.desktopAsideCard}>
-              <Text style={styles.desktopAsideLabel}>Accesos</Text>
-              <Pressable style={styles.desktopAsideAction} onPress={() => router.push("/client/new")}>
-                <Ionicons name="person-add-outline" size={17} color={TEAL} />
-                <Text style={styles.desktopAsideActionText}>Agregar cliente</Text>
-              </Pressable>
-              <Pressable style={styles.desktopAsideAction} onPress={() => setFilterTab("activos")}>
-                <Ionicons name="checkmark-circle-outline" size={17} color={GREEN} />
-                <Text style={styles.desktopAsideActionText}>Ver activos</Text>
-              </Pressable>
-              <Pressable style={styles.desktopAsideAction} onPress={() => setFilterTab("inactivos")}>
-                <Ionicons name="pause-circle-outline" size={17} color={AMBER} />
-                <Text style={styles.desktopAsideActionText}>Ver inactivos</Text>
-              </Pressable>
+            <Pressable
+              style={[styles.summaryStatCard, filterTab === "activos" && styles.summaryStatCardActive]}
+              onPress={() => setFilterTab("activos")}
+            >
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: GREEN }]} />
+                <Text style={[styles.summaryStatValue, { color: GREEN }]}>{activeCount}</Text>
+              </View>
+              <Text style={styles.summaryStatLabel}>Activos</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.summaryStatCard, filterTab === "inactivos" && styles.summaryStatCardActive]}
+              onPress={() => setFilterTab("inactivos")}
+            >
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: TEXT3 }]} />
+                <Text style={styles.summaryStatValue}>{inactiveCount}</Text>
+              </View>
+              <Text style={styles.summaryStatLabel}>Inactivos</Text>
+            </Pressable>
+            <View style={styles.summaryStatCard}>
+              <View style={styles.summaryStatHead}>
+                <View style={[styles.summaryStatDot, { backgroundColor: AMBER }]} />
+                <Text style={[styles.summaryStatValue, { color: AMBER }]}>{empresaCount}</Text>
+              </View>
+              <Text style={styles.summaryStatLabel}>Empresas</Text>
             </View>
           </View>
-        )}
         </View>
+
+        <View style={styles.filtersToolbar}>
+          <View style={styles.filtersLeftGroup}>
+            {mobile ? (
+              <View style={styles.selectWrap}>
+                <Pressable
+                  style={[styles.selectChip, filterTab !== "todos" && styles.selectChipActive]}
+                  onPress={() => setFilterSelectOpen((prev) => !prev)}
+                >
+                  <Ionicons name="filter-outline" size={14} color={filterTab !== "todos" ? TEAL : TEXT2} />
+                  <Text style={[styles.selectChipText, filterTab !== "todos" && styles.selectChipTextActive]}>
+                    {filterLabel}
+                  </Text>
+                  <Ionicons name={filterSelectOpen ? "chevron-up" : "chevron-down"} size={14} color={TEXT3} />
+                </Pressable>
+
+                {filterSelectOpen && (
+                  <View style={styles.selectMenu}>
+                    {TABS.map((tab, index, arr) => {
+                      const active = filterTab === tab.key;
+                      return (
+                        <Pressable
+                          key={tab.key}
+                          style={[
+                            styles.selectOption,
+                            active && styles.selectOptionActive,
+                            index === arr.length - 1 && styles.selectOptionLast,
+                          ]}
+                          onPress={() => {
+                            setFilterSelectOpen(false);
+                            setFilterTab(tab.key);
+                          }}
+                        >
+                          <View style={styles.selectOptionRow}>
+                            <Text style={[styles.selectOptionText, active && styles.selectOptionTextActive]}>
+                              {tab.label}
+                            </Text>
+                          </View>
+                          <View style={styles.selectOptionMeta}>
+                            <Text style={[styles.selectOptionCount, active && styles.selectOptionCountActive]}>
+                              {tab.count}
+                            </Text>
+                            {active && <Ionicons name="checkmark" size={16} color={TEAL} />}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+              </View>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
+                {TABS.map(tab => (
+                  <Pressable
+                    key={tab.key}
+                    style={[styles.tab, filterTab === tab.key && styles.tabActive]}
+                    onPress={() => setFilterTab(tab.key)}
+                  >
+                    <Text style={[styles.tabText, filterTab === tab.key && styles.tabTextActive]}>
+                      {tab.label}
+                    </Text>
+                    <View style={[styles.tabBadge, filterTab === tab.key && styles.tabBadgeActive]}>
+                      <Text style={[styles.tabBadgeText, filterTab === tab.key && styles.tabBadgeTextActive]}>
+                        {tab.count}
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+
+          {(search.length > 0 || filterTab !== "todos") && (
+            <View style={styles.filtersActions}>
+              <Pressable
+                style={styles.secondaryFilterBtn}
+                onPress={() => {
+                  setFilterTab("todos");
+                  handleSearch("");
+                }}
+              >
+                <Ionicons name="refresh-outline" size={16} color={TEXT2} />
+                <Text style={styles.secondaryFilterText}>Limpiar</Text>
+              </Pressable>
+            </View>
+          )}
         </View>
       </View>
+    </View>
+  );
+
+  return (
+    <View style={[styles.screen, { paddingTop: insets.top }]}>
+      {desktop && (
+        <View style={[styles.header, styles.desktopHeader, { paddingHorizontal: metrics.gutter }]}>
+          <View style={[styles.shell, { maxWidth: shellWidth }]}>
+            {renderWorkspaceHeader()}
+          </View>
+        </View>
+      )}
+
+      <View style={styles.body}>
+        <View style={[styles.shell, styles.bodyShell, desktop && styles.desktopBodyShell, desktop && { maxWidth: shellWidth, paddingHorizontal: metrics.gutter }]}>
+          <View style={styles.mainColumn}>
+            <View style={styles.resultsSurface}>
+              <FlatList
+                data={clientes}
+                style={styles.listView}
+                keyExtractor={item => item.id}
+                renderItem={({ item, index }) => <ClientCard item={item} index={index} />}
+                contentContainerStyle={[styles.list, mobile && styles.mobileList]}
+                showsVerticalScrollIndicator={false}
+                ListHeaderComponent={!desktop ? renderWorkspaceHeader : undefined}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />
+                }
+                onScroll={(event) => {
+                  const y = event.nativeEvent.contentOffset.y;
+                  if (y > 24) {
+                    hasUserScrolledRef.current = true;
+                  }
+                  if (mobile) {
+                    setShowFloatingAdd(y > 220);
+                    if (filterSelectOpen && y > 8) {
+                      setFilterSelectOpen(false);
+                    }
+                  }
+                }}
+                scrollEventThrottle={16}
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.02}
+                ListFooterComponent={
+                  loadingMore ? (
+                    <View style={styles.loadingMoreBar}>
+                      <ActivityIndicator size="small" color={TEAL} />
+                      <Text style={styles.loadingMoreText}>Cargando más clientes...</Text>
+                    </View>
+                  ) : (
+                    <View style={{ height: 32 }} />
+                  )
+                }
+                ListEmptyComponent={
+                  <View style={styles.empty}>
+                    <View style={styles.emptyIllustration}>
+                      <View style={styles.emptyIconHalo} />
+                      <View style={styles.emptyIcon}>
+                        <Ionicons name="people-outline" size={36} color="#7B9FF3" />
+                      </View>
+                    </View>
+                    <Text style={styles.emptyTitle}>
+                      {search ? "Sin resultados" : filterTab !== "todos" ? `Sin clientes ${filterTab}` : "Sin clientes"}
+                    </Text>
+                    <Text style={styles.emptySub}>
+                      {search
+                        ? `No se encontraron clientes para "${search}"`
+                        : filterTab !== "todos"
+                          ? `No hay clientes ${filterTab} aún`
+                          : "Agrega tu primer cliente para comenzar"}
+                    </Text>
+                    {!search && filterTab === "todos" && (
+                      <Pressable style={styles.emptyBtn} onPress={() => router.push("/client/new")}>
+                        <Text style={styles.emptyBtnText}>Agregar cliente</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                }
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+      {mobile && showFloatingAdd && (
+        <Pressable
+          style={({ pressed }) => [styles.floatingAddButton, pressed && styles.floatingAddButtonPressed]}
+          onPress={() => router.push("/client/new")}
+        >
+          <Ionicons name="person-add-outline" size={22} color={WHITE} />
+        </Pressable>
+      )}
     </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: NAVY },
-  centered: { justifyContent: "center", alignItems: "center" },
+  screen: { flex: 1, backgroundColor: BG },
+  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   shell: { width: "100%", alignSelf: "center" },
 
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 32,
-    paddingBottom: 32,
-  },
-  desktopHeader: { paddingTop: 28, paddingBottom: 24 },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 20 },
-  headerCopy: { flex: 1, maxWidth: 760 },
-  headerTitle: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE, marginTop: 2 },
-  headerSub: { fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "Inter_400Regular", marginTop: 4 },
-  desktopHeaderLead: { marginTop: 10, fontSize: 14, lineHeight: 22, color: "rgba(255,255,255,0.78)", fontFamily: "Inter_400Regular" },
-  addBtn: {
-    width: 42, height: 42, borderRadius: 21,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    alignItems: "center", justifyContent: "center",
-  },
-  desktopAddBtn: { width: 48, height: 48, borderRadius: 16 },
-
-  // Stats
-  statsBar: {
     flexDirection: "row",
-    backgroundColor: NAVY_MID,
-    marginHorizontal: 16,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 8,
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 8,
+    backgroundColor: BG,
+    zIndex: 20,
+    overflow: "visible",
   },
-  desktopStatsBar: { marginHorizontal: 0, marginTop: 18, borderRadius: 20, paddingHorizontal: 14 },
-  statItem: { flex: 1, alignItems: "center" },
-  statNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: WHITE },
-  statLbl: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 2 },
-  statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.1)", marginVertical: 4 },
+  desktopHeader: { paddingTop: 18, paddingBottom: 10 },
+  headerMain: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 20 },
+  headerTitleBlock: { flex: 1, maxWidth: 760 },
+  headerTitle: { fontSize: 28, fontFamily: "Inter_700Bold", color: TEXT, marginTop: 2 },
+  workspaceBar: {
+    marginTop: 6,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    padding: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#E2EAF1",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 3,
+    overflow: "visible",
+  },
+  desktopWorkspaceBar: { padding: 16 },
+  workspaceTopRow: { gap: 10 },
+  desktopWorkspaceTopRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  primaryActionBtn: {
+    height: 48,
+    borderRadius: 16,
+    backgroundColor: NAVY,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  primaryActionText: { fontSize: 14, color: WHITE, fontFamily: "Inter_600SemiBold" },
+  summaryStatsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  summaryStatCard: {
+    minWidth: 70,
+    backgroundColor: "#F8FAFD",
+    borderWidth: 1,
+    borderColor: "#E4EBF2",
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    justifyContent: "center",
+  },
+  summaryStatCardActive: { backgroundColor: "#EEF6FF", borderColor: "#CFE0FF" },
+  summaryStatHead: { flexDirection: "row", alignItems: "center", gap: 8 },
+  summaryStatDot: { width: 8, height: 8, borderRadius: 4 },
+  summaryStatValue: { fontSize: 15, color: TEXT, fontFamily: "Inter_700Bold" },
+  summaryStatLabel: { fontSize: 11, color: TEXT3, fontFamily: "Inter_500Medium", marginTop: 3 },
+  filtersToolbar: { flexDirection: "row", alignItems: "stretch", gap: 12 },
+  filtersLeftGroup: { flex: 1, minWidth: 0 },
+  filtersActions: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  secondaryFilterBtn: {
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E0E7EF",
+    backgroundColor: WHITE,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  secondaryFilterText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_600SemiBold" },
+  selectWrap: {
+    position: "relative",
+    zIndex: 20,
+    flexShrink: 0,
+    overflow: "visible",
+  },
+  selectChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: "#E0E5EA",
+  },
+  selectChipActive: {
+    backgroundColor: TEAL + "12",
+    borderColor: TEAL,
+  },
+  selectChipText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: TEXT2,
+  },
+  selectChipTextActive: {
+    color: TEAL,
+    fontFamily: "Inter_600SemiBold",
+  },
+  selectMenu: {
+    position: "absolute",
+    top: 46,
+    left: 0,
+    minWidth: 220,
+    backgroundColor: WHITE,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#E2EAF1",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 6,
+    zIndex: 999,
+  },
+  selectOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F6",
+  },
+  selectOptionActive: {
+    backgroundColor: "#F5FAFB",
+  },
+  selectOptionLast: {
+    borderBottomWidth: 0,
+  },
+  selectOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  selectOptionMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  selectOptionText: {
+    fontSize: 14,
+    fontFamily: "Inter_500Medium",
+    color: TEXT,
+  },
+  selectOptionTextActive: {
+    color: TEAL,
+    fontFamily: "Inter_600SemiBold",
+  },
+  selectOptionCount: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: TEXT3,
+  },
+  selectOptionCountActive: {
+    color: TEAL,
+  },
 
   // Body
   body: {
     flex: 1,
     backgroundColor: BG,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    marginTop: 14,
-    paddingTop: 16,
+    paddingTop: 4,
   },
-  desktopBodyShell: { flex: 1, paddingTop: 8, paddingBottom: 24 },
-  desktopLayout: { width: "100%" },
-  desktopLayoutActive: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
-  mainColumn: { flex: 1, minWidth: 0, maxWidth: 980 },
-  desktopAside: { width: 320, gap: 16 },
-  desktopAsideCard: {
-    backgroundColor: WHITE, borderRadius: 20, padding: 18, gap: 12,
-    borderWidth: 1, borderColor: "#E4EAF0",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  bodyShell: {
+    flex: 1,
+    minHeight: 0,
   },
-  desktopAsideLabel: { fontSize: 11, color: TEXT3, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.7 },
-  desktopAsideTitle: { fontSize: 18, lineHeight: 24, color: TEXT, fontFamily: "Inter_700Bold" },
-  desktopAsideText: { fontSize: 13, lineHeight: 20, color: TEXT2, fontFamily: "Inter_400Regular" },
-  desktopAsideAction: {
-    flexDirection: "row", alignItems: "center", gap: 10,
-    borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#F5F7FA",
-  },
-  desktopAsideActionText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_600SemiBold" },
+  desktopBodyShell: { flex: 1, paddingTop: 0, paddingBottom: 24 },
+  mainColumn: { flex: 1, minWidth: 0, minHeight: 0, maxWidth: 1280, alignSelf: "center", width: "100%" },
 
   // Search
   searchBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: WHITE,
-    borderRadius: 12,
-    marginHorizontal: 16,
+    flex: 1,
+    minHeight: 48,
+    backgroundColor: "#FAFBFD",
+    borderRadius: 14,
     paddingHorizontal: 14,
-    marginBottom: 12,
     gap: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#E1E8F0",
   },
   searchInput: {
     flex: 1, paddingVertical: 12,
     fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT,
   },
 
-  // Action card
-  actionCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: WHITE,
-    borderRadius: 14,
-    marginHorizontal: 16,
-    padding: 14,
-    gap: 12,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  actionIcon: {
-    width: 38, height: 38, borderRadius: 10,
-    alignItems: "center", justifyContent: "center",
-  },
-  actionText: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium", color: TEXT },
-
   // Tabs
-  tabsWrap: { borderBottomWidth: 1, borderBottomColor: "#E8ECF0", marginBottom: 4 },
-  tabs: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8 },
+  tabs: { flexDirection: "row", alignItems: "center", gap: 8, paddingRight: 4 },
   tab: {
     flexDirection: "row", alignItems: "center", gap: 6,
-    paddingHorizontal: 14, paddingVertical: 7,
+    paddingHorizontal: 14, paddingVertical: 8,
     borderRadius: 20, backgroundColor: WHITE,
     borderWidth: 1, borderColor: "#E0E5EA",
   },
@@ -631,32 +844,74 @@ const styles = StyleSheet.create({
   tabBadgeText: { fontSize: 11, fontFamily: "Inter_600SemiBold", color: TEXT2 },
   tabBadgeTextActive: { color: WHITE },
 
-  // Section
-  sectionRow: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 16, marginBottom: 10, marginTop: 6, gap: 10,
+  resultsSurface: {
+    flex: 1,
+    minHeight: 0,
+    backgroundColor: WHITE,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#E2EAF1",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.04,
+    shadowRadius: 16,
+    elevation: 2,
   },
-  sectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2 },
-  sectionLine: { height: 2, backgroundColor: TEAL, borderRadius: 2, width: 32 },
 
   // List
-  list: { paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
+  listView: {
+    flex: 1,
+    minHeight: 0,
+  },
+  list: { paddingTop: 16, paddingHorizontal: 16, paddingBottom: 32, gap: 10 },
+  mobileList: { paddingTop: 0, paddingBottom: 96 },
+  mobileHeaderBlock: {
+    paddingHorizontal: 0,
+    paddingTop: 10,
+    paddingBottom: 14,
+  },
+  loadingMoreBar: {
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  loadingMoreText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_400Regular" },
+  floatingAddButton: {
+    position: "absolute",
+    right: 18,
+    top: 18,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: NAVY,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  floatingAddButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.97 }],
+  },
 
   // Card
   card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: WHITE,
-    borderRadius: 14,
+    borderRadius: 18,
     overflow: "hidden",
     gap: 12,
     paddingVertical: 14,
     paddingRight: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: "#EBF0F5",
   },
   cardPressed: { opacity: 0.9, transform: [{ scale: 0.99 }] },
   avatar: {
@@ -701,18 +956,20 @@ const styles = StyleSheet.create({
 
   // Empty
   empty: { alignItems: "center", paddingTop: 60, gap: 8 },
+  emptyIllustration: { width: 180, height: 140, alignItems: "center", justifyContent: "center", marginBottom: 10 },
+  emptyIconHalo: { position: "absolute", width: 170, height: 170, borderRadius: 85, backgroundColor: "#F2F6FF" },
   emptyIcon: {
-    width: 72, height: 72, borderRadius: 20,
+    width: 84, height: 84, borderRadius: 28,
     backgroundColor: WHITE, alignItems: "center", justifyContent: "center",
     marginBottom: 8,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 6, elevation: 2,
+    borderWidth: 1,
+    borderColor: "#E5ECF5",
   },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", color: TEXT },
-  emptySub: { fontSize: 13, color: TEXT3, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptySub: { fontSize: 13, color: TEXT3, fontFamily: "Inter_400Regular", textAlign: "center", maxWidth: 360 },
   emptyBtn: {
     marginTop: 16, backgroundColor: NAVY,
-    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24,
+    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 16,
   },
   emptyBtnText: { color: WHITE, fontSize: 14, fontFamily: "Inter_600SemiBold" },
   procesosSection: {
