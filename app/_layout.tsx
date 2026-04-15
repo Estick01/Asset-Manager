@@ -148,7 +148,11 @@ function RouteScopedProviders() {
   const currentGroup = segments[0] ?? "";
 
   if (LIGHTWEIGHT_GROUPS.has(currentGroup)) {
-    return <AppNavigator />;
+    return (
+      <SubscriptionProvider>
+        <AppNavigator />
+      </SubscriptionProvider>
+    );
   }
 
   return (
