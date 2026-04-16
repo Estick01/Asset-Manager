@@ -5,6 +5,8 @@ import { API_URL } from "../config";
 import { STORAGE_KEYS } from "../keys";
 import type { ConversationDTO, ConversationType, MessageDTO } from "@/shared/schema";
 
+const WS_TOKEN_KEY = "procesoclaro_ws_token";
+
 // ----------------------------------------------------------------
 // Conversations
 // ----------------------------------------------------------------
@@ -105,6 +107,7 @@ export function uploadChatFile(
   return new Promise(async (resolve, reject) => {
     let token = await AsyncStorage.getItem(STORAGE_KEYS.AUTH_TOKEN);
     if (!token) token = await AsyncStorage.getItem(STORAGE_KEYS.CLIENT_AUTH_ID);
+    if (!token) token = await AsyncStorage.getItem(WS_TOKEN_KEY);
 
     const formData = new FormData();
 
@@ -153,6 +156,7 @@ export function uploadChatFile(
     xhr.addEventListener("abort", () => reject(new Error("Subida cancelada")));
 
     xhr.open("POST", url);
+    xhr.withCredentials = true;
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     xhr.send(formData);
   });
