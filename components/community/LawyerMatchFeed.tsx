@@ -1,7 +1,7 @@
 /**
  * LawyerMatchFeed
  * Personalised case feed for lawyers/firms.
- * Sections: 🔥 Urgentes | 🎯 Recomendados | 🆕 Recientes
+ * Sections: urgent, recommended, recent
  * Consumed by: app/(lawyer-tabs)/community.tsx, app/(firm-tabs)/community.tsx
  */
 import React, { useState, useCallback, useEffect, useRef } from "react";
@@ -206,7 +206,7 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
               onPress={handleOpen}
             >
               <Ionicons name="chatbubble-ellipses-outline" size={13} color={WHITE} />
-              <Text style={styles.respondBtnText}>Responder</Text>
+              <Text style={styles.respondBtnText}>Ver caso</Text>
             </Pressable>
           </View>
         </View>
@@ -216,13 +216,15 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
 }
 
 // ─── Section header ───────────────────────────────────────────────────────
-function SectionHeader({ emoji, title }: { emoji: string; title: string }) {
+function SectionHeader({ icon, title, count }: { icon: keyof typeof Ionicons.glyphMap; title: string; count: number }) {
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 20, paddingBottom: 8, gap: 8 }}>
-      <View style={{ width: 2, height: 16, backgroundColor: C.TEAL, borderRadius: 1 }} />
-      <Text style={{ fontSize: 13, fontWeight: "600", color: C.TEXT2, textTransform: "uppercase", letterSpacing: 0.5 }}>
-        {emoji} {title}
-      </Text>
+    <View style={styles.feedSectionHeader}>
+      <View style={styles.feedSectionIcon}>
+        <Ionicons name={icon} size={14} color={C.TEAL} />
+      </View>
+      <Text style={styles.feedSectionTitle}>{title}</Text>
+      <View style={styles.feedSectionLine} />
+      <Text style={styles.feedSectionCount}>{count}</Text>
     </View>
   );
 }
@@ -276,25 +278,16 @@ export default function LawyerMatchFeed() {
     <View style={styles.workspaceHeaderBlock}>
       <View style={styles.workspaceHeaderMain}>
         <View style={styles.workspaceTitleBlock}>
-          <Text style={styles.workspaceTitle}>Comunidad</Text>
+          <Text style={styles.workspaceEyebrow}>Comunidad profesional</Text>
+          <Text style={styles.workspaceTitle}>Casos compatibles</Text>
+          <Text style={styles.workspaceSubtitle}>
+            Prioriza oportunidades, revisa urgencias y entra al detalle antes de responder.
+          </Text>
         </View>
       </View>
 
       <View style={styles.workspaceBar}>
-        <View style={[styles.workspaceTopRow, desktopWeb && styles.desktopWorkspaceTopRow]}>
-          {!mobile && (
-            <>
-              <Pressable style={styles.primaryActionBtn} onPress={() => router.push("/community/new" as any)}>
-                <Ionicons name="add" size={18} color={WHITE} />
-                <Text style={styles.primaryActionText}>Publicar</Text>
-              </Pressable>
-              <Pressable style={styles.ghostActionBtn} onPress={() => router.push("/community" as any)}>
-                <Ionicons name="globe-outline" size={16} color={TEXT2} />
-                <Text style={styles.ghostActionText}>Foro general</Text>
-              </Pressable>
-            </>
-          )}
-
+        <View style={styles.workspaceTopRow}>
           <View style={[styles.summaryStatsRow, mobile && styles.mobileSummaryStatsRow]}>
             <View style={[styles.summaryStatCard, mobile && styles.mobileSummaryStatCard]}>
               <View style={styles.summaryStatHead}>
@@ -324,6 +317,27 @@ export default function LawyerMatchFeed() {
               </View>
               <Text style={[styles.summaryStatLabel, mobile && styles.mobileSummaryStatLabel]}>Recientes</Text>
             </View>
+          </View>
+
+          <View style={[styles.workspaceActionsRow, desktopWeb && styles.desktopWorkspaceActionsRow]}>
+            <Pressable
+              style={styles.primaryActionBtn}
+              onPress={() => router.push("/community" as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Ver foro general"
+            >
+              <Ionicons name="globe-outline" size={17} color={WHITE} />
+              <Text style={styles.primaryActionText}>Foro general</Text>
+            </Pressable>
+            <Pressable
+              style={styles.ghostActionBtn}
+              onPress={() => router.push("/community/new" as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Publicar en comunidad"
+            >
+              <Ionicons name="add" size={17} color={TEXT2} />
+              <Text style={styles.ghostActionText}>Publicar</Text>
+            </Pressable>
           </View>
         </View>
       </View>
@@ -368,19 +382,19 @@ export default function LawyerMatchFeed() {
                     >
                       {feed.urgent.length > 0 && (
                         <>
-                          <SectionHeader emoji="🔥" title="Urgentes" />
+                          <SectionHeader icon="flash-outline" title="Urgentes" count={feed.urgent.length} />
                           {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
                         </>
                       )}
                       {feed.recommended.length > 0 && (
                         <>
-                          <SectionHeader emoji="🎯" title="Para ti" />
+                          <SectionHeader icon="sparkles-outline" title="Para ti" count={feed.recommended.length} />
                           {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
                         </>
                       )}
                       {feed.recent.length > 0 && (
                         <>
-                          <SectionHeader emoji="🆕" title="Recientes" />
+                          <SectionHeader icon="time-outline" title="Recientes" count={feed.recent.length} />
                           {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
                         </>
                       )}
@@ -446,26 +460,23 @@ export default function LawyerMatchFeed() {
             scrollEventThrottle={16}
           >
             {renderWorkspaceHeader()}
-            {/* 🔥 Urgentes */}
             {feed.urgent.length > 0 && (
               <>
-                <SectionHeader emoji="🔥" title="Urgentes" />
+                <SectionHeader icon="flash-outline" title="Urgentes" count={feed.urgent.length} />
                 {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
               </>
             )}
 
-            {/* 🎯 Recomendados */}
             {feed.recommended.length > 0 && (
               <>
-                <SectionHeader emoji="🎯" title="Para ti" />
+                <SectionHeader icon="sparkles-outline" title="Para ti" count={feed.recommended.length} />
                 {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
               </>
             )}
 
-            {/* 🆕 Recientes */}
             {feed.recent.length > 0 && (
               <>
-                <SectionHeader emoji="🆕" title="Recientes" />
+                <SectionHeader icon="time-outline" title="Recientes" count={feed.recent.length} />
                 {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
               </>
             )}
@@ -509,17 +520,30 @@ const styles = StyleSheet.create({
   },
   workspaceTitleBlock: {
     flex: 1,
+    gap: 4,
+  },
+  workspaceEyebrow: {
+    fontSize: 12,
+    color: C.TEAL,
+    fontFamily: "Inter_600SemiBold",
   },
   workspaceTitle: {
-    fontSize: 32,
+    fontSize: 30,
     lineHeight: 36,
     color: C.TEXT,
     fontFamily: "Inter_700Bold",
   },
+  workspaceSubtitle: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: C.TEXT2,
+    fontFamily: "Inter_400Regular",
+    maxWidth: 620,
+  },
   workspaceBar: {
-    marginTop: 8,
+    marginTop: 14,
     backgroundColor: C.WHITE,
-    borderRadius: 24,
+    borderRadius: 16,
     padding: 16,
     gap: 16,
     borderWidth: 1,
@@ -534,10 +558,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
   },
+  workspaceActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  desktopWorkspaceActionsRow: {
+    justifyContent: "flex-start",
+  },
   primaryActionBtn: {
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: C.NAVY,
+    minHeight: 46,
+    borderRadius: 12,
+    backgroundColor: C.TEAL,
     paddingHorizontal: 18,
     flexDirection: "row",
     alignItems: "center",
@@ -550,8 +582,8 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
   },
   ghostActionBtn: {
-    height: 44,
-    borderRadius: 14,
+    minHeight: 46,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E0E7EF",
     backgroundColor: C.WHITE,
@@ -578,14 +610,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFD",
     borderWidth: 1,
     borderColor: "#E4EBF2",
-    borderRadius: 18,
+    borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 12,
     justifyContent: "center",
   },
   mobileSummaryStatCard: {
     minWidth: 70,
-    borderRadius: 16,
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 9,
   },
@@ -657,17 +689,12 @@ const styles = StyleSheet.create({
   resultsSurface: {
     flex: 1,
     minHeight: 0,
-    backgroundColor: C.WHITE,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: "#E2EAF1",
-    overflow: "hidden",
-    ...shadow.card,
+    backgroundColor: "transparent",
   },
   floatingAddButton: {
     position: "absolute",
     right: 18,
-    top: 18,
+    bottom: 22,
     width: 56,
     height: 56,
     borderRadius: 28,
@@ -709,7 +736,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 4,
     backgroundColor: C.ROSE, paddingHorizontal: 7, paddingVertical: 3, borderRadius: R.badge,
   },
-  urgentText:  { fontSize: 9, fontFamily: "Inter_700Bold", color: C.WHITE, letterSpacing: 0.8 },
+  urgentText:  { fontSize: 9, fontFamily: "Inter_700Bold", color: C.WHITE, letterSpacing: 0 },
   caseBadge: {
     flexDirection: "row", alignItems: "center", gap: 4,
     paddingHorizontal: 7, paddingVertical: 3, borderRadius: R.badge + 1, borderWidth: 1,
@@ -722,7 +749,7 @@ const styles = StyleSheet.create({
   cityText: { fontSize: 10, fontFamily: "Inter_400Regular", color: C.TEXT3, maxWidth: 80 },
 
   // ── Content ──
-  cardTitle:   { fontSize: T.postTitle.fontSize, fontWeight: T.postTitle.fontWeight as any, color: C.TEXT, lineHeight: 21, letterSpacing: -0.2 },
+  cardTitle:   { fontSize: T.postTitle.fontSize, fontWeight: T.postTitle.fontWeight as any, color: C.TEXT, lineHeight: 21, letterSpacing: 0 },
   cardSnippet: { fontSize: T.postContent.fontSize, color: C.TEXT2, lineHeight: 20 },
   tagsRow:     { flexDirection: "row", gap: 5, flexWrap: "wrap" },
   tagChip: {
@@ -749,6 +776,7 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 5,
     backgroundColor: C.TEAL,
     borderRadius: R.button,
+    minHeight: 38,
     paddingHorizontal: 14,
     paddingVertical: 7,
   },
@@ -771,4 +799,37 @@ const styles = StyleSheet.create({
     shadowColor: C.TEAL, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: C.WHITE },
+  feedSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  feedSectionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 10,
+    backgroundColor: C.TEAL + "12",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  feedSectionTitle: {
+    fontSize: 13,
+    fontFamily: "Inter_700Bold",
+    color: C.TEXT,
+  },
+  feedSectionLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#E4EBF2",
+  },
+  feedSectionCount: {
+    minWidth: 28,
+    textAlign: "center",
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
+    color: C.TEXT2,
+  },
 });
