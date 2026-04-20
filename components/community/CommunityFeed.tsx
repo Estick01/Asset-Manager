@@ -2,15 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View, Text, FlatList, StyleSheet, Pressable,
   RefreshControl, ActivityIndicator, Animated,
-  TextInput, ScrollView, useWindowDimensions, Platform,
+  TextInput, ScrollView, useWindowDimensions, Platform, Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getPosts, getTags, toggleLike, toggleBookmark,
-  type PostDTO, type Tag, type PostSort,
+  getPosts, getPost, getComments, addComment, getTags, toggleLike, toggleBookmark,
+  type PostDTO, type CommentDTO, type Tag, type PostSort,
 } from "@/lib/services/communityService";
 import { Tooltip } from "@/components/Tooltip";
 import { CityPickerModal } from "@/components/community/CityPickerModal";
@@ -53,7 +53,17 @@ function CardSkeleton() {
 }
 
 // ─── Post Card ────────────────────────────────────────────────────────────
-function PostCard({ post, index, isLawyer }: { post: PostDTO; index: number; isLawyer: boolean }) {
+function PostCard({
+  post,
+  index,
+  isLawyer,
+  onOpen,
+}: {
+  post: PostDTO;
+  index: number;
+  isLawyer: boolean;
+  onOpen: (postId: string) => void;
+}) {
   const anim = useRef(new Animated.Value(0)).current;
   const [liked,       setLiked]       = useState(post.isLiked ?? false);
   const [likeCount,   setLikeCount]   = useState(post.likeCount ?? 0);
@@ -115,7 +125,7 @@ function PostCard({ post, index, isLawyer }: { post: PostDTO; index: number; isL
           isUrgent ? { backgroundColor: C.ROSE_LIGHT, ...shadow.cardUrgent } : shadow.card,
           pressed && styles.cardPressed,
         ]}
-        onPress={() => router.push(`/community/${post.id}` as any)}
+        onPress={() => onOpen(post.id)}
         accessibilityRole="button"
         accessibilityLabel={`Abrir consulta: ${post.title}`}
       >
@@ -264,7 +274,10 @@ function PostCard({ post, index, isLawyer }: { post: PostDTO; index: number; isL
             </View>
 
             <Pressable
-              onPress={() => router.push(`/community/${post.id}` as any)}
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onOpen(post.id);
+              }}
               style={styles.cardActionBtn}
               accessibilityRole="button"
               accessibilityLabel={isLawyer ? "Responder consulta" : "Ver detalle de la consulta"}
@@ -398,6 +411,278 @@ function ForumOverview({
   );
 }
 
+type ModalReplyTarget = { id: string; name: string } | null;
+
+function countCommentTree(list: CommentDTO[]): number {
+  return list.reduce((total, comment) => total + 1 + countCommentTree(comment.replies ?? []), 0);
+}
+
+function PostModalCommentThread({
+  comment,
+  onReply,
+  depth = 0,
+}: {
+  comment: CommentDTO;
+  onReply: (id: string, name: string) => void;
+  depth?: number;
+}) {
+  const authorName = comment.author?.name ?? "Usuario";
+  const replies = comment.replies ?? [];
+
+  return (
+    <View style={[styles.postModalComment, depth > 0 && styles.postModalCommentReply]}>
+      <View style={styles.postModalCommentHead}>
+        <View style={styles.postModalCommentMeta}>
+          <Text style={styles.postModalCommentAuthor}>{authorName}</Text>
+          <Text style={styles.postModalCommentDate}>{formatDate(comment.createdAt)}</Text>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.postModalReplyButton, pressed && { opacity: 0.72 }]}
+          onPress={() => onReply(comment.id, authorName)}
+          accessibilityRole="button"
+          accessibilityLabel={`Responder a ${authorName}`}
+        >
+          <Ionicons name="return-down-forward-outline" size={13} color={TEAL} />
+          <Text style={styles.postModalReplyButtonText}>Responder</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.postModalCommentText}>{comment.content}</Text>
+
+      {replies.length > 0 && (
+        <View style={styles.postModalReplies}>
+          {replies.map(reply => (
+            <PostModalCommentThread
+              key={reply.id}
+              comment={reply}
+              onReply={onReply}
+              depth={depth + 1}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function DesktopPostModal({
+  postId,
+  visible,
+  onClose,
+}: {
+  postId: string | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const [post, setPost] = useState<PostDTO | null>(null);
+  const [comments, setComments] = useState<CommentDTO[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [replyTo, setReplyTo] = useState<ModalReplyTarget>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (!visible || !postId) return;
+    let alive = true;
+    setLoading(true);
+    setPost(null);
+    setComments([]);
+    setCommentText("");
+    setReplyTo(null);
+    Promise.all([getPost(postId), getComments(postId)])
+      .then(([nextPost, nextComments]) => {
+        if (!alive) return;
+        setPost(nextPost);
+        setComments(nextComments);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [postId, visible]);
+
+  const submitComment = async () => {
+    if (!postId) return;
+    const text = commentText.trim();
+    if (!text || submitting) return;
+    setSubmitting(true);
+    const created = await addComment(postId, text, replyTo?.id ?? null);
+    if (created) {
+      setCommentText("");
+      setReplyTo(null);
+      const nextComments = await getComments(postId);
+      setComments(nextComments);
+      setPost(prev => prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev);
+    }
+    setSubmitting(false);
+  };
+
+  const handleReply = (commentId: string, name: string) => {
+    setReplyTo({ id: commentId, name });
+    setTimeout(() => inputRef.current?.focus(), 60);
+  };
+
+  const authorName = post?.visibility === "anonymous" ? "Anónimo" : (post?.author?.name ?? "Usuario");
+  const caseMeta = post?.caseType ? (CASE_META[post.caseType] ?? null) : null;
+  const commentsTotal = countCommentTree(comments);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.postModalOverlay} onPress={onClose}>
+        <Pressable style={styles.postModalPanel} onPress={(e) => e.stopPropagation?.()}>
+          <View style={styles.postModalHeader}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.postModalEyebrow}>Publicación de comunidad</Text>
+              <Text style={styles.postModalTitle} numberOfLines={2}>
+                {post?.title ?? "Cargando publicación"}
+              </Text>
+            </View>
+            <Pressable
+              style={styles.postModalClose}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar publicación"
+            >
+              <Ionicons name="close" size={22} color={TEXT2} />
+            </Pressable>
+          </View>
+
+          {loading ? (
+            <View style={styles.postModalLoading}>
+              <ActivityIndicator color={TEAL} />
+              <Text style={styles.postModalLoadingText}>Cargando publicación...</Text>
+            </View>
+          ) : !post ? (
+            <View style={styles.postModalLoading}>
+              <Ionicons name="alert-circle-outline" size={28} color={ROSE} />
+              <Text style={styles.postModalLoadingText}>No se pudo cargar la publicación.</Text>
+            </View>
+          ) : (
+            <>
+              <ScrollView style={styles.postModalBody} contentContainerStyle={styles.postModalContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.postModalMetaRow}>
+                  <View style={styles.postModalAuthor}>
+                    <View style={styles.postModalAvatar}>
+                      <Text style={styles.postModalAvatarText}>{authorName[0]?.toUpperCase() ?? "?"}</Text>
+                    </View>
+                    <View>
+                      <Text style={styles.postModalAuthorName}>{authorName}</Text>
+                      <Text style={styles.postModalDate}>{formatDate(post.createdAt, true)}</Text>
+                    </View>
+                  </View>
+                  {post.city && (
+                    <View style={styles.postModalCity}>
+                      <Ionicons name="location-outline" size={14} color={TEXT2} />
+                      <Text style={styles.postModalCityText}>{post.city}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.postModalBadges}>
+                  {post.isUrgent === 1 && (
+                    <View style={styles.urgentBadge}>
+                      <Ionicons name="flash" size={10} color={WHITE} />
+                      <Text style={styles.urgentText}>URGENTE</Text>
+                    </View>
+                  )}
+                  {caseMeta && (
+                    <View style={[styles.caseBadge, { backgroundColor: caseMeta.bg, borderColor: caseMeta.border }]}>
+                      <Ionicons name={caseMeta.icon as any} size={11} color={caseMeta.text} />
+                      <Text style={[styles.caseBadgeText, { color: caseMeta.text }]}>{caseMeta.label}</Text>
+                    </View>
+                  )}
+                  {post.tags.map(tag => (
+                    <View key={tag.id} style={styles.tagChip}>
+                      <Text style={styles.tagChipText}>#{tag.name}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <Text style={styles.postModalPostTitle}>{post.title}</Text>
+                <Text style={styles.postModalPostContent}>{post.content}</Text>
+
+                <View style={styles.postModalStats}>
+                  <View style={styles.postModalStat}>
+                    <Ionicons name="heart-outline" size={15} color={TEXT3} />
+                    <Text style={styles.postModalStatText}>{post.likeCount} me gusta</Text>
+                  </View>
+                  <View style={styles.postModalStat}>
+                    <Ionicons name="chatbubble-outline" size={15} color={TEXT3} />
+                    <Text style={styles.postModalStatText}>{commentsTotal} comentarios</Text>
+                  </View>
+                  <View style={styles.postModalStat}>
+                    <Ionicons name="eye-outline" size={15} color={TEXT3} />
+                    <Text style={styles.postModalStatText}>{post.viewCount} vistas</Text>
+                  </View>
+                </View>
+
+                <View style={styles.postModalCommentsHeader}>
+                  <Text style={styles.postModalSectionTitle}>Comentarios</Text>
+                  <Text style={styles.postModalSectionCount}>{commentsTotal}</Text>
+                </View>
+
+                {comments.length === 0 ? (
+                  <View style={styles.postModalEmptyComments}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={24} color={TEXT3} />
+                    <Text style={styles.postModalEmptyText}>Todavía no hay comentarios.</Text>
+                  </View>
+                ) : (
+                  comments.slice(0, 8).map(comment => (
+                    <PostModalCommentThread key={comment.id} comment={comment} onReply={handleReply} />
+                  ))
+                )}
+              </ScrollView>
+
+              <View style={styles.postModalComposer}>
+                {replyTo && (
+                  <View style={styles.postModalReplyBanner}>
+                    <View style={styles.postModalReplyBannerLeft}>
+                      <Ionicons name="return-down-forward-outline" size={13} color={TEAL} />
+                      <Text style={styles.postModalReplyBannerText}>
+                        Respondiendo a <Text style={styles.postModalReplyBannerName}>{replyTo.name}</Text>
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => setReplyTo(null)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancelar respuesta"
+                    >
+                      <Ionicons name="close" size={16} color={TEXT3} />
+                    </Pressable>
+                  </View>
+                )}
+                <View style={styles.postModalComposerRow}>
+                  <TextInput
+                    ref={inputRef}
+                    style={styles.postModalInput}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    placeholder={replyTo ? `Responder a ${replyTo.name}...` : "Escribe una respuesta..."}
+                    placeholderTextColor={TEXT3}
+                    multiline
+                  />
+                  <Pressable
+                    style={[styles.postModalSend, (!commentText.trim() || submitting) && styles.postModalSendDisabled]}
+                    onPress={submitComment}
+                    disabled={!commentText.trim() || submitting}
+                    accessibilityRole="button"
+                    accessibilityLabel="Publicar comentario"
+                  >
+                    {submitting ? <ActivityIndicator size={14} color={WHITE} /> : <Ionicons name="send" size={16} color={WHITE} />}
+                  </Pressable>
+                </View>
+              </View>
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ─── Feed ─────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 20;
 
@@ -431,6 +716,7 @@ export default function CommunityFeed() {
   const [tags, setTags]             = useState<Tag[]>([]);
   const [cityFilter, setCityFilter] = useState<string | undefined>(undefined);
   const [cityPickerOpen, setCityPickerOpen] = useState(false);
+  const [desktopPostModalId, setDesktopPostModalId] = useState<string | null>(null);
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSearch = useRef("");
@@ -529,6 +815,13 @@ export default function CommunityFeed() {
     setTagSlug(undefined);
     setCityFilter(undefined);
     reload({ search: "", tagSlug: undefined, city: undefined, sort });
+  };
+  const openPost = (postId: string) => {
+    if (desktopWeb) {
+      setDesktopPostModalId(postId);
+      return;
+    }
+    router.push(`/community/${postId}` as any);
   };
 
   const ListHeader = (
@@ -901,7 +1194,7 @@ export default function CommunityFeed() {
                 <FlatList
                   data={posts}
                   keyExtractor={item => item.id}
-                  renderItem={({ item, index }) => <PostCard post={item} index={index} isLawyer={isLawyer} />}
+                  renderItem={({ item, index }) => <PostCard post={item} index={index} isLawyer={isLawyer} onOpen={openPost} />}
                   contentContainerStyle={styles.desktopList}
                   showsVerticalScrollIndicator={false}
                   style={styles.desktopListView}
@@ -1011,7 +1304,7 @@ export default function CommunityFeed() {
           <FlatList
             data={posts}
             keyExtractor={item => item.id}
-            renderItem={({ item, index }) => <PostCard post={item} index={index} isLawyer={isLawyer} />}
+            renderItem={({ item, index }) => <PostCard post={item} index={index} isLawyer={isLawyer} onOpen={openPost} />}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
             style={{ flex: 1 }}
@@ -1073,12 +1366,19 @@ export default function CommunityFeed() {
       )}
 
       {desktopWeb && (
-        <CityPickerModal
-          visible={cityPickerOpen}
-          selected={cityFilter ?? null}
-          onClose={() => setCityPickerOpen(false)}
-          onSelect={handleCitySelect}
-        />
+        <>
+          <CityPickerModal
+            visible={cityPickerOpen}
+            selected={cityFilter ?? null}
+            onClose={() => setCityPickerOpen(false)}
+            onSelect={handleCitySelect}
+          />
+          <DesktopPostModal
+            visible={!!desktopPostModalId}
+            postId={desktopPostModalId}
+            onClose={() => setDesktopPostModalId(null)}
+          />
+        </>
       )}
     </View>
   );
@@ -1748,4 +2048,324 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3, shadowRadius: 8, elevation: 4,
   },
   emptyBtnText: { fontSize: 14, fontFamily: "Inter_600SemiBold", color: WHITE },
+
+  // ── Desktop post modal ──
+  postModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,38,64,0.58)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  postModalPanel: {
+    width: "100%",
+    maxWidth: 760,
+    maxHeight: "92%",
+    backgroundColor: WHITE,
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.22,
+    shadowRadius: 32,
+    elevation: 18,
+  },
+  postModalHeader: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8ECF0",
+    backgroundColor: WHITE,
+  },
+  postModalEyebrow: {
+    fontSize: 12,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+  },
+  postModalTitle: {
+    marginTop: 2,
+    fontSize: 20,
+    lineHeight: 26,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalClose: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F4F6F8",
+  },
+  postModalLoading: {
+    minHeight: 320,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  postModalLoadingText: {
+    fontSize: 14,
+    color: TEXT2,
+    fontFamily: "Inter_500Medium",
+  },
+  postModalBody: {
+    maxHeight: 620,
+  },
+  postModalContent: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 22,
+    gap: 14,
+  },
+  postModalMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  postModalAuthor: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  postModalAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: TEAL + "14",
+  },
+  postModalAvatarText: {
+    fontSize: 15,
+    color: TEAL,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalAuthorName: {
+    fontSize: 14,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalDate: {
+    marginTop: 2,
+    fontSize: 12,
+    color: TEXT3,
+    fontFamily: "Inter_400Regular",
+  },
+  postModalCity: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 17,
+    paddingHorizontal: 10,
+    backgroundColor: "#F4F6F8",
+  },
+  postModalCityText: {
+    fontSize: 12,
+    color: TEXT2,
+    fontFamily: "Inter_600SemiBold",
+  },
+  postModalBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  postModalPostTitle: {
+    fontSize: 22,
+    lineHeight: 29,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalPostContent: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  postModalStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 4,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8ECF0",
+    flexWrap: "wrap",
+  },
+  postModalStat: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 17,
+    paddingHorizontal: 10,
+    backgroundColor: "#F4F6F8",
+  },
+  postModalStatText: {
+    fontSize: 12,
+    color: TEXT2,
+    fontFamily: "Inter_500Medium",
+  },
+  postModalCommentsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  postModalSectionTitle: {
+    fontSize: 15,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalSectionCount: {
+    fontSize: 12,
+    color: TEXT3,
+    fontFamily: "Inter_600SemiBold",
+  },
+  postModalEmptyComments: {
+    minHeight: 86,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFD",
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+  },
+  postModalEmptyText: {
+    fontSize: 13,
+    color: TEXT3,
+    fontFamily: "Inter_500Medium",
+  },
+  postModalComment: {
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#F8FAFD",
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    gap: 4,
+  },
+  postModalCommentReply: {
+    marginLeft: 18,
+    backgroundColor: WHITE,
+    borderColor: "#E8EDF2",
+  },
+  postModalCommentHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  postModalCommentMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  postModalCommentAuthor: {
+    fontSize: 12,
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalCommentDate: {
+    marginTop: 1,
+    fontSize: 11,
+    color: TEXT3,
+    fontFamily: "Inter_400Regular",
+  },
+  postModalCommentText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  postModalReplyButton: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    backgroundColor: TEAL + "10",
+  },
+  postModalReplyButtonText: {
+    fontSize: 11,
+    color: TEAL,
+    fontFamily: "Inter_600SemiBold",
+  },
+  postModalReplies: {
+    marginTop: 8,
+    gap: 8,
+  },
+  postModalComposer: {
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#E8ECF0",
+    backgroundColor: WHITE,
+  },
+  postModalReplyBanner: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    backgroundColor: TEAL + "10",
+  },
+  postModalReplyBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  postModalReplyBannerText: {
+    fontSize: 12,
+    color: TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  postModalReplyBannerName: {
+    color: TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  postModalComposerRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+  },
+  postModalInput: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 110,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E0E5EA",
+    backgroundColor: "#F8FAFD",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: TEXT,
+    fontFamily: "Inter_400Regular",
+  },
+  postModalSend: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: TEAL,
+  },
+  postModalSendDisabled: {
+    opacity: 0.45,
+  },
 });

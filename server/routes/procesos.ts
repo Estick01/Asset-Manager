@@ -15,6 +15,7 @@ import { procesosService } from "../services/proceso.service.js";
 import { clientesService } from "../services/cliente.service.js";
 import { tareaService } from "../services/tarea.service.js";
 import { ownershipPolicyService } from "../services/ownership-policy.service.js";
+import { notificacionesService } from "../services/notificacion.service.js";
 import type { SharedWithType } from "@/shared/schema";
 import { subscriptionService } from "../services/subscription.service.js";
 
@@ -380,6 +381,13 @@ router.post("/procesos", authenticate, requirePermission("procesos.crear"), asyn
           asignadoPorNombre: UserName ?? null,
           razon: `Responsable inicial asignado por bufete ${UserName}`,
         });
+        await notificacionesService.notifyLawyer(
+          req.body.lawyerId,
+          newProceso.id,
+          "Nuevo proceso asignado",
+          `${UserName ?? "El bufete"} te asignó como responsable del proceso ${newProceso.radicado ?? newProceso.id}.`,
+          "responsable_asignado",
+        );
         break;
       case "corporacion":
         if (!req.body.lawyerId) return res.status(400).json({ error: "lawyerId is required para corporacion" });
@@ -490,6 +498,14 @@ router.put("/procesos/:id/responsable", authenticate, requirePermission("proceso
     if (!proceso) {
       return res.status(404).json({ error: "Proceso no encontrado" });
     }
+
+    await notificacionesService.notifyLawyer(
+      responsableId,
+      id,
+      "Te asignaron como responsable",
+      `${user.UserName ?? "El bufete"} te asignó como responsable del proceso ${proceso.radicado ?? id}.`,
+      "responsable_asignado",
+    );
 
     res.json(proceso);
   } catch (err) {

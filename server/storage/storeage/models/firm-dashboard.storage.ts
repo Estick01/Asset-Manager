@@ -1,10 +1,10 @@
 // storage/firm-dashboard.storage.ts
 
-import { and, count, eq, gte, inArray, or, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, sql } from "drizzle-orm";
 import {
   clientes, documentos, actualizaciones, procesos,
-  estadosProceso, tiposProceso, lawyerFirmaHistory, procesoLawyers,
-  lawyerClients, lawyerProfiles, tareas, procesoOwnership,
+  estadosProceso, tiposProceso, lawyerFirmaHistory,
+  tareas, procesoOwnership, procesoSharing, clienteOwnership,
 } from "@/shared/schema";
 import { Database } from "../database-storage";
 
@@ -54,18 +54,13 @@ export class FirmDashboardStorage {
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
-    // 1. IDs de abogados activos de la firma
-    const firmLawyers = await this.db
-      .select({ id: lawyerProfiles.id })
-      .from(lawyerProfiles)
-      .where(eq(lawyerProfiles.firmId, firmId));
-
-    const lawyerIds = firmLawyers.map(l => l.id);
-
-    // 2. IDs de procesos de la firma:
+    // 1. IDs de procesos de la firma:
     //    a) Propiedad directa del bufete (proceso_ownership activo)
-    //    b) Procesos donde algún abogado de la firma está asignado (procesoLawyers)
-    const [ownedRows, assignedRows] = await Promise.all([
+    //    b) Procesos compartidos explícitamente con el bufete
+    //
+    // No se deben incluir procesos privados del abogado solo porque el abogado
+    // pertenezca al bufete o esté asignado como responsable.
+    const [ownedRows, sharedRows] = await Promise.all([
       this.db
         .select({ procesoId: procesoOwnership.procesoId })
         .from(procesoOwnership)
@@ -74,31 +69,21 @@ export class FirmDashboardStorage {
           eq(procesoOwnership.ownerId, firmId),
           sql`${procesoOwnership.activoUnique} = 1`,
         )),
-      lawyerIds.length > 0
-        ? this.db
-            .select({ procesoId: procesoLawyers.procesoId })
-            .from(procesoLawyers)
-            .where(inArray(procesoLawyers.lawyerId, lawyerIds))
-        : Promise.resolve([]),
+      this.db
+        .select({ procesoId: procesoSharing.procesoId })
+        .from(procesoSharing)
+        .where(and(
+          eq(procesoSharing.sharedWithType, "bufete"),
+          eq(procesoSharing.sharedWithId, firmId),
+          sql`${procesoSharing.activoUnique} = 1`,
+        )),
     ]);
 
     const procesoIdSet = new Set([
       ...ownedRows.map(r => r.procesoId),
-      ...assignedRows.map(r => r.procesoId),
+      ...sharedRows.map(r => r.procesoId),
     ]);
     const procesoIds = [...procesoIdSet];
-
-    // Si no hay abogados ni procesos propios, devolver ceros
-    if (lawyerIds.length === 0 && procesoIds.length === 0) {
-      return {
-        totalAbogados: 0, abogadosActivos: 0, abogadosSuspendidos: 0,
-        totalClientes: 0, clientesActivos: 0,
-        totalProcesos: 0, procesosActivos: 0, procesosFinalizados: 0, procesosEsteMes: 0,
-        totalDocumentos: 0, actualizacionesEsteMes: 0,
-        totalTareas: 0, tareasPendientes: 0, tareasEnProgreso: 0, tareasCompletadas: 0,
-        procesosPorEstado: [], procesosPorTipo: [],
-      };
-    }
 
     const [
       abogadosStats,
@@ -121,23 +106,22 @@ export class FirmDashboardStorage {
         .from(lawyerFirmaHistory)
         .where(eq(lawyerFirmaHistory.firmaId, firmId)),
 
-      // Clientes via abogados de la firma
-      lawyerIds.length > 0
-        ? this.db
-            .select({
-              total: sql<number>`COUNT(DISTINCT ${lawyerClients.clientId})`,
-              activos: sql<number>`COUNT(DISTINCT CASE WHEN ${clientes.activo} = 1 THEN ${lawyerClients.clientId} END)`,
-            })
-            .from(lawyerClients)
-            .innerJoin(lawyerProfiles, eq(lawyerClients.lawyerId, lawyerProfiles.id))
-            .innerJoin(clientes, eq(lawyerClients.clientId, clientes.id))
-            .where(and(
-              eq(lawyerProfiles.firmId, firmId),
-              eq(lawyerClients.status, "active"),
-            ))
-        : Promise.resolve([{ total: 0, activos: 0 }]),
+      // Clientes propios del bufete por ownership activo.
+      // Esto excluye clientes privados de abogados vinculados a la firma.
+      this.db
+        .select({
+          total: sql<number>`COUNT(DISTINCT ${clienteOwnership.clienteId})`,
+          activos: sql<number>`COUNT(DISTINCT CASE WHEN ${clientes.activo} = 1 THEN ${clienteOwnership.clienteId} END)`,
+        })
+        .from(clienteOwnership)
+        .innerJoin(clientes, eq(clienteOwnership.clienteId, clientes.id))
+        .where(and(
+          eq(clienteOwnership.ownerType, "bufete"),
+          eq(clienteOwnership.ownerId, firmId),
+          sql`${clienteOwnership.activoUnique} = 1`,
+        )),
 
-      // Procesos — usar IDs ya calculados (incluye owned + assigned)
+      // Procesos — usar IDs ya calculados (owned + shared del bufete)
       procesoIds.length > 0
         ? this.db
             .select({
@@ -209,17 +193,11 @@ export class FirmDashboardStorage {
         : Promise.resolve([]),
     ]);
 
-    // Tareas — contar todas las tareas en procesos de la firma o asignadas a sus abogados
+    // Tareas — contar solo tareas en procesos reales del bufete.
+    // No incluir tareas privadas por estar asignadas a un abogado de la firma.
     let totalTareas = 0, tareasPendientes = 0, tareasEnProgreso = 0, tareasCompletadas = 0;
     try {
-      const conditions: any[] = [eq(tareas.state, true)];
-      const orConditions: any[] = [];
-
-      if (procesoIds.length > 0) orConditions.push(inArray(tareas.procesoId, procesoIds));
-      if (lawyerIds.length > 0)  orConditions.push(inArray(tareas.asignadoA, lawyerIds));
-
-      if (orConditions.length > 0) {
-        conditions.push(or(...orConditions));
+      if (procesoIds.length > 0) {
         const result = await this.db
           .select({
             total:      sql<number>`COUNT(DISTINCT ${tareas.id})`,
@@ -228,7 +206,10 @@ export class FirmDashboardStorage {
             completadas:sql<number>`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada'  THEN ${tareas.id} END)`,
           })
           .from(tareas)
-          .where(and(...conditions));
+          .where(and(
+            eq(tareas.state, true),
+            inArray(tareas.procesoId, procesoIds),
+          ));
 
         totalTareas      = Number(result[0]?.total       ?? 0);
         tareasPendientes = Number(result[0]?.pendientes  ?? 0);

@@ -2368,7 +2368,7 @@ var init_schema = __esm({
 });
 
 // server/storage/storeage/models/firm-dashboard.storage.ts
-import { and, eq, gte, inArray, or, sql as sql2 } from "drizzle-orm";
+import { and, eq, gte, inArray, sql as sql2 } from "drizzle-orm";
 var FirmDashboardStorage;
 var init_firm_dashboard_storage = __esm({
   "server/storage/storeage/models/firm-dashboard.storage.ts"() {
@@ -2382,42 +2382,23 @@ var init_firm_dashboard_storage = __esm({
         const startOfMonth = /* @__PURE__ */ new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0, 0, 0, 0);
-        const firmLawyers = await this.db.select({ id: lawyerProfiles.id }).from(lawyerProfiles).where(eq(lawyerProfiles.firmId, firmId));
-        const lawyerIds = firmLawyers.map((l) => l.id);
-        const [ownedRows, assignedRows] = await Promise.all([
+        const [ownedRows, sharedRows] = await Promise.all([
           this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and(
             eq(procesoOwnership.ownerType, "bufete"),
             eq(procesoOwnership.ownerId, firmId),
             sql2`${procesoOwnership.activoUnique} = 1`
           )),
-          lawyerIds.length > 0 ? this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(inArray(procesoLawyers.lawyerId, lawyerIds)) : Promise.resolve([])
+          this.db.select({ procesoId: procesoSharing.procesoId }).from(procesoSharing).where(and(
+            eq(procesoSharing.sharedWithType, "bufete"),
+            eq(procesoSharing.sharedWithId, firmId),
+            sql2`${procesoSharing.activoUnique} = 1`
+          ))
         ]);
         const procesoIdSet = /* @__PURE__ */ new Set([
           ...ownedRows.map((r) => r.procesoId),
-          ...assignedRows.map((r) => r.procesoId)
+          ...sharedRows.map((r) => r.procesoId)
         ]);
         const procesoIds = [...procesoIdSet];
-        if (lawyerIds.length === 0 && procesoIds.length === 0) {
-          return {
-            totalAbogados: 0,
-            abogadosActivos: 0,
-            abogadosSuspendidos: 0,
-            totalClientes: 0,
-            clientesActivos: 0,
-            totalProcesos: 0,
-            procesosActivos: 0,
-            procesosFinalizados: 0,
-            procesosEsteMes: 0,
-            totalDocumentos: 0,
-            actualizacionesEsteMes: 0,
-            totalTareas: 0,
-            tareasPendientes: 0,
-            tareasEnProgreso: 0,
-            tareasCompletadas: 0,
-            procesosPorEstado: [],
-            procesosPorTipo: []
-          };
-        }
         const [
           abogadosStats,
           clientesStats,
@@ -2434,15 +2415,17 @@ var init_firm_dashboard_storage = __esm({
             activos: sql2`SUM(CASE WHEN ${lawyerFirmaHistory.estado} = 'activo' THEN 1 ELSE 0 END)`,
             suspendidos: sql2`SUM(CASE WHEN ${lawyerFirmaHistory.estado} = 'suspendido' THEN 1 ELSE 0 END)`
           }).from(lawyerFirmaHistory).where(eq(lawyerFirmaHistory.firmaId, firmId)),
-          // Clientes via abogados de la firma
-          lawyerIds.length > 0 ? this.db.select({
-            total: sql2`COUNT(DISTINCT ${lawyerClients.clientId})`,
-            activos: sql2`COUNT(DISTINCT CASE WHEN ${clientes.activo} = 1 THEN ${lawyerClients.clientId} END)`
-          }).from(lawyerClients).innerJoin(lawyerProfiles, eq(lawyerClients.lawyerId, lawyerProfiles.id)).innerJoin(clientes, eq(lawyerClients.clientId, clientes.id)).where(and(
-            eq(lawyerProfiles.firmId, firmId),
-            eq(lawyerClients.status, "active")
-          )) : Promise.resolve([{ total: 0, activos: 0 }]),
-          // Procesos — usar IDs ya calculados (incluye owned + assigned)
+          // Clientes propios del bufete por ownership activo.
+          // Esto excluye clientes privados de abogados vinculados a la firma.
+          this.db.select({
+            total: sql2`COUNT(DISTINCT ${clienteOwnership.clienteId})`,
+            activos: sql2`COUNT(DISTINCT CASE WHEN ${clientes.activo} = 1 THEN ${clienteOwnership.clienteId} END)`
+          }).from(clienteOwnership).innerJoin(clientes, eq(clienteOwnership.clienteId, clientes.id)).where(and(
+            eq(clienteOwnership.ownerType, "bufete"),
+            eq(clienteOwnership.ownerId, firmId),
+            sql2`${clienteOwnership.activoUnique} = 1`
+          )),
+          // Procesos — usar IDs ya calculados (owned + shared del bufete)
           procesoIds.length > 0 ? this.db.select({
             total: sql2`COUNT(DISTINCT ${procesos.id})`,
             activos: sql2`COUNT(DISTINCT CASE WHEN ${estadosProceso.codigo} = 'activo' THEN ${procesos.id} END)`,
@@ -2475,18 +2458,16 @@ var init_firm_dashboard_storage = __esm({
         ]);
         let totalTareas = 0, tareasPendientes = 0, tareasEnProgreso = 0, tareasCompletadas = 0;
         try {
-          const conditions = [eq(tareas.state, true)];
-          const orConditions = [];
-          if (procesoIds.length > 0) orConditions.push(inArray(tareas.procesoId, procesoIds));
-          if (lawyerIds.length > 0) orConditions.push(inArray(tareas.asignadoA, lawyerIds));
-          if (orConditions.length > 0) {
-            conditions.push(or(...orConditions));
+          if (procesoIds.length > 0) {
             const result = await this.db.select({
               total: sql2`COUNT(DISTINCT ${tareas.id})`,
               pendientes: sql2`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'pendiente'   THEN ${tareas.id} END)`,
               en_progreso: sql2`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'en_progreso' THEN ${tareas.id} END)`,
               completadas: sql2`COUNT(DISTINCT CASE WHEN ${tareas.estado} = 'completada'  THEN ${tareas.id} END)`
-            }).from(tareas).where(and(...conditions));
+            }).from(tareas).where(and(
+              eq(tareas.state, true),
+              inArray(tareas.procesoId, procesoIds)
+            ));
             totalTareas = Number(result[0]?.total ?? 0);
             tareasPendientes = Number(result[0]?.pendientes ?? 0);
             tareasEnProgreso = Number(result[0]?.en_progreso ?? 0);
@@ -3133,7 +3114,7 @@ var init_tipoProceso_storage = __esm({
 });
 
 // server/storage/storeage/models/user-storage.ts
-import { eq as eq10, like, or as or2 } from "drizzle-orm";
+import { eq as eq10, like, or } from "drizzle-orm";
 var UserStorage;
 var init_user_storage = __esm({
   "server/storage/storeage/models/user-storage.ts"() {
@@ -3188,7 +3169,7 @@ var init_user_storage = __esm({
           email: users.email,
           name: users.name
         }).from(users).innerJoin(lawyerProfiles, eq10(users.id, lawyerProfiles.userId)).where(
-          or2(
+          or(
             like(users.name, `%${search}%`),
             like(users.email, `%${search}%`)
           )
@@ -3233,7 +3214,7 @@ var init_user_storage = __esm({
 
 // server/storage/storeage/models/cliente-storage.ts
 import { randomUUID as randomUUID2 } from "crypto";
-import { eq as eq11, and as and6, desc as desc2, like as like2, or as or3, inArray as inArray2, sql as sql4 } from "drizzle-orm";
+import { eq as eq11, and as and6, desc as desc2, like as like2, or as or2, inArray as inArray2, sql as sql4 } from "drizzle-orm";
 var ClienteStorage;
 var init_cliente_storage = __esm({
   "server/storage/storeage/models/cliente-storage.ts"() {
@@ -3268,7 +3249,7 @@ var init_cliente_storage = __esm({
         if (filter?.search) {
           const search = `${filter.search}%`;
           conditions.push(
-            or3(
+            or2(
               like2(personas.nombre, search),
               like2(personas.documento, search),
               like2(clientesEmpresa.razonSocial, search),
@@ -3323,9 +3304,9 @@ var init_cliente_storage = __esm({
           if (!row.clienteId) continue;
           if (!map.has(row.clienteId)) map.set(row.clienteId, { total: 0, porEstado: [] });
           const entry = map.get(row.clienteId);
-          const count5 = Number(row.count);
-          entry.total += count5;
-          entry.porEstado.push({ codigo: row.codigo, nombre: row.nombre, count: count5 });
+          const count4 = Number(row.count);
+          entry.total += count4;
+          entry.porEstado.push({ codigo: row.codigo, nombre: row.nombre, count: count4 });
         }
         return map;
       }
@@ -3679,7 +3660,7 @@ var init_proceso_storage = __esm({
           eq12(responsableJoin.activo, true)
         );
         const baseJoins = (qb) => qb.leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id));
-        const [{ count: count5 }] = await baseJoins(
+        const [{ count: count4 }] = await baseJoins(
           this.db.select({ count: sql5`COUNT(*)` }).from(procesos)
         ).where(and7(...conditions));
         const results = await baseJoins(
@@ -3788,7 +3769,7 @@ var init_proceso_storage = __esm({
             }
           } : null
         }));
-        return { data, total: Number(count5) };
+        return { data, total: Number(count4) };
       }
       async getProcesosCount(lawyerId, filter) {
         const lawyerProcesoIds = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(eq12(procesoLawyers.lawyerId, lawyerId));
@@ -3846,7 +3827,7 @@ var init_proceso_storage = __esm({
       )`
           );
         }
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
+        const [{ count: count4 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -3918,7 +3899,7 @@ var init_proceso_storage = __esm({
             orden: p.etapaOrden
           } : null
         }));
-        return { data, total: Number(count5) };
+        return { data, total: Number(count4) };
       }
       async getProceso(id) {
         const rawProceso = await this.db.query.procesos.findFirst({
@@ -4111,7 +4092,7 @@ var init_proceso_storage = __esm({
       )`
           );
         }
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
+        const [{ count: count4 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -4147,7 +4128,7 @@ var init_proceso_storage = __esm({
             color: p.estadoColor || ""
           } : null
         }));
-        return { data, total: Number(count5) };
+        return { data, total: Number(count4) };
       }
       async getProcesoByAbogadoIdAndProcesoId(lawyerId, procesoId) {
         const [lawyerProceso, responsableProceso] = await Promise.all([
@@ -4363,7 +4344,7 @@ var init_proceso_storage = __esm({
           eq12(responsableJoin.procesoId, procesos.id),
           eq12(responsableJoin.activo, true)
         );
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).where(and7(...conditions));
+        const [{ count: count4 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -4468,7 +4449,7 @@ var init_proceso_storage = __esm({
             }
           } : null
         }));
-        return { data, total: Number(count5) };
+        return { data, total: Number(count4) };
       }
       async getProcesosByClienteAndFirma(firmId, clienteId, limit = 10, offset = 0, filter) {
         const ownedRows = await this.db.select({ procesoId: procesoOwnership.procesoId }).from(procesoOwnership).where(and7(
@@ -4497,7 +4478,7 @@ var init_proceso_storage = __esm({
           );
         }
         const personasCliente = alias(personas, "personasCliente");
-        const [{ count: count5 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
+        const [{ count: count4 }] = await this.db.select({ count: sql5`COUNT(*)` }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).where(and7(...conditions));
         const results = await this.db.select({
           id: procesos.id,
           state: procesos.state,
@@ -4518,7 +4499,7 @@ var init_proceso_storage = __esm({
         const responsablesMap = await this.getResponsablesMap(results.map((p) => p.id));
         return {
           data: results.map((p) => this.mapToProcesoDTO(p, responsablesMap)),
-          total: Number(count5)
+          total: Number(count4)
         };
       }
       async getProcesoByFirmaIdAndProcesoId(firmId, procesoId) {
@@ -4694,7 +4675,7 @@ var init_proceso_storage = __esm({
         );
       }
       /** Obtener procesos por array de IDs (usado en listados por rol con ownership). */
-      async getProcesosByIds(ids, filter) {
+      async getProcesosByIds(ids, filter, limit, offset) {
         if (ids.length === 0) return [];
         const responsableLawyer = alias(lawyerProfiles, "responsableLawyer");
         const responsableJoin = alias(procesoResponsables, "responsableJoin");
@@ -4724,11 +4705,24 @@ var init_proceso_storage = __esm({
         )`
           );
         }
+        if (filter?.hasResponsable !== void 0) {
+          if (filter.hasResponsable) {
+            conditions.push(sql5`EXISTS (
+          SELECT 1 FROM proceso_responsables pr
+          WHERE pr.proceso_id = ${procesos.id} AND pr.activo = 1
+        )`);
+          } else {
+            conditions.push(sql5`NOT EXISTS (
+          SELECT 1 FROM proceso_responsables pr
+          WHERE pr.proceso_id = ${procesos.id} AND pr.activo = 1
+        )`);
+          }
+        }
         const joinConditions = and7(
           eq12(responsableJoin.procesoId, procesos.id),
           eq12(responsableJoin.activo, true)
         );
-        const results = await this.db.select({
+        let query = this.db.select({
           id: procesos.id,
           state: procesos.state,
           fechaCreacion: procesos.fechaCreacion,
@@ -4773,6 +4767,13 @@ var init_proceso_storage = __esm({
           responsableRazon: responsableJoin.razon,
           responsableAsignadoPorNombre: responsableJoin.asignadoPorNombre
         }).from(procesos).leftJoin(clientes, eq12(procesos.clienteId, clientes.id)).leftJoin(clientesNatural, eq12(clientes.id, clientesNatural.clienteId)).leftJoin(personasCliente, eq12(clientesNatural.personaId, personasCliente.id)).leftJoin(deptosCliente, eq12(personasCliente.departamentoId, deptosCliente.id)).leftJoin(municipiosCliente, eq12(personasCliente.municipioId, municipiosCliente.id)).leftJoin(clientesEmpresa, eq12(clientes.id, clientesEmpresa.clienteId)).leftJoin(repLegal, eq12(clientesEmpresa.representanteLegalId, repLegal.id)).leftJoin(personasRepLegal, eq12(repLegal.personaId, personasRepLegal.id)).leftJoin(estadosProceso, eq12(procesos.estadoId, estadosProceso.id)).leftJoin(tiposProceso, eq12(procesos.tipoProcesoId, tiposProceso.id)).leftJoin(responsableJoin, joinConditions).leftJoin(responsableLawyer, eq12(responsableJoin.lawyerId, responsableLawyer.id)).leftJoin(personasResponsable, eq12(responsableLawyer.personaId, personasResponsable.id)).where(and7(...conditions)).orderBy(desc3(procesos.fechaCreacion));
+        if (typeof limit === "number") {
+          query = query.limit(limit);
+        }
+        if (typeof offset === "number" && offset > 0) {
+          query = query.offset(offset);
+        }
+        const results = await query;
         return results.map((p) => ({
           id: p.id,
           state: p.state,
@@ -4833,13 +4834,22 @@ var init_proceso_storage = __esm({
           } : null
         }));
       }
-      /** IDs de procesos donde el abogado tiene asignación activa. */
+      /** IDs de procesos donde el abogado tiene asignación o responsabilidad activa. */
       async getProcesoIdsByAbogadoAssignment(lawyerId) {
-        const rows = await this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and7(
-          eq12(procesoLawyers.lawyerId, lawyerId),
-          eq12(procesoLawyers.status, "activo")
-        ));
-        return rows.map((r) => r.procesoId);
+        const [assignmentRows, responsableRows] = await Promise.all([
+          this.db.select({ procesoId: procesoLawyers.procesoId }).from(procesoLawyers).where(and7(
+            eq12(procesoLawyers.lawyerId, lawyerId),
+            eq12(procesoLawyers.status, "activo")
+          )),
+          this.db.select({ procesoId: procesoResponsables.procesoId }).from(procesoResponsables).where(and7(
+            eq12(procesoResponsables.lawyerId, lawyerId),
+            eq12(procesoResponsables.activo, true)
+          ))
+        ]);
+        return [.../* @__PURE__ */ new Set([
+          ...assignmentRows.map((r) => r.procesoId),
+          ...responsableRows.map((r) => r.procesoId)
+        ])];
       }
     };
   }
@@ -5701,7 +5711,7 @@ var init_lawyer_firma_history_storage = __esm({
 });
 
 // server/storage/storeage/models/firm-invitation-storage.ts
-import { and as and14, desc as desc7, eq as eq21, isNull as isNull4, ne as ne2, or as or4, sql as sql8 } from "drizzle-orm";
+import { and as and14, desc as desc7, eq as eq21, isNull as isNull4, ne as ne2, or as or3, sql as sql8 } from "drizzle-orm";
 import { randomUUID as randomUUID6 } from "crypto";
 var FirmInvitationStorage;
 var init_firm_invitation_storage = __esm({
@@ -5838,11 +5848,11 @@ var init_firm_invitation_storage = __esm({
           email: users.email
         }).from(lawyerProfiles).leftJoin(personas, eq21(lawyerProfiles.personaId, personas.id)).leftJoin(users, eq21(lawyerProfiles.userId, users.id)).where(
           and14(
-            or4(
+            or3(
               isNull4(lawyerProfiles.firmId),
               ne2(lawyerProfiles.firmId, firmId)
             ),
-            or4(
+            or3(
               sql8`LOWER(${personas.nombre}) LIKE LOWER(${searchTerm})`,
               sql8`LOWER(${personas.apellido}) LIKE LOWER(${searchTerm})`,
               sql8`LOWER(${lawyerProfiles.licenseNumber}) LIKE LOWER(${searchTerm})`,
@@ -6514,7 +6524,7 @@ var init_auth_challenge_storage = __esm({
 });
 
 // server/storage/storeage/models/tarea-storage.ts
-import { eq as eq27, and as and19, desc as desc10, sql as sql11, inArray as inArray6, count as count2 } from "drizzle-orm";
+import { eq as eq27, and as and19, desc as desc10, sql as sql11, inArray as inArray6, count } from "drizzle-orm";
 import { randomUUID as randomUUID8 } from "crypto";
 function toDTO(t) {
   const now = /* @__PURE__ */ new Date();
@@ -6570,9 +6580,9 @@ var init_tarea_storage = __esm({
         if (dtos.length === 0) return dtos;
         const ids = dtos.map((d) => d.id);
         const [subRows, obsRows, arcRows] = await Promise.all([
-          this.db.select({ tareaId: tareaSubtareas.tareaId, total: count2(), completadas: sql11`SUM(CASE WHEN ${tareaSubtareas.estado} = 'completada' THEN 1 ELSE 0 END)` }).from(tareaSubtareas).where(inArray6(tareaSubtareas.tareaId, ids)).groupBy(tareaSubtareas.tareaId),
-          this.db.select({ tareaId: tareaObservaciones.tareaId, total: count2() }).from(tareaObservaciones).where(inArray6(tareaObservaciones.tareaId, ids)).groupBy(tareaObservaciones.tareaId),
-          this.db.select({ tareaId: tareaArchivos.tareaId, total: count2() }).from(tareaArchivos).where(inArray6(tareaArchivos.tareaId, ids)).groupBy(tareaArchivos.tareaId)
+          this.db.select({ tareaId: tareaSubtareas.tareaId, total: count(), completadas: sql11`SUM(CASE WHEN ${tareaSubtareas.estado} = 'completada' THEN 1 ELSE 0 END)` }).from(tareaSubtareas).where(inArray6(tareaSubtareas.tareaId, ids)).groupBy(tareaSubtareas.tareaId),
+          this.db.select({ tareaId: tareaObservaciones.tareaId, total: count() }).from(tareaObservaciones).where(inArray6(tareaObservaciones.tareaId, ids)).groupBy(tareaObservaciones.tareaId),
+          this.db.select({ tareaId: tareaArchivos.tareaId, total: count() }).from(tareaArchivos).where(inArray6(tareaArchivos.tareaId, ids)).groupBy(tareaArchivos.tareaId)
         ]);
         const subMap = new Map(subRows.map((r) => [r.tareaId, { total: Number(r.total), completadas: Number(r.completadas ?? 0) }]));
         const obsMap = new Map(obsRows.map((r) => [r.tareaId, Number(r.total)]));
@@ -7341,7 +7351,7 @@ var init_community_storage = __esm({
 
 // server/storage/storeage/models/rating-storage.ts
 import { randomUUID as randomUUID12 } from "crypto";
-import { and as and21, avg, count as count3, eq as eq31, sql as sql13 } from "drizzle-orm";
+import { and as and21, avg, count as count2, eq as eq31, sql as sql13 } from "drizzle-orm";
 var RatingStorage;
 var init_rating_storage = __esm({
   "server/storage/storeage/models/rating-storage.ts"() {
@@ -7406,7 +7416,7 @@ var init_rating_storage = __esm({
       async getRatingSummary(targetUserId, targetType) {
         const result = await this.db.select({
           avg: avg(ratings.score),
-          count: count3()
+          count: count2()
         }).from(ratings).where(
           and21(
             eq31(ratings.targetUserId, targetUserId),
@@ -7786,7 +7796,7 @@ var init_email_service = __esm({
 
 // server/storage/storeage/models/app-notification-storage.ts
 import { randomUUID as randomUUID14 } from "crypto";
-import { eq as eq33, and as and23, isNull as isNull9, desc as desc13, count as count4 } from "drizzle-orm";
+import { eq as eq33, and as and23, isNull as isNull9, desc as desc13, count as count3 } from "drizzle-orm";
 function joinAppUrl(path4) {
   const appUrl = process.env.APP_URL?.trim();
   if (!appUrl) return void 0;
@@ -7830,7 +7840,7 @@ var init_app_notification_storage = __esm({
         return rows;
       }
       async getUnreadCount(userId2) {
-        const rows = await this.db.select({ n: count4() }).from(appNotifications).where(and23(eq33(appNotifications.userId, userId2), isNull9(appNotifications.readAt)));
+        const rows = await this.db.select({ n: count3() }).from(appNotifications).where(and23(eq33(appNotifications.userId, userId2), isNull9(appNotifications.readAt)));
         return rows[0]?.n ?? 0;
       }
       async markRead(id, userId2) {
@@ -8330,7 +8340,7 @@ var init_recommendation_storage = __esm({
 });
 
 // server/storage/storeage/models/legal-stage-storage.ts
-import { eq as eq38, and as and27, asc, isNull as isNull10, or as or5 } from "drizzle-orm";
+import { eq as eq38, and as and27, asc, isNull as isNull10, or as or4 } from "drizzle-orm";
 var LegalStageStorage;
 var init_legal_stage_storage = __esm({
   "server/storage/storeage/models/legal-stage-storage.ts"() {
@@ -8350,7 +8360,7 @@ var init_legal_stage_storage = __esm({
         const rows = await this.db.select().from(etapasPorTipoProceso).where(
           and27(
             eq38(etapasPorTipoProceso.activo, 1),
-            tipoProcesoId ? or5(
+            tipoProcesoId ? or4(
               eq38(etapasPorTipoProceso.tipoProcesoId, tipoProcesoId),
               isNull10(etapasPorTipoProceso.tipoProcesoId)
             ) : isNull10(etapasPorTipoProceso.tipoProcesoId)
@@ -8644,7 +8654,7 @@ var init_calendar_storage = __esm({
 });
 
 // server/storage/storeage/models/stage-task-template-storage.ts
-import { eq as eq40, and as and29, or as or6, isNull as isNull11, asc as asc2 } from "drizzle-orm";
+import { eq as eq40, and as and29, or as or5, isNull as isNull11, asc as asc2 } from "drizzle-orm";
 function toDTO2(r) {
   return {
     id: r.id,
@@ -8672,7 +8682,7 @@ var init_stage_task_template_storage = __esm({
           and29(
             eq40(etapasTareasPlantilla.legalStageCode, legalStageCode),
             eq40(etapasTareasPlantilla.activo, 1),
-            tipoProcesoId != null ? or6(
+            tipoProcesoId != null ? or5(
               eq40(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
               isNull11(etapasTareasPlantilla.tipoProcesoId)
             ) : isNull11(etapasTareasPlantilla.tipoProcesoId)
@@ -8691,7 +8701,7 @@ var init_stage_task_template_storage = __esm({
         const conditions = [];
         if (tipoProcesoId != null) {
           conditions.push(
-            or6(
+            or5(
               eq40(etapasTareasPlantilla.tipoProcesoId, tipoProcesoId),
               isNull11(etapasTareasPlantilla.tipoProcesoId)
             )
@@ -9796,7 +9806,7 @@ var init_admin_audit_storage = __esm({
 });
 
 // server/admin/storage/admin-users.storage.ts
-import { sql as sql21, eq as eq55, and as and39, or as or7, like as like6, desc as desc23 } from "drizzle-orm";
+import { sql as sql21, eq as eq55, and as and39, or as or6, like as like6, desc as desc23 } from "drizzle-orm";
 var AdminUsersStorage;
 var init_admin_users_storage = __esm({
   "server/admin/storage/admin-users.storage.ts"() {
@@ -9822,7 +9832,7 @@ var init_admin_users_storage = __esm({
         if (params.search) {
           const pattern = `%${params.search}%`;
           conditions.push(
-            or7(
+            or6(
               like6(users.name, pattern),
               like6(users.email, pattern)
             )
@@ -10095,8 +10105,8 @@ var init_database_storage = __esm({
       }
       // Backwards-compatibility facade used by older routes while the storage
       // layer is progressively split into specialized modules.
-      async getProcesosByIds(ids, filter) {
-        return this.procesos.getProcesosByIds(ids, filter);
+      async getProcesosByIds(ids, filter, limit, offset) {
+        return this.procesos.getProcesosByIds(ids, filter, limit, offset);
       }
       async removeAbogadoFromProcesos(lawyerId, procesoIds) {
         return this.procesos.removeAbogadoFromProcesos(lawyerId, procesoIds);
@@ -10846,14 +10856,14 @@ var InMemoryRedis = class {
     return Math.max(0, Math.ceil((entry.expiresAt - Date.now()) / 1e3));
   }
   async del(...keys) {
-    let count5 = 0;
+    let count4 = 0;
     for (const key of keys) {
       if (this.store.has(key)) {
         this.store.delete(key);
-        count5++;
+        count4++;
       }
     }
-    return count5;
+    return count4;
   }
   async sadd(key, ...members) {
     const entry = this.store.get(key);
@@ -10944,10 +10954,10 @@ var k = {
   userFail: (email) => `login:fail:user:${email}`,
   ipEmails: (ip) => `login:ip:emails:${ip}`
 };
-function resolveBlock(count5, levels) {
+function resolveBlock(count4, levels) {
   let blockSec = 0;
   for (const lvl of levels) {
-    if (count5 >= lvl.threshold) blockSec = lvl.blockSec;
+    if (count4 >= lvl.threshold) blockSec = lvl.blockSec;
   }
   return blockSec;
 }
@@ -11434,8 +11444,8 @@ function verifyRecoveryCode(code, hashes) {
   });
   return { valid: matched, remaining };
 }
-function generateRecoveryCodes(count5 = 8) {
-  return Array.from({ length: count5 }, () => {
+function generateRecoveryCodes(count4 = 8) {
+  return Array.from({ length: count4 }, () => {
     const raw = randomBytes(4).toString("hex").toUpperCase();
     return `${raw.slice(0, 4)}-${raw.slice(4, 8)}`;
   });
@@ -12226,7 +12236,7 @@ var lawyerProfileService = new LawyerProfileService();
 
 // server/services/cliente.service.ts
 init_schema();
-import { eq as eq57, or as or8, like as like7 } from "drizzle-orm";
+import { eq as eq57, or as or7, like as like7 } from "drizzle-orm";
 import { randomUUID as randomUUID32 } from "crypto";
 init_auth();
 init_database_storage();
@@ -12434,7 +12444,7 @@ var ClientesService = class {
   _applyFilters(conditions, filter) {
     if (filter?.search) {
       const s = `${filter.search}%`;
-      conditions.push(or8(
+      conditions.push(or7(
         like7(personas.nombre, s),
         like7(personas.documento, s),
         like7(clientesEmpresa.razonSocial, s)
@@ -14475,22 +14485,25 @@ router4.get("/procesos", authenticate, requirePermission("procesos.ver"), async 
           if (ow.ownerType === "bufete" && lawyer?.firmId === ow.ownerId) validAssignedIds.push(pid);
         }
         const allIds = [.../* @__PURE__ */ new Set([...ownedIds, ...validAssignedIds])];
-        procesos2 = await storage.getProcesosByIds(allIds, filter);
-        totalCount = procesos2.length;
+        const filteredProcesos = await storage.getProcesosByIds(allIds, filter);
+        totalCount = filteredProcesos.length;
+        procesos2 = filteredProcesos.slice(offsetNum, offsetNum + limitNum);
         break;
       }
       case "bufete": {
         const ownedIds = await storage.procesoOwnership.getProcesoIdsByOwner("bufete", idProfile);
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("bufete", idProfile);
         const allIds = [.../* @__PURE__ */ new Set([...ownedIds, ...sharedIds])];
-        procesos2 = await storage.getProcesosByIds(allIds, filter);
-        totalCount = procesos2.length;
+        const filteredProcesos = await storage.getProcesosByIds(allIds, filter);
+        totalCount = filteredProcesos.length;
+        procesos2 = filteredProcesos.slice(offsetNum, offsetNum + limitNum);
         break;
       }
       case "corporacion": {
         const sharedIds = await storage.procesoSharing.getProcesoIdsBySharedWith("corporacion", idProfile);
-        procesos2 = await storage.getProcesosByIds(sharedIds, filter);
-        totalCount = procesos2.length;
+        const filteredProcesos = await storage.getProcesosByIds(sharedIds, filter);
+        totalCount = filteredProcesos.length;
+        procesos2 = filteredProcesos.slice(offsetNum, offsetNum + limitNum);
         break;
       }
       case "cliente": {
@@ -14514,8 +14527,8 @@ router4.get("/procesos/count", authenticate, requirePermission("procesos.ver"), 
     const lawyerId = user.lawyerProfileId;
     const { estadoCodigo } = req.query;
     const filter = estadoCodigo ? { estadoCodigo } : void 0;
-    const count5 = await storage.getProcesCount(lawyerId, filter);
-    res.json({ count: count5 });
+    const count4 = await storage.getProcesCount(lawyerId, filter);
+    res.json({ count: count4 });
   } catch (err) {
     next(err);
   }
@@ -14646,6 +14659,13 @@ router4.post("/procesos", authenticate, requirePermission("procesos.crear"), asy
           asignadoPorNombre: UserName ?? null,
           razon: `Responsable inicial asignado por bufete ${UserName}`
         });
+        await notificacionesService.notifyLawyer(
+          req.body.lawyerId,
+          newProceso.id,
+          "Nuevo proceso asignado",
+          `${UserName ?? "El bufete"} te asign\xF3 como responsable del proceso ${newProceso.radicado ?? newProceso.id}.`,
+          "responsable_asignado"
+        );
         break;
       case "corporacion":
         if (!req.body.lawyerId) return res.status(400).json({ error: "lawyerId is required para corporacion" });
@@ -14738,6 +14758,13 @@ router4.put("/procesos/:id/responsable", authenticate, requirePermission("proces
     if (!proceso) {
       return res.status(404).json({ error: "Proceso no encontrado" });
     }
+    await notificacionesService.notifyLawyer(
+      responsableId,
+      id,
+      "Te asignaron como responsable",
+      `${user.UserName ?? "El bufete"} te asign\xF3 como responsable del proceso ${proceso.radicado ?? id}.`,
+      "responsable_asignado"
+    );
     res.json(proceso);
   } catch (err) {
     next(err);
@@ -15558,8 +15585,8 @@ router7.get("/notificaciones/cliente/:clienteId/count", authenticate, async (req
     if (!cliente || cliente.id !== req.params.clienteId) {
       return res.status(403).json({ error: "No tienes acceso a estas notificaciones" });
     }
-    const count5 = await storage.getNotificacionesCountByClienteId(req.params.clienteId);
-    res.json({ count: count5 });
+    const count4 = await storage.getNotificacionesCountByClienteId(req.params.clienteId);
+    res.json({ count: count4 });
   } catch (err) {
     next(err);
   }
@@ -15608,8 +15635,8 @@ router7.get("/notificaciones/abogado/:abogadoId/count", authenticate, requirePer
     if (user.idProfile !== req.params.abogadoId) {
       return res.status(403).json({ error: "No tienes acceso a estas notificaciones" });
     }
-    const count5 = await storage.getNotificacionesCountByAbogadoId(req.params.abogadoId);
-    res.json({ count: count5 });
+    const count4 = await storage.getNotificacionesCountByAbogadoId(req.params.abogadoId);
+    res.json({ count: count4 });
   } catch (err) {
     next(err);
   }
@@ -15656,8 +15683,8 @@ router7.get("/notificaciones/firma/:firmaId/count", authenticate, requirePermiss
     if (user.idProfile !== req.params.firmaId) {
       return res.status(403).json({ error: "No tienes acceso a estas notificaciones" });
     }
-    const count5 = await storage.getNotificacionesCountByFirmaId(req.params.firmaId);
-    res.json({ count: count5 });
+    const count4 = await storage.getNotificacionesCountByFirmaId(req.params.firmaId);
+    res.json({ count: count4 });
   } catch (err) {
     next(err);
   }
@@ -16062,8 +16089,8 @@ router12.get("/lawyer-firma-history/count/:firmaId", authenticate, async (req, r
     if (!firmaId || Array.isArray(firmaId)) {
       return res.status(400).json({ error: "ID de firma inv\xE1lido" });
     }
-    const count5 = await storage.lawyerFirmaHistory.countActiveMembers(firmaId);
-    res.json({ count: count5 });
+    const count4 = await storage.lawyerFirmaHistory.countActiveMembers(firmaId);
+    res.json({ count: count4 });
   } catch (err) {
     next(err);
   }
@@ -16920,8 +16947,8 @@ router16.get(
   async (req, res, next) => {
     try {
       const userId2 = req.user?.id;
-      const count5 = await chatService.getUnreadCount(userId2);
-      res.json({ count: count5 });
+      const count4 = await chatService.getUnreadCount(userId2);
+      res.json({ count: count4 });
     } catch (err) {
       next(err);
     }
@@ -18709,8 +18736,8 @@ router20.get("/app-notifications", authenticate, async (req, res) => {
 router20.get("/app-notifications/unread-count", authenticate, async (req, res) => {
   try {
     const userId2 = req.user.id;
-    const count5 = await storage.appNotifications.getUnreadCount(userId2);
-    res.json({ count: count5 });
+    const count4 = await storage.appNotifications.getUnreadCount(userId2);
+    res.json({ count: count4 });
   } catch {
     res.status(500).json({ error: "Error interno" });
   }
@@ -20512,7 +20539,7 @@ var admin_plans_routes_default = router34;
 init_auth();
 import { Router as Router35 } from "express";
 import { z as z18 } from "zod";
-import { sql as sql25, desc as desc25, and as and43, eq as eq62, or as or9, like as like8 } from "drizzle-orm";
+import { sql as sql25, desc as desc25, and as and43, eq as eq62, or as or8, like as like8 } from "drizzle-orm";
 init_database_storage();
 init_schema();
 var router35 = Router35();
@@ -20565,7 +20592,7 @@ router35.get("/subscriptions", requireAdminRole("admin_super", "admin_finanzas")
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
     const conditions = [];
     if (estado) conditions.push(eq62(suscripciones.estado, estado));
-    if (search) conditions.push(or9(like8(users.email, search), like8(users.name, search)));
+    if (search) conditions.push(or8(like8(users.email, search), like8(users.name, search)));
     const where = conditions.length ? and43(...conditions) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select({
@@ -20604,7 +20631,7 @@ router35.get("/payments", requireAdminRole("admin_super", "admin_finanzas"), asy
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
     const conditions = [];
     if (estado) conditions.push(eq62(pagos.estado, estado));
-    if (search) conditions.push(or9(like8(users.email, search), like8(users.name, search), like8(pagos.wompiReference, search)));
+    if (search) conditions.push(or8(like8(users.email, search), like8(users.name, search), like8(pagos.wompiReference, search)));
     const where = conditions.length ? and43(...conditions) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select({
@@ -20651,7 +20678,7 @@ var admin_billing_routes_default = router35;
 init_auth();
 import { Router as Router36 } from "express";
 import { z as z19 } from "zod";
-import { sql as sql26, desc as desc26, like as like9, or as or10, eq as eq63 } from "drizzle-orm";
+import { sql as sql26, desc as desc26, like as like9, or as or9, eq as eq63 } from "drizzle-orm";
 init_database_storage();
 init_schema();
 var router36 = Router36();
@@ -20690,7 +20717,7 @@ router36.get("/records", requireAdminRole("admin_super"), async (req, res, next)
     const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
     const offset = (page - 1) * limit;
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
-    const where = search ? or10(
+    const where = search ? or9(
       like9(procesos.radicado, search),
       like9(procesos.juzgado, search),
       like9(tiposProceso.nombre, search),
@@ -20772,7 +20799,7 @@ var admin_processes_routes_default = router36;
 init_auth();
 import { Router as Router37 } from "express";
 import { z as z20 } from "zod";
-import { sql as sql27, desc as desc27, like as like10, or as or11, eq as eq64, and as and44 } from "drizzle-orm";
+import { sql as sql27, desc as desc27, like as like10, or as or10, eq as eq64, and as and44 } from "drizzle-orm";
 init_database_storage();
 init_schema();
 var router37 = Router37();
@@ -20820,7 +20847,7 @@ router37.get("/posts", requireAdminRole("admin_super", "admin_soporte"), async (
     if (status) conditions.push(eq64(posts.status, status));
     if (disabled === "true") conditions.push(eq64(posts.disabled, true));
     if (disabled === "false") conditions.push(eq64(posts.disabled, false));
-    if (search) conditions.push(or11(like10(posts.title, search), like10(posts.content, search), like10(users.name, search)));
+    if (search) conditions.push(or10(like10(posts.title, search), like10(posts.content, search), like10(users.name, search)));
     const where = conditions.length ? and44(...conditions) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select({
@@ -20887,7 +20914,7 @@ var admin_community_routes_default = router37;
 // server/admin/routes/admin-support.routes.ts
 init_auth();
 import { Router as Router38 } from "express";
-import { desc as desc28, sql as sql28, like as like11, or as or12, eq as eq65, and as and45 } from "drizzle-orm";
+import { desc as desc28, sql as sql28, like as like11, or as or11, eq as eq65, and as and45 } from "drizzle-orm";
 init_database_storage();
 init_schema();
 init_email_service();
@@ -20946,7 +20973,7 @@ router38.get("/security-events", requireAdminRole("admin_super", "admin_soporte"
     const limit = Math.min(Math.max(Number(req.query.limit ?? 20), 1), 100);
     const offset = (page - 1) * limit;
     const search = typeof req.query.search === "string" ? `%${req.query.search}%` : void 0;
-    const where = search ? or12(like11(securityEvents.email, search), like11(securityEvents.ip, search)) : void 0;
+    const where = search ? or11(like11(securityEvents.email, search), like11(securityEvents.ip, search)) : void 0;
     const [rows, countRows] = await Promise.all([
       db2.select().from(securityEvents).where(where).orderBy(desc28(securityEvents.createdAt)).limit(limit).offset(offset),
       db2.select({ total: sql28`COUNT(*)` }).from(securityEvents).where(where)
@@ -20993,7 +21020,7 @@ router38.get("/public-requests", requireAdminRole("admin_super", "admin_soporte"
     const searchTerm = search ? `%${search}%` : void 0;
     const filters = and45(
       status ? eq65(publicSupportRequests.status, status) : void 0,
-      searchTerm ? or12(
+      searchTerm ? or11(
         like11(publicSupportRequests.name, searchTerm),
         like11(publicSupportRequests.email, searchTerm),
         like11(publicSupportRequests.message, searchTerm)
@@ -21792,6 +21819,9 @@ function configureExpoAndLanding(app2) {
   app2.use((req, res, next) => {
     if (req.path.startsWith("/api")) {
       return next();
+    }
+    if (req.path === "/landing") {
+      return res.redirect(301, "/");
     }
     if (req.path !== "/" && req.path !== "/manifest") {
       return next();

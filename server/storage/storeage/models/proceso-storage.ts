@@ -1762,16 +1762,29 @@ export class ProcesoStorage {
     }));
   }
 
-  /** IDs de procesos donde el abogado tiene asignación activa. */
+  /** IDs de procesos donde el abogado tiene asignación o responsabilidad activa. */
   async getProcesoIdsByAbogadoAssignment(lawyerId: string): Promise<string[]> {
-    const rows = await this.db
-      .select({ procesoId: procesoLawyers.procesoId })
-      .from(procesoLawyers)
-      .where(and(
-        eq(procesoLawyers.lawyerId, lawyerId),
-        eq(procesoLawyers.status, "activo"),
-      ));
-    return rows.map(r => r.procesoId);
+    const [assignmentRows, responsableRows] = await Promise.all([
+      this.db
+        .select({ procesoId: procesoLawyers.procesoId })
+        .from(procesoLawyers)
+        .where(and(
+          eq(procesoLawyers.lawyerId, lawyerId),
+          eq(procesoLawyers.status, "activo"),
+        )),
+      this.db
+        .select({ procesoId: procesoResponsables.procesoId })
+        .from(procesoResponsables)
+        .where(and(
+          eq(procesoResponsables.lawyerId, lawyerId),
+          eq(procesoResponsables.activo, true),
+        )),
+    ]);
+
+    return [...new Set([
+      ...assignmentRows.map(r => r.procesoId),
+      ...responsableRows.map(r => r.procesoId),
+    ])];
   }
 
 }

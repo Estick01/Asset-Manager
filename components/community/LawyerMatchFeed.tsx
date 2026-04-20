@@ -7,14 +7,21 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable,
-  RefreshControl, Animated,
+  RefreshControl, Animated, Modal, TextInput, ActivityIndicator,
   useWindowDimensions, Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { getLawyerFeed, markPostSeen, type LawyerFeedDTO } from "@/lib/services/matchingService";
-import { toggleLike, type PostDTO } from "@/lib/services/communityService";
+import {
+  addComment,
+  getComments,
+  getPost,
+  toggleLike,
+  type CommentDTO,
+  type PostDTO,
+} from "@/lib/services/communityService";
 import { useGlobalSocket } from "@/lib/global-socket-context";
 import { C, CASE_META, formatDate } from "@/constants/community-theme";
 import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
@@ -84,7 +91,15 @@ function MatchCardSkeleton() {
 }
 
 // ─── Match card ───────────────────────────────────────────────────────────
-function MatchCard({ post, index }: { post: PostDTO; index: number }) {
+function MatchCard({
+  post,
+  index,
+  onOpen,
+}: {
+  post: PostDTO;
+  index: number;
+  onOpen: (postId: string) => void;
+}) {
   const anim = useRef(new Animated.Value(0)).current;
   const [liked,     setLiked]     = useState(post.isLiked ?? false);
   const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
@@ -103,8 +118,7 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
   }, [anim, index]);
 
   const handleOpen = () => {
-    markPostSeen(post.id);
-    router.push(`/community/${post.id}` as any);
+    onOpen(post.id);
   };
 
   const handleLike = async (e: any) => {
@@ -203,7 +217,12 @@ function MatchCard({ post, index }: { post: PostDTO; index: number }) {
 
             <Pressable
               style={({ pressed }) => [styles.respondBtn, pressed && { opacity: 0.88 }]}
-              onPress={handleOpen}
+              onPress={(e: any) => {
+                e.stopPropagation?.();
+                handleOpen();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Ver caso compatible"
             >
               <Ionicons name="chatbubble-ellipses-outline" size={13} color={WHITE} />
               <Text style={styles.respondBtnText}>Ver caso</Text>
@@ -229,6 +248,281 @@ function SectionHeader({ icon, title, count }: { icon: keyof typeof Ionicons.gly
   );
 }
 
+type ModalReplyTarget = { id: string; name: string } | null;
+
+function countCommentTree(list: CommentDTO[]): number {
+  return list.reduce((total, comment) => total + 1 + countCommentTree(comment.replies ?? []), 0);
+}
+
+function CaseModalCommentThread({
+  comment,
+  onReply,
+  depth = 0,
+}: {
+  comment: CommentDTO;
+  onReply: (id: string, name: string) => void;
+  depth?: number;
+}) {
+  const authorName = comment.author?.name ?? "Usuario";
+  const replies = comment.replies ?? [];
+
+  return (
+    <View style={[styles.caseModalComment, depth > 0 && styles.caseModalCommentReply]}>
+      <View style={styles.caseModalCommentHead}>
+        <View style={styles.caseModalCommentMeta}>
+          <Text style={styles.caseModalCommentAuthor}>{authorName}</Text>
+          <Text style={styles.caseModalCommentDate}>{formatDate(comment.createdAt)}</Text>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.caseModalReplyButton, pressed && { opacity: 0.72 }]}
+          onPress={() => onReply(comment.id, authorName)}
+          accessibilityRole="button"
+          accessibilityLabel={`Responder a ${authorName}`}
+        >
+          <Ionicons name="return-down-forward-outline" size={13} color={TEAL} />
+          <Text style={styles.caseModalReplyButtonText}>Responder</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.caseModalCommentText}>{comment.content}</Text>
+
+      {replies.length > 0 && (
+        <View style={styles.caseModalReplies}>
+          {replies.map(reply => (
+            <CaseModalCommentThread
+              key={reply.id}
+              comment={reply}
+              onReply={onReply}
+              depth={depth + 1}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ─── Desktop case modal ───────────────────────────────────────────────────
+function DesktopCompatibleCaseModal({
+  postId,
+  visible,
+  onClose,
+}: {
+  postId: string | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const [post, setPost] = useState<PostDTO | null>(null);
+  const [comments, setComments] = useState<CommentDTO[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [replyTo, setReplyTo] = useState<ModalReplyTarget>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (!visible || !postId) return;
+    let alive = true;
+    setLoading(true);
+    setPost(null);
+    setComments([]);
+    setCommentText("");
+    setReplyTo(null);
+
+    Promise.all([getPost(postId), getComments(postId)])
+      .then(([nextPost, nextComments]) => {
+        if (!alive) return;
+        setPost(nextPost);
+        setComments(nextComments);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, [postId, visible]);
+
+  const submitComment = async () => {
+    if (!postId) return;
+    const text = commentText.trim();
+    if (!text || submitting) return;
+
+    setSubmitting(true);
+    const created = await addComment(postId, text, replyTo?.id ?? null);
+    if (created) {
+      setCommentText("");
+      setReplyTo(null);
+      setComments(await getComments(postId));
+      setPost(prev => prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev);
+    }
+    setSubmitting(false);
+  };
+
+  const handleReply = (commentId: string, name: string) => {
+    setReplyTo({ id: commentId, name });
+    setTimeout(() => inputRef.current?.focus(), 60);
+  };
+
+  const authorName = post?.visibility === "anonymous" ? "Anónimo" : (post?.author?.name ?? "Usuario");
+  const caseMeta = post?.caseType ? (CASE_META[post.caseType] ?? null) : null;
+  const commentsTotal = countCommentTree(comments);
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable style={styles.caseModalOverlay} onPress={onClose}>
+        <Pressable style={styles.caseModalPanel} onPress={(e: any) => e.stopPropagation?.()}>
+          <View style={styles.caseModalHeader}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.caseModalEyebrow}>Caso compatible</Text>
+              <Text style={styles.caseModalTitle} numberOfLines={2}>
+                {post?.title ?? "Cargando caso"}
+              </Text>
+            </View>
+            <Pressable
+              style={styles.caseModalClose}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Cerrar caso"
+            >
+              <Ionicons name="close" size={22} color={TEXT2} />
+            </Pressable>
+          </View>
+
+          {loading ? (
+            <View style={styles.caseModalLoading}>
+              <ActivityIndicator color={TEAL} />
+              <Text style={styles.caseModalLoadingText}>Cargando caso...</Text>
+            </View>
+          ) : !post ? (
+            <View style={styles.caseModalLoading}>
+              <Ionicons name="alert-circle-outline" size={28} color={ROSE} />
+              <Text style={styles.caseModalLoadingText}>No se pudo cargar el caso.</Text>
+            </View>
+          ) : (
+            <>
+              <ScrollView style={styles.caseModalBody} contentContainerStyle={styles.caseModalContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.caseModalMetaRow}>
+                  <View style={styles.caseModalAuthor}>
+                    <View style={styles.caseModalAvatar}>
+                      <Text style={styles.caseModalAvatarText}>{authorName[0]?.toUpperCase() ?? "?"}</Text>
+                    </View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.caseModalAuthorName} numberOfLines={1}>{authorName}</Text>
+                      <Text style={styles.caseModalDate}>{formatDate(post.createdAt, true)}</Text>
+                    </View>
+                  </View>
+                  {post.city && (
+                    <View style={styles.caseModalCity}>
+                      <Ionicons name="location-outline" size={14} color={TEXT2} />
+                      <Text style={styles.caseModalCityText}>{post.city}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.caseModalBadges}>
+                  {post.isUrgent === 1 && (
+                    <View style={styles.urgentBadge}>
+                      <Ionicons name="flash" size={10} color={WHITE} />
+                      <Text style={styles.urgentText}>URGENTE</Text>
+                    </View>
+                  )}
+                  {caseMeta && (
+                    <View style={[styles.caseBadge, { backgroundColor: caseMeta.bg, borderColor: caseMeta.border }]}>
+                      <Ionicons name={caseMeta.icon as any} size={11} color={caseMeta.text} />
+                      <Text style={[styles.caseBadgeText, { color: caseMeta.text }]}>{caseMeta.label}</Text>
+                    </View>
+                  )}
+                  {post.tags.map(tag => (
+                    <View key={tag.id} style={styles.tagChip}>
+                      <Text style={styles.tagChipText}>#{tag.name}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <Text style={styles.caseModalPostTitle}>{post.title}</Text>
+                <Text style={styles.caseModalPostContent}>{post.content}</Text>
+
+                <View style={styles.caseModalStats}>
+                  <View style={styles.caseModalStat}>
+                    <Ionicons name="heart-outline" size={15} color={TEXT3} />
+                    <Text style={styles.caseModalStatText}>{post.likeCount} me gusta</Text>
+                  </View>
+                  <View style={styles.caseModalStat}>
+                    <Ionicons name="chatbubble-outline" size={15} color={TEXT3} />
+                    <Text style={styles.caseModalStatText}>{commentsTotal} comentarios</Text>
+                  </View>
+                  <View style={styles.caseModalStat}>
+                    <Ionicons name="eye-outline" size={15} color={TEXT3} />
+                    <Text style={styles.caseModalStatText}>{post.viewCount} vistas</Text>
+                  </View>
+                </View>
+
+                <View style={styles.caseModalCommentsHeader}>
+                  <Text style={styles.caseModalSectionTitle}>Comentarios</Text>
+                  <Text style={styles.caseModalSectionCount}>{commentsTotal}</Text>
+                </View>
+
+                {comments.length === 0 ? (
+                  <View style={styles.caseModalEmptyComments}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={24} color={TEXT3} />
+                    <Text style={styles.caseModalEmptyText}>Todavía no hay respuestas.</Text>
+                  </View>
+                ) : (
+                  comments.slice(0, 8).map(comment => (
+                    <CaseModalCommentThread key={comment.id} comment={comment} onReply={handleReply} />
+                  ))
+                )}
+              </ScrollView>
+
+              <View style={styles.caseModalComposer}>
+                {replyTo && (
+                  <View style={styles.caseModalReplyBanner}>
+                    <View style={styles.caseModalReplyBannerLeft}>
+                      <Ionicons name="return-down-forward-outline" size={13} color={TEAL} />
+                      <Text style={styles.caseModalReplyBannerText}>
+                        Respondiendo a <Text style={styles.caseModalReplyBannerName}>{replyTo.name}</Text>
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => setReplyTo(null)}
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancelar respuesta"
+                    >
+                      <Ionicons name="close" size={16} color={TEXT3} />
+                    </Pressable>
+                  </View>
+                )}
+                <View style={styles.caseModalComposerRow}>
+                <TextInput
+                  ref={inputRef}
+                  style={styles.caseModalInput}
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  placeholder={replyTo ? `Responder a ${replyTo.name}...` : "Escribe tu respuesta..."}
+                  placeholderTextColor={TEXT3}
+                  multiline
+                />
+                <Pressable
+                  style={[styles.caseModalSend, (!commentText.trim() || submitting) && styles.caseModalSendDisabled]}
+                  onPress={submitComment}
+                  disabled={!commentText.trim() || submitting}
+                  accessibilityRole="button"
+                  accessibilityLabel="Enviar respuesta"
+                >
+                  {submitting ? <ActivityIndicator size={14} color={WHITE} /> : <Ionicons name="send" size={16} color={WHITE} />}
+                </Pressable>
+                </View>
+              </View>
+            </>
+          )}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────
 export default function LawyerMatchFeed() {
   const insets = useSafeAreaInsets();
@@ -243,6 +537,7 @@ export default function LawyerMatchFeed() {
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showFloatingAdd, setShowFloatingAdd] = useState(false);
+  const [desktopCaseModalId, setDesktopCaseModalId] = useState<string | null>(null);
 
   const loadFeed = useCallback(async () => {
     const data = await getLawyerFeed();
@@ -268,6 +563,15 @@ export default function LawyerMatchFeed() {
     await loadFeed();
     setRefreshing(false);
   }, [loadFeed]);
+
+  const openCase = useCallback((postId: string) => {
+    markPostSeen(postId);
+    if (desktopWeb) {
+      setDesktopCaseModalId(postId);
+      return;
+    }
+    router.push(`/community/${postId}` as any);
+  }, [desktopWeb]);
 
   const totalCases = feed.urgent.length + feed.recommended.length + feed.recent.length;
   const totalUrgent = feed.urgent.length;
@@ -383,19 +687,19 @@ export default function LawyerMatchFeed() {
                       {feed.urgent.length > 0 && (
                         <>
                           <SectionHeader icon="flash-outline" title="Urgentes" count={feed.urgent.length} />
-                          {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                          {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} onOpen={openCase} />)}
                         </>
                       )}
                       {feed.recommended.length > 0 && (
                         <>
                           <SectionHeader icon="sparkles-outline" title="Para ti" count={feed.recommended.length} />
-                          {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                          {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} onOpen={openCase} />)}
                         </>
                       )}
                       {feed.recent.length > 0 && (
                         <>
                           <SectionHeader icon="time-outline" title="Recientes" count={feed.recent.length} />
-                          {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                          {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} onOpen={openCase} />)}
                         </>
                       )}
                       <View style={{ height: 32 }} />
@@ -463,21 +767,21 @@ export default function LawyerMatchFeed() {
             {feed.urgent.length > 0 && (
               <>
                 <SectionHeader icon="flash-outline" title="Urgentes" count={feed.urgent.length} />
-                {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                {feed.urgent.map((post, i) => <MatchCard key={post.id} post={post} index={i} onOpen={openCase} />)}
               </>
             )}
 
             {feed.recommended.length > 0 && (
               <>
                 <SectionHeader icon="sparkles-outline" title="Para ti" count={feed.recommended.length} />
-                {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                {feed.recommended.map((post, i) => <MatchCard key={post.id} post={post} index={i} onOpen={openCase} />)}
               </>
             )}
 
             {feed.recent.length > 0 && (
               <>
                 <SectionHeader icon="time-outline" title="Recientes" count={feed.recent.length} />
-                {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} />)}
+                {feed.recent.map((post, i) => <MatchCard key={post.id} post={post} index={i} onOpen={openCase} />)}
               </>
             )}
 
@@ -496,6 +800,13 @@ export default function LawyerMatchFeed() {
         </Pressable>
       )}
         </View>
+      )}
+      {desktopWeb && (
+        <DesktopCompatibleCaseModal
+          visible={!!desktopCaseModalId}
+          postId={desktopCaseModalId}
+          onClose={() => setDesktopCaseModalId(null)}
+        />
       )}
     </View>
   );
@@ -831,5 +1142,325 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: "Inter_700Bold",
     color: C.TEXT2,
+  },
+
+  // ── Desktop case modal ──
+  caseModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15,38,64,0.58)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+  },
+  caseModalPanel: {
+    width: "100%",
+    maxWidth: 760,
+    maxHeight: "92%",
+    backgroundColor: C.WHITE,
+    borderRadius: 18,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 18 },
+    shadowOpacity: 0.22,
+    shadowRadius: 32,
+    elevation: 18,
+  },
+  caseModalHeader: {
+    minHeight: 76,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 22,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8ECF0",
+    backgroundColor: C.WHITE,
+  },
+  caseModalEyebrow: {
+    fontSize: 12,
+    color: C.TEXT3,
+    fontFamily: "Inter_600SemiBold",
+  },
+  caseModalTitle: {
+    marginTop: 2,
+    fontSize: 20,
+    lineHeight: 26,
+    color: C.TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalClose: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F4F6F8",
+  },
+  caseModalLoading: {
+    minHeight: 320,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  caseModalLoadingText: {
+    fontSize: 14,
+    color: C.TEXT2,
+    fontFamily: "Inter_500Medium",
+  },
+  caseModalBody: {
+    maxHeight: 620,
+  },
+  caseModalContent: {
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 22,
+    gap: 14,
+  },
+  caseModalMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+  caseModalAuthor: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  caseModalAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: C.TEAL + "14",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  caseModalAvatarText: {
+    fontSize: 15,
+    color: C.TEAL,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalAuthorName: {
+    fontSize: 14,
+    color: C.TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalDate: {
+    marginTop: 2,
+    fontSize: 12,
+    color: C.TEXT3,
+    fontFamily: "Inter_400Regular",
+  },
+  caseModalCity: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 17,
+    paddingHorizontal: 10,
+    backgroundColor: "#F4F6F8",
+  },
+  caseModalCityText: {
+    fontSize: 12,
+    color: C.TEXT2,
+    fontFamily: "Inter_600SemiBold",
+  },
+  caseModalBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  caseModalPostTitle: {
+    fontSize: 22,
+    lineHeight: 29,
+    color: C.TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalPostContent: {
+    fontSize: 15,
+    lineHeight: 24,
+    color: C.TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  caseModalStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingTop: 4,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8ECF0",
+    flexWrap: "wrap",
+  },
+  caseModalStat: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 17,
+    paddingHorizontal: 10,
+    backgroundColor: "#F4F6F8",
+  },
+  caseModalStatText: {
+    fontSize: 12,
+    color: C.TEXT2,
+    fontFamily: "Inter_500Medium",
+  },
+  caseModalCommentsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  caseModalSectionTitle: {
+    fontSize: 15,
+    color: C.TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalSectionCount: {
+    fontSize: 12,
+    color: C.TEXT3,
+    fontFamily: "Inter_600SemiBold",
+  },
+  caseModalEmptyComments: {
+    minHeight: 86,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFD",
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+  },
+  caseModalEmptyText: {
+    fontSize: 13,
+    color: C.TEXT3,
+    fontFamily: "Inter_500Medium",
+  },
+  caseModalComment: {
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: "#F8FAFD",
+    borderWidth: 1,
+    borderColor: "#E4EAF0",
+    gap: 4,
+  },
+  caseModalCommentReply: {
+    marginLeft: 18,
+    backgroundColor: C.WHITE,
+    borderColor: "#E8EDF2",
+  },
+  caseModalCommentHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  caseModalCommentMeta: {
+    flex: 1,
+    minWidth: 0,
+  },
+  caseModalCommentAuthor: {
+    fontSize: 12,
+    color: C.TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalCommentDate: {
+    marginTop: 1,
+    fontSize: 11,
+    color: C.TEXT3,
+    fontFamily: "Inter_400Regular",
+  },
+  caseModalCommentText: {
+    fontSize: 13,
+    lineHeight: 20,
+    color: C.TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  caseModalReplyButton: {
+    minHeight: 30,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 9,
+    backgroundColor: C.TEAL + "10",
+  },
+  caseModalReplyButtonText: {
+    fontSize: 11,
+    color: C.TEAL,
+    fontFamily: "Inter_600SemiBold",
+  },
+  caseModalReplies: {
+    marginTop: 8,
+    gap: 8,
+  },
+  caseModalComposer: {
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: "#E8ECF0",
+    backgroundColor: C.WHITE,
+  },
+  caseModalReplyBanner: {
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    borderRadius: 12,
+    paddingHorizontal: 11,
+    backgroundColor: C.TEAL + "10",
+  },
+  caseModalReplyBannerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+    minWidth: 0,
+  },
+  caseModalReplyBannerText: {
+    fontSize: 12,
+    color: C.TEXT2,
+    fontFamily: "Inter_400Regular",
+  },
+  caseModalReplyBannerName: {
+    color: C.TEXT,
+    fontFamily: "Inter_700Bold",
+  },
+  caseModalComposerRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+  },
+  caseModalInput: {
+    flex: 1,
+    minHeight: 44,
+    maxHeight: 110,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E0E5EA",
+    backgroundColor: "#F8FAFD",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: C.TEXT,
+    fontFamily: "Inter_400Regular",
+  },
+  caseModalSend: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.TEAL,
+  },
+  caseModalSendDisabled: {
+    opacity: 0.45,
   },
 });

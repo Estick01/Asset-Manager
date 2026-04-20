@@ -1,17 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, FlatList, Pressable, TextInput,
-  RefreshControl, ActivityIndicator, Animated, Alert,
+  RefreshControl, ActivityIndicator, Animated, Alert, useWindowDimensions, Platform, ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import { getConversations, getOrCreateSupportConversation } from "@/lib/services/chatService";
 import type { ConversationDTO } from "@/shared/schema";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { STORAGE_KEYS } from "@/lib/keys";
+import { getDesktopMetrics, isDesktopViewport } from "@/lib/ui/breakpoints";
 
-// ─── Design tokens ────────────────────────────────────────────────────────
 const NAVY = "#0F2640";
 const NAVY_MID = "#243447";
 const WHITE = "#FFFFFF";
@@ -23,10 +24,25 @@ const TEAL = "#2196A6";
 const GREEN = "#27AE7A";
 const AMBER = "#F5A623";
 
-const AVATAR_COLORS_LAWYER = { bg: "#E8F4FD", text: TEAL };
-const AVATAR_COLORS_CLIENT = { bg: "#E8F8F2", text: GREEN };
+const AVATAR_COLORS = [
+  { bg: "#E8F4FD", text: TEAL },
+  { bg: "#E8F8F2", text: GREEN },
+  { bg: "#FEF6E8", text: AMBER },
+  { bg: "#EEE8FD", text: "#7B5EA7" },
+  { bg: "#FDEAEA", text: "#E05252" },
+];
 
 const PAGE_SIZE = 20;
+
+const TYPE_LABEL: Record<string, string> = {
+  firm_lawyer: "Abogado",
+  lawyer_client: "Cliente",
+  admin_support: "Soporte",
+};
+
+function avatarColor(name: string) {
+  return AVATAR_COLORS[(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
+}
 
 function getInitials(name: string): string {
   return name.split(" ").slice(0, 2).map(w => w.charAt(0)).join("").toUpperCase();
@@ -45,26 +61,27 @@ function formatRelative(date: Date | string | null | undefined): string {
   return d.toLocaleDateString("es-CO", { day: "numeric", month: "short" });
 }
 
-const TYPE_LABEL: Record<string, string> = {
-  firm_lawyer: "Abogado",
-  lawyer_client: "Cliente",
-};
-
-// ─── Conversation Card ────────────────────────────────────────────────────
-function ConversationCard({
-  conv, currentUserId, index,
-}: { conv: ConversationDTO; currentUserId?: string; index: number }) {
-  const anim = useRef(new Animated.Value(0)).current;
-  const isLawyer = conv.type === "firm_lawyer";
-  const av = isLawyer ? AVATAR_COLORS_LAWYER : AVATAR_COLORS_CLIENT;
-  const accentColor = isLawyer ? TEAL : GREEN;
+function conversationDisplayName(conv: ConversationDTO, currentUserId?: string) {
   const other = conv.participants.find(p => p.userId !== currentUserId);
-  const displayName = conv.type === "admin_support"
+  return conv.type === "admin_support"
     ? conv.name ?? "Soporte ProcesoClaro"
     : other?.name ?? "Conversación";
+}
+
+function ConversationCard({
+  conv, currentUserId, index,
+}: {
+  conv: ConversationDTO;
+  currentUserId?: string;
+  index: number;
+}) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const other = conv.participants.find(p => p.userId !== currentUserId);
+  const displayName = conversationDisplayName(conv, currentUserId);
+  const av = avatarColor(displayName);
   const hasUnread = conv.unreadCount > 0;
-  const typeLabel = conv.type === "admin_support" ? "Soporte" : TYPE_LABEL[conv.type] ?? "";
   const timeStr = formatRelative(conv.lastMessage?.createdAt ?? conv.updatedAt);
+  const typeLabel = TYPE_LABEL[conv.type] ?? "";
 
   useEffect(() => {
     Animated.timing(anim, {
@@ -92,10 +109,8 @@ function ConversationCard({
           },
         })}
       >
-        {/* Accent strip */}
-        {hasUnread && <View style={[styles.unreadStrip, { backgroundColor: accentColor }]} />}
+        {hasUnread && <View style={styles.unreadStrip} />}
 
-        {/* Avatar */}
         <View style={styles.avatarWrap}>
           <View style={[styles.avatar, { backgroundColor: av.bg }]}>
             <Text style={[styles.avatarText, { color: av.text }]}>
@@ -103,26 +118,29 @@ function ConversationCard({
             </Text>
           </View>
           {hasUnread && (
-            <View style={[styles.onlineDot, { backgroundColor: AMBER }]} />
+            <View style={styles.onlineDot} />
           )}
         </View>
 
-        {/* Content */}
         <View style={styles.cardContent}>
           <View style={styles.cardTopRow}>
             <View style={styles.nameRow}>
-              <Text style={[styles.cardName, hasUnread && styles.cardNameBold]} numberOfLines={1}>
+              <Text
+                style={[styles.cardName, hasUnread && styles.cardNameBold]}
+                numberOfLines={1}
+              >
                 {displayName}
               </Text>
-              <View style={[styles.typeBadge, { backgroundColor: av.bg }]}>
-                <Text style={[styles.typeBadgeText, { color: av.text }]}>{typeLabel}</Text>
-              </View>
+              {typeLabel ? (
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeBadgeText}>{typeLabel}</Text>
+                </View>
+              ) : null}
             </View>
-            <Text style={[styles.cardTime, hasUnread && { color: accentColor, fontFamily: "Inter_600SemiBold" }]}>
+            <Text style={[styles.cardTime, hasUnread && { color: TEAL, fontFamily: "Inter_600SemiBold" }]}>
               {timeStr}
             </Text>
           </View>
-
           <View style={styles.cardBottomRow}>
             <Text
               style={[styles.cardPreview, hasUnread && styles.cardPreviewBold]}
@@ -131,7 +149,7 @@ function ConversationCard({
               {conv.lastMessage?.content ?? "Sin mensajes aún"}
             </Text>
             {hasUnread && (
-              <View style={[styles.badge, { backgroundColor: accentColor }]}>
+              <View style={styles.badge}>
                 <Text style={styles.badgeText}>
                   {conv.unreadCount > 99 ? "99+" : conv.unreadCount}
                 </Text>
@@ -144,9 +162,12 @@ function ConversationCard({
   );
 }
 
-// ─── Screen ───────────────────────────────────────────────────────────────
 export default function FirmChatScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const metrics = getDesktopMetrics(width);
+  const desktop = Platform.OS === "web" && isDesktopViewport(width);
+  const shellWidth = Math.min(1480, Math.max(1160, width - metrics.gutter * 2));
   const [conversations, setConversations] = useState<ConversationDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -189,19 +210,23 @@ export default function FirmChatScreen() {
     try {
       const currentOffset = isLoadMore ? offsetRef.current : 0;
       const result = await getConversations(PAGE_SIZE, currentOffset);
-      
+
       if (isLoadMore) {
         setConversations(prev => [...prev, ...result.conversations]);
       } else {
         setConversations(result.conversations);
       }
       setTotal(result.total);
-      
+
       if (result.conversations.length > 0) {
         offsetRef.current = currentOffset + result.conversations.length;
       }
-    } catch { }
-    finally { setLoading(false); setLoadingMore(false); }
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, []);
 
   useFocusEffect(
@@ -225,66 +250,225 @@ export default function FirmChatScreen() {
 
   const filtered = conversations.filter(c => {
     if (typeFilter !== "all" && c.type !== typeFilter) return false;
-    if (search.trim()) return c.participants.some(p => p.name.toLowerCase().includes(search.toLowerCase()));
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const displayName = conversationDisplayName(c, currentUserId ?? undefined).toLowerCase();
+      return displayName.includes(q) || c.participants.some(p => p.name.toLowerCase().includes(q));
+    }
     return true;
   });
 
   const totalUnread = conversations.reduce((s, c) => s + c.unreadCount, 0);
+  const totalConvs = conversations.length;
   const lawyerCount = conversations.filter(c => c.type === "firm_lawyer").length;
   const clientCount = conversations.filter(c => c.type === "lawyer_client").length;
+  const todayCount = conversations.filter(c => {
+    const last = c.lastMessage?.createdAt;
+    return last && Date.now() - new Date(last).getTime() < 86400000;
+  }).length;
   const FILTERS = [
-    { key: "all" as const, label: "Todos" },
-    { key: "firm_lawyer" as const, label: "Abogados" },
-    { key: "lawyer_client" as const, label: "Clientes" },
+    { key: "all" as const, label: "Todos", count: totalConvs },
+    { key: "firm_lawyer" as const, label: "Abogados", count: lawyerCount },
+    { key: "lawyer_client" as const, label: "Clientes", count: clientCount },
   ];
+
+  const filterChips = (
+    <View style={styles.filterRow}>
+      {FILTERS.map(f => (
+        <Pressable
+          key={f.key}
+          style={[styles.chip, typeFilter === f.key && styles.chipActive]}
+          onPress={() => setTypeFilter(f.key)}
+        >
+          <Text style={[styles.chipText, typeFilter === f.key && styles.chipTextActive]}>
+            {f.label}
+          </Text>
+          <Text style={[styles.chipCount, typeFilter === f.key && styles.chipCountActive]}>
+            {f.count}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  if (desktop) {
+    return (
+      <ScrollView
+        style={styles.desktopScreen}
+        contentContainerStyle={{ paddingHorizontal: metrics.gutter, paddingTop: insets.top + 28, paddingBottom: metrics.gutter }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={TEAL} colors={[TEAL]} />}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.desktopShell, { maxWidth: shellWidth }]}>
+          <View style={styles.desktopHero}>
+            <LinearGradient colors={[NAVY, NAVY_MID]} style={styles.desktopHeroGradient}>
+              <View style={styles.desktopHeroMain}>
+                <View style={styles.desktopHeroCopy}>
+                  <Text style={styles.desktopEyebrow}>Mensajería</Text>
+                  <Text style={styles.desktopTitle}>Conversaciones activas del bufete</Text>
+                  <Text style={styles.desktopSubtitle}>
+                    Coordina abogados, clientes y soporte desde una bandeja consistente con la experiencia del abogado.
+                  </Text>
+                </View>
+                <View style={styles.desktopHeroStats}>
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{totalConvs}</Text>
+                    <Text style={styles.desktopHeroLabel}>chats</Text>
+                  </View>
+                  <View style={styles.desktopHeroDivider} />
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{totalUnread}</Text>
+                    <Text style={styles.desktopHeroLabel}>sin leer</Text>
+                  </View>
+                  <View style={styles.desktopHeroDivider} />
+                  <View style={styles.desktopHeroStat}>
+                    <Text style={styles.desktopHeroValue}>{todayCount}</Text>
+                    <Text style={styles.desktopHeroLabel}>hoy</Text>
+                  </View>
+                </View>
+              </View>
+            </LinearGradient>
+          </View>
+
+          <View style={[styles.desktopBody, { marginTop: 22 }]}>
+            <View style={styles.desktopMainColumn}>
+              <View style={styles.desktopPanel}>
+                <View style={styles.desktopPanelHeader}>
+                  <Text style={styles.desktopPanelTitle}>Bandeja de conversaciones</Text>
+                  <Pressable style={styles.desktopSupportBtn} onPress={openSupportChat}>
+                    <Ionicons name="headset-outline" size={16} color={WHITE} />
+                    <Text style={styles.desktopSupportBtnText}>Soporte</Text>
+                  </Pressable>
+                </View>
+
+                <View style={styles.desktopSearchBar}>
+                  <Ionicons name="search-outline" size={17} color={TEXT3} />
+                  <TextInput
+                    style={styles.desktopSearchInput}
+                    placeholder="Buscar conversación, abogado o cliente..."
+                    placeholderTextColor={TEXT3}
+                    value={search}
+                    onChangeText={setSearch}
+                  />
+                  {search.length > 0 && (
+                    <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                      <Ionicons name="close-circle" size={17} color={TEXT3} />
+                    </Pressable>
+                  )}
+                </View>
+
+                {filterChips}
+
+                {loading ? (
+                  <View style={styles.centered}>
+                    <ActivityIndicator size="large" color={TEAL} />
+                  </View>
+                ) : filtered.length === 0 ? (
+                  <View style={styles.empty}>
+                    <View style={styles.emptyIcon}>
+                      <Ionicons name="chatbubbles-outline" size={36} color={TEXT3} />
+                    </View>
+                    <Text style={styles.emptyTitle}>{search ? "Sin resultados" : "Sin conversaciones"}</Text>
+                    <Text style={styles.emptySub}>
+                      {search ? `No hay coincidencias para "${search}"` : "Los mensajes con abogados y clientes aparecerán aquí."}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.desktopConversationList}>
+                    {filtered.map((item, index) => (
+                      <View key={item.id}>
+                        <ConversationCard conv={item} index={index} currentUserId={currentUserId ?? undefined} />
+                        {index < filtered.length - 1 ? <View style={styles.desktopSeparator} /> : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.desktopSideColumn}>
+              <View style={styles.desktopPanel}>
+                <Text style={styles.desktopPanelTitle}>Resumen</Text>
+                <View style={styles.desktopSummaryStack}>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Conversaciones activas</Text>
+                    <Text style={styles.desktopSummaryValue}>{totalConvs}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Abogados</Text>
+                    <Text style={styles.desktopSummaryValue}>{lawyerCount}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Clientes</Text>
+                    <Text style={styles.desktopSummaryValue}>{clientCount}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Mensajes sin leer</Text>
+                    <Text style={styles.desktopSummaryValue}>{totalUnread}</Text>
+                  </View>
+                  <View style={styles.desktopSummaryRow}>
+                    <Text style={styles.desktopSummaryLabel}>Actividad de hoy</Text>
+                    <Text style={styles.desktopSummaryValue}>{todayCount}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={styles.desktopPanel}>
+                <Text style={styles.desktopPanelTitle}>Accesos</Text>
+                <Pressable style={styles.desktopAction} onPress={openSupportChat}>
+                  <Ionicons name="help-buoy-outline" size={16} color={TEXT2} />
+                  <Text style={styles.desktopActionText}>Abrir soporte</Text>
+                </Pressable>
+                <Pressable style={styles.desktopAction} onPress={onRefresh}>
+                  <Ionicons name="refresh-outline" size={16} color={TEXT2} />
+                  <Text style={styles.desktopActionText}>Actualizar bandeja</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </ScrollView>
+    );
+  }
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
-
-      {/* ── Header navy ── */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Mensajes</Text>
           {!loading && (
             <Text style={styles.headerSub}>
-              {totalUnread > 0 ? `${totalUnread} sin leer` : `${conversations.length} conversaciones`}
+              {totalUnread > 0 ? `${totalUnread} sin leer` : `${totalConvs} conversaciones`}
             </Text>
           )}
         </View>
-        <Pressable style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.8 }]} onPress={openSupportChat}>
+        <Pressable style={({ pressed }) => [styles.composeBtn, pressed && { opacity: 0.82 }]} onPress={openSupportChat}>
           <Ionicons name="headset-outline" size={20} color={WHITE} />
         </Pressable>
       </View>
 
-      {/* ── Stats bar ── */}
       {!loading && (
         <View style={styles.statsBar}>
-          <Pressable style={styles.statItem} onPress={() => setTypeFilter("all")}>
-            <Text style={styles.statNum}>{conversations.length}</Text>
-            <Text style={styles.statLbl}>Total</Text>
-          </Pressable>
-          <View style={styles.statDivider} />
-          <Pressable style={styles.statItem} onPress={() => setTypeFilter("firm_lawyer")}>
-            <Text style={[styles.statNum, { color: TEAL }]}>{lawyerCount}</Text>
-            <Text style={styles.statLbl}>Abogados</Text>
-          </Pressable>
-          <View style={styles.statDivider} />
-          <Pressable style={styles.statItem} onPress={() => setTypeFilter("lawyer_client")}>
-            <Text style={[styles.statNum, { color: GREEN }]}>{clientCount}</Text>
-            <Text style={styles.statLbl}>Clientes</Text>
-          </Pressable>
+          <View style={styles.statItem}>
+            <Text style={styles.statNum}>{totalConvs}</Text>
+            <Text style={styles.statLbl}>Chats</Text>
+          </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={[styles.statNum, totalUnread > 0 && { color: AMBER }]}>{totalUnread}</Text>
+            <Text style={[styles.statNum, totalUnread > 0 && { color: AMBER }]}>
+              {totalUnread}
+            </Text>
             <Text style={styles.statLbl}>Sin leer</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={[styles.statNum, { color: GREEN }]}>{todayCount}</Text>
+            <Text style={styles.statLbl}>Hoy</Text>
           </View>
         </View>
       )}
 
-      {/* ── Body ── */}
       <View style={styles.body}>
-
-        {/* Search */}
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={17} color={TEXT3} />
           <TextInput
@@ -301,22 +485,8 @@ export default function FirmChatScreen() {
           )}
         </View>
 
-        {/* Filter chips */}
-        <View style={styles.filterRow}>
-          {FILTERS.map(f => (
-            <Pressable
-              key={f.key}
-              style={[styles.chip, typeFilter === f.key && styles.chipActive]}
-              onPress={() => setTypeFilter(f.key)}
-            >
-              <Text style={[styles.chipText, typeFilter === f.key && styles.chipTextActive]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+        {filterChips}
 
-        {/* Section label */}
         {filtered.length > 0 && (
           <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>
@@ -326,7 +496,6 @@ export default function FirmChatScreen() {
           </View>
         )}
 
-        {/* List */}
         {loading ? (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={TEAL} />
@@ -363,7 +532,7 @@ export default function FirmChatScreen() {
                   <Text style={styles.emptySub}>
                     {search
                       ? `No hay chats con "${search}"`
-                      : "Los mensajes con abogados y clientes aparecerán aquí"}
+                      : "Los mensajes con abogados y clientes aparecerán aquí."}
                   </Text>
                 </View>
               }
@@ -383,9 +552,109 @@ export default function FirmChatScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: NAVY },
+  desktopScreen: { flex: 1, backgroundColor: BG },
+  desktopShell: { width: "100%", alignSelf: "center" },
+  desktopHero: { borderRadius: 28, overflow: "hidden" },
+  desktopHeroGradient: { paddingHorizontal: 28, paddingVertical: 26 },
+  desktopHeroMain: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 20 },
+  desktopHeroCopy: { flex: 1, gap: 4 },
+  desktopEyebrow: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "rgba(255,255,255,0.64)",
+    textTransform: "uppercase",
+    letterSpacing: 1.1,
+  },
+  desktopTitle: { fontSize: 34, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopSubtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: "Inter_400Regular",
+    color: "rgba(255,255,255,0.72)",
+    marginTop: 4,
+    maxWidth: 640,
+  },
+  desktopHeroStats: {
+    minWidth: 300,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  desktopHeroStat: { flex: 1, alignItems: "center" },
+  desktopHeroValue: { fontSize: 24, fontFamily: "Inter_700Bold", color: WHITE },
+  desktopHeroLabel: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.68)", marginTop: 2 },
+  desktopHeroDivider: { width: 1, alignSelf: "stretch", backgroundColor: "rgba(255,255,255,0.18)" },
+  desktopBody: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  desktopMainColumn: { flex: 1.55 },
+  desktopSideColumn: { width: 320, gap: 20 },
+  desktopPanel: {
+    backgroundColor: WHITE,
+    borderRadius: 22,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(15,38,64,0.08)",
+    gap: 16,
+  },
+  desktopPanelHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 },
+  desktopPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopSupportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: TEAL,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+  },
+  desktopSupportBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: WHITE },
+  desktopSearchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#E5EBF2",
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  desktopSearchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    color: TEXT,
+  },
+  desktopConversationList: { gap: 0 },
+  desktopSeparator: { height: 1, backgroundColor: "#F0F2F4", marginLeft: 76 },
+  desktopSummaryStack: { gap: 12 },
+  desktopSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#EEF2F6",
+  },
+  desktopSummaryLabel: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
+  desktopSummaryValue: { fontSize: 18, fontFamily: "Inter_700Bold", color: TEXT },
+  desktopAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: "#E8ECF0",
+  },
+  desktopActionText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2 },
 
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
@@ -398,7 +667,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
     alignItems: "center", justifyContent: "center",
   },
-
   statsBar: {
     flexDirection: "row", backgroundColor: NAVY_MID,
     marginHorizontal: 16, borderRadius: 14,
@@ -408,13 +676,11 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 20, fontFamily: "Inter_700Bold", color: WHITE },
   statLbl: { fontSize: 11, color: "rgba(255,255,255,0.5)", fontFamily: "Inter_400Regular", marginTop: 2 },
   statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.1)", marginVertical: 4 },
-
   body: {
     flex: 1, backgroundColor: BG,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
     marginTop: 14, paddingTop: 16,
   },
-
   searchBar: {
     flexDirection: "row", alignItems: "center",
     backgroundColor: WHITE, borderRadius: 12,
@@ -426,28 +692,34 @@ const styles = StyleSheet.create({
     flex: 1, paddingVertical: 12,
     fontSize: 14, fontFamily: "Inter_400Regular", color: TEXT,
   },
-
   filterRow: {
-    flexDirection: "row", gap: 8,
-    paddingHorizontal: 16, marginBottom: 14,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   chip: {
-    paddingHorizontal: 16, paddingVertical: 7,
-    borderRadius: 20, backgroundColor: WHITE,
-    borderWidth: 1, borderColor: "#E0E7EF",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: WHITE,
+    borderWidth: 1,
+    borderColor: "#E0E7EF",
   },
   chipActive: { backgroundColor: NAVY, borderColor: NAVY },
   chipText: { fontSize: 13, fontFamily: "Inter_500Medium", color: TEXT2 },
   chipTextActive: { color: WHITE, fontFamily: "Inter_600SemiBold" },
-
+  chipCount: { fontSize: 12, fontFamily: "Inter_700Bold", color: TEXT3 },
+  chipCountActive: { color: "rgba(255,255,255,0.72)" },
   sectionRow: {
     flexDirection: "row", alignItems: "center",
     paddingHorizontal: 16, marginBottom: 8, gap: 10,
   },
   sectionTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: TEXT2 },
   sectionLine: { height: 2, backgroundColor: TEAL, borderRadius: 2, width: 32 },
-
-  list: { paddingHorizontal: 0 },
+  list: { paddingHorizontal: 0, gap: 0 },
   centered: { paddingTop: 60, alignItems: "center" },
   listContainer: { flex: 1, position: "relative" },
   loadingMoreFixed: {
@@ -457,15 +729,17 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: "#E8ECF0",
   },
   loadingMoreText: { fontSize: 13, color: TEXT2, fontFamily: "Inter_400Regular" },
-
-  // Card
   card: {
     flexDirection: "row", alignItems: "center",
-    backgroundColor: WHITE, paddingVertical: 13, paddingRight: 16, gap: 12,
+    backgroundColor: WHITE, paddingVertical: 13,
+    paddingRight: 16, gap: 12,
   },
   cardPressed: { backgroundColor: "#F5F7FA" },
-  unreadStrip: { width: 3, alignSelf: "stretch", borderRadius: 2, marginRight: -4 },
-
+  unreadStrip: {
+    width: 3, alignSelf: "stretch",
+    backgroundColor: TEAL, borderRadius: 2,
+    marginRight: -4,
+  },
   avatarWrap: { position: "relative", marginLeft: 16 },
   avatar: {
     width: 48, height: 48, borderRadius: 24,
@@ -475,30 +749,31 @@ const styles = StyleSheet.create({
   onlineDot: {
     position: "absolute", top: 0, right: 0,
     width: 13, height: 13, borderRadius: 7,
+    backgroundColor: GREEN,
     borderWidth: 2, borderColor: WHITE,
   },
-
   cardContent: { flex: 1, gap: 4 },
   cardTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   nameRow: { flex: 1, flexDirection: "row", alignItems: "center", gap: 6 },
-  cardName: { fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT, flexShrink: 1 },
+  cardName: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: TEXT },
   cardNameBold: { fontFamily: "Inter_700Bold" },
   cardTime: { fontSize: 11, fontFamily: "Inter_400Regular", color: TEXT3 },
   cardBottomRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   cardPreview: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", color: TEXT3 },
   cardPreviewBold: { fontFamily: "Inter_500Medium", color: TEXT2 },
-
   typeBadge: {
-    paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: "#EEF2F6",
   },
-  typeBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-
+  typeBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold", color: TEXT2 },
   badge: {
-    borderRadius: 10, minWidth: 20, height: 20,
+    backgroundColor: TEAL, borderRadius: 10,
+    minWidth: 20, height: 20,
     alignItems: "center", justifyContent: "center", paddingHorizontal: 5,
   },
   badgeText: { fontSize: 10, fontFamily: "Inter_700Bold", color: WHITE },
-
   empty: { alignItems: "center", paddingTop: 60, gap: 8 },
   emptyIcon: {
     width: 72, height: 72, borderRadius: 20, backgroundColor: WHITE,
